@@ -14,8 +14,8 @@ SO_args = {
     'mask_type': 'fofsub',
     'mask_args': (myobj, ),
     'mask_kwargs': dict(),
-    'configfile': os.path.expanduser('~/code/simobj/simobj/configs/example.py'),
-    'simfiles_configfile': os.path.expanduser('~/code/simfiles/simfiles/configs/example.py'),
+    'configfile': '~/code/simobj/simobj/configs/example.py',
+    'simfiles_configfile': '~/code/simfiles/simfiles/configs/example.py',
     'cache_prefix': './',
     'disable_cache': False
 }
