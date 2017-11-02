@@ -8,7 +8,12 @@ class Martini():
         self.beam = beam
         self.baselines = baselines
         self.noise = noise
+
+        self.beam.init_kernel(self.datacube)
+        self.datacube.add_pad(self.beam.needs_pad())
         
         return
 
-
+    def convolve_beam(self):
+        #DO CONVOLUTION!
+        return

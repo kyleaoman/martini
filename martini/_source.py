@@ -18,9 +18,10 @@ import astropy.units as U
 
 class Source():
     
-    def __init__(self, distance=3. * U.Mpc, SO_args=dict()):
+    def __init__(self, distance=3. * U.Mpc, rotation={'L_coords': (60. * U.deg, 0. * U.deg)}, SO_args=dict()):
 
         self.distance = distance
+        self.rotation = rotation
         self._SO_args = SO_args
         while True:
             try:

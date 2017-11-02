@@ -1,4 +1,5 @@
 from martini import Martini, DataCube, Source
+from martini.beams import GaussianBeam
 import astropy.units as U
 from collections import namedtuple
 import os
@@ -33,4 +34,15 @@ datacube = DataCube(
     channel_width = 4. * U.km * U.s ** -1
 )
 
-M = Martini(source=source, datacube=datacube)
+beam = GaussianBeam(
+    bmaj = 15. * U.arcsec,
+    bmin = 15. * U.arcsec,
+    bpa = 0. * U.deg,
+    truncate = 4.
+)
+
+baselines = None
+
+noise = None
+
+M = Martini(source=source, datacube=datacube, beam=beam)

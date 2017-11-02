@@ -27,8 +27,8 @@ class DataCube():
 
     def add_pad(self, pad):
         tmp = self._array
-        self._array = np.zeros((n_px_x + pad * 2, n_px_y + pad * 2, n_channels))
-        self._array[self.pad:-self.pad, self.pad:-self.pad, :] = tmp
+        self._array = np.zeros((self.n_px_x + pad * 2, self.n_px_y + pad * 2, self.n_channels))
+        self._array[pad:-pad, pad:-pad, :] = tmp
         self.pad = pad
         return
         
