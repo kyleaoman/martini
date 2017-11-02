@@ -17,7 +17,7 @@ SO_args = {
     'mask_args': (myobj, ),
     'mask_kwargs': dict(),
     'configfile': home + '/code/simobj/simobj/configs/example.py',
-    'simfiles_configfile': home + '~/code/simfiles/simfiles/configs/example.py',
+    'simfiles_configfile': home + '/code/simfiles/simfiles/configs/example.py',
     'cache_prefix': './',
     'disable_cache': False
 }

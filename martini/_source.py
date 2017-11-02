@@ -18,8 +18,10 @@ import astropy.units as U
 
 class Source():
     
-    def __init__(distance=3. * U.Mpc, SO_args=dict()):
+    def __init__(self, distance=3. * U.Mpc, SO_args=dict()):
 
+        self.distance = distance
+        self._SO_args = SO_args
         while True:
             try:
                 with SimObj(**self._SO_args) as SO:
