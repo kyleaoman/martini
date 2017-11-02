@@ -3,8 +3,6 @@ import astropy.units as U
 from collections import namedtuple
 import os
 
-home = os.environ['HOME']
-
 snap_id = namedtuple('snap_id', ['res', 'phys', 'vol', 'snap'])
 mysnap = snap_id(res=3, phys='hydro', vol=1, snap=127)
 obj_id = namedtuple('obj_id', ['fof', 'sub'])
@@ -16,8 +14,8 @@ SO_args = {
     'mask_type': 'fofsub',
     'mask_args': (myobj, ),
     'mask_kwargs': dict(),
-    'configfile': home + '/code/simobj/simobj/configs/example.py',
-    'simfiles_configfile': home + '/code/simfiles/simfiles/configs/example.py',
+    'configfile': os.path.expanduser'~/code/simobj/simobj/configs/example.py'),
+    'simfiles_configfile': os.path.expanduser('~/code/simfiles/simfiles/configs/example.py'),
     'cache_prefix': './',
     'disable_cache': False
 }
