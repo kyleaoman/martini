@@ -25,3 +25,7 @@ class Martini():
         ) * unit
         self.datacube.drop_pad()
         return
+
+    def add_noise(self):
+        self.datacube._array = self.datacube._array + self.noise.f_noise()(self.datacube)
+        return

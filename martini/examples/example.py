@@ -1,5 +1,6 @@
 from martini import Martini, DataCube, Source
 from martini.beams import GaussianBeam
+from martini.noise import GaussianNoise
 import astropy.units as U
 from collections import namedtuple
 import os
@@ -43,7 +44,18 @@ beam = GaussianBeam(
 
 baselines = None
 
-noise = None
+noise = GaussianNoise(
+    rms = 1. * U.Jy
+)
 
-M = Martini(source=source, datacube=datacube, beam=beam)
+M = Martini(source=source, datacube=datacube, beam=beam, noise=noise)
 M.convolve_beam()
+M.add_noise()
+import matplotlib.pyplot as pp
+pp.figure(1)
+pp.subplot(111, aspect='equal')
+pp.imshow(M.datacube._array[...,0].value)
+pp.figure(2)
+pp.subplot(111, aspect='equal')
+pp.imshow(M.datacube._array[...,1].value)
+pp.show()

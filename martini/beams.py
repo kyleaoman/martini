@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
 
-class BaseBeam(object):
+class _BaseBeam(object):
     __metaclass__ = ABCMeta
 
     def __init__(self):
@@ -27,7 +27,7 @@ class BaseBeam(object):
     def kernel_size_px(self):
         pass
 
-class GaussianBeam(BaseBeam):
+class GaussianBeam(_BaseBeam):
 
     def __init__(self, bmaj=15.*U.arcsec, bmin=15.*U.arcsec, bpa=0.*U.deg, truncate=4.):
 
