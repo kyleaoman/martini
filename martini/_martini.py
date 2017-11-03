@@ -1,4 +1,5 @@
 from ._integrals import Gaussian_integral, WendlandC2_line_integral
+from scipy.ndimage import convolve
 
 class Martini():
 
@@ -15,5 +16,12 @@ class Martini():
         return
 
     def convolve_beam(self):
-        #DO CONVOLUTION!
+        unit = self.datacube._array.unit
+        self.datacube._array = convolve(
+            self.datacube._array, 
+            self.beam.kernel,
+            mode='constant',
+            cval=0.0
+        ) * unit
+        self.datacube.drop_pad()
         return

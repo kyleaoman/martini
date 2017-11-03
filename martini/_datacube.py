@@ -12,7 +12,7 @@ class DataCube():
             channel_width = 4. * U.km * U.s ** -1
     ):
 
-        self._array = np.zeros((n_px_x, n_px_y, n_channels))
+        self._array = np.zeros((n_px_x, n_px_y, n_channels)) * U.Jy
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels
         self.px_size, self.channel_width = px_size, channel_width
         self.pad = 0
@@ -28,6 +28,7 @@ class DataCube():
     def add_pad(self, pad):
         tmp = self._array
         self._array = np.zeros((self.n_px_x + pad * 2, self.n_px_y + pad * 2, self.n_channels))
+        self._array = self._array * tmp.unit
         self._array[pad:-pad, pad:-pad, :] = tmp
         self.pad = pad
         return
@@ -36,6 +37,18 @@ class DataCube():
         self._array = self._array[self.pad:-self.pad, self.pad:-self.pad, :]
         self.pad = 0
         return
+
+    def copy(self):
+        copy = DataCube(
+            self.n_px_x, 
+            self.n_px_y, 
+            self.n_channels, 
+            self.px_size, 
+            self.channel_width
+        )
+        copy.pad = self.pad
+        copy._array = self._array.copy()
+        return copy
 
     def __repr__(self):
         return self._array.__repr__()

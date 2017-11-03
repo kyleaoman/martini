@@ -29,14 +29,14 @@ source = Source(
 datacube = DataCube(
     n_px_x = 256,
     n_px_y = 256,
-    n_channels = 64,
-    px_size = 15. * U.arcsec,
+    n_channels = 5,
+    px_size = 6. * U.arcsec,
     channel_width = 4. * U.km * U.s ** -1
 )
 
 beam = GaussianBeam(
-    bmaj = 15. * U.arcsec,
-    bmin = 15. * U.arcsec,
+    bmaj = 60. * U.arcsec,
+    bmin = 60. * U.arcsec,
     bpa = 0. * U.deg,
     truncate = 4.
 )
@@ -46,3 +46,11 @@ baselines = None
 noise = None
 
 M = Martini(source=source, datacube=datacube, beam=beam)
+
+print(M.beam.kernel.shape)
+M.datacube._array[64,64,0] = 1. * U.Jy
+M.convolve_beam()
+import matplotlib.pyplot as pp
+sp = pp.subplot(111, aspect='equal')
+pp.imshow(M.datacube._array[...,0].value)
+pp.show()
