@@ -27,9 +27,9 @@ source = Source(
 )
 
 datacube = DataCube(
-    n_px_x = 256,
-    n_px_y = 256,
-    n_channels = 5,
+    n_px_x = 64,
+    n_px_y = 64,
+    n_channels = 16,
     px_size = 6. * U.arcsec,
     channel_width = 4. * U.km * U.s ** -1
 )
@@ -46,11 +46,4 @@ baselines = None
 noise = None
 
 M = Martini(source=source, datacube=datacube, beam=beam)
-
-print(M.beam.kernel.shape)
-M.datacube._array[64,64,0] = 1. * U.Jy
 M.convolve_beam()
-import matplotlib.pyplot as pp
-sp = pp.subplot(111, aspect='equal')
-pp.imshow(M.datacube._array[...,0].value)
-pp.show()
