@@ -24,7 +24,8 @@ SO_args = {
 
 source = Source(
     distance = 3. * U.Mpc,
-    SO_args = SO_args
+    SO_args = SO_args,
+    rotation = {'L_coords': (60. * U.deg, 0. * U.deg)}
 )
 
 datacube = DataCube(
@@ -49,13 +50,5 @@ noise = GaussianNoise(
 )
 
 M = Martini(source=source, datacube=datacube, beam=beam, noise=noise)
-M.convolve_beam()
-M.add_noise()
-import matplotlib.pyplot as pp
-pp.figure(1)
-pp.subplot(111, aspect='equal')
-pp.imshow(M.datacube._array[...,0].value)
-pp.figure(2)
-pp.subplot(111, aspect='equal')
-pp.imshow(M.datacube._array[...,1].value)
-pp.show()
+#M.convolve_beam()
+#M.add_noise()

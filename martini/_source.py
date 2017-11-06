@@ -1,7 +1,7 @@
 from simobj import SimObj
 import time
 import numpy as np
-from astropy.coordinates import CartesianRepresentation, CartesianDifferential
+from astropy.coordinates import CartesianRepresentation, CartesianDifferential, ICRS
 from astropy.coordinates.matrix_utilities import rotation_matrix
 from kyleaoman_utilities.L_align import L_align
 
@@ -27,12 +27,14 @@ class Source():
             try:
                 with SimObj(**self._SO_args) as SO:
                     self.mHI_g = SO.mHI_g
+                    print(SO.xyz_g[:, 2])
                     self.coordinates_g = CartesianRepresentation(
                         SO.xyz_g, 
                         xyz_axis=1,
                         differentials={'s': CartesianDifferential(SO.vxyz_g, xyz_axis=1)}
                     )
                     self.hsm_g = SO.hsm_g
+                    self.h = SO.h
                 break
             except RuntimeError:
                 print('Waiting on lock release...')
@@ -40,6 +42,17 @@ class Source():
                 continue
 
         self.current_rotation = np.eye(3)
+        self.rotate(**self.rotation)
+        distance_vector = np.array([0, self.distance.value, 0]) * self.distance.unit
+        self.translate_position(distance_vector)
+        recession_velocity = (self.h * 100.0 * U.km * U.s ** -1 * U.Mpc ** - 1) * self.distance
+        hubble_flow_vector = np.array([0, 0, recession_velocity.value]) * recession_velocity.unit
+        self.translate_velocity()
+
+        from astropy.coordinates import ICRS
+        print(ICRS(self.coordinates_g))
+        
+        return
 
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
