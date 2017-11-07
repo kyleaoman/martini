@@ -3,6 +3,7 @@ import time
 import numpy as np
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential, ICRS
 from astropy.coordinates.matrix_utilities import rotation_matrix
+import astropy.units as U
 from kyleaoman_utilities.L_align import L_align
 
 #extend CartesianRepresentation to allow coordinate translation
@@ -12,9 +13,6 @@ setattr(CartesianRepresentation, 'translate', translate)
 def translate_d(cls, translation_vector):
     return CartesianDifferential(cls.__class__.get_d_xyz(cls) + translation_vector.reshape(3, 1))
 setattr(CartesianDifferential, 'translate', translate_d)
-
-import numpy as np
-import astropy.units as U
 
 class Source():
     
@@ -27,7 +25,6 @@ class Source():
             try:
                 with SimObj(**self._SO_args) as SO:
                     self.mHI_g = SO.mHI_g
-                    print(SO.xyz_g[:, 2])
                     self.coordinates_g = CartesianRepresentation(
                         SO.xyz_g, 
                         xyz_axis=1,
@@ -43,14 +40,12 @@ class Source():
 
         self.current_rotation = np.eye(3)
         self.rotate(**self.rotation)
-        distance_vector = np.array([0, self.distance.value, 0]) * self.distance.unit
+        distance_vector = np.array([self.distance.value, 0, 0]) * self.distance.unit
         self.translate_position(distance_vector)
-        recession_velocity = (self.h * 100.0 * U.km * U.s ** -1 * U.Mpc ** - 1) * self.distance
-        hubble_flow_vector = np.array([0, 0, recession_velocity.value]) * recession_velocity.unit
-        self.translate_velocity()
-
-        from astropy.coordinates import ICRS
-        print(ICRS(self.coordinates_g))
+        self.vsys = (self.h * 100.0 * U.km * U.s ** -1 * U.Mpc ** - 1) * self.distance
+        hubble_flow_vector = np.array([self.vsys.value, 0, 0]) * self.vsys.unit
+        self.translate_velocity(hubble_flow_vector)
+        self.sky_coordinates = ICRS(self.coordinates_g)
         
         return
 
@@ -68,9 +63,9 @@ class Source():
             incl, az_rot = L_coords
             do_rot = L_align(self.coordinates_g.get_xyz(), 
                              self.coordinates_g.differentials['s'].get_d_xyz(), 
-                             self.mHI_g, frac=.3, Laxis='y').dot(do_rot)
-            do_rot = rotation_matrix(az_rot, axis='y').dot(do_rot)
-            do_rot = rotation_matrix(incl, axis='x').dot(do_rot)
+                             self.mHI_g, frac=.3, Laxis='x').dot(do_rot)
+            do_rot = rotation_matrix(az_rot, axis='x').dot(do_rot)
+            do_rot = rotation_matrix(incl, axis='y').dot(do_rot)
             
         self.current_rotation = do_rot.dot(self.current_rotation)
         self.coordinates_g = self.coordinates_g.transform(do_rot)
@@ -83,3 +78,5 @@ class Source():
     def translate_velocity(self, translation_vector):
         self.coordinates_g.differentials['s'] = self.coordinates_g.differentials['s'].translate(translation_vector)
         return
+
+

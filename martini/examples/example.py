@@ -1,6 +1,8 @@
 from martini import Martini, DataCube, Source
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
+from martini.spectral_models import GaussianSpectrum
+from martini.sph_kernels import WendlandC2_line_integral
 import astropy.units as U
 from collections import namedtuple
 import os
@@ -24,8 +26,8 @@ SO_args = {
 
 source = Source(
     distance = 3. * U.Mpc,
-    SO_args = SO_args,
-    rotation = {'L_coords': (60. * U.deg, 0. * U.deg)}
+    rotation = {'L_coords': (60. * U.deg, 0. * U.deg)},
+    SO_args = SO_args
 )
 
 datacube = DataCube(
@@ -33,12 +35,13 @@ datacube = DataCube(
     n_px_y = 64,
     n_channels = 16,
     px_size = 6. * U.arcsec,
-    channel_width = 4. * U.km * U.s ** -1
+    channel_width = 4. * U.km * U.s ** -1,
+    velocity_centre = source.vsys
 )
 
 beam = GaussianBeam(
-    bmaj = 60. * U.arcsec,
-    bmin = 60. * U.arcsec,
+    bmaj = 6. * U.arcsec,
+    bmin = 6. * U.arcsec,
     bpa = 0. * U.deg,
     truncate = 4.
 )
@@ -49,6 +52,16 @@ noise = GaussianNoise(
     rms = 1. * U.Jy
 )
 
-M = Martini(source=source, datacube=datacube, beam=beam, noise=noise)
+M = Martini(
+    source=source, 
+    datacube=datacube, 
+    beam=beam,
+    baselines=baselines,
+    noise=noise,
+    spectral_model=GaussianSpectrum,
+    sph_kernel_integral=WendlandC2_line_integral
+)
+
+#M.insert_source_in_cube()
 #M.convolve_beam()
 #M.add_noise()
