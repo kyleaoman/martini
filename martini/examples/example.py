@@ -33,15 +33,15 @@ source = Source(
 datacube = DataCube(
     n_px_x = 64,
     n_px_y = 64,
-    n_channels = 16,
-    px_size = 6. * U.arcsec,
-    channel_width = 4. * U.km * U.s ** -1,
+    n_channels = 32,
+    px_size = 30. * U.arcsec,
+    channel_width = 16. * U.km * U.s ** -1,
     velocity_centre = source.vsys
 )
 
 beam = GaussianBeam(
-    bmaj = 6. * U.arcsec,
-    bmin = 6. * U.arcsec,
+    bmaj = 60. * U.arcsec,
+    bmin = 60. * U.arcsec,
     bpa = 0. * U.deg,
     truncate = 4.
 )
@@ -49,7 +49,7 @@ beam = GaussianBeam(
 baselines = None
 
 noise = GaussianNoise(
-    rms = 1. * U.Jy
+    rms = 3. * U.solMass * (U.pix ** -2) * (U.km * U.s ** -1) ** -1
 )
 
 M = Martini(
@@ -62,6 +62,7 @@ M = Martini(
     sph_kernel_integral=WendlandC2_line_integral
 )
 
-#M.insert_source_in_cube()
-#M.convolve_beam()
-#M.add_noise()
+M.insert_source_in_cube()
+M.convolve_beam()
+M.add_noise()
+M.write_fits('test')
