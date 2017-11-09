@@ -14,9 +14,11 @@ class DataCube():
             velocity_centre = 0. * U.km * U.s ** -1
     ):
 
-        self._array = np.zeros((n_px_x, n_px_y, n_channels, 1)) * U.solMass * U.pix ** -2
+        datacube_unit = U.Jy * U.pix ** -2
+        self._array = np.zeros((n_px_x, n_px_y, n_channels, 1)) * datacube_unit
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels
-        self.px_size, self.channel_width = px_size, channel_width
+        self.px_size = px_size
+        self.channel_width = channel_width
         self.velocity_centre = velocity_centre
         self.pad = 0
         self.wcs = wcs.WCS(naxis=3)
@@ -67,18 +69,17 @@ class DataCube():
         return iter(self._array[..., 0].reshape(self.n_px_x * self.n_px_y, self.n_channels))
 
     def freq_channels(self):
+        velocity_widths = np.diff(self.channel_edges)
         HIfreq = 1.420405751E9 * U.Hz
         convert_to_Hz = lambda q: q.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
-        self.wcs.cdelt[3] = convert_to_Hz(self.wcs.cdelt[3] * self.units[3])
-        self.wcs.wcs.crval[3] = convert_to_Hz(self.wcs.crval[3] * self.units[3])
-        self.wcs.wcs.ctype[3] = 'FREQ-OBS'
-        self.wcs.cunit[3] = 'HZ'
-        self.units[3] = U.Hz
-        velocity_widths = np.diff(self.channel_edges)
+        self.wcs.wcs.cdelt[2] = np.abs(convert_to_Hz(self.wcs.wcs.cdelt[2] * self.units[2]) \
+                                 - convert_to_Hz(0. * self.units[2])).value
+        self.wcs.wcs.crval[2] = convert_to_Hz(self.wcs.wcs.crval[2] * self.units[2]).value
+        self.wcs.wcs.ctype[2] = 'FREQ-OBS'
+        self.wcs.wcs.cunit[2] = 'Hz'
+        self.units[2] = U.Hz
         self._channel_mids()
         self._channel_edges()
-        frequency_widths = np.diff(self.channel_edges)
-        self._array *= (velocity_widths / frequency_widths)[np.newaxis, np.newaxis, :, np.newaxis]
         return
 
     def add_pad(self, pad):

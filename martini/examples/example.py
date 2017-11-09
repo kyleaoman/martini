@@ -49,7 +49,7 @@ beam = GaussianBeam(
 baselines = None
 
 noise = GaussianNoise(
-    rms = 3. * U.solMass * (U.pix ** -2) * (U.km * U.s ** -1) ** -1
+    rms = 1.E-5 * U.Jy * U.pix ** -2
 )
 
 M = Martini(

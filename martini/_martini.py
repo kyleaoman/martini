@@ -44,8 +44,9 @@ class Martini():
             self.source.sky_coordinates.dec,
             self.source.sky_coordinates.radial_velocity,
             origin)) * U.pix
-        sm_length = np.arctan(self.source.hsm_g / self.source.sky_coordinates.distance).to(U.arcsec) \
-                    / self.datacube.px_size * U.pix
+        sm_length = np.arctan(
+            self.source.hsm_g / self.source.sky_coordinates.distance
+        ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         sm_range = np.ceil(sm_length).astype(int)
         
         #pixel iteration
@@ -66,8 +67,6 @@ class Martini():
                 weights
             )
             px_iter.iternext()
-
-        self.datacube._array /= np.diff(self.datacube.channel_edges)[np.newaxis, np.newaxis, :, np.newaxis]
 
         return
 

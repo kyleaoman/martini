@@ -53,4 +53,4 @@ class GaussianBeam(_BaseBeam):
         return lambda x, y: A * np.exp(-a * np.power(x, 2) - 2. * b * x * y - c * np.power(y, 2))
         
     def kernel_size_px(self):
-        return np.ceil(self.bmaj * self.truncate / self.px_size).value + 1
+        return np.ceil((self.bmaj * self.truncate).to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1
