@@ -52,27 +52,7 @@ class Martini():
         ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         sm_range = np.ceil(sm_length).astype(int)
         
-        #pixel iteration
-        """
-        px_iter = np.nditer(self.datacube._array[..., 0, 0], flags=['multi_index', 'refs_ok'])
-        while not px_iter.finished: #parallelize?
-            ij = np.array(px_iter.multi_index).astype(np.int)[..., np.newaxis]
-            particle_mask = (ij * U.pix - particle_coords[:2] <= sm_range).all(axis=0)
-
-            weights = self.sph_kernel_integral(
-                np.power(particle_coords[:2, particle_mask] - ij * U.pix, 2).sum(axis=0), 
-                sm_length[particle_mask]
-            )
-
-            self.datacube._array[ij[0, 0], ij[1, 0], :, 0] = self.spectral_model(
-                self.datacube, 
-                self.source, 
-                particle_mask, 
-                weights
-            )
-
-            px_iter.iternext()
-        """            
+        #pixel iteration   
         ij_pxs = list(product(
             np.arange(self.datacube._array.shape[0]), 
             np.arange(self.datacube._array.shape[1])
