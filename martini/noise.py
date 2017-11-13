@@ -10,7 +10,7 @@ class _BaseNoise(object):
         return
 
     @abstractmethod
-    def f_noise(self):
+    def generate(self, datacube):
         pass
 
 class GaussianNoise(_BaseNoise):
@@ -23,5 +23,5 @@ class GaussianNoise(_BaseNoise):
 
         return
 
-    def f_noise(self):
-        return lambda datacube: np.random.normal(scale=self.rms.value, size=datacube._array.shape) * self.rms.unit
+    def generate(self, datacube):
+        return np.random.normal(scale=self.rms.value, size=datacube._array.shape) * self.rms.unit

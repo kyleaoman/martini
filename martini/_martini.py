@@ -9,13 +9,13 @@ from multiprocessing import Pool
 
 class Martini():
 
-    def __init__(self, source=None, datacube=None, beam=None, baselines=None, noise=None, sph_kernel_integral=None, spectral_model=None):
+    def __init__(self, source=None, datacube=None, beam=None, baselines=None, noise=None, sph_kernel=None, spectral_model=None):
         self.source = source
         self.datacube = datacube
         self.beam = beam
         self.baselines = baselines
         self.noise = noise
-        self.sph_kernel_integral = sph_kernel_integral
+        self.sph_kernel = sph_kernel
         self.spectral_model = spectral_model
 
         if self.beam is not None:
@@ -37,7 +37,7 @@ class Martini():
         return
 
     def add_noise(self):
-        self.datacube._array = self.datacube._array + self.noise.f_noise()(self.datacube)
+        self.datacube._array = self.datacube._array + self.noise.generate(self.datacube)
         return
     
     def insert_source_in_cube(self):
@@ -52,6 +52,7 @@ class Martini():
         ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         sm_range = np.ceil(sm_length).astype(int)
         
+        
         #pixel iteration   
         ij_pxs = list(product(
             np.arange(self.datacube._array.shape[0]), 
@@ -60,13 +61,13 @@ class Martini():
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             particle_mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
-            weights = self.sph_kernel_integral(
+            weights = self.sph_kernel.line_integral(
                 np.power(particle_coords[:2, particle_mask] - ij, 2).sum(axis=0), 
                 sm_length[particle_mask]
             )
-            spectrum = self.spectral_model(
-                self.datacube,
+            spectrum = self.spectral_model.spectrum(
                 self.source,
+                self.datacube.channel_edges,
                 particle_mask,
                 weights
             )

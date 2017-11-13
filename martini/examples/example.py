@@ -2,7 +2,7 @@ from martini import Martini, DataCube, Source
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
 from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import WendlandC2_line_integral
+from martini.sph_kernels import WendlandC2
 import astropy.units as U
 from collections import namedtuple
 import os
@@ -52,14 +52,20 @@ noise = GaussianNoise(
     rms = 1.E-5 * U.Jy * U.pix ** -2
 )
 
+spectral_model = GaussianSpectrum(
+    sigma = 7. * U.km * U.s ** -1
+)
+
+sph_kernel = WendlandC2()
+
 M = Martini(
     source=source, 
     datacube=datacube, 
     beam=beam,
     baselines=baselines,
     noise=noise,
-    spectral_model=GaussianSpectrum,
-    sph_kernel_integral=WendlandC2_line_integral
+    spectral_model=spectral_model,
+    sph_kernel=sph_kernel
 )
 
 M.insert_source_in_cube()
