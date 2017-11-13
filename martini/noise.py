@@ -24,4 +24,4 @@ class GaussianNoise(_BaseNoise):
         return
 
     def f_noise(self):
-        return lambda datacube: np.abs(np.random.normal(scale=self.rms.value, size=datacube._array.shape)) * self.rms.unit
+        return lambda datacube: np.random.normal(scale=self.rms.value, size=datacube._array.shape) * self.rms.unit

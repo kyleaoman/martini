@@ -63,6 +63,6 @@ M = Martini(
 )
 
 M.insert_source_in_cube()
-M.convolve_beam()
 M.add_noise()
+M.convolve_beam()
 M.write_fits('test')

@@ -11,6 +11,7 @@ class _BaseBeam(object):
         self.bpa = bpa
         self.px_size = None
         self.kernel = None
+
         return
 
     def needs_pad(self):
@@ -20,6 +21,12 @@ class _BaseBeam(object):
         self.px_size = datacube.px_size
         px_centres = (np.arange(-self.kernel_size_px(), self.kernel_size_px() + 1)) * self.px_size
         self.kernel = self.f_kernel()(*np.meshgrid(px_centres, px_centres))[..., np.newaxis, np.newaxis]
+        self.px_to_beam = [(
+            U.Jy * U.pix ** -2,
+            U.Jy * U.beam ** -1,
+            lambda x: x * np.pi * self.bmaj * self.bmin / np.power(self.px_size, 2),
+            lambda x: x * np.power(self.px_size, 2) / (np.pi * self.bmaj * self.bmin)
+        )]
         return
         
     @abstractmethod

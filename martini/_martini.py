@@ -4,6 +4,8 @@ import astropy.units as U
 from astropy.io import fits
 from astropy import __version__ as astropy_version
 from datetime import datetime
+from itertools import product
+from multiprocessing import Pool
 
 class Martini():
 
@@ -16,8 +18,8 @@ class Martini():
         self.sph_kernel_integral = sph_kernel_integral
         self.spectral_model = spectral_model
 
-        self.beam.init_kernel(self.datacube)
         if self.beam is not None:
+            self.beam.init_kernel(self.datacube)
             self.datacube.add_pad(self.beam.needs_pad())
         
         return
@@ -31,6 +33,7 @@ class Martini():
             cval=0.0
         ) * unit
         self.datacube.drop_pad()
+        self.datacube._array = self.datacube._array.to(U.Jy * U.beam ** -1, equivalencies=self.beam.px_to_beam)
         return
 
     def add_noise(self):
@@ -50,6 +53,7 @@ class Martini():
         sm_range = np.ceil(sm_length).astype(int)
         
         #pixel iteration
+        """
         px_iter = np.nditer(self.datacube._array[..., 0, 0], flags=['multi_index', 'refs_ok'])
         while not px_iter.finished: #parallelize?
             ij = np.array(px_iter.multi_index).astype(np.int)[..., np.newaxis]
@@ -66,8 +70,28 @@ class Martini():
                 particle_mask, 
                 weights
             )
-            px_iter.iternext()
 
+            px_iter.iternext()
+        """            
+        ij_pxs = list(product(
+            np.arange(self.datacube._array.shape[0]), 
+            np.arange(self.datacube._array.shape[1])
+        ))
+        for ij_px in ij_pxs:
+            ij = np.array(ij_px)[..., np.newaxis] * U.pix
+            particle_mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
+            weights = self.sph_kernel_integral(
+                np.power(particle_coords[:2, particle_mask] - ij, 2).sum(axis=0), 
+                sm_length[particle_mask]
+            )
+            spectrum = self.spectral_model(
+                self.datacube,
+                self.source,
+                particle_mask,
+                weights
+            )
+            self.datacube._array[ij_px[0], ij_px[1], :, 0] = spectrum
+        
         return
 
     def write_fits(self, filename):
@@ -124,7 +148,7 @@ class Martini():
         #header.append(('RMS', ???))
         #header.append(('LWIDTH', ???))
         #header.append(('LSTEP', ???))
-        header.append(('BUNIT', str(self.datacube._array.unit)))
+        header.append(('BUNIT', str(self.datacube._array.unit).replace(' ', '')))
         #header.append(('PCDEC', ???))
         #header.append(('LSTART', ???))
         header.append(('DATE-OBS', datetime.utcnow().isoformat()[:-5]))
