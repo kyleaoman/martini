@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as U
+from astropy.constants import k_B, m_p
 from scipy.special import erf as _erf
 erf = lambda z: _erf(z.to(U.dimensionless_unscaled).value)
 from abc import ABCMeta, abstractmethod
@@ -30,6 +31,10 @@ class GaussianSpectrum(_BaseSpectrum):
             )
 
         mu = source.sky_coordinates.radial_velocity[mask]
+        if self.sigma == 'thermal':
+            sigma = np.sqrt(k_B * source.T_g[mask] / m_p).to(U.km * U.s ** -1)
+        else:
+            sigma = self.sigma
         A = source.mHI_g[mask] * np.power(source.sky_coordinates.distance[mask].to(U.Mpc), -2) * weights
         channel_widths = np.diff(channel_edges).to(U.km * U.s ** -1)
         spectrum_no_sum = A[..., np.newaxis] * \
@@ -37,7 +42,7 @@ class GaussianSpectrum(_BaseSpectrum):
                               np.tile(channel_edges[:-1], mu.shape + (1,)), 
                               np.tile(channel_edges[1:], mu.shape + (1,)), 
                               mu=np.tile(mu, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T, 
-                              sigma=np.tile(self.sigma, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T
+                              sigma=np.tile(sigma, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T
                           )
         spectrum = np.sum(spectrum_no_sum, axis=-2) / channel_widths
         MHI_Jy = (
