@@ -25,6 +25,7 @@ class Source():
             try:
                 with SimObj(**self._SO_args) as SO:
                     self.mHI_g = SO.mHI_g
+                    self.T_g = SO.T_g
                     self.coordinates_g = CartesianRepresentation(
                         SO.xyz_g, 
                         xyz_axis=1,
