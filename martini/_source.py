@@ -24,15 +24,15 @@ class Source():
         while True:
             try:
                 with SimObj(**self._SO_args) as SO:
-                    self.mHI_g = SO.mHI_g
+                    self.h = SO.h
                     self.T_g = SO.T_g
+                    self.mHI_g = SO.mHI_g
                     self.coordinates_g = CartesianRepresentation(
                         SO.xyz_g, 
                         xyz_axis=1,
                         differentials={'s': CartesianDifferential(SO.vxyz_g, xyz_axis=1)}
                     )
                     self.hsm_g = SO.hsm_g
-                    self.h = SO.h
                 break
             except RuntimeError:
                 print('Waiting on lock release...')
