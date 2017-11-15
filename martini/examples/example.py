@@ -21,7 +21,8 @@ SO_args = {
     'configfile': '~/code/simobj/simobj/configs/example.py',
     'simfiles_configfile': '~/code/simfiles/simfiles/configs/example.py',
     'cache_prefix': './',
-    'disable_cache': False
+    'disable_cache': False,
+    'ncpu': 0
 }
 
 source = Source(

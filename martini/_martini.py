@@ -75,10 +75,16 @@ class Martini():
         
         return
 
-    def write_fits(self, filename):
+    def write_fits(self, filename, channels='frequency'):
         
         self.datacube.drop_pad()
-        self.datacube.freq_channels()
+        if channels == 'frequency':
+            self.datacube.freq_channels()
+        elif channels == 'velocity':
+            pass
+        else:
+            raise ValueError("Martini.write_fits: Unknown 'channels' value "
+                             "(use 'frequency' or 'velocity'.")
 
         filename = filename if filename[-5:] == '.fits' else filename + '.fits'
 
