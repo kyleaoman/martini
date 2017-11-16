@@ -23,20 +23,23 @@ class Source():
         self._SO_args = SO_args
         while True:
             try:
-                time.sleep(np.random.rand())
                 with SimObj(**self._SO_args) as SO:
                     self.h = SO.h
+                    print(self._SO_args['snap_id'], self._SO_args['obj_id'], 'READ T_g')
                     self.T_g = SO.T_g
+                    print(self._SO_args['snap_id'], self._SO_args['obj_id'], 'READ mHI_g')
                     self.mHI_g = SO.mHI_g
+                    print(self._SO_args['snap_id'], self._SO_args['obj_id'], 'READ coordinates_g')
                     self.coordinates_g = CartesianRepresentation(
                         SO.xyz_g, 
                         xyz_axis=1,
                         differentials={'s': CartesianDifferential(SO.vxyz_g, xyz_axis=1)}
                     )
+                    print(self._SO_args['snap_id'], self._SO_args['obj_id'], 'READ hsm_g')
                     self.hsm_g = SO.hsm_g
                 break
             except RuntimeError:
-                print('Waiting on lock release...')
+                #print('Waiting on lock release...')
                 time.sleep(10)
                 continue
 
