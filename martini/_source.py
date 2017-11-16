@@ -23,6 +23,7 @@ class Source():
         self._SO_args = SO_args
         while True:
             try:
+                time.sleep(np.random.rand())
                 with SimObj(**self._SO_args) as SO:
                     self.h = SO.h
                     self.T_g = SO.T_g
