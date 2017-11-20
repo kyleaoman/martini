@@ -61,6 +61,8 @@ class Martini():
             np.arange(self.datacube._array.shape[0]), 
             np.arange(self.datacube._array.shape[1])
         ))
+        import time
+        t0 = time.clock()
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
@@ -70,6 +72,7 @@ class Martini():
             )
             (self.spectral_model.spectra[mask] * weights[..., np.newaxis])\
                 .sum(axis=-2, out=self.datacube._array[ij_px[0], ij_px[1], :, 0])
+            print(ij, '{:.1f}'.format(time.clock() - t0))
         
         return
 
