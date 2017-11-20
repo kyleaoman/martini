@@ -6,6 +6,7 @@ from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
 from multiprocessing import Pool
+import time
 
 class Martini():
 
