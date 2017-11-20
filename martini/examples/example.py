@@ -53,7 +53,7 @@ noise = GaussianNoise(
 )
 
 spectral_model = GaussianSpectrum(
-    sigma = 7. * U.km * U.s ** -1
+    sigma = 'thermal'
 )
 
 sph_kernel = WendlandC2()
