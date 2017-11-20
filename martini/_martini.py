@@ -81,8 +81,10 @@ class Martini():
             (self.spectral_model.spectra[mask] * weights[..., np.newaxis])\
                 .sum(axis=-2, out=self.datacube._array[ij_px[0], ij_px[1], :, 0])
             t4 = time.clock()
-            for t in [t1, t2, t3, t4]:
-                print('{:.6f}'.format(t - t0))
+            print('{:.6f}'.format(t1 - t0))
+            print('{:.6f}'.format(t2 - t1))
+            print('{:.6f}'.format(t3 - t2))
+            print('{:.6f}'.format(t4 - t3))
         
         return
 
