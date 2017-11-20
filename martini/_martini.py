@@ -65,21 +65,24 @@ class Martini():
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             print(ij)
-            t0 = time.clock()
             mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
-            t1 = time.clock()
-            print('  mask', '{:.6f}'.format(t1 - t0))
             weights = self.sph_kernel.line_integral(
                 np.power(particle_coords[:2, mask] - ij, 2).sum(axis=0), 
                 sm_length[mask]
             )
+            t0 = time.clock()
+            self.spectral_model.spectra[mask]
+            t1 = time.clock()
+            (self.spectral_model.spectra[mask] * weights[..., np.newaxis])
             t2 = time.clock()
-            print('  weight', '{:.6f}'.format(t2 - t1))
-            self.datacube._array[ij_px[0], ij_px[1], :, 0] = (
-                self.spectral_model.spectra[mask] * weights[..., np.newaxis]
-            ).sum(axis=-2)
+            (self.spectral_model.spectra[mask] * weights[..., np.newaxis])\
+                .sum(axis=-2)
             t3 = time.clock()
-            print('  spectrum', '{:.6f}'.format(t3 - t2))
+            (self.spectral_model.spectra[mask] * weights[..., np.newaxis])\
+                .sum(axis=-2, out=self.datacube._array[ij_px[0], ij_px[1], :, 0])
+            t4 = time.clock()
+            for t in [t1, t2, t3, t4]:
+                print('{:.6f}'.format(t - t0))
         
         return
 
