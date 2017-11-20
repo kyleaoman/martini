@@ -6,7 +6,6 @@ from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
 from multiprocessing import Pool
-import time
 
 class Martini():
 
@@ -22,6 +21,9 @@ class Martini():
         if self.beam is not None:
             self.beam.init_kernel(self.datacube)
             self.datacube.add_pad(self.beam.needs_pad())
+
+        if self.spectral_model is not None:
+            self.spectral_model.init_spectra(self.source, self.datacube)
         
         return
 
@@ -60,26 +62,15 @@ class Martini():
             np.arange(self.datacube._array.shape[1])
         ))
         for ij_px in ij_pxs:
-            print('start ', time.clock())
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            print('masking', time.clock())
-            particle_mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
-            print('weights', time.clock())
+            mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
             weights = self.sph_kernel.line_integral(
-                np.power(particle_coords[:2, particle_mask] - ij, 2).sum(axis=0), 
-                sm_length[particle_mask]
+                np.power(particle_coords[:2, mask] - ij, 2).sum(axis=0), 
+                sm_length[mask]
             )
-            print('spectrum', time.clock())
-            spectrum = self.spectral_model.spectrum(
-                self.source,
-                self.datacube.channel_edges,
-                particle_mask,
-                weights
-            )
-            print('insert', time.clock())
-            self.datacube._array[ij_px[0], ij_px[1], :, 0] = spectrum
-            print('end', time.clock())
-            exit()
+            self.datacube._array[ij_px[0], ij_px[1], :, 0] = (
+                self.spectral_model.spectra[mask] * weights[..., np.newaxis]
+            ).sum(axis=-2)
         
         return
 
