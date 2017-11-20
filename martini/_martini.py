@@ -64,7 +64,7 @@ class Martini():
         import time
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            print(ij[0, 0]. ij[0, 1])
+            print(ij[0, 0], ij[0, 1])
             t0 = time.clock()
             mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
             t1 = time.clock()
