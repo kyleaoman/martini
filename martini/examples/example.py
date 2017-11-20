@@ -5,7 +5,6 @@ from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import WendlandC2
 import astropy.units as U
 from collections import namedtuple
-import os
 
 snap_id = namedtuple('snap_id', ['res', 'phys', 'vol', 'snap'])
 mysnap = snap_id(res=3, phys='hydro', vol=1, snap=127)
