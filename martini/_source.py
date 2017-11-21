@@ -46,9 +46,15 @@ class Source():
         hubble_flow_vector = np.array([self.vsys.value, 0, 0]) * self.vsys.unit
         self.translate_velocity(hubble_flow_vector)
         self.sky_coordinates = ICRS(self.coordinates_g)
-        
         return
 
+    def apply_mask(self, mask):
+        self.T_g = self.T_g[mask]
+        self.mHI_g = self.mHI_g[mask]
+        self.coordinates_g = self.coordinates_g[mask]
+        self.sky_coordinates = ICRS(self.coordinates_g)
+        self.hsm_g = self.hsm_g[mask]
+        return
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
         do_rot = np.eye(3)
@@ -78,5 +84,3 @@ class Source():
     def translate_velocity(self, translation_vector):
         self.coordinates_g.differentials['s'] = self.coordinates_g.differentials['s'].translate(translation_vector)
         return
-
-

@@ -68,6 +68,7 @@ M = Martini(
     sph_kernel=sph_kernel
 )
 
+M.prune_source()
 M.insert_source_in_cube()
 M.add_noise()
 M.convolve_beam()

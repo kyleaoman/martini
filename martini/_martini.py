@@ -22,6 +22,9 @@ class Martini():
             self.beam.init_kernel(self.datacube)
             self.datacube.add_pad(self.beam.needs_pad())
 
+        if (self.source is not None) and (self.datacube is not None) and (self.spectral_model is not None):
+            self.prune_source()
+
         if self.spectral_model is not None:
             self.spectral_model.init_spectra(self.source, self.datacube)
         
@@ -42,6 +45,32 @@ class Martini():
     def add_noise(self):
         self.datacube._array = self.datacube._array + self.noise.generate(self.datacube)
         return
+
+    def prune_source(self):
+        origin = 0 #pixels indexed from 0 (not like in FITS!) for better use with numpy
+        particle_coords = np.vstack(self.datacube.wcs.sub(3).wcs_world2pix(
+            self.source.sky_coordinates.ra, 
+            self.source.sky_coordinates.dec,
+            self.source.sky_coordinates.radial_velocity,
+            origin)) * U.pix
+        sm_length = np.arctan(
+            self.source.hsm_g / self.source.sky_coordinates.distance
+        ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
+        sm_range = np.ceil(sm_length).astype(int)
+        spectrum_half_width = self.spectral_model.half_width(self.source) / self.datacube.channel_width
+        reject_conditions = (
+            (particle_coords[:2] + sm_range[np.newaxis] < 0 * U.pix).any(axis=0),
+            particle_coords[0] - sm_range > (self.datacube.n_px_x + self.datacube.pad * 2) * U.pix,
+            particle_coords[1] - sm_range > (self.datacube.n_px_y + self.datacube.pad * 2) * U.pix,
+            particle_coords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
+            particle_coords[2] - 4 * spectrum_half_width * U.pix > self.datacube.n_channels * U.pix
+        )
+        reject_mask = np.zeros(particle_coords[0].shape)
+        for condition in reject_conditions:
+            reject_mask = np.logical_or(reject_mask, condition)
+        #print(np.sum(reject_mask), reject_mask.shape)
+        self.source.apply_mask(np.logical_not(reject_mask))
+        return
     
     def insert_source_in_cube(self):
         origin = 0 #pixels indexed from 0 (not like in FITS!) for better use with numpy
@@ -54,7 +83,6 @@ class Martini():
             self.source.hsm_g / self.source.sky_coordinates.distance
         ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         sm_range = np.ceil(sm_length).astype(int)
-        
         
         #pixel iteration   
         ij_pxs = list(product(

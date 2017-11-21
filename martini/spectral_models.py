@@ -13,7 +13,11 @@ class _BaseSpectrum(object):
         return
         
     @abstractmethod
-    def prep_spectra(self, source, datacube):
+    def init_spectra(self, source, datacube):
+        pass
+
+    @abstractmethod
+    def half_width(self, source):
         pass
 
 class GaussianSpectrum(_BaseSpectrum):
@@ -33,10 +37,7 @@ class GaussianSpectrum(_BaseSpectrum):
         channel_edges = datacube.channel_edges
         channel_widths = np.diff(channel_edges).to(U.km * U.s ** -1)
         mu = source.sky_coordinates.radial_velocity
-        if self.sigma_mode == 'thermal':
-            sigma = np.sqrt(C.k_B * source.T_g / C.m_p).to(U.km * U.s ** -1)
-        else:
-            sigma = self.sigma_mode
+        self.sigma = self.half_width(source)
         A = source.mHI_g * np.power(source.sky_coordinates.distance.to(U.Mpc), -2)
         MHI_Jy = (
             U.solMass * U.Mpc ** -2 * (U.km * U.s ** -1) ** -1, 
@@ -48,6 +49,12 @@ class GaussianSpectrum(_BaseSpectrum):
             np.tile(channel_edges[:-1], mu.shape + (1,)),
             np.tile(channel_edges[1:], mu.shape + (1,)),
             mu = np.tile(mu, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T,
-            sigma = np.tile(sigma, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T
+            sigma = np.tile(self.sigma, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T
         ) / channel_widths).to(U.Jy, equivalencies=[MHI_Jy])
         return
+
+    def half_width(self, source):
+        if self.sigma_mode == 'thermal':
+            return np.sqrt(C.k_B * source.T_g / C.m_p).to(U.km * U.s ** -1)
+        else:
+            return self.sigma_mode
