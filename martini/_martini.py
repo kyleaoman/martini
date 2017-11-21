@@ -68,7 +68,7 @@ class Martini():
         reject_mask = np.zeros(particle_coords[0].shape)
         for condition in reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
-        #print(np.sum(reject_mask), reject_mask.shape)
+        print(np.sum(reject_mask), reject_mask.shape)
         self.source.apply_mask(np.logical_not(reject_mask))
         return
     
