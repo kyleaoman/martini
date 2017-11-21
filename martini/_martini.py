@@ -9,7 +9,7 @@ from multiprocessing import Pool
 
 class Martini():
 
-    def __init__(self, source=None, datacube=None, beam=None, baselines=None, noise=None, sph_kernel=None, spectral_model=None):
+    def __init__(self, source=None, datacube=None, beam=None, baselines=None, noise=None, sph_kernel=None, spectral_model=None, logtag=''):
         self.source = source
         self.datacube = datacube
         self.beam = beam
@@ -17,16 +17,15 @@ class Martini():
         self.noise = noise
         self.sph_kernel = sph_kernel
         self.spectral_model = spectral_model
+        self.logtag = logtag
 
         if self.beam is not None:
             self.beam.init_kernel(self.datacube)
             self.datacube.add_pad(self.beam.needs_pad())
 
-        if (self.source is not None) and (self.datacube is not None) and (self.spectral_model is not None):
-            self.prune_source()
+        self.prune_source()
 
-        if self.spectral_model is not None:
-            self.spectral_model.init_spectra(self.source, self.datacube)
+        self.spectral_model.init_spectra(self.source, self.datacube)
         
         return
 
@@ -63,12 +62,11 @@ class Martini():
             particle_coords[0] - sm_range > (self.datacube.n_px_x + self.datacube.pad * 2) * U.pix,
             particle_coords[1] - sm_range > (self.datacube.n_px_y + self.datacube.pad * 2) * U.pix,
             particle_coords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
-            particle_coords[2] - 4 * spectrum_half_width * U.pix > self.datacube.n_channels * U.pix
+            particle_coords[2] - 4 * spectrum_half_width * U.pix > self.datacube.n_channels * U.pix,
         )
         reject_mask = np.zeros(particle_coords[0].shape)
         for condition in reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
-        print(np.sum(reject_mask), reject_mask.shape)
         self.source.apply_mask(np.logical_not(reject_mask))
         return
     
@@ -89,10 +87,10 @@ class Martini():
             np.arange(self.datacube._array.shape[0]), 
             np.arange(self.datacube._array.shape[1])
         ))
-        import time
-        t0 = time.clock()
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
+            if (ij[1, 0] == 0) and (ij[0, 0] % 100 == 0):
+                print('  ' + self.logtag + '  [row {:.0f}]'.format(ij[0, 0].value))
             mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
             weights = self.sph_kernel.line_integral(
                 np.power(particle_coords[:2, mask] - ij, 2).sum(axis=0), 
@@ -100,7 +98,6 @@ class Martini():
             )
             (self.spectral_model.spectra[mask] * weights[..., np.newaxis])\
                 .sum(axis=-2, out=self.datacube._array[ij_px[0], ij_px[1], :, 0])
-            print(ij, '{:.1f}'.format(time.clock() - t0))
         
         return
 
