@@ -89,7 +89,7 @@ class Martini():
         ))
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            if (ij[1, 0] == 0) and (ij[0, 0] % 100 == 0):
+            if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
                 print('  ' + self.logtag + '  [row {:.0f}]'.format(ij[0, 0].value))
             mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
             weights = self.sph_kernel.line_integral(
