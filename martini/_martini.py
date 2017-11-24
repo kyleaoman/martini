@@ -29,16 +29,17 @@ class Martini():
         
         return
 
-    def convolve_beam(self):
+    def convolve_beam(self, _test_noconvolve=False):
         unit = self.datacube._array.unit
-        self.datacube._array = convolve(
-            self.datacube._array, 
-            self.beam.kernel,
-            mode='constant',
-            cval=0.0
-        ) * unit
+        if not _test_noconvolve:
+            self.datacube._array = convolve(
+                self.datacube._array, 
+                self.beam.kernel,
+                mode='constant',
+                cval=0.0
+            ) * unit
         self.datacube.drop_pad()
-        self.datacube._array = self.datacube._array.to(U.Jy * U.beam ** -1, equivalencies=self.beam.px_to_beam)
+        #self.datacube._array = self.datacube._array.to(U.Jy * U.beam ** -1, equivalencies=[self.beam.arcsec_to_beam])
         return
 
     def add_noise(self):
@@ -92,13 +93,13 @@ class Martini():
             if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
                 print('  ' + self.logtag + '  [row {:.0f}]'.format(ij[0, 0].value))
             mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
-            weights = self.sph_kernel.line_integral(
-                np.power(particle_coords[:2, mask] - ij, 2).sum(axis=0), 
+            weights = self.sph_kernel.px_weight(
+                particle_coords[:2, mask] - ij,
                 sm_length[mask]
             )
             (self.spectral_model.spectra[mask] * weights[..., np.newaxis])\
                 .sum(axis=-2, out=self.datacube._array[ij_px[0], ij_px[1], :, 0])
-        
+        self.datacube._array = self.datacube._array / np.power(self.datacube.px_size / U.pix, 2)
         return
 
     def write_fits(self, filename, channels='frequency'):

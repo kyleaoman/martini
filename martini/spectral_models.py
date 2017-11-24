@@ -39,18 +39,21 @@ class GaussianSpectrum(_BaseSpectrum):
         mu = source.sky_coordinates.radial_velocity
         self.sigma = self.half_width(source)
         A = source.mHI_g * np.power(source.sky_coordinates.distance.to(U.Mpc), -2)
-        MHI_Jy = (
+        MHI_Jypx = ( 
             U.solMass * U.Mpc ** -2 * (U.km * U.s ** -1) ** -1, 
-            U.Jy, 
+            U.Jy * U.pix ** -2, 
             lambda x: (1 / 2.36E5) * x, 
             lambda x: 2.36E5 * x
         )
+        # note that the unit is U.Jy * U.pix ** -2 for consistency with other places in the code,
+        # i.e. the per pixel is measured in units of pixel areas, where 1 * U.pix is the pixel side
+        # length
         self.spectra = (A[..., np.newaxis] * self.Gaussian_integral(
             np.tile(channel_edges[:-1], mu.shape + (1,)),
             np.tile(channel_edges[1:], mu.shape + (1,)),
             mu = np.tile(mu, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T,
             sigma = np.tile(self.sigma, np.shape(channel_edges[:-1]) + (1,) * mu.ndim).T
-        ) / channel_widths).to(U.Jy, equivalencies=[MHI_Jy])
+        ) / channel_widths).to(U.Jy * U.pix ** -2, equivalencies=[MHI_Jypx])
         return
 
     def half_width(self, source):
