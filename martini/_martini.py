@@ -39,7 +39,7 @@ class Martini():
                 cval=0.0
             ) * unit
         self.datacube.drop_pad()
-        #self.datacube._array = self.datacube._array.to(U.Jy * U.beam ** -1, equivalencies=[self.beam.arcsec_to_beam])
+        self.datacube._array = self.datacube._array.to(U.Jy * U.beam ** -1, equivalencies=[self.beam.arcsec_to_beam])
         return
 
     def add_noise(self):
@@ -69,6 +69,7 @@ class Martini():
         for condition in reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
+        print(self.source.mHI_g.sum())
         return
     
     def insert_source_in_cube(self):
@@ -148,7 +149,7 @@ class Martini():
         header.append(('CTYPE4', wcs_header['CTYPE4']))
         header.append(('CUNIT4', 'PAR'))
         header.append(('EPOCH', 2000))
-        header.append(('INSTRUME', 'MARTINI'))
+        header.append(('INSTRUME', 'WSRT', 'MARTINI Synthetic'))
         #header.append(('BLANK', -32768)) #only for integer data
         header.append(('BSCALE', 1.0))
         header.append(('BZERO', 0.0))

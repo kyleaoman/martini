@@ -6,6 +6,7 @@ from martini.sph_kernels import WendlandC2, DiracDelta
 from martini.sources import SOSource, SingleParticleSource
 import astropy.units as U
 from collections import namedtuple
+import numpy as np
 
 snap_id = namedtuple('snap_id', ['res', 'phys', 'vol', 'snap'])
 mysnap = snap_id(res=1, phys='hydro', vol=1, snap=127)
@@ -20,7 +21,7 @@ SO_args = {
     'mask_kwargs': dict(),
     'configfile': '~/code/simobj/simobj/configs/example.py',
     'simfiles_configfile': '~/code/simfiles/simfiles/configs/example.py',
-    'cache_prefix': '/Users/users/koman/Data',
+    'cache_prefix': './',
     'disable_cache': False,
     'ncpu': 0
 }
@@ -29,6 +30,11 @@ source = SOSource(
     distance = 3. * U.Mpc,
     rotation = {'L_coords': (60. * U.deg, 0. * U.deg)},
     SO_args = SO_args
+)
+
+SingleParticleSource(
+    distance = 3. * U.Mpc,
+    rotation = {'rotmat': np.eye(3)}
 )
 
 datacube = DataCube(
@@ -50,14 +56,14 @@ beam = GaussianBeam(
 baselines = None
 
 noise = GaussianNoise(
-    rms = 1.E-5 * U.Jy * U.pix ** -2
+    rms = 1.E-5 * U.Jy * U.arcsec ** -2
 )
 
 spectral_model = GaussianSpectrum(
     sigma = 'thermal'
 )
 
-sph_kernel = DiracDelta()
+sph_kernel = WendlandC2()
 
 M = Martini(
     source=source, 
@@ -71,7 +77,7 @@ M = Martini(
 
 M.insert_source_in_cube()
 #M.add_noise()
-#M.convolve_beam(_test_noconvolve=True)
+M.convolve_beam()
 M.write_fits('test64')
 
 datacube = DataCube(
@@ -95,5 +101,5 @@ M = Martini(
 
 M.insert_source_in_cube()
 #M.add_noise()
-#M.convolve_beam(_test_noconvolve=True)
+M.convolve_beam()
 M.write_fits('test128')

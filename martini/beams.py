@@ -24,8 +24,8 @@ class _BaseBeam(object):
         self.arcsec_to_beam = (
             U.Jy * U.arcsec ** -2,
             U.Jy * U.beam ** -1,
-            lambda x: x * np.power(self.px_size, 2) / (np.pi * self.bmaj * self.bmin),
-            lambda x: x * np.pi * self.bmaj * self.bmin / np.power(self.px_size, 2)
+            lambda x: x * (np.pi * self.bmaj * self.bmin),
+            lambda x: x / (np.pi * self.bmaj * self.bmin)
         )
         return
         

@@ -81,7 +81,6 @@ class SOSource(_BaseSource):
                     self.h = SO.h
                     self.T_g = SO.T_g
                     self.mHI_g = SO.mHI_g
-                    print(SO.xyz_g)
                     self.coordinates_g = CartesianRepresentation(
                         SO.xyz_g, 
                         xyz_axis=1,
@@ -99,10 +98,17 @@ class SOSource(_BaseSource):
 class SingleParticleSource(_BaseSource):
 
     def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}):
-        self.h = 1. * U.kpc
-        self.T_g = 1.E4 * U.K
-        self.mHI_g = 1.E4 * U.solMass
-        self.coordinates_g = CartesianRepresenation(
-            np.array([[0., 0., 0.]]) * U.kpc
+        self.h = .7
+        self.T_g = np.array([1.E4]) * U.K
+        self.mHI_g = np.array([1.E4]) * U.solMass
+        self.coordinates_g = CartesianRepresentation(
+            np.array([[1.E-6, 1.E-6, 1.E-6]]) * U.kpc,
+            xyz_axis=1,
+            differentials={'s': CartesianDifferential(
+                np.array([[0., 0., 0.]]) * U.km * U.s ** -1,
+                xyz_axis=1
+            )}
         )
+        self.hsm_g = np.array([1.]) * U.kpc
+        super(SingleParticleSource, self).__init__(distance=distance, rotation=rotation)
         return

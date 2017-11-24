@@ -36,6 +36,4 @@ class DiracDelta(_BaseSPHKernel):
         return
         
     def px_weight(self, dij, h):
-        retval = np.zeros(h.shape)
-        retval[(np.abs(dij) < 0.5 * U.pix).all(axis=0)] = 1.
-        return retval
+        return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), np.ones(h.shape), np.zeros(h.shape))
