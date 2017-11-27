@@ -1,8 +1,8 @@
 from martini import Martini, DataCube
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
-from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import WendlandC2, DiracDelta
+from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
+from martini.sph_kernels import WendlandC2Kernel, DiracDeltaKernel
 from martini.sources import SOSource, SingleParticleSource
 import astropy.units as U
 from collections import namedtuple
@@ -32,10 +32,10 @@ source = SOSource(
     SO_args = SO_args
 )
 
-SingleParticleSource(
-    distance = 3. * U.Mpc,
-    rotation = {'rotmat': np.eye(3)}
-)
+#SingleParticleSource(
+#    distance = 3. * U.Mpc,
+#    rotation = {'rotmat': np.eye(3)}
+#)
 
 datacube = DataCube(
     n_px_x = 64, #64
@@ -59,11 +59,13 @@ noise = GaussianNoise(
     rms = 1.E-5 * U.Jy * U.arcsec ** -2
 )
 
-spectral_model = GaussianSpectrum(
-    sigma = 'thermal'
+ spectral_model = GaussianSpectrum(
+     sigma = 'thermal'
 )
 
-sph_kernel = WendlandC2()
+#spectral_model = DiracDeltaSpectrum()
+
+sph_kernel = WendlandC2Kernel()
 
 M = Martini(
     source=source, 
@@ -78,28 +80,4 @@ M = Martini(
 M.insert_source_in_cube()
 #M.add_noise()
 M.convolve_beam()
-M.write_fits('test64')
-
-datacube = DataCube(
-    n_px_x = 128, #64
-    n_px_y = 128, #64
-    n_channels = 32, #32
-    px_size = 15. * U.arcsec, #30
-    channel_width = 16. * U.km * U.s ** -1, #16
-    velocity_centre = source.vsys
-)
-
-M = Martini(
-    source=source, 
-    datacube=datacube, 
-    beam=beam,
-    baselines=baselines,
-    noise=noise,
-    spectral_model=spectral_model,
-    sph_kernel=sph_kernel
-)
-
-M.insert_source_in_cube()
-#M.add_noise()
-M.convolve_beam()
-M.write_fits('test128')
+M.write_fits('test{:.0f}'.format(datacube.n_px_x), channels='frequency')

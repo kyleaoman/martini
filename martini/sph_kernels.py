@@ -12,10 +12,10 @@ class _BaseSPHKernel(object):
     def px_weight(self, dr2, h):
         pass
 
-class WendlandC2(_BaseSPHKernel):
+class WendlandC2Kernel(_BaseSPHKernel):
     
     def __init__(self):
-        super(WendlandC2, self).__init__()
+        super(WendlandC2Kernel, self).__init__()
         return
 
     def px_weight(self, dij, h):
@@ -29,7 +29,7 @@ class WendlandC2(_BaseSPHKernel):
         retval[use] = 5 * R2 * R2 * (.5 * R2 + 3) * np.log((1 + A) / np.sqrt(R2)) + A * (-27. / 2. * R2 * R2 - 14. / 3. * R2 + 2. / 3.)
         return retval / .2992 / np.power(h, 2) #.2992 is normalization s.t. kernel integral = 1 for particle mass = 1
 
-class DiracDelta(_BaseSPHKernel):
+class DiracDeltaKernel(_BaseSPHKernel):
     
     def __init__(self):
         super(DiracDelta, self).__init__()
