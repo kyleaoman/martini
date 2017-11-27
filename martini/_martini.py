@@ -69,7 +69,6 @@ class Martini():
         for condition in reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
-        print(self.source.mHI_g.sum())
         return
     
     def insert_source_in_cube(self):
