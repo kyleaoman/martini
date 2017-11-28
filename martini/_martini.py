@@ -81,6 +81,7 @@ class Martini():
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance
         ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
+        self.sph_kernel.validate(sm_length)
         sm_range = np.ceil(sm_length).astype(int)
         
         #pixel iteration   

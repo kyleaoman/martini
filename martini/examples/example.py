@@ -38,10 +38,10 @@ source = SOSource(
 #)
 
 datacube = DataCube(
-    n_px_x = 64, #64
-    n_px_y = 64, #64
+    n_px_x = 128, #64
+    n_px_y = 128, #64
     n_channels = 32, #32
-    px_size = 30. * U.arcsec, #30
+    px_size = 5. * U.arcsec, #30
     channel_width = 16. * U.km * U.s ** -1, #16
     velocity_centre = source.vsys
 )
@@ -59,8 +59,8 @@ noise = GaussianNoise(
     rms = 1.E-5 * U.Jy * U.arcsec ** -2
 )
 
- spectral_model = GaussianSpectrum(
-     sigma = 'thermal'
+spectral_model = GaussianSpectrum(
+    sigma = 'thermal'
 )
 
 #spectral_model = DiracDeltaSpectrum()
