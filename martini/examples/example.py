@@ -27,7 +27,7 @@ SO_args = {
 }
 
 source = SOSource(
-    distance = 3. * U.Mpc,
+    distance = 3.657 * U.Mpc,
     rotation = {'L_coords': (60. * U.deg, 0. * U.deg)},
     SO_args = SO_args
 )
@@ -40,15 +40,15 @@ source = SOSource(
 datacube = DataCube(
     n_px_x = 128, #64
     n_px_y = 128, #64
-    n_channels = 32, #32
-    px_size = 5. * U.arcsec, #30
-    channel_width = 16. * U.km * U.s ** -1, #16
+    n_channels = 100, #32
+    px_size = 3. * U.arcsec, #30
+    channel_width = 4. * U.km * U.s ** -1, #16
     velocity_centre = source.vsys
 )
 
 beam = GaussianBeam(
-    bmaj = 12. * U.arcsec, #60
-    bmin = 12. * U.arcsec, #60
+    bmaj = 6. * U.arcsec, #60
+    bmin = 6. * U.arcsec, #60
     bpa = 0. * U.deg,
     truncate = 4.
 )
@@ -80,4 +80,4 @@ M = Martini(
 M.insert_source_in_cube()
 #M.add_noise()
 M.convolve_beam()
-M.write_fits('test{:.0f}'.format(datacube.n_px_x), channels='frequency')
+M.write_fits('test{:.0f}'.format(datacube.n_px_x), channels='velocity')

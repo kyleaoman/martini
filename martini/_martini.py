@@ -49,9 +49,9 @@ class Martini():
     def prune_source(self):
         origin = 0 #pixels indexed from 0 (not like in FITS!) for better use with numpy
         particle_coords = np.vstack(self.datacube.wcs.sub(3).wcs_world2pix(
-            self.source.sky_coordinates.ra, 
-            self.source.sky_coordinates.dec,
-            self.source.sky_coordinates.radial_velocity,
+            self.source.sky_coordinates.ra.to(self.datacube.units[0]), 
+            self.source.sky_coordinates.dec.to(self.datacube.units[1]),
+            self.source.sky_coordinates.radial_velocity.to(self.datacube.units[2]),
             origin)) * U.pix
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance
@@ -74,9 +74,9 @@ class Martini():
     def insert_source_in_cube(self):
         origin = 0 #pixels indexed from 0 (not like in FITS!) for better use with numpy
         particle_coords = np.vstack(self.datacube.wcs.sub(3).wcs_world2pix(
-            self.source.sky_coordinates.ra, 
-            self.source.sky_coordinates.dec,
-            self.source.sky_coordinates.radial_velocity,
+            self.source.sky_coordinates.ra.to(self.datacube.units[0]), 
+            self.source.sky_coordinates.dec.to(self.datacube.units[1]),
+            self.source.sky_coordinates.radial_velocity.to(self.datacube.units[2]),
             origin)) * U.pix
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance
