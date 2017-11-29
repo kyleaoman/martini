@@ -21,7 +21,7 @@ SO_args = {
     'mask_kwargs': dict(),
     'configfile': '~/code/simobj/simobj/configs/example.py',
     'simfiles_configfile': '~/code/simfiles/simfiles/configs/example.py',
-    'cache_prefix': './',
+    'cache_prefix': './cachedir/',
     'disable_cache': False,
     'ncpu': 0
 }
@@ -47,8 +47,8 @@ datacube = DataCube(
 )
 
 beam = GaussianBeam(
-    bmaj = 60. * U.arcsec, #60
-    bmin = 60. * U.arcsec, #60
+    bmaj = 12. * U.arcsec, #60
+    bmin = 12. * U.arcsec, #60
     bpa = 0. * U.deg,
     truncate = 4.
 )
