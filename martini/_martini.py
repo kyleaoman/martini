@@ -89,7 +89,6 @@ class Martini():
             np.arange(self.datacube._array.shape[0]), 
             np.arange(self.datacube._array.shape[1])
         ))
-        import time
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             if (ij[1, 0].value == 0) and (ij[0, 0].value % 1 == 0):
