@@ -89,17 +89,18 @@ class Martini():
             np.arange(self.datacube._array.shape[0]), 
             np.arange(self.datacube._array.shape[1])
         ))
+        import time
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
+            if (ij[1, 0].value == 0) and (ij[0, 0].value % 1 == 0):
                 print('  ' + self.logtag + '  [row {:.0f}]'.format(ij[0, 0].value))
-            mask = (ij - particle_coords[:2] <= sm_range).all(axis=0)
+            mask = (np.abs(ij - particle_coords[:2]) <= sm_range).all(axis=0)
             weights = self.sph_kernel.px_weight(
                 particle_coords[:2, mask] - ij,
                 sm_length[mask]
             )
-            (self.spectral_model.spectra[mask] * weights[..., np.newaxis])\
-                .sum(axis=-2, out=self.datacube._array[ij_px[0], ij_px[1], :, 0])
+            self.datacube._array[ij_px[0], ij_px[1], :, 0] = (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(axis=-2)
+            
         self.datacube._array = self.datacube._array / np.power(self.datacube.px_size / U.pix, 2)
         return
 

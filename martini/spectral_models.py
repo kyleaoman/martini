@@ -17,9 +17,9 @@ class _BaseSpectrum(object):
         channel_widths = np.diff(channel_edges).to(U.km * U.s ** -1)
         vmids = source.sky_coordinates.radial_velocity
         A = source.mHI_g * np.power(source.sky_coordinates.distance.to(U.Mpc), -2)
-        MHI_Jypx = ( 
+        MHI_Jy = ( 
             U.solMass * U.Mpc ** -2 * (U.km * U.s ** -1) ** -1, 
-            U.Jy * U.pix ** -2, 
+            U.Jy, 
             lambda x: (1 / 2.36E5) * x, 
             lambda x: 2.36E5 * x
         )
@@ -33,7 +33,7 @@ class _BaseSpectrum(object):
             np.tile(channel_edges[1:], vmids.shape + (1,)),
             np.tile(vmids, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim).T,
             **spectral_function_kwargs
-        ) / channel_widths).to(U.Jy * U.pix ** -2, equivalencies=[MHI_Jypx])
+        ) / channel_widths).to(U.Jy, equivalencies=[MHI_Jy])
 
     @abstractmethod
     def half_width(self, source):

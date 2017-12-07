@@ -38,8 +38,8 @@ source = SOSource(
 #)
 
 datacube = DataCube(
-    n_px_x = 128, #64
-    n_px_y = 128, #64
+    n_px_x = 1024, #64
+    n_px_y = 1024, #64
     n_channels = 100, #32
     px_size = 3. * U.arcsec, #30
     channel_width = 4. * U.km * U.s ** -1, #16
