@@ -157,7 +157,8 @@ class Martini():
         header.append(('DATAMIN', np.min(self.datacube._array.value)))
         header.append(('ORIGIN', 'astropy v'+astropy_version))
         header.append(('OBJECT', 'MOCK'))
-        header.append(('BPA', self.beam.bpa.to(U.deg).value))
+        if self.beam is not None:
+            header.append(('BPA', self.beam.bpa.to(U.deg).value))
         header.append(('OBSERVER', 'K. Oman'))
         #header.append(('NITERS', ???))
         #header.append(('RMS', ???))
@@ -170,8 +171,9 @@ class Martini():
         #header.append(('LTYPE', ???))
         #header.append(('PCRA', ???))
         #header.append(('CELLSCAL', ???))
-        header.append(('BMAJ', self.beam.bmaj.to(U.deg).value))
-        header.append(('BMIN', self.beam.bmin.to(U.deg).value))
+        if self.beam is not None:
+            header.append(('BMAJ', self.beam.bmaj.to(U.deg).value))
+            header.append(('BMIN', self.beam.bmin.to(U.deg).value))
         header.append(('BTYPE', 'Intensity'))
         header.append(('SPECSYS', wcs_header['SPECSYS']))
 
