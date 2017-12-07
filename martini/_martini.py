@@ -71,7 +71,7 @@ class Martini():
         self.source.apply_mask(np.logical_not(reject_mask))
         return
     
-    def insert_source_in_cube(self):
+    def insert_source_in_cube(self, skip_validation=False):
         origin = 0 #pixels indexed from 0 (not like in FITS!) for better use with numpy
         particle_coords = np.vstack(self.datacube.wcs.sub(3).wcs_world2pix(
             self.source.sky_coordinates.ra.to(self.datacube.units[0]), 
@@ -81,7 +81,8 @@ class Martini():
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance
         ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
-        self.sph_kernel.validate(sm_length)
+        if skip_validation != True:
+            self.sph_kernel.validate(sm_length)
         sm_range = np.ceil(sm_length).astype(int)
         
         #pixel iteration   
@@ -91,7 +92,7 @@ class Martini():
         ))
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            if (ij[1, 0].value == 0) and (ij[0, 0].value % 1 == 0):
+            if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
                 print('  ' + self.logtag + '  [row {:.0f}]'.format(ij[0, 0].value))
             mask = (np.abs(ij - particle_coords[:2]) <= sm_range).all(axis=0)
             weights = self.sph_kernel.px_weight(
