@@ -42,12 +42,17 @@ class WendlandC2Kernel(_BaseSPHKernel):
 
 class DiracDeltaKernel(_BaseSPHKernel):
     
-    def __init__(self):
-        super(DiracDelta, self).__init__()
+    def __init__(self, ignore_smoothing=False):
+        self.ignore_smoothing = ignore_smoothing
+        super(DiracDeltaKernel, self).__init__()
         return
         
     def px_weight(self, dij, h):
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), np.ones(h.shape), np.zeros(h.shape))
 
     def validate(self, sm_lengths):
+        if (sm_lengths > 1 * U.pix).any() and (self.ignore_smoothing == False):
+            raise RuntimeError("Martini.sph_kernels.DiracDeltaKernel.validate: SPH smoothing lengths "
+                               "must be <= 1 px in size for DiracDelta kernel to be a reasonable "
+                               "approximation. Initialize with 'ignore_smoothing=True' to override.")
         return
