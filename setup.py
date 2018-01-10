@@ -9,7 +9,7 @@ setup(
     author_email='koman@astro.rug.nl',
     license='',
     packages=['martini'],
-    install_requires=['numpy', 'astropy'],
+    install_requires=['numpy', 'astropy', 'scipy'],
     include_package_data=True,
     zip_safe=False
 )
