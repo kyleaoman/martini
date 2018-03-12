@@ -1,4 +1,4 @@
-from scipy.ndimage import convolve
+from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
 from astropy.io import fits
@@ -29,18 +29,16 @@ class Martini():
         
         return
 
-    def convolve_beam(self, _test_noconvolve=False):
+    def convolve_beam(self):
         unit = self.datacube._array.unit
-        if not _test_noconvolve:
-            self.datacube._array = convolve(
-                self.datacube._array, 
-                self.beam.kernel,
-                mode='constant',
-                cval=0.0
-            ) * unit
+        self.datacube._array = fftconvolve(
+            self.datacube._array, 
+            self.beam.kernel,
+            mode='same'
+        ) * unit
         self.datacube.drop_pad()
         self.datacube._array = self.datacube._array.to(U.Jy * U.beam ** -1, equivalencies=[self.beam.arcsec_to_beam])
-        return
+        return        
 
     def add_noise(self):
         self.datacube._array = self.datacube._array + self.noise.generate(self.datacube)
