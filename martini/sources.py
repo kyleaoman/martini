@@ -97,7 +97,7 @@ class SOSource(_BaseSource):
 
 class SingleParticleSource(_BaseSource):
 
-    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}):
+    def __init__(self, distance=3.*U.Mpc, rotation={'rotmat': np.eye(3)}):
         self.h = .7
         self.T_g = np.array([1.E4]) * U.K
         self.mHI_g = np.array([1.E4]) * U.solMass
