@@ -141,7 +141,10 @@ class Martini():
         header.append(('CRPIX3', wcs_header['CRPIX3']))
         header.append(('CRVAL3', wcs_header['CRVAL3']))
         header.append(('CTYPE3', wcs_header['CTYPE3']))
-        header.append(('CUNIT3', wcs_header['CUNIT3']))
+        if wcs_header['CUNIT3'] == 'm s-1':
+            header.append(('CUNIT3', 'm/s'))
+        else:
+            header.append(('CUNIT3', wcs_header['CUNIT3']))
         header.append(('CDELT4', wcs_header['CDELT4']))
         header.append(('CRPIX4', wcs_header['CRPIX4']))
         header.append(('CRVAL4', wcs_header['CRVAL4']))
