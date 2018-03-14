@@ -58,8 +58,8 @@ class Martini():
         spectrum_half_width = self.spectral_model.half_width(self.source) / self.datacube.channel_width
         reject_conditions = (
             (particle_coords[:2] + sm_range[np.newaxis] < 0 * U.pix).any(axis=0),
-            particle_coords[0] - sm_range > (self.datacube.n_px_x + self.datacube.pad * 2) * U.pix,
-            particle_coords[1] - sm_range > (self.datacube.n_px_y + self.datacube.pad * 2) * U.pix,
+            particle_coords[0] - sm_range > (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
+            particle_coords[1] - sm_range > (self.datacube.n_px_y + self.datacube.pady * 2) * U.pix,
             particle_coords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
             particle_coords[2] - 4 * spectrum_half_width * U.pix > self.datacube.n_channels * U.pix,
         )

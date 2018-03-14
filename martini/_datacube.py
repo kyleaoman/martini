@@ -20,7 +20,8 @@ class DataCube():
         self.px_size = px_size
         self.channel_width = channel_width
         self.velocity_centre = velocity_centre
-        self.pad = 0
+        self.padx = 0
+        self.pady = 0
         self.wcs = wcs.WCS(naxis=3)
         self.wcs.wcs.crpix = [
             self.n_px_x / 2. + .5, 
@@ -84,19 +85,19 @@ class DataCube():
 
     def add_pad(self, pad):
         tmp = self._array
-        self._array = np.zeros((self.n_px_x + pad * 2, self.n_px_y + pad * 2, self.n_channels, 1))
+        self._array = np.zeros((self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels, 1))
         self._array = self._array * tmp.unit
-        self._array[pad:-pad, pad:-pad, ...] = tmp
-        self.wcs.wcs.crpix += np.array([pad, pad, 0, 0])
-        self.pad = pad
+        self._array[pad[0]:-pad[0], pad[1]:-pad[1], ...] = tmp
+        self.wcs.wcs.crpix += np.array([pad[0], pad[1], 0, 0])
+        self.padx, self.pady = pad
         return
         
     def drop_pad(self):
-        if self.pad == 0:
+        if (self.padx == 0) and (self.pady == 0):
             return
-        self._array = self._array[self.pad:-self.pad, self.pad:-self.pad, ...]
-        self.wcs.wcs.crpix -= np.array([self.pad, self.pad, 0, 0])
-        self.pad = 0
+        self._array = self._array[self.padx:-self.padx, self.pady:-self.pady, ...]
+        self.wcs.wcs.crpix -= np.array([self.padx, self.pady, 0, 0])
+        self.padx, self.pady = 0, 0
         return
 
     def copy(self):
@@ -108,7 +109,7 @@ class DataCube():
             self.channel_width,
             self.velocity_centre
         )
-        copy.pad = self.pad
+        copy.padx, copy.pady = self.padx, self.pady
         copy.wcs = self.wcs
         copy._array = self._array.copy()
         return copy
