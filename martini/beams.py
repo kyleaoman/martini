@@ -6,6 +6,8 @@ from astropy import wcs
 from scipy.interpolate import RectBivariateSpline
 import warnings
 
+f_HI = 1.420405751*U.GHz
+
 class _BaseBeam(object):
     __metaclass__ = ABCMeta
 
@@ -23,17 +25,11 @@ class _BaseBeam(object):
 
     def init_kernel(self, datacube):
         self.px_size = datacube.px_size
+        self.vel = datacube.velocity_centre
         npx_x, npx_y = self.kernel_size_px()
         px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
         px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
         self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))[..., np.newaxis, np.newaxis]
-
-        import matplotlib.pyplot as pp
-        pp.clf()
-        sp = pp.subplot(1, 1, 1, aspect='equal')
-        sp.contour(px_centres_x, px_centres_y, self.kernel[..., 0, 0])
-        pp.show()
-        exit()
 
         self.arcsec_to_beam = (
             U.Jy * U.arcsec ** -2,
@@ -41,6 +37,10 @@ class _BaseBeam(object):
             lambda x: x * (np.pi * self.bmaj * self.bmin),
             lambda x: x / (np.pi * self.bmaj * self.bmin)
         )
+
+        #can turn 2D beam into a 3D beam here; use above for central channel then shift in frequency up and down for other channels
+        #then probably need to adjust convolution step to do the 2D convolution on a stack
+        
         return
         
     @abstractmethod
@@ -81,9 +81,8 @@ class WSRTBeam(_BaseBeam):
     
     beamfile = '/Users/users/koman/Data/beam00_freq02.fits'
 
-    def __init__(self, dec=90.*U.deg, freq=1.420405751*U.GHz):
+    def __init__(self, dec=90.*U.deg):
         self.dec = dec
-        self.f = freq
         bmaj = 15. * U.arcsec / np.sin(self.dec)
         bmin = 15. * U.arcsec
         bpa = 90. * U.deg
@@ -106,22 +105,23 @@ class WSRTBeam(_BaseBeam):
         return [A[tuple(np.array(bdata.shape) // 2)] for A in (RAgrid, Decgrid, freqgrid)]
 
     def f_kernel(self):
-        
+        freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
-        bpx_ra = np.abs(bheader['CDELT1'] * U.deg).to(U.arcsec)
+        bpx_ra = np.abs(bheader['CDELT1'] * U.deg).to(U.arcsec) 
         bpx_dec = np.abs(bheader['CDELT2'] * U.deg).to(U.arcsec)
-        dRAs = np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1) * bpx_ra
-        dDecs = np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1) * bpx_dec * np.sin(self.dec) / np.sin(centroid[1])
+        dRAs = np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1) * bpx_ra * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        dDecs = np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1) * bpx_dec * np.sin(self.dec) / np.sin(centroid[1]) * (centroid[2] / freq).to(U.dimensionless_unscaled)
         interpolator = RectBivariateSpline(dRAs, dDecs, bdata[..., 0], kx=1, ky=1, s=0)
         return lambda x, y: interpolator(y, x, grid=False) #RectBivariateSpline is a wrapper around Fortran code and causes a transpose...
 
     def kernel_size_px(self):
-        if self.px_size > 8. * U.arcsec:
-            warnings.warn("Using WSRT beam with datacube pixel size > 8 arcsec, beam interpolation may fail.")
+        if self.px_size > 12. * U.arcsec:
+            warnings.warn("Using WSRT beam with datacube pixel size >> 8 arcsec, beam interpolation may fail.")
+        freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
         aspect_x, aspect_y = np.floor(bdata.shape[0] // 2 * np.sin(self.dec)), bdata.shape[1] // 2
-        aspect_x *= np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec)
-        aspect_y *= (bheader['CDELT2'] * U.deg).to(U.arcsec)
+        aspect_x *= np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        aspect_y *= (bheader['CDELT2'] * U.deg).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
         return tuple([(a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1 for a in (aspect_x, aspect_y)])
