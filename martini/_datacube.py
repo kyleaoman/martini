@@ -11,7 +11,9 @@ class DataCube():
             n_channels = 64, 
             px_size = 15. * U.arcsec, 
             channel_width = 4. * U.km * U.s ** -1,
-            velocity_centre = 0. * U.km * U.s ** -1
+            velocity_centre = 0. * U.km * U.s ** -1,
+            ra = 0. * U.deg,
+            dec = 0. * U.deg
     ):
 
         datacube_unit = U.Jy * U.pix ** -2
@@ -20,6 +22,8 @@ class DataCube():
         self.px_size = px_size
         self.channel_width = channel_width
         self.velocity_centre = velocity_centre
+        self.ra = ra
+        self.dec = dec
         self.padx = 0
         self.pady = 0
         self.wcs = wcs.WCS(naxis=3)
@@ -35,7 +39,7 @@ class DataCube():
             self.px_size.to(self.units[1]).value, 
             self.channel_width.to(self.units[2]).value
         ]
-        self.wcs.wcs.crval = [0, 0, self.velocity_centre.to(self.units[2]).value]
+        self.wcs.wcs.crval = [self.ra.to(self.units[0]).value, self.dec.to(self.units[1]).value, self.velocity_centre.to(self.units[2]).value]
         self.wcs.wcs.ctype = ['RA---SIN', 'DEC--SIN', 'VELO-OBS']
         self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         self._channel_mids()

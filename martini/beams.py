@@ -12,6 +12,10 @@ class _BaseBeam(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, bmaj=15.*U.arcsec, bmin=15.*U.arcsec, bpa=0.*U.deg):
+        #some beams need information from the datacube; in this make their call to 
+        #_BaseBeam.__init__ with bmaj == bmin == bpa == None and define a
+        #init_beam_header, to be called after the ra, dec, vel, etc. of the datacube
+        #are known
         self.bmaj = bmaj
         self.bmin = bmin
         self.bpa = bpa
@@ -26,6 +30,10 @@ class _BaseBeam(object):
     def init_kernel(self, datacube):
         self.px_size = datacube.px_size
         self.vel = datacube.velocity_centre
+        self.ra = datacube.ra
+        self.dec = datacube.dec
+        if (self.bmaj == None) or (self.bmin == None) or (self.bpa == None):
+            self.init_beam_header()
         npx_x, npx_y = self.kernel_size_px()
         px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
         px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
@@ -49,6 +57,10 @@ class _BaseBeam(object):
 
     @abstractmethod
     def kernel_size_px(self):
+        pass
+        
+    @abstractmethod
+    def init_beam_header(self):
         pass
 
 class GaussianBeam(_BaseBeam):
@@ -81,12 +93,8 @@ class WSRTBeam(_BaseBeam):
     
     beamfile = '/Users/users/koman/Data/beam00_freq02.fits'
 
-    def __init__(self, dec=90.*U.deg):
-        self.dec = dec
-        bmaj = 15. * U.arcsec / np.sin(self.dec)
-        bmin = 15. * U.arcsec
-        bpa = 90. * U.deg
-        super(WSRTBeam, self).__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
+    def __init__(self):
+        super(WSRTBeam, self).__init__(bmaj=None, bmin=None, bpa=None)
 
     def _load_beamfile(self):
         with fits.open(self.beamfile) as f:
@@ -103,6 +111,12 @@ class WSRTBeam(_BaseBeam):
         Decgrid *= U.deg
         freqgrid *= U.Hz
         return [A[tuple(np.array(bdata.shape) // 2)] for A in (RAgrid, Decgrid, freqgrid)]
+
+    def init_beam_header(self):
+        self.bmaj = 15. * U.arcsec / np.sin(self.dec)
+        self.bmin = 15. * U.arcsec
+        self.bpa = 90. * U.deg
+        return
 
     def f_kernel(self):
         freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
