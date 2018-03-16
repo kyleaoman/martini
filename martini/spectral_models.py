@@ -51,7 +51,7 @@ class GaussianSpectrum(_BaseSpectrum):
     
     def __init__(self, sigma=7. * U.km * U.s ** -1):
         self.sigma_mode = sigma
-        super(GaussianSpectrum, self).__init__()
+        super().__init__()
         return
 
     def spectral_function(self, a, b, vmids, sigma=1.0):
@@ -72,7 +72,7 @@ class GaussianSpectrum(_BaseSpectrum):
 class DiracDeltaSpectrum(_BaseSpectrum):
 
     def __init__(self):
-        super(DiracDeltaSpectrum, self).__init__()
+        super().__init__()
         return
 
     def spectral_function(self, a, b, vmids):

@@ -19,16 +19,26 @@ class _BaseSource():
     
     __metaclass__ = ABCMeta
     
-    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}):
+    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, ra=0.*U.deg, dec=0.*U.deg):
 
+        self.npart = self.mHI_g.size
+
+        self.ra = ra
+        self.dec = dec
         self.distance = distance
         self.rotation = rotation
         self.current_rotation = np.eye(3)
         self.rotate(**self.rotation)
-        distance_vector = np.array([self.distance.value, 0, 0]) * self.distance.unit
+        self.rotate(axis_angle=('y', self.dec))
+        self.rotate(axis_angle=('z', -self.ra))
+        distance_vector = np.array([
+            np.cos(self.ra) * np.cos(self.dec),
+            np.sin(self.ra) * np.cos(self.dec),
+            np.sin(self.dec)
+        ]) * self.distance
         self.translate_position(distance_vector)
         self.vsys = (self.h * 100.0 * U.km * U.s ** -1 * U.Mpc ** - 1) * self.distance
-        hubble_flow_vector = np.array([self.vsys.value, 0, 0]) * self.vsys.unit
+        hubble_flow_vector = distance_vector * self.vsys / self.distance
         self.translate_velocity(hubble_flow_vector)
         self.sky_coordinates = ICRS(self.coordinates_g)
         return
@@ -39,6 +49,9 @@ class _BaseSource():
         self.coordinates_g = self.coordinates_g[mask]
         self.sky_coordinates = ICRS(self.coordinates_g)
         self.hsm_g = self.hsm_g[mask]
+        self.npart = np.sum(mask)
+        if self.npart == 0:
+            raise RuntimeError('No source particles in target region.')
         return
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
@@ -72,7 +85,7 @@ class _BaseSource():
 
 class SOSource(_BaseSource):
     
-    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, SO_args=dict()):
+    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, SO_args=dict(), ra=0.*U.deg, dec=0.*U.deg):
 
         self._SO_args = SO_args
         while True:
@@ -91,16 +104,16 @@ class SOSource(_BaseSource):
             except RuntimeError:
                 time.sleep(10)
                 continue
-
-        super(SOSource, self).__init__(distance=distance, rotation=rotation)
+        
+        super().__init__(distance=distance, rotation=rotation, ra=ra, dec=dec)
         return
 
 class SingleParticleSource(_BaseSource):
 
-    def __init__(self, distance=3.*U.Mpc, rotation={'rotmat': np.eye(3)}):
+    def __init__(self, distance=3.*U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0.*U.deg, dec=0.*U.deg):
         self.h = .7
-        self.T_g = np.array([1.E4]) * U.K
-        self.mHI_g = np.array([1.E4]) * U.solMass
+        self.T_g = np.ones(1) * 1.E4 * U.K
+        self.mHI_g = np.ones(1) * 1.E4 * U.solMass
         self.coordinates_g = CartesianRepresentation(
             np.array([[1.E-6, 1.E-6, 1.E-6]]) * U.kpc,
             xyz_axis=1,
@@ -109,6 +122,30 @@ class SingleParticleSource(_BaseSource):
                 xyz_axis=1
             )}
         )
-        self.hsm_g = np.array([1.]) * U.kpc
-        super(SingleParticleSource, self).__init__(distance=distance, rotation=rotation)
+        self.hsm_g = np.ones(1) * 1. * U.kpc
+        super().__init__(distance=distance, rotation=rotation, ra=ra, dec=dec)
+        return
+
+class CrossSource(_BaseSource):
+    
+    def __init__(self, distance=3.*U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0.*U.deg, dec=0.*U.deg):
+        self.h = .7
+        self.T_g = np.ones(4) * 1.E4 * U.K
+        self.mHI_g = np.ones(4) * 1.E4 * U.solMass
+        self.coordinates_g = CartesianRepresentation(
+            np.array([[0, 1, 0],
+                      [0, 0, 2],
+                      [0, -3, 0],
+                      [0, 0, -4]]) * U.kpc,
+            xyz_axis=1,
+            differentials={'s':CartesianDifferential(
+                np.array([[0, 0, 1],
+                          [0, -1, 0],
+                          [0, 0, -1],
+                          [0, 1, 0]]) * U.km * U.s ** -1,
+                xyz_axis=1
+            )}
+        )
+        self.hsm_g = np.ones(4) * U.kpc
+        super().__init__(distance=distance, rotation=rotation, ra=ra, dec=dec)
         return

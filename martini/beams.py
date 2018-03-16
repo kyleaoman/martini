@@ -67,7 +67,7 @@ class GaussianBeam(_BaseBeam):
 
     def __init__(self, bmaj=15.*U.arcsec, bmin=15.*U.arcsec, bpa=0.*U.deg, truncate=4.):
         self.truncate = truncate
-        super(GaussianBeam, self).__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
+        super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return
 
     def f_kernel(self):
@@ -94,7 +94,7 @@ class WSRTBeam(_BaseBeam):
     beamfile = '/Users/users/koman/Data/beam00_freq02.fits'
 
     def __init__(self):
-        super(WSRTBeam, self).__init__(bmaj=None, bmin=None, bpa=None)
+        super().__init__(bmaj=None, bmin=None, bpa=None)
 
     def _load_beamfile(self):
         with fits.open(self.beamfile) as f:

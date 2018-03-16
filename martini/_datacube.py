@@ -40,7 +40,7 @@ class DataCube():
             self.channel_width.to(self.units[2]).value
         ]
         self.wcs.wcs.crval = [self.ra.to(self.units[0]).value, self.dec.to(self.units[1]).value, self.velocity_centre.to(self.units[2]).value]
-        self.wcs.wcs.ctype = ['RA---SIN', 'DEC--SIN', 'VELO-OBS']
+        self.wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN', 'VELO-OBS']
         self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         self._channel_mids()
         self._channel_edges()
@@ -111,7 +111,9 @@ class DataCube():
             self.n_channels, 
             self.px_size, 
             self.channel_width,
-            self.velocity_centre
+            self.velocity_centre,
+            self.ra,
+            self.dec
         )
         copy.padx, copy.pady = self.padx, self.pady
         copy.wcs = self.wcs

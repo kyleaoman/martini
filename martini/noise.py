@@ -19,7 +19,7 @@ class GaussianNoise(_BaseNoise):
         
         self.rms = rms
         
-        super(GaussianNoise, self).__init__()
+        super().__init__()
 
         return
 

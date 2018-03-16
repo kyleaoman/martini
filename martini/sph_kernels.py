@@ -19,7 +19,7 @@ class _BaseSPHKernel(object):
 class WendlandC2Kernel(_BaseSPHKernel):
     
     def __init__(self):
-        super(WendlandC2Kernel, self).__init__()
+        super().__init__()
         return
 
     def px_weight(self, dij, h):
@@ -44,7 +44,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
     
     def __init__(self, ignore_smoothing=False):
         self.ignore_smoothing = ignore_smoothing
-        super(DiracDeltaKernel, self).__init__()
+        super().__init__()
         return
         
     def px_weight(self, dij, h):
