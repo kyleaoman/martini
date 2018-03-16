@@ -29,7 +29,7 @@ class DataCube():
         self.wcs = wcs.WCS(naxis=3)
         self.wcs.wcs.crpix = [
             self.n_px_x / 2. + .5, 
-            self.n_px_x / 2. + .5, 
+            self.n_px_y / 2. + .5, 
             self.n_channels // 2
         ]
         self.units = [U.deg, U.deg, U.m * U.s ** -1]

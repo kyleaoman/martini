@@ -5,6 +5,7 @@ from astropy.io import fits
 from astropy import wcs
 from scipy.interpolate import RectBivariateSpline
 import warnings
+import os.path
 
 f_HI = 1.420405751*U.GHz
 
@@ -91,7 +92,7 @@ class GaussianBeam(_BaseBeam):
 
 class WSRTBeam(_BaseBeam):
     
-    beamfile = '/Users/users/koman/Data/beam00_freq02.fits'
+    beamfile = os.path.join(os.path.dirname(__file__), 'data/beam00_freq02.fits')
 
     def __init__(self):
         super().__init__(bmaj=None, bmin=None, bpa=None)
@@ -127,7 +128,7 @@ class WSRTBeam(_BaseBeam):
         dRAs = np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1) * bpx_ra * (centroid[2] / freq).to(U.dimensionless_unscaled)
         dDecs = np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1) * bpx_dec * np.sin(self.dec) / np.sin(centroid[1]) * (centroid[2] / freq).to(U.dimensionless_unscaled)
         interpolator = RectBivariateSpline(dRAs, dDecs, bdata[..., 0], kx=1, ky=1, s=0)
-        return lambda x, y: interpolator(y, x, grid=False) #RectBivariateSpline is a wrapper around Fortran code and causes a transpose...
+        return lambda x, y: interpolator(y, x, grid=False).T #RectBivariateSpline is a wrapper around Fortran code and causes a transpose...
 
     def kernel_size_px(self):
         if self.px_size > 12. * U.arcsec:
