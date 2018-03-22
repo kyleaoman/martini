@@ -137,6 +137,8 @@ class WSRTBeam(_BaseBeam):
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
         aspect_x, aspect_y = np.floor(bdata.shape[0] // 2 * np.sin(self.dec)), bdata.shape[1] // 2
-        aspect_x *= np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        aspect_y *= (bheader['CDELT2'] * U.deg).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        from IPython.core.debugger import Tracer
+        Tracer()()
+        aspect_x = aspect_x * np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        aspect_y = aspect_y * (bheader['CDELT2'] * U.deg).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
         return tuple([(a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1 for a in (aspect_x, aspect_y)])
