@@ -88,7 +88,7 @@ class Martini():
             np.arange(self.datacube._array.shape[0]), 
             np.arange(self.datacube._array.shape[1])
         ))
-        print('  ' + self.logtag + '  [rows: {0:.0f}, columns: {1:.0f}]'.format(self.datacube._array.shape[0], self.datacube._array.shape[1]))
+        print('  ' + self.logtag + '  [columns: {0:.0f}, rows: {1:.0f}]'.format(self.datacube._array.shape[0], self.datacube._array.shape[1]))
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
