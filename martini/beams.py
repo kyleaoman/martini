@@ -38,7 +38,7 @@ class _BaseBeam(object):
         npx_x, npx_y = self.kernel_size_px()
         px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
         px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
-        self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))[..., np.newaxis, np.newaxis]
+        self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))#[..., np.newaxis, np.newaxis]
 
         self.arcsec_to_beam = (
             U.Jy * U.arcsec ** -2,
