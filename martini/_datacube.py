@@ -2,6 +2,8 @@ import numpy as np
 import astropy.units as U
 from astropy import wcs
 
+HIfreq = 1.420405751E9 * U.Hz
+
 class DataCube():
 
     def __init__(
@@ -33,7 +35,7 @@ class DataCube():
             self.n_channels // 2
         ]
         self.units = [U.deg, U.deg, U.m * U.s ** -1]
-        self.wcs.wcs.cunit = [str(unit).replace(' ', '') for unit in self.units]
+        self.wcs.wcs.cunit = [unit.to_string('fits') for unit in self.units]
         self.wcs.wcs.cdelt = [
             -self.px_size.to(self.units[0]).value, 
             self.px_size.to(self.units[1]).value, 
@@ -44,6 +46,7 @@ class DataCube():
         self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         self._channel_mids()
         self._channel_edges()
+        self._freq_channel_mode = False
             
         return
 
@@ -74,18 +77,39 @@ class DataCube():
         return iter(self._array[..., 0].reshape(self.n_px_x * self.n_px_y, self.n_channels))
 
     def freq_channels(self):
-        velocity_widths = np.diff(self.channel_edges)
-        HIfreq = 1.420405751E9 * U.Hz
-        convert_to_Hz = lambda q: q.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
-        self.wcs.wcs.cdelt[2] = np.abs(convert_to_Hz(self.wcs.wcs.cdelt[2] * self.units[2]) \
-                                 - convert_to_Hz(0. * self.units[2])).value
-        self.wcs.wcs.crval[2] = convert_to_Hz(self.wcs.wcs.crval[2] * self.units[2]).value
-        self.wcs.wcs.ctype[2] = 'FREQ-OBS'
-        self.wcs.wcs.cunit[2] = 'Hz'
-        self.units[2] = U.Hz
-        self._channel_mids()
-        self._channel_edges()
-        return
+        if self._freq_channel_mode:
+            return
+        else:
+            velocity_widths = np.diff(self.channel_edges)
+            convert_to_Hz = lambda q: q.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+            self.wcs.wcs.cdelt[2] = np.abs(convert_to_Hz(self.wcs.wcs.cdelt[2] * self.units[2]) \
+                                           - convert_to_Hz(0. * self.units[2])).value
+            self.wcs.wcs.crval[2] = convert_to_Hz(self.wcs.wcs.crval[2] * self.units[2]).value
+            self.wcs.wcs.ctype[2] = 'FREQ-OBS'
+            self.units[2] = U.Hz
+            self.wcs.wcs.cunit[2] = self.units[2].to_string('fits')
+            self._channel_mids()
+            self._channel_edges()
+            self._freq_channel_mode = True
+            return
+
+    def velocity_channels(self):
+        if not self._freq_channel_mode:
+            return
+        else:
+            frequency_widths = np.diff(self.channel_edges)
+            convert_to_ms = lambda q: q.to(U.m * U.s ** -1, equivalencies=U.doppler_radio(HIfreq))
+            self.wcs.wcs.cdelt[2] = np.abs(convert_to_ms(self.wcs.wcs.cdelt[2] * self.units[2]) \
+                                           - convert_to_ms(0. * self.units[2])).value
+            self.wcs.wcs.crval[2] = convert_to_ms(self.wcs.wcs.crval[2] * self.units[2]).value
+            self.wcs.wcs.ctype[2] = 'VELO-OBS'
+            self.units[2] = U.m * U.s ** -1
+            self.wcs.wcs.cunit[2] = self.units[2].to_string('fits')
+            self._channel_mids()
+            self._channel_edges()
+            self._freq_channel_mode = False
+            return
+
 
     def add_pad(self, pad):
         tmp = self._array

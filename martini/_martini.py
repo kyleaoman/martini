@@ -113,7 +113,7 @@ class Martini():
         return
 
     def write_fits(self, filename, channels='frequency'):
-        
+
         self.datacube.drop_pad()
         if channels == 'frequency':
             self.datacube.freq_channels()
@@ -136,7 +136,7 @@ class Martini():
         header.append(('NAXIS2', self.datacube.n_px_y))
         header.append(('NAXIS3', self.datacube.n_channels))
         header.append(('NAXIS4', 1))
-        header.append(('BLOCKED', 'T'))
+        header.append(('EXTEND', 'T'))
         header.append(('CDELT1', wcs_header['CDELT1']))
         header.append(('CRPIX1', wcs_header['CRPIX1']))
         header.append(('CRVAL1', wcs_header['CRVAL1']))
@@ -151,10 +151,7 @@ class Martini():
         header.append(('CRPIX3', wcs_header['CRPIX3']))
         header.append(('CRVAL3', wcs_header['CRVAL3']))
         header.append(('CTYPE3', wcs_header['CTYPE3']))
-        if wcs_header['CUNIT3'] == 'm s-1':
-            header.append(('CUNIT3', 'm/s'))
-        else:
-            header.append(('CUNIT3', wcs_header['CUNIT3']))
+        header.append(('CUNIT3', wcs_header['CUNIT3']))
         header.append(('CDELT4', wcs_header['CDELT4']))
         header.append(('CRPIX4', wcs_header['CRPIX4']))
         header.append(('CRVAL4', wcs_header['CRVAL4']))
@@ -192,3 +189,69 @@ class Martini():
         hdu = fits.PrimaryHDU(header=header, data=self.datacube._array.value.T) #flip axes to write
         hdu.writeto(filename, overwrite=True)
 
+        if channels == 'frequency':
+            self.datacube.velocity_channels()
+        return
+
+    def write_beam_fits(self, filename, channels='frequency'):
+
+        if self.beam is None:
+            raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
+        
+        if channels == 'frequency':
+            self.datacube.freq_channels()
+        elif channels == 'velocity':
+            pass
+        else:
+            raise ValueError("Martini.write_beam_fits: Unknown 'channels' value "
+                             "(use 'frequency' or 'velocity'.")
+
+        filename = filename if filename[-5:] == '.fits' else filename + '.fits'
+
+        wcs_header = self.datacube.wcs.to_header()
+
+        header = fits.Header()
+        header.append(('SIMPLE', 'T'))
+        header.append(('BITPIX', 16))
+        header.append(('NAXIS', self.beam.kernel.ndim))
+        header.append(('NAXIS1', self.beam.kernel.shape[0]))
+        header.append(('NAXIS2', self.beam.kernel.shape[1]))
+        header.append(('NAXIS3', 1))
+        header.append(('EXTEND', 'T'))
+        header.append(('BSCALE', 1.0))
+        header.append(('BZERO', 0.0))
+        header.append(('BUNIT', self.datacube._array.unit.to_string('fits'))) #this is Jy/beam, is this right?
+        header.append(('CRPIX1', self.beam.kernel.shape[0] // 2 + 1))
+        header.append(('CDELT1', wcs_header['CDELT1']))
+        header.append(('CRVAL1', wcs_header['CRVAL1']))
+        header.append(('CTYPE1', wcs_header['CTYPE1']))
+        header.append(('CUNIT1', wcs_header['CUNIT1']))
+        header.append(('CRPIX2', self.beam.kernel.shape[1] // 2 + 1))
+        header.append(('CDELT2', wcs_header['CDELT2']))
+        header.append(('CRVAL2', wcs_header['CRVAL2']))
+        header.append(('CTYPE2', wcs_header['CTYPE2']))
+        header.append(('CUNIT2', wcs_header['CUNIT2']))
+        header.append(('CRPIX3', 1))
+        header.append(('CDELT3', wcs_header['CDELT3']))
+        header.append(('CRVAL3', wcs_header['CRVAL3']))
+        header.append(('CTYPE3', wcs_header['CTYPE3']))
+        header.append(('CUNIT3', wcs_header['CUNIT3']))
+        header.append(('SPECSYS', wcs_header['SPECSYS']))
+        header.append(('BMAJ', self.beam.bmaj.to(U.deg).value))
+        header.append(('BMIN', self.beam.bmin.to(U.deg).value))
+        header.append(('BPA', self.beam.bpa.to(U.deg).value))
+        header.append(('BTYPE', 'beam    '))
+        header.append(('EPOCH', 2000))
+        header.append(('OBSERVER', 'K. Oman'))
+        header.append(('OBJECT', 'MOCKBEAM')) #long names break fits format
+        header.append(('INSTRUME', 'WSRT', 'MARTINI Synthetic'))
+        header.append(('DATAMAX', np.max(self.beam.kernel)))
+        header.append(('DATAMIN', np.min(self.beam.kernel)))
+        header.append(('ORIGIN', 'astropy v'+astropy_version))
+        
+        hdu = fits.PrimaryHDU(header=header, data=self.beam.kernel.T) #flip axes to write
+        hdu.writeto(filename, overwrite=True)
+
+        if channels == 'frequency':
+            self.datacube.velocity_channels()
+        return
