@@ -5,7 +5,6 @@ from astropy.io import fits
 from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
-from multiprocessing import Pool
 
 class Martini():
 
@@ -37,7 +36,10 @@ class Martini():
             mode='same'
         ) * unit
         self.datacube.drop_pad()
-        self.datacube._array = self.datacube._array.to(U.Jy * U.beam ** -1, equivalencies=[self.beam.arcsec_to_beam])
+        self.datacube._array = self.datacube._array.to(
+            U.Jy * U.beam ** -1, 
+            equivalencies=[self.beam.arcsec_to_beam]
+        )
         return        
 
     def add_noise(self):
@@ -55,7 +57,8 @@ class Martini():
             self.source.hsm_g / self.source.sky_coordinates.distance
         ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         sm_range = np.ceil(sm_length).astype(int)
-        spectrum_half_width = self.spectral_model.half_width(self.source) / self.datacube.channel_width
+        spectrum_half_width = self.spectral_model.half_width(self.source) / \
+                              self.datacube.channel_width
         reject_conditions = (
             (particle_coords[:2] + sm_range[np.newaxis] < 0 * U.pix).any(axis=0),
             particle_coords[0] - sm_range > (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
@@ -88,7 +91,10 @@ class Martini():
             np.arange(self.datacube._array.shape[0]), 
             np.arange(self.datacube._array.shape[1])
         ))
-        print('  ' + self.logtag + '  [columns: {0:.0f}, rows: {1:.0f}]'.format(self.datacube._array.shape[0], self.datacube._array.shape[1]))
+        print('  ' + self.logtag + '  [columns: {0:.0f}, rows: {1:.0f}]'.format(
+            self.datacube._array.shape[0], 
+            self.datacube._array.shape[1])
+        )
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
@@ -98,7 +104,8 @@ class Martini():
                 particle_coords[:2, mask] - ij,
                 sm_length[mask]
             )
-            self.datacube._array[ij_px[0], ij_px[1], :, 0] = (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(axis=-2)
+            self.datacube._array[ij_px[0], ij_px[1], :, 0] = (self.spectral_model.spectra[mask] * \
+                                                              weights[..., np.newaxis]).sum(axis=-2)
             
         self.datacube._array = self.datacube._array / np.power(self.datacube.px_size / U.pix, 2)
         return
@@ -159,7 +166,7 @@ class Martini():
         header.append(('DATAMAX', np.max(self.datacube._array.value)))
         header.append(('DATAMIN', np.min(self.datacube._array.value)))
         header.append(('ORIGIN', 'astropy v'+astropy_version))
-        header.append(('OBJECT', 'MOCK'))
+        header.append(('OBJECT', 'MOCK')) #long names break fits format, don't let the user set this
         if self.beam is not None:
             header.append(('BPA', self.beam.bpa.to(U.deg).value))
         header.append(('OBSERVER', 'K. Oman'))

@@ -7,13 +7,13 @@ from scipy.interpolate import RectBivariateSpline
 import warnings
 import os.path
 
-f_HI = 1.420405751*U.GHz
+f_HI = 1.420405751 * U.GHz
 
 class _BaseBeam(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, bmaj=15.*U.arcsec, bmin=15.*U.arcsec, bpa=0.*U.deg):
-        #some beams need information from the datacube; in this make their call to 
+        #some beams need information from the datacube; in this case make their call to 
         #_BaseBeam.__init__ with bmaj == bmin == bpa == None and define a
         #init_beam_header, to be called after the ra, dec, vel, etc. of the datacube
         #are known
@@ -132,7 +132,8 @@ class WSRTBeam(_BaseBeam):
 
     def kernel_size_px(self):
         if self.px_size > 12. * U.arcsec:
-            warnings.warn("Using WSRT beam with datacube pixel size >> 8 arcsec, beam interpolation may fail.")
+            warnings.warn("Using WSRT beam with datacube pixel size >> 8 arcsec,"
+                          " beam interpolation may fail.")
         freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
