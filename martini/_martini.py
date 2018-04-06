@@ -213,7 +213,8 @@ class Martini():
         header = fits.Header()
         header.append(('SIMPLE', 'T'))
         header.append(('BITPIX', 16))
-        header.append(('NAXIS', self.beam.kernel.ndim))
+        #header.append(('NAXIS', self.beam.kernel.ndim))
+        header.append(('NAXIS', 3))
         header.append(('NAXIS1', self.beam.kernel.shape[0]))
         header.append(('NAXIS2', self.beam.kernel.shape[1]))
         header.append(('NAXIS3', 1))
@@ -249,7 +250,7 @@ class Martini():
         header.append(('DATAMIN', np.min(self.beam.kernel)))
         header.append(('ORIGIN', 'astropy v'+astropy_version))
         
-        hdu = fits.PrimaryHDU(header=header, data=self.beam.kernel.T) #flip axes to write
+        hdu = fits.PrimaryHDU(header=header, data=self.beam.kernel[..., np.newaxis].T) #flip axes to write
         hdu.writeto(filename, overwrite=True)
 
         if channels == 'frequency':
