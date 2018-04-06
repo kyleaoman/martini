@@ -30,11 +30,13 @@ class Martini():
 
     def convolve_beam(self):
         unit = self.datacube._array.unit
-        self.datacube._array = fftconvolve(
-            self.datacube._array, 
-            self.beam.kernel,
-            mode='same'
-        ) * unit
+        for spatial_slice in self.datacube.spatial_slices():
+            #use a view [...] to force in-place modification
+            spatial_slice[...] = fftconvolve(
+                spatial_slice, 
+                self.beam.kernel,
+                mode='same'
+                ) * unit
         self.datacube.drop_pad()
         self.datacube._array = self.datacube._array.to(
             U.Jy * U.beam ** -1, 

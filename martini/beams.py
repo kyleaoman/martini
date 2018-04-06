@@ -38,7 +38,7 @@ class _BaseBeam(object):
         npx_x, npx_y = self.kernel_size_px()
         px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
         px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
-        self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))[..., np.newaxis, np.newaxis]
+        self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))#[..., np.newaxis, np.newaxis]
 
         self.arcsec_to_beam = (
             U.Jy * U.arcsec ** -2,
@@ -138,6 +138,6 @@ class WSRTBeam(_BaseBeam):
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
         aspect_x, aspect_y = np.floor(bdata.shape[0] // 2 * np.sin(self.dec)), bdata.shape[1] // 2
-        aspect_x *= np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        aspect_y *= (bheader['CDELT2'] * U.deg).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        aspect_x = aspect_x * np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        aspect_y = aspect_y * (bheader['CDELT2'] * U.deg).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
         return tuple([(a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1 for a in (aspect_x, aspect_y)])
