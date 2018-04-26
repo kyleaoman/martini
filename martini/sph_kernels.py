@@ -48,7 +48,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         return
         
     def px_weight(self, dij, h):
-        return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), np.ones(h.shape), np.zeros(h.shape))
+        return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), np.ones(h.shape), np.zeros(h.shape)) * U.pix ** -2
 
     def validate(self, sm_lengths):
         if (sm_lengths > 1 * U.pix).any() and (self.ignore_smoothing == False):
