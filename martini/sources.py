@@ -11,11 +11,66 @@ from kyleaoman_utilities.L_align import L_align
 def translate(cls, translation_vector):
     return CartesianRepresentation(cls.__class__.get_xyz(cls) + translation_vector.reshape(3, 1), differentials=cls.differentials)
 setattr(CartesianRepresentation, 'translate', translate)
+#and velocity (or generally, differential) translation
 def translate_d(cls, translation_vector):
     return CartesianDifferential(cls.__class__.get_d_xyz(cls) + translation_vector.reshape(3, 1))
 setattr(CartesianDifferential, 'translate', translate_d)
 
 class _BaseSource():
+
+    """
+    Abstract base class for HI emission sources.
+
+    Classes inheriting from _BaseSource must do the following in their __init__, before calling
+    super().__init__:
+     - Set self.h to the value of the dimensionless Hubble constant ("little h").
+     - Set self.T_g to an astropy.units.Quantity array of particle temperatures, with dimensions of
+       temperature.
+     - Set self.mHI_g to an astropy.units.Quantity array of particle HI masses, with dimensions of
+       mass.
+     - Set self.coordinates_g to an astropy.coordinates.CartesianRepresentation containing particle 
+       coordinates with units of length, with a differentials dict containing a key 's' and a 
+       corresponding value holding an astropy.coordinates.CartesianRepresentation containing particle
+       velocities, with dimensions of velocity. The coorinate centroid will be placed on the sky at
+       the RA and Dec provided (see below), and the velocity centroid will be the reference velocity
+       which eventually lands in the central channel of the data cube; these should be set
+       accordingly.
+     - Set self.hsml_g to an astropy.units.Quantity array of particle smoothing lengths, with
+       dimensions of length.
+    Then super().__init__ must be called.
+
+    Parameters
+    ----------
+    distance : astropy.units.Quantity, with dimensions of length
+        Source distance, also used to set the velocity offset via Hubble's law.
+    
+    rotation : dict
+        Keys may be any combination of 'axis_angle', 'rotmat' and/or 'L_coords'. These will be applied
+        in this order. Note that the 'y-z' plane will be the one eventually placed in the plane of
+        the "sky". The corresponding values:
+         - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the axis to rotate about,
+           second element an astropy.units.Quantity with dimensions of angle, indicating the angle to
+           rotate through.
+         - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
+         - 'L_coords' : A 2-tuple containing an inclination and an azimuthal angle (both
+           astropy.units.Quantity instances with dimensions of angle). The routine will first attempt
+           to identify a preferred plane based on the angular momenta of the central 1/3 of particles
+           in the source. This plane will then be rotated to lie in the plane of the "sky" ('y-z'), 
+           rotated by the azimuthal angle about its angular momentum pole (rotation about 'x'), and 
+           inclined (rotation about 'y'). Note that this process will effectively override axis-angle
+           and rotation matrix rotations.
+
+    ra : astropy.units.Quantity, with dimensions of angle
+        Right ascension for the source centroid.
+
+    dec : astropy.units.Quantity, with dimensions of angle
+        Declination for the source centroid.
+
+    See Also
+    --------
+    SingleParticleSource (simplest possible implementation of a class inheriting from _BaseSource).
+
+    """
     
     __metaclass__ = ABCMeta
     
@@ -44,6 +99,14 @@ class _BaseSource():
         return
 
     def apply_mask(self, mask):
+        """
+        Remove particles from source arrays according to a mask.
+        
+        Parameters
+        ----------
+        mask : array-like, containing boolean-like
+            Remove particles with indices corresponding to False values from the source arrays.
+        """
         self.T_g = self.T_g[mask]
         self.mHI_g = self.mHI_g[mask]
         self.coordinates_g = self.coordinates_g[mask]
@@ -55,6 +118,29 @@ class _BaseSource():
         return
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
+        """
+        Rotate the source.
+
+        The arguments correspond to different rotation types. If supplied together in one function
+        call, they are applied in order: axis_angle, then rotmat, then L_coords.
+        
+        Parameters
+        ----------
+        axis_angle : 2-tuple
+            First element one of 'x', 'y', 'z' for the axis to rotate about, second element an 
+            astropy.units.Quantity with dimensions of angle, indicating the angle to rotate through.
+        rotmat : (3, 3) array-like
+            Rotation matrix.
+        L_coords : 2-tuple 
+            First element containing an inclination and second element an azimuthal angle (both
+            astropy.units.Quantity instances with dimensions of angle). The routine will first attempt
+            to identify a preferred plane based on the angular momenta of the central 1/3 of particles
+            in the source. This plane will then be rotated to lie in the 'y-z' plane, followed 
+            by a rotation by the azimuthal angle about its angular momentum pole (rotation about 'x'),
+            and finally inclined (rotation about 'y'). Note that this process will effectively 
+            override axis_angle and rotmat arguments.
+           """
+
         do_rot = np.eye(3)
 
         if axis_angle is not None:
@@ -76,10 +162,32 @@ class _BaseSource():
         return
                 
     def translate_position(self, translation_vector):
+        """
+        Translate the source.
+        
+        Note that the "line of sight" is along the 'x' axis.
+
+        Parameters
+        ----------
+        translation_vector : astropy.units.Quantity, shape (3, ), with dimensions of length
+            Vector by which to offset the source particle coordinates.
+        """
+        
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
         return
         
     def translate_velocity(self, translation_vector):
+        """
+        Apply an offset to the source velocity.
+        
+        Note that the "line of sight" is along the 'x' axis.
+        
+        Parameters
+        ----------
+        translation_vector : astropy.units.Quantity, shape (3, ), with dimensions of velocity
+            Vector by which to offset the source particle velocities.
+        """
+        
         self.coordinates_g.differentials['s'] = self.coordinates_g.differentials['s'].translate(translation_vector)
         return
 

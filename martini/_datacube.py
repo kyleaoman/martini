@@ -6,6 +6,49 @@ HIfreq = 1.420405751E9 * U.Hz
 
 class DataCube():
 
+    """
+    Handles the creation and management of the actual data cube to be filled with mock data.
+
+    Basic usage simply involves initializing with the parameters listed below. More advanced usage
+    might arise if designing custom classes for other sub-modules, especially beams.
+
+    Parameters
+    ----------
+    n_px_x : int
+        Pixel count along the x (RA) axis. Even integers strongly preferred.
+    
+    n_px_y : int
+        Pixel count along the y (Dec) axis. Even integers strongly preferred.
+
+    n_channels : int
+        Number of channels along the spectral axis.
+
+    px_size : astropy.units.Quantity, with dimensions of angle
+        Angular scale of one pixel.
+
+    channel_width : astropy.units.Quantity, with dimensions of velocity
+        Step size along the spectral axis. Must be provided as a velocity.
+
+    velocity_centre : astropy.units.Quantity, with dimensions of velocity
+        Velocity of the central channel along the spectral axis.
+
+    ra : astropy.units.Quantity, with dimensions of angle
+        Right ascension of the cube centroid.
+
+    dec : astropy.units.Quantity, with dimensions of angle
+        Declination of the cube centroid.
+
+    Returns
+    -------
+    out : DataCube
+        An appropriately configured DataCube object.
+
+    Examples
+    --------
+    TODO
+
+    """
+
     def __init__(
             self, 
             n_px_x = 256, 
@@ -51,6 +94,9 @@ class DataCube():
         return
 
     def _channel_mids(self):
+        """
+        Calculate the centres of the channels from the coordinate system.
+        """
         self.channel_mids = self.wcs.wcs_pix2world(
             np.zeros(self.n_channels), 
             np.zeros(self.n_channels), 
@@ -61,6 +107,9 @@ class DataCube():
         return
 
     def _channel_edges(self):
+        """
+        Calculate the edges of the channels from the coordinate system.
+        """
         self.channel_edges = self.wcs.wcs_pix2world(
             np.zeros(self.n_channels + 1), 
             np.zeros(self.n_channels + 1), 
@@ -71,12 +120,21 @@ class DataCube():
         return
 
     def spatial_slices(self):
+        """
+        Return an iterator over the spatial 'slices' of the cube.
+        """
         return iter(self._array[..., 0].transpose((2, 0, 1)))
 
     def spectra(self):
+        """
+        Return an iterator over the spectra (one in each spatial pixel).
+        """
         return iter(self._array[..., 0].reshape(self.n_px_x * self.n_px_y, self.n_channels))
 
     def freq_channels(self):
+        """
+        Convert spectral axis to frequency units.
+        """
         if self._freq_channel_mode:
             return
         else:
@@ -94,6 +152,9 @@ class DataCube():
             return
 
     def velocity_channels(self):
+        """
+        Convert spectral axis (back) to velocity units.
+        """
         if not self._freq_channel_mode:
             return
         else:
@@ -112,6 +173,23 @@ class DataCube():
 
 
     def add_pad(self, pad):
+        """
+        Resize the cube to add a padding region in the spatial direction. 
+
+        Accurate convolution with a beam requires a cube padded according to the size of the beam 
+        kernel (its representation sampled on a grid with the same spacing). The beam class is 
+        required to handle defining the size of pad required.
+
+        Parameters
+        ----------
+        pad : tuple or other sequence of length 2
+            Number of pixels to add in the x (RA) and y (Dec) directions, respectively.
+        
+        See Also
+        ----------
+        drop_pad
+        """
+
         tmp = self._array
         self._array = np.zeros((self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels, 1))
         self._array = self._array * tmp.unit
@@ -121,6 +199,16 @@ class DataCube():
         return
         
     def drop_pad(self):
+        """
+        Remove the padding added using add_pad.
+
+        After convolution, the pad region contains meaningless information and can be discarded.
+        
+        See Also
+        ----------
+        add_pad
+        """
+        
         if (self.padx == 0) and (self.pady == 0):
             return
         self._array = self._array[self.padx:-self.padx, self.pady:-self.pady, ...]
@@ -129,6 +217,15 @@ class DataCube():
         return
 
     def copy(self):
+        """
+        Produce a copy of the DataCube.
+        
+        May be especially useful to create multiple datacubes with differing intermediate steps.
+
+        Examples
+        ----------
+        TODO
+        """
         copy = DataCube(
             self.n_px_x, 
             self.n_px_y, 
@@ -145,4 +242,7 @@ class DataCube():
         return copy
 
     def __repr__(self):
+        """
+        Print the contents of the data cube array itself.
+        """
         return self._array.__repr__()
