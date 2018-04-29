@@ -16,28 +16,11 @@ def translate_d(cls, translation_vector):
     return CartesianDifferential(cls.__class__.get_d_xyz(cls) + translation_vector.reshape(3, 1))
 setattr(CartesianDifferential, 'translate', translate_d)
 
-class _BaseSource():
-
+class SPHSource(object):
     """
-    Abstract base class for HI emission sources.
+    Class abstracting HI emission sources consisting of SPH simulation particles.
 
-    Classes inheriting from _BaseSource must do the following in their __init__, before calling
-    super().__init__:
-     - Set self.h to the value of the dimensionless Hubble constant ("little h").
-     - Set self.T_g to an astropy.units.Quantity array of particle temperatures, with dimensions of
-       temperature.
-     - Set self.mHI_g to an astropy.units.Quantity array of particle HI masses, with dimensions of
-       mass.
-     - Set self.coordinates_g to an astropy.coordinates.CartesianRepresentation containing particle 
-       coordinates with units of length, with a differentials dict containing a key 's' and a 
-       corresponding value holding an astropy.coordinates.CartesianRepresentation containing particle
-       velocities, with dimensions of velocity. The coorinate centroid will be placed on the sky at
-       the RA and Dec provided (see below), and the velocity centroid will be the reference velocity
-       which eventually lands in the central channel of the data cube; these should be set
-       accordingly.
-     - Set self.hsml_g to an astropy.units.Quantity array of particle smoothing lengths, with
-       dimensions of length.
-    Then super().__init__ must be called.
+    This class constructs an HI emission source from arrays of SPH particle properties: mass, smoothing length, temperature, position, and velocity.
 
     Parameters
     ----------
@@ -66,15 +49,70 @@ class _BaseSource():
     dec : astropy.units.Quantity, with dimensions of angle
         Declination for the source centroid.
 
+    h : float
+        Dimensionless hubble constant, H0 = h * 100 km / s / Mpc.
+
+    T_g : astropy.units.Quatity, with dimensions of temperature
+        Particle temperature.
+        
+    mHI_g : astropy.unit.Quantity, with dimensions of mass
+        Particle mass.
+
+    xyz_g : astropy.units.Quantity array of length 3, with dimensions of length
+        Particle position offset from source centroid. Note that the 'y-z' plane is that eventually placed in the plane of the "sky"; 'x' is the axis corresponding to the "line of sight".
+
+    vxyz_g : astropy.units.Quantity array of length 3, with dimensions of velocity
+        Particle velocity offset from source centroid. Note that the 'y-z' plane is that eventually placed in the plane of the "sky"; 'x' is the axis corresponding to the "line of sight".
+
+    hsm_g : astropy.units.Quantity, with dimensions of length
+        Particle SPH smoothing lengths.
+    
     See Also
     --------
-    SingleParticleSource (simplest possible implementation of a class inheriting from _BaseSource).
-
+    SingleParticleSource (simplest possible implementation of a class inheriting from SPHSource).
+    CrossSource
+    SOSource
     """
     
-    __metaclass__ = ABCMeta
-    
-    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, ra=0.*U.deg, dec=0.*U.deg):
+    def __init__(
+        self, 
+        distance=3. * U.Mpc, 
+        rotation={'rotmat': np.eye(3)}, 
+        ra=0.*U.deg, 
+        dec=0.*U.deg, 
+        h=.7, 
+        T_g=None, 
+        mHI_g=None,
+        xyz_g=None,
+        vxyz_g=None,
+        hsm_g=None,
+        coordinate_axis=None
+        ):
+
+        if coordinate_axis is None:
+            if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
+                coordinate_axis = 0
+            elif (xyz_g.shape[0] != 3) and (xyz_g.shape[1] == 3):
+                coordinate_axis = 1
+            elif xyz_g.shape == (3, 3):
+                raise RuntimeError("martini.sources.SPHSource: cannot guess coordinate_axis with shape (3, 3), provide explicitly.")
+            else:
+                raise RuntimeError("martini.sources.SPHSource: incorrect coordinate shape (not (3, N) or (N, 3)).")
+            
+        if xyz_g.shape != vxyz_g.shape:
+            raise ValueError("martini.sources.SPHSource: xyz_g and vxyz_g must have matching shapes.")
+        self.h = h
+        self.T_g = T_g
+        self.mHI_g = mHI_g
+        self.coordinates_g = CartesianRepresentation(
+            xyz_g,
+            xyz_axis=coordinate_axis,
+            differentials={'s': CartesianDifferential(
+                vyxz_g,
+                xyz_axis=coordinate_axis
+            )}
+        )
+        self.hsm_g = hsm_g
 
         self.npart = self.mHI_g.size
 
@@ -107,6 +145,7 @@ class _BaseSource():
         mask : array-like, containing boolean-like
             Remove particles with indices corresponding to False values from the source arrays.
         """
+
         self.T_g = self.T_g[mask]
         self.mHI_g = self.mHI_g[mask]
         self.coordinates_g = self.coordinates_g[mask]
@@ -120,7 +159,7 @@ class _BaseSource():
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
         """
         Rotate the source.
-
+        
         The arguments correspond to different rotation types. If supplied together in one function
         call, they are applied in order: axis_angle, then rotmat, then L_coords.
         
@@ -139,7 +178,7 @@ class _BaseSource():
             by a rotation by the azimuthal angle about its angular momentum pole (rotation about 'x'),
             and finally inclined (rotation about 'y'). Note that this process will effectively 
             override axis_angle and rotmat arguments.
-           """
+        """
 
         do_rot = np.eye(3)
 
@@ -191,69 +230,146 @@ class _BaseSource():
         self.coordinates_g.differentials['s'] = self.coordinates_g.differentials['s'].translate(translation_vector)
         return
 
-class SOSource(_BaseSource):
+class SingleParticleSource(SPHSource):
+    """
+    Class illustrating inheritance from martini.sources.SPHSource, creates a single particle test source.
+
+    A simple test source consisting of a single particle will be created. The particle has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a temperature of 10^4 K, a position offset by (x, y, z) = (1 pc, 1 pc, 1 pc) from the source centroid, a peculiar velocity of 0 km/s, and will be placed in the Hubble flow assuming h = 0.7 and the distance provided.
+
+    Parameters
+    ----------
+    distance : astropy.units.Quantity, with units of length
+        Source distance, also used to place the source in the Hubble flow assuming h = 0.7.
+        
+    ra : astropy.units.Quantity, with dimensions of angle
+        Right ascension for the source centroid.
+
+    dec : astropy.units.Quantity, with dimensions of angle
+        Declination for the source centroid.
+    """
+
+    def __init__(self, distance=3 * U.Mpc, ra=0. * U.deg, dec=0. * U.deg):
+        
+        super().__init__(
+            distance=distance,
+            rotation={'rotmat': np.eye(3)}, 
+            ra=ra, 
+            dec=dec, 
+            h=.7, 
+            T_g=np.ones(1) * 1.E4 * U.K, 
+            mHI_g=np.ones(1) * 1.E4 * U.solMass,
+            xyz_g = np.ones((1, 3)) * 1.E-3 * U.kpc,
+            vxyz_g = np.zeros((1, 3)) * U.km * U.s ** -1
+            hsm_g = np.ones(1) * U.kpc
+            )
+        return
+
+class CrossSource(SPHSource):
+    """
+    Creates a source consisting of 4 particles arrayed in an asymmetric cross.
+
+    A simple test source consisting of four particles will be created. Each has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a temperature of 10^4 K, and will be placed in the Hubble flow assuming h=.7 and a distance of 3 Mpc. Particle coordinates in kpc are [[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]], and velocities in km/s are [[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]].       
     
-    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, SO_args=dict(), ra=0.*U.deg, dec=0.*U.deg):
+    Parameters
+    ----------
+    distance : astropy.units.Quantity, with units of length
+        Source distance, also used to place the source in the Hubble flow assuming h = 0.7.
+        
+    rotation : dict
+        Keys may be any combination of 'axis_angle', 'rotmat' and/or 'L_coords'. These will be applied
+        in this order. Note that the 'y-z' plane will be the one eventually placed in the plane of
+        the "sky". The corresponding values:
+         - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the axis to rotate about,
+           second element an astropy.units.Quantity with dimensions of angle, indicating the angle to
+           rotate through.
+         - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
+         - 'L_coords' : A 2-tuple containing an inclination and an azimuthal angle (both
+           astropy.units.Quantity instances with dimensions of angle). The routine will first attempt
+           to identify a preferred plane based on the angular momenta of the central 1/3 of particles
+           in the source. This plane will then be rotated to lie in the plane of the "sky" ('y-z'), 
+           rotated by the azimuthal angle about its angular momentum pole (rotation about 'x'), and 
+           inclined (rotation about 'y'). Note that this process will effectively override axis-angle
+           and rotation matrix rotations.
+
+    ra : astropy.units.Quantity, with dimensions of angle
+        Right ascension for the source centroid.
+
+    dec : astropy.units.Quantity, with dimensions of angle
+        Declination for the source centroid.
+    """
+    
+    def __init__(self, distance=3. * U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0. * U.deg, dec=0. * U.deg):
+        xyz_g = np.array([[0, 1, 0],
+                          [0, 0, 2],
+                          [0, -3, 0],
+                          [0, 0, -4]]) * U.kpc,
+        
+        vxyz_g = np.array([[0, 0, 1],
+                           [0, -1, 0],
+                           [0, 0, -1],
+                           [0, 1, 0]]) * U.km * U.s ** -1
+            
+        super().__init__(
+            distance=distance,
+            rotation={'rotmat': np.eye(3)}, 
+            ra=ra, 
+            dec=dec, 
+            h=.7, 
+            T_g=np.ones(4) * 1.E4 * U.K, 
+            mHI_g=np.ones(4) * 1.E4 * U.solMass,
+            xyz_g = xyz_g,
+            vxyz_g = vxyz_g,
+            hsm_g = np.ones(4) * U.kpc
+            )
+        return
+
+
+class SOSource(SPHSource):
+    """
+    Class abstracting HI sources using the SimObj package for interface to simulation data.
+    
+    This class accesses simulation data via the SimObj package (https://github.com/kyleaoman/simobj); see the documentation of that package for further configuration instructions. 
+
+    Parameters
+    ----------
+    distance : astropy.units.Quantity, with dimensions of length
+        Source distance, also used to set the velocity offset via Hubble's law.
+    
+    rotation : dict
+        Keys may be any combination of 'axis_angle', 'rotmat' and/or 'L_coords'. These will be applied
+        in this order. Note that the 'y-z' plane will be the one eventually placed in the plane of
+        the "sky". The corresponding values:
+         - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the axis to rotate about,
+           second element an astropy.units.Quantity with dimensions of angle, indicating the angle to
+           rotate through.
+         - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
+         - 'L_coords' : A 2-tuple containing an inclination and an azimuthal angle (both
+           astropy.units.Quantity instances with dimensions of angle). The routine will first attempt
+           to identify a preferred plane based on the angular momenta of the central 1/3 of particles
+           in the source. This plane will then be rotated to lie in the plane of the "sky" ('y-z'), 
+           rotated by the azimuthal angle about its angular momentum pole (rotation about 'x'), and 
+           inclined (rotation about 'y'). Note that this process will effectively override axis-angle
+           and rotation matrix rotations.
+
+    ra : astropy.units.Quantity, with dimensions of angle
+        Right ascension for the source centroid.
+
+    dec : astropy.units.Quantity, with dimensions of angle
+        Declination for the source centroid.
+
+    SO_args : dict
+        Dictionary of keyword arguments to pass to a call to simobj.SimObj. Arguments are: 'obj_id', 'snap_id', 'mask_type', 'mask_args', 'mask_kwargs', 'configfile', 'simfiles_configfile', 'ncpu'. See simobj package documentation for details.
+    """
+
+    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, ra=0.*U.deg, dec=0.*U.deg, SO_args=dict()):
 
         self._SO_args = SO_args
-        while True:
-            try:
-                with SimObj(**self._SO_args) as SO:
-                    self.h = SO.h
-                    self.T_g = SO.T_g
-                    self.mHI_g = SO.mHI_g
-                    self.coordinates_g = CartesianRepresentation(
-                        SO.xyz_g, 
-                        xyz_axis=1,
-                        differentials={'s': CartesianDifferential(SO.vxyz_g, xyz_axis=1)}
-                    )
-                    self.hsm_g = SO.hsm_g
-                break
-            except RuntimeError:
-                time.sleep(10)
-                continue
-        
-        super().__init__(distance=distance, rotation=rotation, ra=ra, dec=dec)
-        return
-
-class SingleParticleSource(_BaseSource):
-
-    def __init__(self, distance=3.*U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0.*U.deg, dec=0.*U.deg):
-        self.h = .7
-        self.T_g = np.ones(1) * 1.E4 * U.K
-        self.mHI_g = np.ones(1) * 1.E4 * U.solMass
-        self.coordinates_g = CartesianRepresentation(
-            np.array([[1.E-6, 1.E-6, 1.E-6]]) * U.kpc,
-            xyz_axis=1,
-            differentials={'s': CartesianDifferential(
-                np.array([[0., 0., 0.]]) * U.km * U.s ** -1,
-                xyz_axis=1
-            )}
-        )
-        self.hsm_g = np.ones(1) * 1. * U.kpc
-        super().__init__(distance=distance, rotation=rotation, ra=ra, dec=dec)
-        return
-
-class CrossSource(_BaseSource):
-    
-    def __init__(self, distance=3.*U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0.*U.deg, dec=0.*U.deg):
-        self.h = .7
-        self.T_g = np.ones(4) * 1.E4 * U.K
-        self.mHI_g = np.ones(4) * 1.E4 * U.solMass
-        self.coordinates_g = CartesianRepresentation(
-            np.array([[0, 1, 0],
-                      [0, 0, 2],
-                      [0, -3, 0],
-                      [0, 0, -4]]) * U.kpc,
-            xyz_axis=1,
-            differentials={'s':CartesianDifferential(
-                np.array([[0, 0, 1],
-                          [0, -1, 0],
-                          [0, 0, -1],
-                          [0, 1, 0]]) * U.km * U.s ** -1,
-                xyz_axis=1
-            )}
-        )
-        self.hsm_g = np.ones(4) * U.kpc
-        super().__init__(distance=distance, rotation=rotation, ra=ra, dec=dec)
+        with SimObj(**self._SO_args) as SO:
+            super().__init__(
+                distance=distance, 
+                rotation=rotation, 
+                ra=ra, 
+                dec=dec, 
+                
+                )
         return
