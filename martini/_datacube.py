@@ -122,12 +122,22 @@ class DataCube():
     def spatial_slices(self):
         """
         Return an iterator over the spatial 'slices' of the cube.
+
+        Returns
+        -------
+        out : iterator
+            Iterator over the spatial 'slices' of the cube.
         """
         return iter(self._array[..., 0].transpose((2, 0, 1)))
 
     def spectra(self):
         """
         Return an iterator over the spectra (one in each spatial pixel).
+        
+        Returns
+        -------
+        out : iterator
+            Iterator over the spectra (one in each spatial pixel).
         """
         return iter(self._array[..., 0].reshape(self.n_px_x * self.n_px_y, self.n_channels))
 
@@ -205,7 +215,7 @@ class DataCube():
         After convolution, the pad region contains meaningless information and can be discarded.
         
         See Also
-        ----------
+        --------
         add_pad
         """
         
@@ -222,8 +232,13 @@ class DataCube():
         
         May be especially useful to create multiple datacubes with differing intermediate steps.
 
+        Returns
+        -------
+        out : DataCube
+            Copy of the DataCube object.
+
         Examples
-        ----------
+        --------
         TODO
         """
         copy = DataCube(
@@ -244,5 +259,10 @@ class DataCube():
     def __repr__(self):
         """
         Print the contents of the data cube array itself.
+
+        Returns
+        -------
+        out : string
+            Text representation of the DataCube._array contents.
         """
         return self._array.__repr__()

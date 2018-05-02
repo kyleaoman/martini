@@ -54,6 +54,11 @@ class WendlandC2Kernel(_BaseSPHKernel):
     Implementation of the Wendland C2 kernel integral.
 
     The Wendland C2 kernel is used in the EAGLE code and derivatives (not in Gadget/Gadget2!). The exact integral is usually too slow to be practical; the implementation here approximates the kernel amplitude as constant across the pixel, which converges to within 1% of the exact integral provided the SPH smoothing lengths are at least 2 pixels in size.
+
+    Returns
+    -------
+    out : WendlandC2Kernel
+        An appropriately initialized WendlandC2Kernel object.
     """
     def __init__(self):
         super().__init__()
@@ -70,6 +75,11 @@ class WendlandC2Kernel(_BaseSPHKernel):
             
         h : astropy.units.Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+            
+        Returns
+        -------
+        out : np.array
+            Approximate kernel integral over the pixel area.
         """
         
         dr2 = np.power(dij, 2).sum(axis=0) 
@@ -91,7 +101,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         Parameters
         ----------
         sm_lengths : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in units of pixels.
+            Particle smoothing lengths, in units of pixels.x
         """
 
         if (sm_lengths < 2 * U.pix).any():
@@ -101,7 +111,15 @@ class WendlandC2Kernel(_BaseSPHKernel):
         return
 
 class DiracDeltaKernel(_BaseSPHKernel):
-    
+    """
+    Implementation of a Dirac-delta kernel integral.
+
+    Returns
+    -------
+    out : DiracDeltaKernel
+        An appropriately initialized DiracDeltaKernel object.
+    """
+
     def __init__(self):
         super().__init__()
         return
@@ -117,6 +135,11 @@ class DiracDeltaKernel(_BaseSPHKernel):
             
         h : astropy.units.Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+
+        Returns
+        -------
+        out : np.array
+            Kernel integral over the pixel area.
         """
         
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix ** -2

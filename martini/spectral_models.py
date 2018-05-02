@@ -66,6 +66,8 @@ class _BaseSpectrum(object):
             **spectral_function_kwargs
         ).to(U.dimensionless_unscaled).value / channel_widths).to(U.Jy, equivalencies=[MHI_Jy])
 
+        return
+
     @abstractmethod
     def half_width(self, source):
         """
@@ -136,6 +138,11 @@ class GaussianSpectrum(_BaseSpectrum):
     sigma : astropy.units.Quantity, with dimensions of velocity, or string: 'thermal'
         Width of the Gaussian modelling the line (constant for all particles), or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B is Boltzmann's constant, T is the particle temperature and m_p is the particle mass.
 
+    Returns
+    -------
+    out : GaussianSpectrum
+        An appropriately initialized GaussianSpectrum object.
+
     See Also
     --------
     _BaseSpectrum
@@ -143,8 +150,10 @@ class GaussianSpectrum(_BaseSpectrum):
     """
     
     def __init__(self, sigma=7. * U.km * U.s ** -1):
+
         self.sigma_mode = sigma
         super().__init__()
+
         return
 
     def spectral_function(self, a, b, vmids, sigma=1.0 * U.km * U.s ** -1):
@@ -164,7 +173,13 @@ class GaussianSpectrum(_BaseSpectrum):
 
         sigma : astropy.units.Quantity array, or astropy.units.Quantity, with dimensions of velocity
             Velocity dispersion for HI line width, either for each particle or constant.
+            
+        Returns
+        -------
+        out : astropy.units.Quantity, dimesionless
+            The evaluated spectral model.
         """
+
         return .5 * (
             erf((b - vmids) / (np.sqrt(2.) * sigma)) - \
             erf((a - vmids) / (np.sqrt(2.) * sigma))
@@ -178,6 +193,11 @@ class GaussianSpectrum(_BaseSpectrum):
         ----------
         source : martini.sources.SPHSource (or derived class) instance
             Source object.
+
+        Returns
+        -------
+        out : dict
+            Keyword arguments for the spectral_function.
         """
 
         return {'sigma': self.half_width(source)}
@@ -190,6 +210,11 @@ class GaussianSpectrum(_BaseSpectrum):
         ----------
         source : martini.sources.SPHSource (or derived class) instance
             Source object, making particle properties available.
+            
+        Returns
+        -------
+        out : astropy.unit.Quantity, with dimensions of velocity
+            Velocity dispersion (constant, or per particle).
         """
 
         if self.sigma_mode == 'thermal':
@@ -202,6 +227,11 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     Class implemeting a Dirac-delta model for the spectrum of the HI line.
     
     The line is modelled as a Dirac-delta function, centered at the particle velocity.
+
+    Returns
+    -------
+    out : DiracDeltaSpectrum
+        An appropriately initialized DiracDeltaSpectrum object.
     """
 
     def __init__(self):
@@ -222,6 +252,11 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         vmids : astropy.units.Quantity array, with dimensions of velocity
             Particle velocities along the line of sight.
+
+        Returns
+        -------
+        out : astropy.units.Quantity, dimesionless
+            The evaluated spectral model.
         """
 
         return np.heaviside(vmids - a, 1.) * np.heaviside(b - vmids, 0.)
@@ -229,6 +264,16 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     def spectral_function_kwargs(self, source):
         """
         No additional kwargs.
+
+        Parameters
+        ----------
+        source : martini.sources.SPHSource (or derived class) instance
+            Source object, making particle properties available.
+
+        Returns
+        -------
+        out : dict
+            Empty; no additional kwargs.
         """
 
         return dict()
@@ -236,6 +281,16 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     def half_width(self, source):
         """
         Dirac-delta function has 0 width.
+
+        Parameters
+        ----------
+        source : martini.sources.SPHSource (or derived class) instance
+            Source object, making particle properties available.
+
+        Returns
+        -------
+        out : astropy.units.Quantity
+            Velocity dispersion of 0 km/s.
         """
 
         return 0 * U.km * U.s ** -1

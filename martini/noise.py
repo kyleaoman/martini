@@ -36,6 +36,11 @@ class GaussianNoise(_BaseNoise):
     ----------
     rms : astropy.units.Quantity with dimensions of flux density (e.g. Jy)
         Root mean square amplitude of the noise field.
+
+    Returns
+    -------
+    out : GaussianNoise
+        An appropriately initialized GaussianNoise object.
     """
     
     def __init__(self, rms=1.0 * U.Jy):
@@ -56,6 +61,11 @@ class GaussianNoise(_BaseNoise):
         ----------
         datacube : martini.DataCube instance
             This method will be called passing the martini.DataCube instance as an argument; its attributes can thus be accessed here. datacube._array.shape is particularly relevant.
+            
+        Returns
+        -------
+        out : astropy.units.Quantity array, with dimensions of flux density
+            Noise realization with size matching the DataCube._array.
         """
 
         return np.random.normal(scale=self.rms.value, size=datacube._array.shape) * self.rms.unit

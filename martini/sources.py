@@ -7,13 +7,51 @@ from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from kyleaoman_utilities.L_align import L_align
 
-#extend CartesianRepresentation to allow coordinate translation
+
 def translate(cls, translation_vector):
+    """
+    Apply a coordinate translation.
+    
+    Parameters
+    ----------
+    cls : astropy.coordinates.CartesianRepresentation
+        Equivalent to the 'self' argument for methods.
+        
+    translation_vector : astropy.units.Quantity, with dimensions of length
+        3-vector by which to translate.
+
+    Returns
+    -------
+    out : astropy.coordinates.CartesianRepresentation
+        A new CartesianRepresentation instance with translation applied.
+    """
+    
     return CartesianRepresentation(cls.__class__.get_xyz(cls) + translation_vector.reshape(3, 1), differentials=cls.differentials)
+
+#Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, 'translate', translate)
-#and velocity (or generally, differential) translation
+
 def translate_d(cls, translation_vector):
+    """
+    Apply a differential translation.
+    
+    Parameters
+    ----------
+    cls : astropy.coordinates.CartesianDifferential
+        Equivalent to the 'self' argument for methods.
+        
+    translation_vector : astropy.units.Quantity, with dimensions of velocity (or other units matching differential)
+        3-vector by which to translate.
+
+    Returns
+    -------
+    out : astropy.coordinates.CartesianDifferential
+        A new CartesianDifferential instance with translation applied.
+    """
+    
     return CartesianDifferential(cls.__class__.get_d_xyz(cls) + translation_vector.reshape(3, 1))
+
+#Extend CartesianDifferential to allow velocity (or other differential) translation
 setattr(CartesianDifferential, 'translate', translate_d)
 
 class SPHSource(object):
@@ -66,7 +104,12 @@ class SPHSource(object):
 
     hsm_g : astropy.units.Quantity, with dimensions of length
         Particle SPH smoothing lengths.
-    
+
+    Returns
+    -------
+    out : SPHSource
+        An appropriately initialized SPHSource object.
+
     See Also
     --------
     SingleParticleSource (simplest possible implementation of a class inheriting from SPHSource).
@@ -246,6 +289,11 @@ class SingleParticleSource(SPHSource):
 
     dec : astropy.units.Quantity, with dimensions of angle
         Declination for the source centroid.
+
+    Returns
+    -------
+    out : SingleParticleSource
+        An appropriately initialized SingleParticleSource object.
     """
 
     def __init__(self, distance=3 * U.Mpc, ra=0. * U.deg, dec=0. * U.deg):
@@ -296,6 +344,11 @@ class CrossSource(SPHSource):
 
     dec : astropy.units.Quantity, with dimensions of angle
         Declination for the source centroid.
+        
+    Returns
+    -------
+    out : CrossSource
+        An appropriately initialized CrossSource object.
     """
     
     def __init__(self, distance=3. * U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0. * U.deg, dec=0. * U.deg):
@@ -359,6 +412,11 @@ class SOSource(SPHSource):
 
     SO_args : dict
         Dictionary of keyword arguments to pass to a call to simobj.SimObj. Arguments are: 'obj_id', 'snap_id', 'mask_type', 'mask_args', 'mask_kwargs', 'configfile', 'simfiles_configfile', 'ncpu'. See simobj package documentation for details.
+        
+    Returns
+    -------
+    out : SOSource
+        An appropriately initialized SOSource object.
     """
 
     def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, ra=0.*U.deg, dec=0.*U.deg, SO_args=dict()):

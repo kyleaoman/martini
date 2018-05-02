@@ -316,7 +316,7 @@ class Martini():
             Whether to allow overwriting existing files, note that the default is True.
 
         Raises
-        ----------
+        ------
         ValueError
             If Martini was initialized without a beam.
         """
