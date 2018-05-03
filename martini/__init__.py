@@ -18,3 +18,4 @@ will happen. Any feedback is greatly appreciated.
 
 from ._martini import Martini
 from ._datacube import DataCube
+from ._demo import demo

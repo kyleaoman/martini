@@ -180,10 +180,11 @@ class GaussianSpectrum(_BaseSpectrum):
             The evaluated spectral model.
         """
 
+        #erf strips units
         return .5 * (
             erf((b - vmids) / (np.sqrt(2.) * sigma)) - \
             erf((a - vmids) / (np.sqrt(2.) * sigma))
-        )
+        ) * U.dimensionless_unscaled
 
     def spectral_function_kwargs(self, source):
         """

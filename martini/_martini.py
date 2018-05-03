@@ -67,8 +67,96 @@ class Martini():
     
     Examples
     --------
-    TODO
-    
+    The following example illustrates basic use of martini, using a (very!) crude model of a gas disk. This example can be run by doing 'from martini import demo; demo()'.
+
+    from martini import Martini, DataCube
+    from martini.beams import GaussianBeam
+    from martini.noise import GaussianNoise
+    from martini.spectral_models import GaussianSpectrum
+    from martini.sph_kernels import DiracDeltaKernel
+    from martini.sources import SPHSource
+    import astropy.units as U
+    import numpy as np
+
+    #------make a toy galaxy----------
+    from scipy.optimize import fsolve
+    N = 1000
+    phi = np.random.rand(N) * 2 * np.pi
+    r = []
+    for L in np.random.rand(N):
+    f = lambda r: L - np.power(r, 2) * np.exp(-r)
+    r.append(fsolve(f, 1.)[0])
+    r = np.array(r)
+    r *= 3 / np.sort(r)[N // 2] #exponential disk
+    z = -np.log(np.random.rand(N))
+    z *= .5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - .5) #exponential scale height
+    x = r * np.cos(phi)
+    y = r * np.sin(phi)
+    xyz_g = np.vstack((x, y, z)) * U.kpc
+    vphi = 100 * r / 6. #linear rotation curve
+    vx = -vphi * np.sin(phi)
+    vy = vphi * np.cos(phi)
+    vz = (np.random.rand(N) * 2. - 1.) * 5 #small pure random z velocities
+    vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s ** -1
+    T_g = np.ones(N) * 8E3 * U.K
+    mHI_g = np.ones(N) / N * 5.E9 * U.Msun
+    hsm_g = np.ones(N) * 2 / np.sqrt(N) * U.kpc #~mean interparticle spacing smoothing
+    #---------------------------------
+
+    source = SPHSource(
+        distance = 5. * U.Mpc,
+        rotation = {'L_coords': (60. * U.deg, 0. * U.deg)},
+        ra = 0. * U.deg,
+        dec = 0. * U.deg,
+        h = .7,
+        T_g = T_g,
+        mHI_g = mHI_g,
+        xyz_g = xyz_g,
+        vxyz_g = vxyz_g,
+        hsm_g = hsm_g
+        )
+
+
+    datacube = DataCube(
+        n_px_x = 128,
+        n_px_y = 128,
+        n_channels = 32,
+        px_size = 10. * U.arcsec,
+        channel_width = 10. * U.km * U.s ** -1,
+        velocity_centre = source.vsys
+        )
+
+    beam = GaussianBeam(
+        bmaj = 30. * U.arcsec,
+        bmin = 30. * U.arcsec,
+        bpa = 0. * U.deg,
+        truncate = 4.
+        )
+
+    noise = GaussianNoise(
+        rms = 3.E-4 * U.Jy * U.arcsec ** -2
+        )
+
+    spectral_model = GaussianSpectrum(
+        sigma = 7 * U.km * U.s ** -1
+        )
+
+    sph_kernel = DiracDeltaKernel()
+
+    M = Martini(
+        source=source,
+        datacube=datacube,
+        beam=beam,
+        noise=noise,
+        spectral_model=spectral_model,
+        sph_kernel=sph_kernel
+        )
+
+    M.insert_source_in_cube()
+    M.add_noise()
+    M.convolve_beam()
+    M.write_beam_fits('testbeam.fits', channels='velocity')
+    M.write_fits('testcube.fits', channels='velocity')
     """
 
     def __init__(self, source=None, datacube=None, beam=None, noise=None, sph_kernel=None, \
@@ -347,7 +435,7 @@ class Martini():
         header.append(('EXTEND', 'T'))
         header.append(('BSCALE', 1.0))
         header.append(('BZERO', 0.0))
-        header.append(('BUNIT', self.datacube._array.unit.to_string('fits'))) #this is Jy/beam, is this right?
+        header.append(('BUNIT', self.beam.kernel.unit.to_string('fits'))) #this is 1/arcsec^2, is this right?
         header.append(('CRPIX1', self.beam.kernel.shape[0] // 2 + 1))
         header.append(('CDELT1', wcs_header['CDELT1']))
         header.append(('CRVAL1', wcs_header['CRVAL1']))
@@ -372,12 +460,12 @@ class Martini():
         header.append(('OBSERVER', 'K. Oman'))
         header.append(('OBJECT', 'MOCKBEAM')) #long names break fits format
         header.append(('INSTRUME', 'WSRT', 'MARTINI Synthetic'))
-        header.append(('DATAMAX', np.max(self.beam.kernel)))
-        header.append(('DATAMIN', np.min(self.beam.kernel)))
+        header.append(('DATAMAX', np.max(self.beam.kernel.value)))
+        header.append(('DATAMIN', np.min(self.beam.kernel.value)))
         header.append(('ORIGIN', 'astropy v'+astropy_version))
         
         #flip axes to write
-        hdu = fits.PrimaryHDU(header=header, data=self.beam.kernel[..., np.newaxis].T) 
+        hdu = fits.PrimaryHDU(header=header, data=self.beam.kernel.value[..., np.newaxis].T) 
         hdu.writeto(filename, overwrite=True)
 
         if channels == 'frequency':

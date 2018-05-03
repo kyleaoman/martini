@@ -151,7 +151,7 @@ class SPHSource(object):
             xyz_g,
             xyz_axis=coordinate_axis,
             differentials={'s': CartesianDifferential(
-                vyxz_g,
+                vxyz_g,
                 xyz_axis=coordinate_axis
             )}
         )
@@ -307,7 +307,7 @@ class SingleParticleSource(SPHSource):
             T_g=np.ones(1) * 1.E4 * U.K, 
             mHI_g=np.ones(1) * 1.E4 * U.solMass,
             xyz_g = np.ones((1, 3)) * 1.E-3 * U.kpc,
-            vxyz_g = np.zeros((1, 3)) * U.km * U.s ** -1
+            vxyz_g = np.zeros((1, 3)) * U.km * U.s ** -1,
             hsm_g = np.ones(1) * U.kpc
             )
         return
