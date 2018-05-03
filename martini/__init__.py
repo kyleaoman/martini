@@ -14,6 +14,11 @@ The package is functional and (an old version) has been used in a forthcoming pa
 (https://ui.adsabs.harvard.edu/#abs/2017arXiv170607478O/abstract). It is still undergoing active
 development and is not quite yet at the point of a stable release version. Things will change, bugs
 will happen. Any feedback is greatly appreciated.
+
+See the help for martini.Martini for an example script to configure MARTINI and create a datacube. 
+This example can be run by doing:
+from martini import demo
+demo()
 """
 
 from ._martini import Martini
