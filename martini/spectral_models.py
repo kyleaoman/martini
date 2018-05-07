@@ -9,17 +9,25 @@ class _BaseSpectrum(object):
     """
     Abstract base class for classes implementing spectral models to inherit from.
 
-    Classes inheriting from _BaseSpectrum must implement three methods: 'half_width', 'spectral_function' and 'spectral_function_kwargs'.
+    Classes inheriting from _BaseSpectrum must implement three methods: 'half_width', 
+    'spectral_function' and 'spectral_function_kwargs'.
 
-    'half_width' should define a characteristic width for the model, measured from the peak to the characteristic location. Note that particles whose spectra within +/- 4 half-widths of the peak do not intersect the DataCube bandpass will be discarded to speed computation.
+    'half_width' should define a characteristic width for the model, measured from the peak to the 
+    characteristic location. Note that particles whose spectra within +/- 4 half-widths of the peak do
+    not intersect the DataCube bandpass will be discarded to speed computation.
 
-    'spectral_function' should define the model spectrum. Arguments which depend on the martini.sources.SPHSource (or derived class) properties should make use of the 'spectral_function_kwargs' method. The spectrum should integrate to 1, the amplitude is handled separately.
+    'spectral_function' should define the model spectrum. Arguments which depend on the 
+    martini.sources.SPHSource (or derived class) properties should make use of the 
+    'spectral_function_kwargs' method. The spectrum should integrate to 1, the amplitude is handled 
+    separately.
 
-    'spectral_function_kwargs' should provide a helper to pass properties from martini.source.SPHSource (or derived class) to the 'spectral_function'. This is required because the source object is not accessible at class initialization.
+    'spectral_function_kwargs' should provide a helper to pass properties from 
+    martini.source.SPHSource (or derived class) to the 'spectral_function'. This is required because 
+    the source object is not accessible at class initialization.
     
     See Also
     --------
-    GaussianSpectrum (simple example of a derived class utilizing source properties in spectral_function)
+    GaussianSpectrum (simple example of a derived class using source properties in spectral_function)
     DiracDeltaSpectrum
     """
     
@@ -33,7 +41,10 @@ class _BaseSpectrum(object):
         """
         Pre-compute the spectrum of each particle.
 
-        The spectral model defined in 'spectral_function' is evaluated using the channel edges from the DataCube instance and the particle velocities of the SPHSource (or derived class) instance provided. Additional particle properties can be accessed via the 'spectral_function_kwargs' helper method.
+        The spectral model defined in 'spectral_function' is evaluated using the channel edges from 
+        the DataCube instance and the particle velocities of the SPHSource (or derived class) instance
+        provided. Additional particle properties can be accessed via the 'spectral_function_kwargs' 
+        helper method.
         
         Parameters
         ----------
@@ -113,7 +124,8 @@ class _BaseSpectrum(object):
         """
         Abstract method; helper method to pass additional arguments to the spectral_function.
 
-        Should return a dict containing the kwarg names as keys with the values to pass as associated values.
+        Should return a dict containing the kwarg names as keys with the values to pass as associated 
+        values.
 
         Parameters
         ----------
@@ -131,12 +143,15 @@ class GaussianSpectrum(_BaseSpectrum):
     """
     Class implementing a Gaussian model for the spectrum of the HI line.
     
-    The line is modelled as a Gaussian of either fixed width, or of width scaling with the particle temperature as sqrt(k_B * T / m_p), centered at the particle velocity.
+    The line is modelled as a Gaussian of either fixed width, or of width scaling with the particle 
+    temperature as sqrt(k_B * T / m_p), centered at the particle velocity.
 
     Parameters
     ----------
     sigma : astropy.units.Quantity, with dimensions of velocity, or string: 'thermal'
-        Width of the Gaussian modelling the line (constant for all particles), or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B is Boltzmann's constant, T is the particle temperature and m_p is the particle mass.
+        Width of the Gaussian modelling the line (constant for all particles), or specify 'thermal' 
+        for width equal to sqrt(k_B * T / m_p) where k_B is Boltzmann's constant, T is the particle 
+        temperature and m_p is the particle mass.
 
     Returns
     -------

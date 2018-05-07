@@ -12,7 +12,9 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
     """
     Demonstrates basic usage of MARTINI.
 
-    Creates a (very!) crude toy model of a galaxy with a linearly rising rotation curve, exponential disk profile, exponential vertical structure. A basic configuration of MARTINI is initialized and used to create and output a datacube and an image of the beam.
+    Creates a (very!) crude toy model of a galaxy with a linearly rising rotation curve, exponential 
+    disk profile, exponential vertical structure. A basic configuration of MARTINI is initialized and 
+    used to create and output a datacube and an image of the beam.
 
     Parameters
     ----------
@@ -58,7 +60,7 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
         xyz_g = xyz_g,
         vxyz_g = vxyz_g,
         hsm_g = hsm_g
-        )
+    )
 
     datacube = DataCube(
         n_px_x = 128,
@@ -67,22 +69,22 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
         px_size = 10. * U.arcsec,
         channel_width = 10. * U.km * U.s ** -1,
         velocity_centre = source.vsys
-        )
+    )
 
     beam = GaussianBeam(
         bmaj = 30. * U.arcsec,
         bmin = 30. * U.arcsec,
         bpa = 0. * U.deg,
         truncate = 4.
-        )
+    )
 
     noise = GaussianNoise(
         rms = 3.E-4 * U.Jy * U.arcsec ** -2
-        )
+    )
 
     spectral_model = GaussianSpectrum(
         sigma = 7 * U.km * U.s ** -1
-        )
+    )
 
     sph_kernel = DiracDeltaKernel()
 
@@ -93,7 +95,7 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
         noise=noise,
         spectral_model=spectral_model,
         sph_kernel=sph_kernel
-        )
+    )
 
     M.insert_source_in_cube()
     M.add_noise()

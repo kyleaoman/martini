@@ -26,7 +26,10 @@ def translate(cls, translation_vector):
         A new CartesianRepresentation instance with translation applied.
     """
     
-    return CartesianRepresentation(cls.__class__.get_xyz(cls) + translation_vector.reshape(3, 1), differentials=cls.differentials)
+    return CartesianRepresentation(
+        cls.__class__.get_xyz(cls) + translation_vector.reshape(3, 1), 
+        differentials=cls.differentials
+    )
 
 #Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, 'translate', translate)
@@ -40,7 +43,7 @@ def translate_d(cls, translation_vector):
     cls : astropy.coordinates.CartesianDifferential
         Equivalent to the 'self' argument for methods.
         
-    translation_vector : astropy.units.Quantity, with dimensions of velocity (or other units matching differential)
+    translation_vector : astropy.units.Quantity, with dimensions of velocity (or other differential)
         3-vector by which to translate.
 
     Returns
@@ -58,7 +61,8 @@ class SPHSource(object):
     """
     Class abstracting HI emission sources consisting of SPH simulation particles.
 
-    This class constructs an HI emission source from arrays of SPH particle properties: mass, smoothing length, temperature, position, and velocity.
+    This class constructs an HI emission source from arrays of SPH particle properties: mass, 
+    smoothing length, temperature, position, and velocity.
 
     Parameters
     ----------
@@ -97,10 +101,12 @@ class SPHSource(object):
         Particle mass.
 
     xyz_g : astropy.units.Quantity array of length 3, with dimensions of length
-        Particle position offset from source centroid. Note that the 'y-z' plane is that eventually placed in the plane of the "sky"; 'x' is the axis corresponding to the "line of sight".
+        Particle position offset from source centroid. Note that the 'y-z' plane is that eventually 
+        placed in the plane of the "sky"; 'x' is the axis corresponding to the "line of sight".
 
     vxyz_g : astropy.units.Quantity array of length 3, with dimensions of velocity
-        Particle velocity offset from source centroid. Note that the 'y-z' plane is that eventually placed in the plane of the "sky"; 'x' is the axis corresponding to the "line of sight".
+        Particle velocity offset from source centroid. Note that the 'y-z' plane is that eventually 
+        placed in the plane of the "sky"; 'x' is the axis corresponding to the "line of sight".
 
     hsm_g : astropy.units.Quantity, with dimensions of length
         Particle SPH smoothing lengths.
@@ -117,20 +123,9 @@ class SPHSource(object):
     SOSource
     """
     
-    def __init__(
-        self, 
-        distance=3. * U.Mpc, 
-        rotation={'rotmat': np.eye(3)}, 
-        ra=0.*U.deg, 
-        dec=0.*U.deg, 
-        h=.7, 
-        T_g=None, 
-        mHI_g=None,
-        xyz_g=None,
-        vxyz_g=None,
-        hsm_g=None,
-        coordinate_axis=None
-        ):
+    def __init__(self, distance=3. * U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0.*U.deg, \
+                 dec=0.*U.deg, h=.7, T_g=None, mHI_g=None, xyz_g=None, vxyz_g=None, hsm_g=None, \
+                 coordinate_axis=None):
 
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
@@ -138,9 +133,11 @@ class SPHSource(object):
             elif (xyz_g.shape[0] != 3) and (xyz_g.shape[1] == 3):
                 coordinate_axis = 1
             elif xyz_g.shape == (3, 3):
-                raise RuntimeError("martini.sources.SPHSource: cannot guess coordinate_axis with shape (3, 3), provide explicitly.")
+                raise RuntimeError("martini.sources.SPHSource: cannot guess coordinate_axis with"
+                                   "shape (3, 3), provide explicitly.")
             else:
-                raise RuntimeError("martini.sources.SPHSource: incorrect coordinate shape (not (3, N) or (N, 3)).")
+                raise RuntimeError("martini.sources.SPHSource: incorrect coordinate shape (not (3, N)"
+                                   " or (N, 3)).")
             
         if xyz_g.shape != vxyz_g.shape:
             raise ValueError("martini.sources.SPHSource: xyz_g and vxyz_g must have matching shapes.")
@@ -270,14 +267,19 @@ class SPHSource(object):
             Vector by which to offset the source particle velocities.
         """
         
-        self.coordinates_g.differentials['s'] = self.coordinates_g.differentials['s'].translate(translation_vector)
+        self.coordinates_g.differentials['s'] = self.coordinates_g.differentials['s']\
+                                                                  .translate(translation_vector)
         return
 
 class SingleParticleSource(SPHSource):
     """
-    Class illustrating inheritance from martini.sources.SPHSource, creates a single particle test source.
+    Class illustrating inheritance from martini.sources.SPHSource, creates a single particle test 
+    source.
 
-    A simple test source consisting of a single particle will be created. The particle has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a temperature of 10^4 K, a position offset by (x, y, z) = (1 pc, 1 pc, 1 pc) from the source centroid, a peculiar velocity of 0 km/s, and will be placed in the Hubble flow assuming h = 0.7 and the distance provided.
+    A simple test source consisting of a single particle will be created. The particle has a mass of 
+    10^4 Msun, a SPH smoothing length of 1 kpc, a temperature of 10^4 K, a position offset by 
+    (x, y, z) = (1 pc, 1 pc, 1 pc) from the source centroid, a peculiar velocity of 0 km/s, and will 
+    be placed in the Hubble flow assuming h = 0.7 and the distance provided.
 
     Parameters
     ----------
@@ -316,7 +318,18 @@ class CrossSource(SPHSource):
     """
     Creates a source consisting of 4 particles arrayed in an asymmetric cross.
 
-    A simple test source consisting of four particles will be created. Each has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a temperature of 10^4 K, and will be placed in the Hubble flow assuming h=.7 and a distance of 3 Mpc. Particle coordinates in kpc are [[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]], and velocities in km/s are [[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]].       
+    A simple test source consisting of four particles will be created. Each has a mass of 10^4 Msun, a
+    SPH smoothing length of 1 kpc, a temperature of 10^4 K, and will be placed in the Hubble flow 
+    assuming h=.7 and a distance of 3 Mpc. Particle coordinates in kpc are 
+    [[0,  1,  0], 
+     [0,  0,  2], 
+     [0, -3,  0], 
+     [0,  0, -4]] 
+    and velocities in km/s are 
+    [[0,  0,  1], 
+     [0, -1,  0], 
+     [0,  0, -1], 
+     [0,  1,  0]]
     
     Parameters
     ----------
@@ -351,7 +364,9 @@ class CrossSource(SPHSource):
         An appropriately initialized CrossSource object.
     """
     
-    def __init__(self, distance=3. * U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0. * U.deg, dec=0. * U.deg):
+    def __init__(self, distance=3. * U.Mpc, rotation={'rotmat': np.eye(3)}, ra=0. * U.deg, \
+                 dec=0. * U.deg):
+
         xyz_g = np.array([[0, 1, 0],
                           [0, 0, 2],
                           [0, -3, 0],
@@ -373,7 +388,7 @@ class CrossSource(SPHSource):
             xyz_g = xyz_g,
             vxyz_g = vxyz_g,
             hsm_g = np.ones(4) * U.kpc
-            )
+        )
         return
 
 
@@ -381,7 +396,8 @@ class SOSource(SPHSource):
     """
     Class abstracting HI sources using the SimObj package for interface to simulation data.
     
-    This class accesses simulation data via the SimObj package (https://github.com/kyleaoman/simobj); see the documentation of that package for further configuration instructions. 
+    This class accesses simulation data via the SimObj package (https://github.com/kyleaoman/simobj); 
+    see the documentation of that package for further configuration instructions. 
 
     Parameters
     ----------
@@ -411,7 +427,9 @@ class SOSource(SPHSource):
         Declination for the source centroid.
 
     SO_args : dict
-        Dictionary of keyword arguments to pass to a call to simobj.SimObj. Arguments are: 'obj_id', 'snap_id', 'mask_type', 'mask_args', 'mask_kwargs', 'configfile', 'simfiles_configfile', 'ncpu'. See simobj package documentation for details.
+        Dictionary of keyword arguments to pass to a call to simobj.SimObj. Arguments are: 'obj_id', 
+        'snap_id', 'mask_type', 'mask_args', 'mask_kwargs', 'configfile', 'simfiles_configfile', 
+        'ncpu'. See simobj package documentation for details.
         
     Returns
     -------
@@ -419,7 +437,8 @@ class SOSource(SPHSource):
         An appropriately initialized SOSource object.
     """
 
-    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, ra=0.*U.deg, dec=0.*U.deg, SO_args=dict()):
+    def __init__(self, distance=3.*U.Mpc, rotation={'L_coords': (60.*U.deg, 0.*U.deg)}, ra=0.*U.deg,\
+                 dec=0.*U.deg, SO_args=dict()):
 
         self._SO_args = SO_args
         with SimObj(**self._SO_args) as SO:

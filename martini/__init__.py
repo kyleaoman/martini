@@ -17,8 +17,12 @@ will happen. Any feedback is greatly appreciated.
 
 See the help for martini.Martini for an example script to configure MARTINI and create a datacube. 
 This example can be run by doing:
+
 from martini import demo
 demo()
+
+If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, 
+ideally specifying the version used (git commit ID). Suport available via koman@astro.rug.nl.
 """
 
 from ._martini import Martini

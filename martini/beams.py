@@ -13,13 +13,19 @@ class _BaseBeam(object):
     """
     Abstract base class for classes implementing a radio telescope beam model.
 
-    Classes inheriting from _BaseBeam must implement three methods: 'f_kernel', 'kernel_size_px' and 'init_beam_header'.
+    Classes inheriting from _BaseBeam must implement three methods: 'f_kernel', 'kernel_size_px' and 
+    'init_beam_header'.
 
-    'f_kernel' should return a function accepting two arguments, the RA and Dec offsets from the beam centroid (provided with units of arcsec), and returning the beam amplitude at that location.
+    'f_kernel' should return a function accepting two arguments, the RA and Dec offsets from the beam 
+    centroid (provided with units of arcsec), and returning the beam amplitude at that location.
 
-    'kernel_px_size' should return a 2-tuple containing the half-size (x, y) of the beam image that will be initialized, in pixels.
+    'kernel_px_size' should return a 2-tuple containing the half-size (x, y) of the beam image that 
+    will be initialized, in pixels.
 
-    'init_beam_header' should be defined if the major/minor axis FWHM of the beam and its position angle are not defined when the beam object is initialized, for instance if modelling a particular telescope this function can be used to set the (constant) parameters of the beam of that particular facility.
+    'init_beam_header' should be defined if the major/minor axis FWHM of the beam and its position 
+    angle are not defined when the beam object is initialized, for instance if modelling a particular 
+    telescope this function can be used to set the (constant) parameters of the beam of that 
+    particular facility.
 
     Parameters
     ----------
@@ -54,7 +60,8 @@ class _BaseBeam(object):
 
     def needs_pad(self):
         """
-        Determine the padding of the datacube required by the beam to prevent edge effects during convolution.
+        Determine the padding of the datacube required by the beam to prevent edge effects during 
+        convolution.
 
         Returns
         -------
@@ -101,7 +108,9 @@ class _BaseBeam(object):
         """
         Abstract method; returns a function defining the beam amplitude as a function of position.
 
-        The function returned by this method should accept two parameters, the RA and Dec offset from the beam centroid, and return the beam amplitude at that position. The offsets are provided as astropy.units.Quantity objects with dimensions of angle (arcsec).
+        The function returned by this method should accept two parameters, the RA and Dec offset from 
+        the beam centroid, and return the beam amplitude at that position. The offsets are provided as
+        astropy.units.Quantity objects with dimensions of angle (arcsec).
         """
         
         pass
@@ -109,7 +118,8 @@ class _BaseBeam(object):
     @abstractmethod
     def kernel_size_px(self):
         """
-        Abstract method; returns a 2-tuple specifying the half-size of the beam image to be initialized, in pixels.
+        Abstract method; returns a 2-tuple specifying the half-size of the beam image to be 
+        initialized, in pixels.
         """
 
         pass
@@ -119,7 +129,8 @@ class _BaseBeam(object):
         """
         Abstract method; sets beam major/minor axis lengths and position angle.
 
-        This method is optional, and only needs to be defined if these parameters are not specified in the call to the __init__ method of the derived class.
+        This method is optional, and only needs to be defined if these parameters are not specified 
+        in the call to the __init__ method of the derived class.
         """
         
         pass
@@ -152,11 +163,13 @@ class GaussianBeam(_BaseBeam):
         """
         Returns a function defining the beam amplitude as a function of position.
         
-        The model implemented is a 2D Gaussian with FWHM's specified by bmaj and bmin and orientation by bpa.
+        The model implemented is a 2D Gaussian with FWHM's specified by bmaj and bmin and orientation 
+        by bpa.
         
         Returns
         -------
-        Callable accepting 2 arguments (both float or array) and returning a float or array of corresponding size.
+        Callable accepting 2 arguments (both float or array) and returning a float or array of 
+        corresponding size.
         """
 
         fwhm_to_sigma = lambda fwhm: fwhm / (2. * np.sqrt(2. * np.log(2.)))
@@ -182,14 +195,17 @@ class GaussianBeam(_BaseBeam):
         2-tuple, each element an integer.
         """
 
-        size = np.ceil((self.bmaj * self.truncate).to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1
+        size = np.ceil((self.bmaj * self.truncate)\
+                       .to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1
         return size, size
 
 class WSRTBeam(_BaseBeam):
     """
     Class implementing a beam model for the Westerbork Synthesis Radio Telescope.
 
-    The beam is adapted from an actual image from the telescope. The image is scaled for frequency and declination then interpolated to the required resolution. Note that the image is for the "classic" WSRT, not APERTIF.
+    The beam is adapted from an actual image from the telescope. The image is scaled for frequency and
+    declination then interpolated to the required resolution. Note that the image is for the "classic"
+    WSRT, not APERTIF.
     
     The input image is located at '<martini directory>/data/beam00_freq02.fits'.
     """
@@ -216,7 +232,8 @@ class WSRTBeam(_BaseBeam):
 
         Returns
         -------
-        3-tuple containing: three astropy.units.Quantity objects with dimensions of angle, angle and frequency, respectively, corresponding to the RA, Dec and frequency centres.
+        3-tuple containing: three astropy.units.Quantity objects with dimensions of angle, angle and 
+        frequency, respectively, corresponding to the RA, Dec and frequency centres.
         """
 
         bheader, bdata = self._load_beamfile()
@@ -244,11 +261,13 @@ class WSRTBeam(_BaseBeam):
         """
         Returns a function defining the beam amplitude as a function of position.
 
-        The model implemented is based on an interpolation of an image of the WSRT beam, re-scaled according to declination and frequency.
+        The model implemented is based on an interpolation of an image of the WSRT beam, re-scaled 
+        according to declination and frequency.
 
         Returns
         -------
-        Callable accepting 2 arguments (both float or array) and returning a float or array of corresponding size.
+        Callable accepting 2 arguments (both float or array) and returning a float or array of 
+        corresponding size.
         """
         
         freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
@@ -256,16 +275,21 @@ class WSRTBeam(_BaseBeam):
         centroid = self._centroid()
         bpx_ra = np.abs(bheader['CDELT1'] * U.deg).to(U.arcsec) 
         bpx_dec = np.abs(bheader['CDELT2'] * U.deg).to(U.arcsec)
-        dRAs = np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1) * bpx_ra * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        dDecs = np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1) * bpx_dec * np.sin(self.dec) / np.sin(centroid[1]) * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        dRAs = np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1) \
+               * bpx_ra * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        dDecs = np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1) \
+                * bpx_dec * np.sin(self.dec) / np.sin(centroid[1]) * (centroid[2] / freq)\
+                                                 .to(U.dimensionless_unscaled)
         interpolator = RectBivariateSpline(dRAs, dDecs, bdata[..., 0], kx=1, ky=1, s=0)
-        return lambda x, y: interpolator(y, x, grid=False).T #RectBivariateSpline is a wrapper around Fortran code and causes a transpose
+        #RectBivariateSpline is a wrapper around Fortran code and causes a transpose
+        return lambda x, y: interpolator(y, x, grid=False).T 
 
     def kernel_size_px(self):
         """
         Returns a 2-tuple specifying the half-size of the beam image to be initialized, in pixels.
 
-        The interpolation may become unstable if the image is severely undersampled, pixel sizes of more than 8 arcsec are not recommended.
+        The interpolation may become unstable if the image is severely undersampled, pixel sizes of 
+        more than 8 arcsec are not recommended.
 
         Returns
         -------
@@ -279,6 +303,9 @@ class WSRTBeam(_BaseBeam):
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
         aspect_x, aspect_y = np.floor(bdata.shape[0] // 2 * np.sin(self.dec)), bdata.shape[1] // 2
-        aspect_x = aspect_x * np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        aspect_y = aspect_y * (bheader['CDELT2'] * U.deg).to(U.arcsec) * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        return tuple([(a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1 for a in (aspect_x, aspect_y)])
+        aspect_x = aspect_x * np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec) * (centroid[2] / freq)\
+                                                                 .to(U.dimensionless_unscaled)
+        aspect_y = aspect_y * (bheader['CDELT2'] * U.deg).to(U.arcsec) * (centroid[2] / freq)\
+                                                         .to(U.dimensionless_unscaled)
+        return tuple([(a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1 \
+                      for a in (aspect_x, aspect_y)])

@@ -67,7 +67,8 @@ class Martini():
     
     Examples
     --------
-    The following example illustrates basic use of martini, using a (very!) crude model of a gas disk. This example can be run by doing 'from martini import demo; demo()'.
+    The following example illustrates basic use of martini, using a (very!) crude model of a gas disk.
+    This example can be run by doing 'from martini import demo; demo()'.
 
     from martini import Martini, DataCube
     from martini.beams import GaussianBeam

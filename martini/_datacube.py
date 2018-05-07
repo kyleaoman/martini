@@ -84,7 +84,11 @@ class DataCube():
             self.px_size.to(self.units[1]).value, 
             self.channel_width.to(self.units[2]).value
         ]
-        self.wcs.wcs.crval = [self.ra.to(self.units[0]).value, self.dec.to(self.units[1]).value, self.velocity_centre.to(self.units[2]).value]
+        self.wcs.wcs.crval = [
+            self.ra.to(self.units[0]).value, 
+            self.dec.to(self.units[1]).value, 
+            self.velocity_centre.to(self.units[2]).value
+        ]
         self.wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN', 'VELO-OBS']
         self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         self._channel_mids()
@@ -201,7 +205,12 @@ class DataCube():
         """
 
         tmp = self._array
-        self._array = np.zeros((self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels, 1))
+        self._array = np.zeros((
+            self.n_px_x + pad[0] * 2, 
+            self.n_px_y + pad[1] * 2, 
+            self.n_channels, 
+            1
+        ))
         self._array = self._array * tmp.unit
         self._array[pad[0]:-pad[0], pad[1]:-pad[1], ...] = tmp
         self.wcs.wcs.crpix += np.array([pad[0], pad[1], 0, 0])

@@ -8,9 +8,12 @@ class _BaseSPHKernel(object):
 
     Classes inheriting from _BaseSPHKernel must implement two methods: 'px_weight' and 'validate'.
 
-    'px_weight' should define the integral of the kernel over a pixel given the distance between the pixel centre and the particle centre, and the smoothing length (both in units of pixels). The integral should be normalized so that evaluated over the entire kernel it is equal to 1.
+    'px_weight' should define the integral of the kernel over a pixel given the distance between the 
+    pixel centre and the particle centre, and the smoothing length (both in units of pixels). The 
+    integral should be normalized so that evaluated over the entire kernel it is equal to 1.
 
-    'validate' should check whether any approximations converge to sufficient accuracy (for instance, depending on the ratio of the pixel size and smoothing length), and raise an error if not.
+    'validate' should check whether any approximations converge to sufficient accuracy (for instance, 
+    depending on the ratio of the pixel size and smoothing length), and raise an error if not.
     """
 
     __metaclass__ = ABCMeta
@@ -39,7 +42,9 @@ class _BaseSPHKernel(object):
         """
         Abstract method; check conditions for validity of kernel integral calculation.
         
-        Some approximations may only converge if the ratio of the pixel size and the smoothing length is sufficiently large, or sufficiently small. This method should check these conditions and raise errors when appropriate. The smoothing lengths are provided normalized to the pixel size.
+        Some approximations may only converge if the ratio of the pixel size and the smoothing length
+        is sufficiently large, or sufficiently small. This method should check these conditions and 
+        raise errors when appropriate. The smoothing lengths are provided normalized to the pixel size.
 
         Parameters
         ----------
@@ -53,7 +58,10 @@ class WendlandC2Kernel(_BaseSPHKernel):
     """
     Implementation of the Wendland C2 kernel integral.
 
-    The Wendland C2 kernel is used in the EAGLE code and derivatives (not in Gadget/Gadget2!). The exact integral is usually too slow to be practical; the implementation here approximates the kernel amplitude as constant across the pixel, which converges to within 1% of the exact integral provided the SPH smoothing lengths are at least 2 pixels in size.
+    The Wendland C2 kernel is used in the EAGLE code and derivatives (not in Gadget/Gadget2!). The 
+    exact integral is usually too slow to be practical; the implementation here approximates the 
+    kernel amplitude as constant across the pixel, which converges to within 1% of the exact integral 
+    provided the SPH smoothing lengths are at least 2 pixels in size.
 
     Returns
     -------
@@ -66,7 +74,9 @@ class WendlandC2Kernel(_BaseSPHKernel):
 
     def px_weight(self, dij, h):
         """
-        Calculate the kernel integral over a pixel. The formula used approximates the kernel amplitude as constant across the pixel area and converges to the true value within 1% for smoothing lengths >= 2 pixels.
+        Calculate the kernel integral over a pixel. The formula used approximates the kernel amplitude
+        as constant across the pixel area and converges to the true value within 1% for smoothing 
+        lengths >= 2 pixels.
 
         Parameters
         ----------
@@ -89,14 +99,17 @@ class WendlandC2Kernel(_BaseSPHKernel):
         use = np.logical_and(R2 < 1, R2 != 0)
         R2 = R2[use]
         A = np.sqrt(1 - R2)
-        retval[use] = 5 * R2 * R2 * (.5 * R2 + 3) * np.log((1 + A) / np.sqrt(R2)) + A * (-27. / 2. * R2 * R2 - 14. / 3. * R2 + 2. / 3.)
-        return retval / .2992 / np.power(h, 2) #.2992 is normalization s.t. kernel integral = 1 for particle mass = 1
+        retval[use] = 5 * R2 * R2 * (.5 * R2 + 3) * np.log((1 + A) / np.sqrt(R2)) \
+                      + A * (-27. / 2. * R2 * R2 - 14. / 3. * R2 + 2. / 3.)
+        #.2992 is normalization s.t. kernel integral = 1 for particle mass = 1
+        return retval / .2992 / np.power(h, 2) 
 
     def validate(self, sm_lengths):
         """
         Check conditions for validity of kernel integral calculation.
         
-        Convergence within 1% of the exact integral is achieved when the smoothing lengths are >= 2 pixels.
+        Convergence within 1% of the exact integral is achieved when the smoothing lengths are 
+        >= 2 pixels.
 
         Parameters
         ----------
@@ -126,7 +139,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         
     def px_weight(self, dij, h):
         """
-        Calculate the kernel integral over a pixel. The particles are approximated as point-like, ignoring any finite-sized kernel. This is a reasonable approximation provided the smoothing length is < 0.5 pixel in size, ideally << 1 pixel in size.
+        Calculate the kernel integral over a pixel. The particles are approximated as point-like, 
+        ignoring any finite-sized kernel. This is a reasonable approximation provided the smoothing 
+        length is < 0.5 pixel in size, ideally << 1 pixel in size.
 
         Parameters
         ----------
@@ -149,7 +164,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
         """
         Check conditions for validity of kernel integral calculation.
 
-        The Dirac-delta model approaches the exact integral when the smoothing length is << 1 pixel in size; at a minimum the smoothing length should be less than half the pixel size.
+        The Dirac-delta model approaches the exact integral when the smoothing length is << 1 pixel in
+        size; at a minimum the smoothing length should be less than half the pixel size.
 
         Parameters
         ----------
