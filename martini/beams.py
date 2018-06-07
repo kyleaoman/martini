@@ -90,7 +90,6 @@ class _BaseBeam(object):
         px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
         px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
         self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))
-
         self.arcsec_to_beam = (
             U.Jy * U.arcsec ** -2,
             U.Jy * U.beam ** -1,
@@ -183,6 +182,7 @@ class GaussianBeam(_BaseBeam):
         c = np.power(np.sin(self.bpa), 2) / (2. * np.power(sigmamin, 2)) \
             + np.power(np.cos(self.bpa), 2) / (2. * np.power(sigmamaj, 2))
         A = np.power(2. * np.pi * sigmamin * sigmamaj, -1)
+        A *= np.power(self.px_size, 2).value #above causes an extra factor of pixel area, need to track this down properly an see whether correction should apply to all beams, or somewhere else?
 
         return lambda x, y: A * np.exp(-a * np.power(x, 2) - 2. * b * x * y - c * np.power(y, 2))
         
@@ -269,7 +269,9 @@ class WSRTBeam(_BaseBeam):
         Callable accepting 2 arguments (both float or array) and returning a float or array of 
         corresponding size.
         """
-        
+
+        if self.dec <= 0. * U.deg:
+            raise ValueError('WSRT beam requires positive declination.')
         freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()

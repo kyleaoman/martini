@@ -447,6 +447,11 @@ class SOSource(SPHSource):
                 rotation=rotation, 
                 ra=ra, 
                 dec=dec, 
-                
+                h = SO.h,
+                T_g = SO.T_g,
+                mHI_g = SO.mHI_g,
+                xyz_g = SO.xyz_g,
+                vxyz_g = SO.vxyz_g,
+                hsm_g = SO.hsm_g
                 )
         return
