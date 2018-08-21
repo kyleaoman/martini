@@ -9,24 +9,25 @@ import os.path
 
 f_HI = 1.420405751 * U.GHz
 
+
 class _BaseBeam(object):
     """
     Abstract base class for classes implementing a radio telescope beam model.
-
+    
     Classes inheriting from _BaseBeam must implement three methods: 'f_kernel', 'kernel_size_px' and 
     'init_beam_header'.
-
+    
     'f_kernel' should return a function accepting two arguments, the RA and Dec offsets from the beam 
     centroid (provided with units of arcsec), and returning the beam amplitude at that location.
-
+    
     'kernel_px_size' should return a 2-tuple containing the half-size (x, y) of the beam image that 
     will be initialized, in pixels.
-
+    
     'init_beam_header' should be defined if the major/minor axis FWHM of the beam and its position 
     angle are not defined when the beam object is initialized, for instance if modelling a particular 
     telescope this function can be used to set the (constant) parameters of the beam of that 
     particular facility.
-
+    
     Parameters
     ----------
     bmaj : astropy.units.Quantity, with dimensions of angle
@@ -37,14 +38,14 @@ class _BaseBeam(object):
     
     bpa : astropy.units.Quantity, with dimesions of angle
         Beam position angle (East from North).
-
+    
     See Also
     --------
     GaussianBeam
     """
-
+    
     __metaclass__ = ABCMeta
-
+    
     def __init__(self, bmaj=15.*U.arcsec, bmin=15.*U.arcsec, bpa=0.*U.deg):
         #some beams need information from the datacube; in this case make their call to 
         #_BaseBeam.__init__ with bmaj == bmin == bpa == None and define a
@@ -55,31 +56,31 @@ class _BaseBeam(object):
         self.bpa = bpa
         self.px_size = None
         self.kernel = None
-
+        
         return
-
+    
     def needs_pad(self):
         """
         Determine the padding of the datacube required by the beam to prevent edge effects during 
         convolution.
-
+        
         Returns
         -------
         2-tuple, each element an integer
         """
         
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
-
+    
     def init_kernel(self, datacube):
         """
         Calculate the required size of the beam image
-
+        
         Parameters
         ----------
         datacube : DataCube instance
             Datacube to use, cube size is required for pixel size, position & velocity centroids.
         """
-
+        
         self.px_size = datacube.px_size
         self.vel = datacube.velocity_centre
         self.ra = datacube.ra
@@ -96,9 +97,11 @@ class _BaseBeam(object):
             lambda x: x * (np.pi * self.bmaj * self.bmin),
             lambda x: x / (np.pi * self.bmaj * self.bmin)
         )
-
-        #can turn 2D beam into a 3D beam here; use above for central channel then shift in frequency up and down for other channels
-        #then probably need to adjust convolution step to do the 2D convolution on a stack
+        
+        # can turn 2D beam into a 3D beam here; use above for central channel
+        # then shift in frequency up and down for other channels
+        # then probably need to adjust convolution step to do the 2D
+        # convolution on a stack
         
         return
         
@@ -106,58 +109,59 @@ class _BaseBeam(object):
     def f_kernel(self):
         """
         Abstract method; returns a function defining the beam amplitude as a function of position.
-
+        
         The function returned by this method should accept two parameters, the RA and Dec offset from 
         the beam centroid, and return the beam amplitude at that position. The offsets are provided as
         astropy.units.Quantity objects with dimensions of angle (arcsec).
         """
         
         pass
-
+    
     @abstractmethod
     def kernel_size_px(self):
         """
         Abstract method; returns a 2-tuple specifying the half-size of the beam image to be 
         initialized, in pixels.
         """
-
+        
         pass
         
     @abstractmethod
     def init_beam_header(self):
         """
         Abstract method; sets beam major/minor axis lengths and position angle.
-
+        
         This method is optional, and only needs to be defined if these parameters are not specified 
         in the call to the __init__ method of the derived class.
         """
         
         pass
-
+    
+    
 class GaussianBeam(_BaseBeam):
     """
     Class implementing a Gaussiam beam model.
-
+    
     Paramters
     ---------
     bmaj : astropy.units.Quantity, with dimensions of angle
         Beam major axis (FWHM) angular size.
-
+    
     bmin : astropy.units.Quantity, with dimensions of angle
         Beam minor axis (FWHM) angular size.
-
+    
     bpa : astropy.units.Quantity, with dimensions of angle
         Beam position angle (East of North).
-
+    
     truncate : float
         Number of FWHM at which to truncate the beam image.
     """
-
+    
     def __init__(self, bmaj=15.*U.arcsec, bmin=15.*U.arcsec, bpa=0.*U.deg, truncate=4.):
         self.truncate = truncate
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return
-
+    
     def f_kernel(self):
         """
         Returns a function defining the beam amplitude as a function of position.
@@ -170,11 +174,13 @@ class GaussianBeam(_BaseBeam):
         Callable accepting 2 arguments (both float or array) and returning a float or array of 
         corresponding size.
         """
-
-        fwhm_to_sigma = lambda fwhm: fwhm / (2. * np.sqrt(2. * np.log(2.)))
+        
+        def fwhm_to_sigma(fwhm):
+            return fwhm / (2. * np.sqrt(2. * np.log(2.)))
+        
         sigmamaj = fwhm_to_sigma(self.bmaj)
         sigmamin = fwhm_to_sigma(self.bmin)
-
+        
         a = np.power(np.cos(self.bpa), 2) / (2. * np.power(sigmamin, 2)) \
             + np.power(np.sin(self.bpa), 2) / (2. * np.power(sigmamaj, 2))
         b = -np.sin(2. * self.bpa) / (4 * np.power(sigmamin, 2)) \
@@ -183,13 +189,13 @@ class GaussianBeam(_BaseBeam):
             + np.power(np.cos(self.bpa), 2) / (2. * np.power(sigmamaj, 2))
         A = np.power(2. * np.pi * sigmamin * sigmamaj, -1)
         A *= np.power(self.px_size, 2).value #above causes an extra factor of pixel area, need to track this down properly an see whether correction should apply to all beams, or somewhere else?
-
+        
         return lambda x, y: A * np.exp(-a * np.power(x, 2) - 2. * b * x * y - c * np.power(y, 2))
         
     def kernel_size_px(self):
         """
         Returns a 2-tuple specifying the half-size of the beam image to be initialized, in pixels.
-
+        
         Returns
         -------
         2-tuple, each element an integer.

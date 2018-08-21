@@ -8,14 +8,16 @@ import astropy.units as U
 import numpy as np
 from scipy.optimize import fsolve
 
+
 def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
     """
     Demonstrates basic usage of MARTINI.
-
-    Creates a (very!) crude toy model of a galaxy with a linearly rising rotation curve, exponential 
-    disk profile, exponential vertical structure. A basic configuration of MARTINI is initialized and 
-    used to create and output a datacube and an image of the beam.
-
+    
+    Creates a (very!) crude toy model of a galaxy with a linearly rising 
+    rotation curve, exponential disk profile, exponential vertical structure. A 
+    basic configuration of MARTINI is initialized and used to create and output
+    a datacube and an image of the beam.
+    
     Parameters
     ----------
     cubefile : string
@@ -24,31 +26,36 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
     beamfile : string
         File to write demonstration beam.
     """
-
-    #------make a toy galaxy----------
+    
+    # ------make a toy galaxy----------
     N = 1000
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
-        f = lambda r: L - np.power(r, 2) * np.exp(-r)
+        def f(r): L - np.power(r, 2) * np.exp(-r)
         r.append(fsolve(f, 1.)[0])
     r = np.array(r)
-    r *= 3 / np.sort(r)[N // 2] #exponential disk
+    # exponential disk
+    r *= 3 / np.sort(r)[N // 2] 
     z = -np.log(np.random.rand(N))
-    z *= .5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - .5) #exponential scale height
+    # exponential scale height
+    z *= .5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - .5)
     x = r * np.cos(phi)
     y = r * np.sin(phi)
     xyz_g = np.vstack((x, y, z)) * U.kpc
-    vphi = 100 * r / 6. #linear rotation curve
+    # linear rotation curve
+    vphi = 100 * r / 6.
     vx = -vphi * np.sin(phi)
     vy = vphi * np.cos(phi)
-    vz = (np.random.rand(N) * 2. - 1.) * 5 #small pure random z velocities
+    # small pure random z velocities
+    vz = (np.random.rand(N) * 2. - 1.) * 5 
     vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s ** -1
     T_g = np.ones(N) * 8E3 * U.K
     mHI_g = np.ones(N) / N * 5.E9 * U.Msun
-    hsm_g = np.ones(N) * 2 / np.sqrt(N) * U.kpc #~mean interparticle spacing smoothing
-    #---------------------------------
-
+    # ~mean interparticle spacing smoothing
+    hsm_g = np.ones(N) * 2 / np.sqrt(N) * U.kpc 
+    # ---------------------------------
+    
     source = SPHSource(
         distance = 5. * U.Mpc,
         rotation = {'L_coords': (60. * U.deg, 0. * U.deg)},
@@ -61,7 +68,7 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
         vxyz_g = vxyz_g,
         hsm_g = hsm_g
     )
-
+    
     datacube = DataCube(
         n_px_x = 128,
         n_px_y = 128,
@@ -70,24 +77,24 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
         channel_width = 10. * U.km * U.s ** -1,
         velocity_centre = source.vsys
     )
-
+    
     beam = GaussianBeam(
         bmaj = 30. * U.arcsec,
         bmin = 30. * U.arcsec,
         bpa = 0. * U.deg,
         truncate = 4.
     )
-
+    
     noise = GaussianNoise(
         rms = 3.E-4 * U.Jy * U.arcsec ** -2
     )
-
+    
     spectral_model = GaussianSpectrum(
         sigma = 7 * U.km * U.s ** -1
     )
-
+    
     sph_kernel = DiracDeltaKernel()
-
+    
     M = Martini(
         source=source,
         datacube=datacube,
@@ -96,7 +103,7 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
         spectral_model=spectral_model,
         sph_kernel=sph_kernel
     )
-
+    
     M.insert_source_in_cube()
     M.add_noise()
     M.convolve_beam()
