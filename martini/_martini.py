@@ -8,7 +8,6 @@ from itertools import product
 
 
 class Martini():
-
     """
     Used for the creation of synthetic HI data cubes from simulation data.
 
@@ -174,16 +173,14 @@ class Martini():
     M.write_fits('testcube.fits', channels='velocity')
     """
 
-    def __init__(
-            self,
-            source=None,
-            datacube=None,
-            beam=None,
-            noise=None,
-            sph_kernel=None,
-            spectral_model=None,
-            logtag=''
-    ):
+    def __init__(self,
+                 source=None,
+                 datacube=None,
+                 beam=None,
+                 noise=None,
+                 sph_kernel=None,
+                 spectral_model=None,
+                 logtag=''):
         self.source = source
         self.datacube = datacube
         self.beam = beam
@@ -211,15 +208,10 @@ class Martini():
         for spatial_slice in self.datacube.spatial_slices():
             # use a view [...] to force in-place modification
             spatial_slice[...] = fftconvolve(
-                spatial_slice,
-                self.beam.kernel,
-                mode='same'
-            ) * unit
+                spatial_slice, self.beam.kernel, mode='same') * unit
         self.datacube.drop_pad()
         self.datacube._array = self.datacube._array.to(
-            U.Jy * U.beam ** -1,
-            equivalencies=[self.beam.arcsec_to_beam]
-        )
+            U.Jy * U.beam**-1, equivalencies=[self.beam.arcsec_to_beam])
         return
 
     def add_noise(self):
@@ -241,17 +233,18 @@ class Martini():
         # pixels indexed from 0 (not like in FITS!) for better use with numpy
         origin = 0
         skycoords = self.source.sky_coordinates
-        particle_coords = np.vstack(self.datacube.wcs.sub(3).wcs_world2pix(
-            skycoords.ra.to(self.datacube.units[0]),
-            skycoords.dec.to(self.datacube.units[1]),
-            skycoords.radial_velocity.to(self.datacube.units[2]),
-            origin)) * U.pix
+        particle_coords = np.vstack(
+            self.datacube.wcs.sub(3).wcs_world2pix(
+                skycoords.ra.to(self.datacube.units[0]),
+                skycoords.dec.to(self.datacube.units[1]),
+                skycoords.radial_velocity.to(self.datacube.units[2]),
+                origin)) * U.pix
         # could use a function bound to source which returns the size of the
         # kernel, in case this isn't equal to the smoothing length for some
         # kernel
         sm_length = np.arctan(
-            self.source.hsm_g / self.source.sky_coordinates.distance
-        ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
+            self.source.hsm_g / self.source.sky_coordinates.distance).to(
+                U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         sm_range = np.ceil(sm_length).astype(int)
         spectrum_half_width = self.spectral_model.half_width(self.source) / \
             self.datacube.channel_width
@@ -262,8 +255,7 @@ class Martini():
             (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
             particle_coords[1] - sm_range >
             (self.datacube.n_px_y + self.datacube.pady * 2) * U.pix,
-            particle_coords[2] + 4 * spectrum_half_width * U.pix <
-            0 * U.pix,
+            particle_coords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
             particle_coords[2] - 4 * spectrum_half_width * U.pix >
             self.datacube.n_channels * U.pix,
         )
@@ -291,36 +283,35 @@ class Martini():
         # pixels indexed from 0 (not like in FITS!) for better use with numpy
         origin = 0
         skycoords = self.source.sky_coordinates
-        particle_coords = np.vstack(self.datacube.wcs.sub(3).wcs_world2pix(
-            skycoords.ra.to(self.datacube.units[0]),
-            skycoords.dec.to(self.datacube.units[1]),
-            skycoords.radial_velocity.to(self.datacube.units[2]),
-            origin)) * U.pix
+        particle_coords = np.vstack(
+            self.datacube.wcs.sub(3).wcs_world2pix(
+                skycoords.ra.to(self.datacube.units[0]),
+                skycoords.dec.to(self.datacube.units[1]),
+                skycoords.radial_velocity.to(self.datacube.units[2]),
+                origin)) * U.pix
         sm_length = np.arctan(
-            self.source.hsm_g / self.source.sky_coordinates.distance
-        ).to(U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
+            self.source.hsm_g / self.source.sky_coordinates.distance).to(
+                U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         if not skip_validation:
             self.sph_kernel.validate(sm_length)
         sm_range = np.ceil(sm_length).astype(int)
 
         # pixel iteration
-        ij_pxs = list(product(
-            np.arange(self.datacube._array.shape[0]),
-            np.arange(self.datacube._array.shape[1])
-        ))
-        print('  '+self.logtag+'  [columns: {0:.0f}, rows: {1:.0f}]'.format(
-            self.datacube._array.shape[0],
-            self.datacube._array.shape[1])
-        )
+        ij_pxs = list(
+            product(
+                np.arange(self.datacube._array.shape[0]),
+                np.arange(self.datacube._array.shape[1])))
+        print(
+            '  ' + self.logtag + '  [columns: {0:.0f}, rows: {1:.0f}]'.format(
+                self.datacube._array.shape[0], self.datacube._array.shape[1]))
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
-                print('  '+self.logtag+'  [row {:.0f}]'.format(ij[0, 0].value))
+                print('  ' + self.logtag +
+                      '  [row {:.0f}]'.format(ij[0, 0].value))
             mask = (np.abs(ij - particle_coords[:2]) <= sm_range).all(axis=0)
-            weights = self.sph_kernel.px_weight(
-                particle_coords[:2, mask] - ij,
-                sm_length[mask]
-            )
+            weights = self.sph_kernel.px_weight(particle_coords[:2, mask] - ij,
+                                                sm_length[mask])
             self.datacube._array[ij_px[0], ij_px[1], :, 0] = \
                 (self.spectral_model.spectra[mask] *
                  weights[..., np.newaxis]).sum(axis=-2)
@@ -397,7 +388,7 @@ class Martini():
         header.append(('BZERO', 0.0))
         header.append(('DATAMAX', np.max(self.datacube._array.value)))
         header.append(('DATAMIN', np.min(self.datacube._array.value)))
-        header.append(('ORIGIN', 'astropy v'+astropy_version))
+        header.append(('ORIGIN', 'astropy v' + astropy_version))
         # long names break fits format, don't let the user set this
         header.append(('OBJECT', 'MOCK'))
         if self.beam is not None:
@@ -407,8 +398,8 @@ class Martini():
         # header.append(('RMS', ???))
         # header.append(('LWIDTH', ???))
         # header.append(('LSTEP', ???))
-        header.append(('BUNIT',
-                       str(self.datacube._array.unit).replace(' ', '')))
+        header.append(('BUNIT', str(self.datacube._array.unit).replace(
+            ' ', '')))
         # header.append(('PCDEC', ???))
         # header.append(('LSTART', ???))
         header.append(('DATE-OBS', datetime.utcnow().isoformat()[:-5]))
@@ -511,13 +502,11 @@ class Martini():
         header.append(('INSTRUME', 'WSRT', 'MARTINI Synthetic'))
         header.append(('DATAMAX', np.max(self.beam.kernel.value)))
         header.append(('DATAMIN', np.min(self.beam.kernel.value)))
-        header.append(('ORIGIN', 'astropy v'+astropy_version))
+        header.append(('ORIGIN', 'astropy v' + astropy_version))
 
         # flip axes to write
         hdu = fits.PrimaryHDU(
-            header=header,
-            data=self.beam.kernel.value[..., np.newaxis].T
-        )
+            header=header, data=self.beam.kernel.value[..., np.newaxis].T)
         hdu.writeto(filename, overwrite=True)
 
         if channels == 'frequency':
