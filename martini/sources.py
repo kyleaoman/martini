@@ -5,59 +5,10 @@ from astropy.coordinates import CartesianRepresentation,\
 from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from kyleaoman_utilities.L_align import L_align
-
-
-def translate(cls, translation_vector):
-    """
-    Apply a coordinate translation.
-
-    Parameters
-    ----------
-    cls : astropy.coordinates.CartesianRepresentation
-        Equivalent to the 'self' argument for methods.
-
-    translation_vector : astropy.units.Quantity, with dimensions of length
-        3-vector by which to translate.
-
-    Returns
-    -------
-    out : astropy.coordinates.CartesianRepresentation
-        A new CartesianRepresentation instance with translation applied.
-    """
-
-    return CartesianRepresentation(
-        cls.__class__.get_xyz(cls) + translation_vector.reshape(3, 1),
-        differentials=cls.differentials
-    )
-
+from kyleaoman_utilities.cartesian_translation import translate, translate_d
 
 # Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, 'translate', translate)
-
-
-def translate_d(cls, translation_vector):
-    """
-    Apply a differential translation.
-
-    Parameters
-    ----------
-    cls : astropy.coordinates.CartesianDifferential
-        Equivalent to the 'self' argument for methods.
-
-    translation_vector : astropy.units.Quantity, with dimensions of velocity
-                         (or other differential)
-        3-vector by which to translate.
-
-    Returns
-    -------
-    out : astropy.coordinates.CartesianDifferential
-        A new CartesianDifferential instance with translation applied.
-    """
-
-    return CartesianDifferential(
-        cls.__class__.get_d_xyz(cls) + translation_vector.reshape(3, 1)
-    )
-
 
 # Extend CartesianDifferential to allow velocity (or other differential)
 # translation
@@ -93,8 +44,7 @@ class SPHSource(object):
            source. This plane will then be rotated to lie in the plane of the
            "sky" ('y-z'), rotated by the azimuthal angle about its angular
            momentum pole (rotation about 'x'), and inclined (rotation about
-           'y'). Note that this process will effectively override axis-angle
-           and rotation matrix rotations.
+           'y').
 
     ra : astropy.units.Quantity, with dimensions of angle
         Right ascension for the source centroid.
@@ -250,8 +200,7 @@ class SPHSource(object):
             of particles in the source. This plane will then be rotated to lie
             in the 'y-z' plane, followed by a rotation by the azimuthal angle
             about its angular momentum pole (rotation about 'x'), and finally
-            inclined (rotation about 'y'). Note that this process will
-            effectively override axis_angle and rotmat arguments.
+            inclined (rotation about 'y').
         """
 
         do_rot = np.eye(3)
@@ -397,8 +346,7 @@ class CrossSource(SPHSource):
            in the source. This plane will then be rotated to lie in the plane
            of the "sky" ('y-z'), rotated by the azimuthal angle about its
            angular momentum pole (rotation about 'x'), and inclined (rotation
-           about 'y'). Note that this process will effectively override
-           axis-angle and rotation matrix rotations.
+           about 'y').
 
     ra : astropy.units.Quantity, with dimensions of angle
         Right ascension for the source centroid.
@@ -475,8 +423,7 @@ class SOSource(SPHSource):
            source. This plane will then be rotated to lie in the plane of the
            "sky" ('y-z'), rotated by the azimuthal angle about its angular
            momentum pole (rotation about 'x'), and inclined (rotation about
-           'y'). Note that this process will effectively override axis-angle
-           and rotation matrix rotations.
+           'y').
 
     ra : astropy.units.Quantity, with dimensions of angle
         Right ascension for the source centroid.
