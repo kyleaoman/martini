@@ -89,19 +89,19 @@ class Martini():
     import numpy as np
 
     # ------make a toy galaxy----------
-    from scipy.optimize import fsolve
     N = 1000
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
-    f = lambda r: L - np.power(r, 2) * np.exp(-r)
-    r.append(fsolve(f, 1.)[0])
+        def f(r):
+            return L - .5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
+        r.append(fsolve(f, 1.)[0])
     r = np.array(r)
     # exponential disk
     r *= 3 / np.sort(r)[N // 2]
     z = -np.log(np.random.rand(N))
-    z *= .5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - .5)
     # exponential scale height
+    z *= .5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - .5)
     x = r * np.cos(phi)
     y = r * np.sin(phi)
     xyz_g = np.vstack((x, y, z)) * U.kpc

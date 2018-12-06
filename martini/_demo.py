@@ -32,7 +32,8 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
-        def f(r): L - np.power(r, 2) * np.exp(-r)
+        def f(r):
+            return L - .5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
         r.append(fsolve(f, 1.)[0])
     r = np.array(r)
     # exponential disk
