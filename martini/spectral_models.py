@@ -6,7 +6,7 @@ from abc import ABCMeta, abstractmethod
 
 
 def erf(z):
-    _erf(z.to(U.dimensionless_unscaled).value)
+    return _erf(z.to(U.dimensionless_unscaled).value)
 
 
 class _BaseSpectrum(object):
