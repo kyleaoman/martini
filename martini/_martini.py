@@ -5,6 +5,7 @@ from astropy.io import fits
 from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
+from ._version import __version__
 
 
 class Martini():
@@ -382,7 +383,7 @@ class Martini():
         header.append(('CTYPE4', wcs_header['CTYPE4']))
         header.append(('CUNIT4', 'PAR'))
         header.append(('EPOCH', 2000))
-        header.append(('INSTRUME', 'WSRT', 'MARTINI Synthetic'))
+        header.append(('INSTRUME', 'MARTINI', __version__))
         # header.append(('BLANK', -32768)) #only for integer data
         header.append(('BSCALE', 1.0))
         header.append(('BZERO', 0.0))
@@ -499,7 +500,7 @@ class Martini():
         header.append(('OBSERVER', 'K. Oman'))
         # long names break fits format
         header.append(('OBJECT', 'MOCKBEAM'))
-        header.append(('INSTRUME', 'WSRT', 'MARTINI Synthetic'))
+        header.append(('INSTRUME', 'MARTINI', __version__))
         header.append(('DATAMAX', np.max(self.beam.kernel.value)))
         header.append(('DATAMIN', np.min(self.beam.kernel.value)))
         header.append(('ORIGIN', 'astropy v' + astropy_version))

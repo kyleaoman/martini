@@ -1,8 +1,12 @@
 from setuptools import setup
+import os
+
+with open(os.path.join(os.path.dirname(__file__), 'VERSION')) as version_file:
+    version = version_file.read().strip()
 
 setup(
     name='astromartini',
-    version='1.0.0',
+    version=version,
     description='Synthetic datacube creation from simulations.',
     url='',
     author='Kyle Oman',

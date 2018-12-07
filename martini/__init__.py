@@ -1,3 +1,8 @@
+from ._martini import Martini
+from ._datacube import DataCube
+from ._demo import demo
+from ._version import __version__
+
 """
 Mock APERTIF-like Radio Telescope Interferometry of the Neutral ISM
 
@@ -31,6 +36,3 @@ to the github page, ideally specifying the version used (git commit ID).
 Suport available via koman@astro.rug.nl.
 """
 
-from ._martini import Martini
-from ._datacube import DataCube
-from ._demo import demo
