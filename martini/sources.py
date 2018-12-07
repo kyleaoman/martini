@@ -1,4 +1,3 @@
-from simobj import SimObj
 import numpy as np
 from astropy.coordinates import CartesianRepresentation,\
     CartesianDifferential, ICRS
@@ -451,6 +450,8 @@ class SOSource(SPHSource):
             dec=0.*U.deg, SO_args=dict()
     ):
 
+        from simobj import SimObj  # optional dependency for this source class
+        
         self._SO_args = SO_args
         with SimObj(**self._SO_args) as SO:
             super().__init__(
