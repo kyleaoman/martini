@@ -3,8 +3,8 @@ from astropy.coordinates import CartesianRepresentation,\
     CartesianDifferential, ICRS
 from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
-from kyleaoman_utilities.L_align import L_align
-from kyleaoman_utilities.cartesian_translation import translate, translate_d
+from _L_align import L_align
+from _cartesian_translation import translate, translate_d
 
 # Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, 'translate', translate)
