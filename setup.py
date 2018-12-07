@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name='martini',
+    name='astromartini',
     version='1.0.0',
     description='Synthetic datacube creation from simulations.',
     url='',
