@@ -1,5 +1,6 @@
 from scipy.signal import fftconvolve
 import numpy as np
+import h5py
 import astropy.units as U
 from astropy.io import fits
 from astropy import __version__ as astropy_version
@@ -509,6 +510,93 @@ class Martini():
         hdu = fits.PrimaryHDU(
             header=header, data=self.beam.kernel.value[..., np.newaxis].T)
         hdu.writeto(filename, overwrite=True)
+
+        if channels == 'frequency':
+            self.datacube.velocity_channels()
+        return
+
+    def write_hdf5(self, filename, channels='frequency', overwrite=True):
+        """
+        Output the DataCube and Beam to a HDF5-format file.
+
+        Parameters
+        ----------
+        filename : string
+            Name of the file to write. '.hdf5' will be appended if not already
+            present.
+
+        channels : 'frequency' (default), or 'velocity'
+            Type of units used along the spectral axis in output file.
+
+        overwrite: bool
+            Whether to allow overwriting existing files, note that the default
+            is True.
+        """
+
+        self.datacube.drop_pad()
+        if channels == 'frequency':
+            self.datacube.freq_channels()
+        elif channels == 'velocity':
+            pass
+        else:
+            raise ValueError("Martini.write_fits: Unknown 'channels' value "
+                             "(use 'frequency' or 'velocity'.")
+
+        filename = filename if filename[-5:] == '.hdf5' else filename + '.hdf5'
+
+        wcs_header = self.datacube.wcs.to_header()
+
+        with h5py.File(filename, 'w') as f:
+            f['FluxCube'] = self.datacube._array.value
+            c = f['FluxCube']
+            c.attrs['FluxCubeUnit'] = str(self.datacube._array.unit)
+            c.attrs['deltaRA_in_RAUnit'] = wcs_header['CDELT1']
+            c.attrs['RA0_in_px'] = wcs_header['CRPIX1'] - 1
+            c.attrs['RA0_in_RAUnit'] = wcs_header['CRVAL1']
+            c.attrs['RAUnit'] = wcs_header['CUNIT1']
+            c.attrs['RAProjType'] = wcs_header['CTYPE1']
+            c.attrs['deltaDec_in_DecUnit'] = wcs_header['CDELT2']
+            c.attrs['Dec0_in_px'] = wcs_header['CRPIX2'] - 1
+            c.attrs['Dec0_in_DecUnit'] = wcs_header['CRVAL2']
+            c.attrs['DecUnit'] = wcs_header['CUNIT2']
+            c.attrs['DecProjType'] = wcs_header['CTYPE2']
+            c.attrs['deltaV_in_VUnit'] = wcs_header['CDELT3']
+            c.attrs['V0_in_px'] = wcs_header['CRPIX3'] - 1
+            c.attrs['V0_in_VUnit'] = wcs_header['CRVAL3']
+            c.attrs['VUnit'] = wcs_header['CUNIT3']
+            c.attrs['VProjType'] = wcs_header['CTYPE3']
+            if self.beam is not None:
+                c.attrs['BeamPA'] = self.beam.bpa.to(U.deg).value
+                c.attrs['BeamMajor_in_deg'] = self.beam.bmaj.to(U.deg).value
+                c.attrs['BeamMinor_in_deg'] = self.beam.bmin.to(U.deg).value
+            c.attrs['DateCreated'] = datetime.utcnow().isoformat()[:-5]
+            c.attrs['MartiniVersion'] = __version__
+            c.attrs['AstropyVersion'] = astropy_version
+            if self.beam is not None:
+                f['Beam'] = self.datacube._array.value
+                b = f['Beam']
+                b.attrs['BeamUnit'] = self.beam.kernel.unit.to_string('fits')
+                b.attrs['deltaRA_in_RAUnit'] = wcs_header['CDELT1']
+                b.attrs['RA0_in_px'] = self.beam.kernel.shape[0] // 2
+                b.attrs['RA0_in_RAUnit'] = wcs_header['CRVAL1']
+                b.attrs['RAUnit'] = wcs_header['CUNIT1']
+                b.attrs['RAProjType'] = wcs_header['CTYPE1']
+                b.attrs['deltaDec_in_DecUnit'] = wcs_header['CDELT2']
+                b.attrs['Dec0_in_px'] = self.beam.kernel.shape[1] // 2
+                b.attrs['Dec0_in_DecUnit'] = wcs_header['CRVAL2']
+                b.attrs['DecUnit'] = wcs_header['CUNIT2']
+                b.attrs['DecProjType'] = wcs_header['CTYPE2']
+                b.attrs['deltaV_in_VUnit'] = wcs_header['CDELT3']
+                b.attrs['V0_in_px'] = 0
+                b.attrs['V0_in_VUnit'] = wcs_header['CRVAL3']
+                b.attrs['VUnit'] = wcs_header['CUNIT3']
+                b.attrs['VProjType'] = wcs_header['CTYPE3']
+                b.attrs['BeamPA'] = self.beam.bpa.to(U.deg).value
+                b.attrs['BeamMajor_in_deg'] = self.beam.bmaj.to(U.deg).value
+                b.attrs['BeamMinor_in_deg'] = self.beam.bmin.to(U.deg).value
+                b.attrs['DateCreated'] = datetime.utcnow().isoformat()[:-5]
+                b.attrs['MartiniVersion'] = __version__
+                b.attrs['AstropyVersion'] = astropy_version
 
         if channels == 'frequency':
             self.datacube.velocity_channels()
