@@ -1,4 +1,5 @@
 from scipy.signal import fftconvolve
+import os
 import numpy as np
 import h5py
 import astropy.units as U
@@ -546,9 +547,33 @@ class Martini():
 
         wcs_header = self.datacube.wcs.to_header()
 
-        with h5py.File(filename, 'w') as f:
-            f['FluxCube'] = self.datacube._array.value
+        mode = 'w' if overwrite else 'x'
+        with h5py.File(filename, mode) as f:
+            f['FluxCube'] = self.datacube._array.value[..., 0]
             c = f['FluxCube']
+            origin = 0
+            xgrid, ygrid, vgrid = np.meshgrid(
+                np.arange(self.datacube._array.shape[0]),
+                np.arange(self.datacube._array.shape[1]),
+                np.arange(self.datacube._array.shape[2])
+            )
+            cgrid = np.vstack((
+                xgrid.flatten(),
+                ygrid.flatten(),
+                vgrid.flatten(),
+                np.zeros(vgrid.shape).flatten()
+            )).T
+            wgrid = self.datacube.wcs.all_pix2world(cgrid, origin)
+            ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[..., 0]
+            decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[..., 0]
+            chgrid = wgrid[:, 2].reshape(self.datacube._array.shape)[..., 0]
+            f['RA'] = ragrid
+            f['RA'].attrs['Unit'] = wcs_header['CUNIT1']
+            f['Dec'] = decgrid
+            f['Dec'].attrs['Unit'] = wcs_header['CUNIT2']
+            f['channel_mids'] = chgrid
+            f['channel_mids'].attrs['Unit'] = wcs_header['CUNIT3']
+            c.attrs['AxisOrder'] = '(RA,Dec,Channels)'
             c.attrs['FluxCubeUnit'] = str(self.datacube._array.unit)
             c.attrs['deltaRA_in_RAUnit'] = wcs_header['CDELT1']
             c.attrs['RA0_in_px'] = wcs_header['CRPIX1'] - 1
@@ -573,7 +598,7 @@ class Martini():
             c.attrs['MartiniVersion'] = __version__
             c.attrs['AstropyVersion'] = astropy_version
             if self.beam is not None:
-                f['Beam'] = self.datacube._array.value
+                f['Beam'] = self.beam.kernel.value[..., np.newaxis]
                 b = f['Beam']
                 b.attrs['BeamUnit'] = self.beam.kernel.unit.to_string('fits')
                 b.attrs['deltaRA_in_RAUnit'] = wcs_header['CDELT1']

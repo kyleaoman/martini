@@ -9,7 +9,8 @@ import numpy as np
 from scipy.optimize import fsolve
 
 
-def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
+def demo(cubefile='testcube.fits', beamfile='testbeam.fits',
+         hdf5file='testcube.hdf5'):
     """
     Demonstrates basic usage of MARTINI.
 
@@ -110,5 +111,6 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits'):
     M.convolve_beam()
     M.write_beam_fits(beamfile, channels='velocity')
     M.write_fits(cubefile, channels='velocity')
+    M.write_hdf5(hdf5file, channels='velocity')
 
     return
