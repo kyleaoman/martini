@@ -174,8 +174,8 @@ class GaussianSpectrum(_BaseSpectrum):
 
     Parameters
     ----------
-    sigma : astropy.units.Quantity, with dimensions of velocity, or string:
-            'thermal'
+    sigma : astropy.units.Quantity, with dimensions of velocity, or string: \
+    'thermal'
         Width of the Gaussian modelling the line (constant for all particles),
         or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B
         is Boltzmann's constant, T is the particle temperature and m_p is the
@@ -214,8 +214,8 @@ class GaussianSpectrum(_BaseSpectrum):
         vmids : astropy.units.Quantity array, with dimensions of velocity
             Particle velocities along the line of sight.
 
-        sigma : astropy.units.Quantity array, or astropy.units.Quantity, with
-                dimensions of velocity
+        sigma : astropy.units.Quantity array, or astropy.units.Quantity, with \
+        dimensions of velocity
             Velocity dispersion for HI line width, either for each particle or
             constant.
 

@@ -148,8 +148,8 @@ class GaussianBeam(_BaseBeam):
     """
     Class implementing a Gaussiam beam model.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     bmaj : astropy.units.Quantity, with dimensions of angle
         Beam major axis (FWHM) angular size.
 

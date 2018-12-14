@@ -32,18 +32,17 @@ class SPHSource(object):
         'L_coords'. These will be applied in this order. Note that the 'y-z'
         plane will be the one eventually placed in the plane of the "sky". The
         corresponding values:
-         - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the
-           axis to rotate about, second element an astropy.units.Quantity with
-           dimensions of angle, indicating the angle to rotate through.
-         - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
-         - 'L_coords' : A 2-tuple containing an inclination and an azimuthal
-           angle (both astropy.units.Quantity instances with dimensions of
-           angle). The routine will first attempt to identify a preferred plane
-           based on the angular momenta of the central 1/3 of particles in the
-           source. This plane will then be rotated to lie in the plane of the
-           "sky" ('y-z'), rotated by the azimuthal angle about its angular
-           momentum pole (rotation about 'x'), and inclined (rotation about
-           'y').
+        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element an astropy.units.Quantity with \
+        dimensions of angle, indicating the angle to rotate through.
+        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
+        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
+        angle (both astropy.units.Quantity instances with dimensions of \
+        angle). The routine will first attempt to identify a preferred plane \
+        based on the angular momenta of the central 1/3 of particles in the \
+        source. This plane will then be rotated to lie in the plane of the \
+        "sky" ('y-z'), rotated by the azimuthal angle about its angular \
+        momentum pole (rotation about 'x'), and inclined (rotation about 'y').
 
     ra : astropy.units.Quantity, with dimensions of angle
         Right ascension for the source centroid.
@@ -65,8 +64,8 @@ class SPHSource(object):
         plane is that eventually placed in the plane of the "sky"; 'x' is
         the axis corresponding to the "line of sight".
 
-    vxyz_g : astropy.units.Quantity array of length 3, with dimensions of
-             velocity
+    vxyz_g : astropy.units.Quantity array of length 3, with dimensions of \
+    velocity
         Particle velocity offset from source centroid. Note that the 'y-z'
         plane is that eventually placed in the plane of the "sky"; 'x' is
         the axis corresponding to the "line of sight".
@@ -81,8 +80,8 @@ class SPHSource(object):
 
     See Also
     --------
-    SingleParticleSource (simplest possible implementation of a class
-                          inheriting from SPHSource).
+    SingleParticleSource (simplest possible implementation of a class \
+    inheriting from SPHSource).
     CrossSource
     SOSource
     """
@@ -233,8 +232,8 @@ class SPHSource(object):
 
         Parameters
         ----------
-        translation_vector : astropy.units.Quantity, shape (3, ), with
-                             dimensions of length
+        translation_vector : astropy.units.Quantity, shape (3, ), with \
+        dimensions of length
             Vector by which to offset the source particle coordinates.
         """
 
@@ -249,8 +248,8 @@ class SPHSource(object):
 
         Parameters
         ----------
-        translation_vector : astropy.units.Quantity, shape (3, ), with
-                             dimensions of velocity
+        translation_vector : astropy.units.Quantity, shape (3, ), with \
+        dimensions of velocity
             Vector by which to offset the source particle velocities.
         """
 
@@ -314,14 +313,14 @@ class CrossSource(SPHSource):
     10^4 K, and will be placed in the Hubble flow assuming h=.7 and a distance
     of 3 Mpc. Particle coordinates in kpc are
     [[0,  1,  0],
-     [0,  0,  2],
-     [0, -3,  0],
-     [0,  0, -4]]
+    [0,  0,  2],
+    [0, -3,  0],
+    [0,  0, -4]]
     and velocities in km/s are
     [[0,  0,  1],
-     [0, -1,  0],
-     [0,  0, -1],
-     [0,  1,  0]]
+    [0, -1,  0],
+    [0,  0, -1],
+    [0,  1,  0]]
 
     Parameters
     ----------
@@ -334,18 +333,18 @@ class CrossSource(SPHSource):
         'L_coords'. These will be applied in this order. Note that the 'y-z'
         plane will be the one eventually placed in the plane of the "sky". The
         corresponding values:
-         - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the
-           axis to rotate about, second element an astropy.units.Quantity with
-           dimensions of angle, indicating the angle to rotate through.
-         - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
-         - 'L_coords' : A 2-tuple containing an inclination and an azimuthal
-           angle (both astropy.units.Quantity instances with dimensions of
-           angle). The routine will first attempt to identify a preferred plane
-           based on the angular momenta of the central 1/3 of particles
-           in the source. This plane will then be rotated to lie in the plane
-           of the "sky" ('y-z'), rotated by the azimuthal angle about its
-           angular momentum pole (rotation about 'x'), and inclined (rotation
-           about 'y').
+        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element an astropy.units.Quantity with \
+        dimensions of angle, indicating the angle to rotate through.
+        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
+        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
+        angle (both astropy.units.Quantity instances with dimensions of \
+        angle). The routine will first attempt to identify a preferred \
+        plane based on the angular momenta of the central 1/3 of particles \
+        in the source. This plane will then be rotated to lie in the plane \
+        of the "sky" ('y-z'), rotated by the azimuthal angle about its \
+        angular momentum pole (rotation about 'x'), and inclined (rotation \
+        about 'y').
 
     ra : astropy.units.Quantity, with dimensions of angle
         Right ascension for the source centroid.
@@ -411,18 +410,17 @@ class SOSource(SPHSource):
         'L_coords'. These will be applied in this order. Note that the 'y-z'
         plane will be the one eventually placed in the plane of the "sky". The
         corresponding values:
-         - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the
-           axis to rotate about, second element an astropy.units.Quantity with
-           dimensions of angle, indicating the angle to rotate through.
-         - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
-         - 'L_coords' : A 2-tuple containing an inclination and an azimuthal
-           angle (both astropy.units.Quantity instances with dimensions of
-           angle). The routine will first attempt to identify a preferred plane
-           based on the angular momenta of the central 1/3 of particles in the
-           source. This plane will then be rotated to lie in the plane of the
-           "sky" ('y-z'), rotated by the azimuthal angle about its angular
-           momentum pole (rotation about 'x'), and inclined (rotation about
-           'y').
+        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element an astropy.units.Quantity with \
+        dimensions of angle, indicating the angle to rotate through.
+        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
+        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
+        angle (both astropy.units.Quantity instances with dimensions of \
+        angle). The routine will first attempt to identify a preferred plane \
+        based on the angular momenta of the central 1/3 of particles in the \
+        source. This plane will then be rotated to lie in the plane of the \
+        "sky" ('y-z'), rotated by the azimuthal angle about its angular \
+        momentum pole (rotation about 'x'), and inclined (rotation about 'y').
 
     ra : astropy.units.Quantity, with dimensions of angle
         Right ascension for the source centroid.

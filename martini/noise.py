@@ -7,10 +7,10 @@ class _BaseNoise(object):
     """
     Abstract base class to inherit for classes implementing a noise model.
 
-    Classes inheriting from _BaseNoise must implement a method 'generate' which
-    receives one argument, a martini.DataCube instance. This method should
-    return an astropy.units.Quantity array with the same shape as the datacube
-    array, and units of Jy (or compatible).
+    Classes inheriting from _BaseNoise must implement a method 'generate'
+    which receives one argument, a martini.DataCube instance. This method
+    should return an astropy.units.Quantity array with the same shape as the
+    datacube array, and units of Jy (or compatible).
 
     See Also
     --------
