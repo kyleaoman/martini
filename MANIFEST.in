@@ -1,2 +1,2 @@
 #include <filename> for non-python-code files
-include VERSION
+include martini/VERSION
