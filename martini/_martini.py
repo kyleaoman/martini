@@ -517,7 +517,7 @@ class Martini():
         return
 
     def write_hdf5(self, filename, channels='frequency', overwrite=True,
-                   memmap=False):
+                   memmap=False, compact=False):
         """
         Output the DataCube and Beam to a HDF5-format file.
 
@@ -537,6 +537,11 @@ class Martini():
         memmap: bool
             If True, create a file-like object in memory and return it instead
             of writing file to disk.
+
+        compact: bool
+            If True, omit pixel coordinate arrays to save disk space. In this
+            case pixel coordinates can still be reconstructed from FITS-style
+            keywords stored in the FluxCube attributes. Default is False.
         """
 
         self.datacube.drop_pad()
@@ -559,27 +564,28 @@ class Martini():
         f['FluxCube'] = self.datacube._array.value[..., 0]
         c = f['FluxCube']
         origin = 0  # index from 0 like numpy, not from 1
-        xgrid, ygrid, vgrid = np.meshgrid(
-            np.arange(self.datacube._array.shape[0]),
-            np.arange(self.datacube._array.shape[1]),
-            np.arange(self.datacube._array.shape[2])
-        )
-        cgrid = np.vstack((
-            xgrid.flatten(),
-            ygrid.flatten(),
-            vgrid.flatten(),
-            np.zeros(vgrid.shape).flatten()
-        )).T
-        wgrid = self.datacube.wcs.all_pix2world(cgrid, origin)
-        ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[..., 0]
-        decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[..., 0]
-        chgrid = wgrid[:, 2].reshape(self.datacube._array.shape)[..., 0]
-        f['RA'] = ragrid
-        f['RA'].attrs['Unit'] = wcs_header['CUNIT1']
-        f['Dec'] = decgrid
-        f['Dec'].attrs['Unit'] = wcs_header['CUNIT2']
-        f['channel_mids'] = chgrid
-        f['channel_mids'].attrs['Unit'] = wcs_header['CUNIT3']
+        if not compact:
+            xgrid, ygrid, vgrid = np.meshgrid(
+                np.arange(self.datacube._array.shape[0]),
+                np.arange(self.datacube._array.shape[1]),
+                np.arange(self.datacube._array.shape[2])
+            )
+            cgrid = np.vstack((
+                xgrid.flatten(),
+                ygrid.flatten(),
+                vgrid.flatten(),
+                np.zeros(vgrid.shape).flatten()
+            )).T
+            wgrid = self.datacube.wcs.all_pix2world(cgrid, origin)
+            ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[..., 0]
+            decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[..., 0]
+            chgrid = wgrid[:, 2].reshape(self.datacube._array.shape)[..., 0]
+            f['RA'] = ragrid
+            f['RA'].attrs['Unit'] = wcs_header['CUNIT1']
+            f['Dec'] = decgrid
+            f['Dec'].attrs['Unit'] = wcs_header['CUNIT2']
+            f['channel_mids'] = chgrid
+            f['channel_mids'].attrs['Unit'] = wcs_header['CUNIT3']
         c.attrs['AxisOrder'] = '(RA,Dec,Channels)'
         c.attrs['FluxCubeUnit'] = str(self.datacube._array.unit)
         c.attrs['deltaRA_in_RAUnit'] = wcs_header['CDELT1']
