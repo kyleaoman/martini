@@ -111,6 +111,9 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits',
     M.convolve_beam()
     M.write_beam_fits(beamfile, channels='velocity')
     M.write_fits(cubefile, channels='velocity')
-    M.write_hdf5(hdf5file, channels='velocity')
+    try:
+        M.write_hdf5(hdf5file, channels='velocity')
+    except ModuleNotFoundError:
+        print('h5py package not present, skipping hdf5 output demo.')
 
     return
