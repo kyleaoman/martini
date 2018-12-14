@@ -1,7 +1,5 @@
 from scipy.signal import fftconvolve
-import os
 import numpy as np
-import h5py
 import astropy.units as U
 from astropy.io import fits
 from astropy import __version__ as astropy_version
@@ -519,7 +517,8 @@ class Martini():
     def write_hdf5(self, filename, channels='frequency', overwrite=True,
                    memmap=False, compact=False):
         """
-        Output the DataCube and Beam to a HDF5-format file.
+        Output the DataCube and Beam to a HDF5-format file. Requires the h5py
+        package.
 
         Parameters
         ----------
@@ -543,6 +542,8 @@ class Martini():
             case pixel coordinates can still be reconstructed from FITS-style
             keywords stored in the FluxCube attributes. Default is False.
         """
+
+        import h5py
 
         self.datacube.drop_pad()
         if channels == 'frequency':
