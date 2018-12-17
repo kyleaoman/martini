@@ -1,0 +1,400 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>martini.sph_kernels &mdash; MARTINI 1.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MARTINI
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../martini.html">Martini</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source.html">Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../datacube.html">Data Cube</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../beam.html">Beam Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../noise.html">Noise Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../spectral_model.html">Spectral Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sph_kernel.html">SPH Kernels</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MARTINI</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>martini.sph_kernels</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for martini.sph_kernels</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABCMeta</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
+
+
+<span class="k">class</span> <span class="nc">_BaseSPHKernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract base class for classes implementing SPH kernels to inherit from.</span>
+
+<span class="sd">    Classes inheriting from _BaseSPHKernel must implement two methods:</span>
+<span class="sd">    &#39;px_weight&#39; and &#39;validate&#39;.</span>
+
+<span class="sd">    &#39;px_weight&#39; should define the integral of the kernel over a pixel given the</span>
+<span class="sd">    distance between the pixel centre and the particle centre, and the</span>
+<span class="sd">    smoothing length (both in units of pixels). The integral should be</span>
+<span class="sd">    normalized so that evaluated over the entire kernel it is equal to 1.</span>
+
+<span class="sd">    &#39;validate&#39; should check whether any approximations converge to sufficient</span>
+<span class="sd">    accuracy (for instance, depending on the ratio of the pixel size and</span>
+<span class="sd">    smoothing length), and raise an error if not.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">ABCMeta</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Abstract method; calculate the kernel integral over a pixel.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
+
+<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in pixels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">pass</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Abstract method; check conditions for validity of kernel integral</span>
+<span class="sd">        calculation.</span>
+
+<span class="sd">        Some approximations may only converge if the ratio of the pixel size</span>
+<span class="sd">        and the smoothing length is sufficiently large, or sufficiently small.</span>
+<span class="sd">        This method should check these conditions and raise errors when</span>
+<span class="sd">        appropriate. The smoothing lengths are provided normalized to the pixel</span>
+<span class="sd">        size.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in units of pixels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">pass</span>
+
+
+<div class="viewcode-block" id="WendlandC2Kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel">[docs]</a><span class="k">class</span> <span class="nc">WendlandC2Kernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of the Wendland C2 kernel integral.</span>
+
+<span class="sd">    The Wendland C2 kernel is used in the EAGLE code and derivatives (not in</span>
+<span class="sd">    Gadget/Gadget2!). The exact integral is usually too slow to be practical;</span>
+<span class="sd">    the implementation here approximates the kernel amplitude as constant</span>
+<span class="sd">    across the pixel, which converges to within 1% of the exact integral</span>
+<span class="sd">    provided the SPH smoothing lengths are at least 2 pixels in size.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : WendlandC2Kernel</span>
+<span class="sd">        An appropriately initialized WendlandC2Kernel object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="WendlandC2Kernel.px_weight"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.px_weight">[docs]</a>    <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the kernel integral over a pixel. The formula used</span>
+<span class="sd">        approximates the kernel amplitude as constant across the pixel area and</span>
+<span class="sd">        converges to the true value within 1% for smoothing lengths &gt;= 2</span>
+<span class="sd">        pixels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
+
+<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in pixels.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : np.array</span>
+<span class="sd">            Approximate kernel integral over the pixel area.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dr2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">R2</span> <span class="o">=</span> <span class="n">dr2</span> <span class="o">/</span> <span class="p">(</span><span class="n">h</span> <span class="o">*</span> <span class="n">h</span><span class="p">)</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">R2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">2.</span> <span class="o">/</span> <span class="mf">3.</span>
+        <span class="n">use</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">R2</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">R2</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">R2</span> <span class="o">=</span> <span class="n">R2</span><span class="p">[</span><span class="n">use</span><span class="p">]</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">R2</span><span class="p">)</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">use</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">*</span> <span class="p">(</span><span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">+</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> \
+            <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="n">A</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">R2</span><span class="p">))</span> <span class="o">+</span> \
+            <span class="n">A</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="mf">27.</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">-</span> <span class="mf">14.</span> <span class="o">/</span> <span class="mf">3.</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">+</span> <span class="mf">2.</span> <span class="o">/</span> <span class="mf">3.</span><span class="p">)</span>
+        <span class="c1"># .2992 is normalization s.t. kernel integral = 1 for particle mass = 1</span>
+        <span class="k">return</span> <span class="n">retval</span> <span class="o">/</span> <span class="o">.</span><span class="mi">2992</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="WendlandC2Kernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
+<span class="sd">        Convergence within 1% of the exact integral is achieved when the</span>
+<span class="sd">        smoothing lengths are &gt;= 2 pixels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in units of pixels.x</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.WendlandC2Kernel.validate:&quot;</span>
+                               <span class="s2">&quot; SPH smoothing lengths must be &gt;= 2 px in size&quot;</span>
+                               <span class="s2">&quot; for WendlandC2 kernel integral approximation &quot;</span>
+                               <span class="s2">&quot;accuracy.&quot;</span><span class="p">)</span>
+        <span class="k">return</span></div></div>
+
+
+<div class="viewcode-block" id="DiracDeltaKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel">[docs]</a><span class="k">class</span> <span class="nc">DiracDeltaKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of a Dirac-delta kernel integral.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : DiracDeltaKernel</span>
+<span class="sd">        An appropriately initialized DiracDeltaKernel object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="DiracDeltaKernel.px_weight"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.px_weight">[docs]</a>    <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the kernel integral over a pixel. The particles are</span>
+<span class="sd">        approximated as point-like, ignoring any finite-sized kernel.</span>
+<span class="sd">        This is a reasonable approximation provided the smoothing</span>
+<span class="sd">        length is &lt; 0.5 pixel in size, ideally &lt;&lt; 1 pixel in size.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
+
+<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in pixels.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : np.array</span>
+<span class="sd">            Kernel integral over the pixel area.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">dij</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> \
+            <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span> <span class="o">**</span> <span class="o">-</span><span class="mi">2</span></div>
+
+<div class="viewcode-block" id="DiracDeltaKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
+<span class="sd">        The Dirac-delta model approaches the exact integral when the smoothing</span>
+<span class="sd">        length is &lt;&lt; 1 pixel in size; at a minimum the smoothing length should</span>
+<span class="sd">        be less than half the pixel size.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in units of pixels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.DiracDeltaKernel.validate:&quot;</span>
+                               <span class="s2">&quot; SPH smoothing lengths must be &lt;= 1 px in size&quot;</span>
+                               <span class="s2">&quot; for DiracDelta kernel to be a reasonable &quot;</span>
+                               <span class="s2">&quot;approximation. Initialize with &quot;</span>
+                               <span class="s2">&quot;&#39;ignore_smoothing=True&#39; to override.&quot;</span><span class="p">)</span>
+        <span class="k">return</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Kyle Oman
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

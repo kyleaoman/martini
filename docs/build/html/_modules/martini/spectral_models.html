@@ -1,0 +1,548 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>martini.spectral_models &mdash; MARTINI 1.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MARTINI
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../martini.html">Martini</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source.html">Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../datacube.html">Data Cube</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../beam.html">Beam Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../noise.html">Noise Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../spectral_model.html">Spectral Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sph_kernel.html">SPH Kernels</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MARTINI</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>martini.spectral_models</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for martini.spectral_models</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
+<span class="kn">from</span> <span class="nn">astropy</span> <span class="k">import</span> <span class="n">constants</span> <span class="k">as</span> <span class="n">C</span>
+<span class="kn">from</span> <span class="nn">scipy.special</span> <span class="k">import</span> <span class="n">erf</span> <span class="k">as</span> <span class="n">_erf</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABCMeta</span><span class="p">,</span> <span class="n">abstractmethod</span>
+
+
+<span class="k">def</span> <span class="nf">erf</span><span class="p">(</span><span class="n">z</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">_erf</span><span class="p">(</span><span class="n">z</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">_BaseSpectrum</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract base class for implementions of spectral models to inherit from.</span>
+
+<span class="sd">    Classes inheriting from _BaseSpectrum must implement three methods:</span>
+<span class="sd">    &#39;half_width&#39;, &#39;spectral_function&#39; and &#39;spectral_function_kwargs&#39;.</span>
+
+<span class="sd">    &#39;half_width&#39; should define a characteristic width for the model, measured</span>
+<span class="sd">    from the peak to the characteristic location. Note that particles whose</span>
+<span class="sd">    spectra within +/- 4 half-widths of the peak do not intersect the DataCube</span>
+<span class="sd">    bandpass will be discarded to speed computation.</span>
+
+<span class="sd">    &#39;spectral_function&#39; should define the model spectrum. Arguments which</span>
+<span class="sd">    depend on the martini.sources.SPHSource (or derived class) properties</span>
+<span class="sd">    should make use of the &#39;spectral_function_kwargs&#39; method. The spectrum</span>
+<span class="sd">    should integrate to 1, the amplitude is handled separately.</span>
+
+<span class="sd">    &#39;spectral_function_kwargs&#39; should provide a helper to pass properties from</span>
+<span class="sd">    martini.source.SPHSource (or derived class) to the &#39;spectral_function&#39;.</span>
+<span class="sd">    This is required because the source object is not accessible at class</span>
+<span class="sd">    initialization.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    GaussianSpectrum (simple example of a derived class using source properties</span>
+<span class="sd">                      in spectral_function)</span>
+<span class="sd">    DiracDeltaSpectrum</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">ABCMeta</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spectra</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">init_spectra</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">datacube</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pre-compute the spectrum of each particle.</span>
+
+<span class="sd">        The spectral model defined in &#39;spectral_function&#39; is evaluated using</span>
+<span class="sd">        the channel edges from the DataCube instance and the particle</span>
+<span class="sd">        velocities of the SPHSource (or derived class) instance provided.</span>
+<span class="sd">        Additional particle properties can be accessed via the</span>
+<span class="sd">        &#39;spectral_function_kwargs&#39; helper method.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : martini.sources.SPHSource (or derived class) instance</span>
+<span class="sd">            Source object containing arrays of particle properties.</span>
+
+<span class="sd">        datacube : martini.DataCube instance</span>
+<span class="sd">            DataCube object defining the observational parameters, including</span>
+<span class="sd">            spectral channels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">channel_edges</span> <span class="o">=</span> <span class="n">datacube</span><span class="o">.</span><span class="n">channel_edges</span>
+        <span class="n">channel_widths</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">channel_edges</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">vmids</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span><span class="o">.</span><span class="n">radial_velocity</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">mHI_g</span> <span class="o">*</span> \
+            <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span><span class="o">.</span><span class="n">distance</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">),</span> <span class="o">-</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">MHI_Jy</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">U</span><span class="o">.</span><span class="n">solMass</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Mpc</span> <span class="o">**</span> <span class="o">-</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">U</span><span class="o">.</span><span class="n">Jy</span><span class="p">,</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="mf">2.36E5</span><span class="p">)</span> <span class="o">*</span> <span class="n">x</span><span class="p">,</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mf">2.36E5</span> <span class="o">*</span> <span class="n">x</span>
+        <span class="p">)</span>
+        <span class="n">spectral_function_kwargs</span> <span class="o">=</span> \
+            <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">channel_edges</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="n">vmids</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">spectral_function_kwargs</span><span class="p">(</span><span class="n">source</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="n">raw_spectra</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spectral_function</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+                <span class="n">channel_edges</span><span class="o">.</span><span class="n">value</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">vmids</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
+            <span class="p">)</span> <span class="o">*</span> <span class="n">channel_edges</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+                <span class="n">channel_edges</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span>
+                <span class="n">vmids</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
+            <span class="p">)</span> <span class="o">*</span> <span class="n">channel_edges</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+                <span class="n">vmids</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">channel_edges</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="n">vmids</span><span class="o">.</span><span class="n">ndim</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">vmids</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">spectral_function_kwargs</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spectra</span> <span class="o">=</span> <span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">*</span> <span class="n">raw_spectra</span> <span class="o">/</span> <span class="n">channel_widths</span><span class="p">)</span>\
+            <span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">Jy</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="p">[</span><span class="n">MHI_Jy</span><span class="p">])</span>
+
+        <span class="k">return</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">half_width</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Abstract method; calculate the half-width of the spectrum, either</span>
+<span class="sd">        globally or per-particle.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : martini.sources.SPHSource (or derived class) instance</span>
+<span class="sd">            The source object will be provided to allow access to particle</span>
+<span class="sd">            properties.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">spectral_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">vmids</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Abstract method; implementation of the spectral model.</span>
+
+<span class="sd">        Should calculate the flux in each spectral channel, calculation should</span>
+<span class="sd">        be vectorized (numpy).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        a : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">            Lower spectral channel edge(s).</span>
+
+<span class="sd">        b : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">            Upper spectral channel edge(s).</span>
+
+<span class="sd">        vmids : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">            Particle velocities along the line of sight.</span>
+
+<span class="sd">        **kwargs : various</span>
+<span class="sd">            See spectral_function_kwargs.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        spectral_function_kwargs</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">pass</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">spectral_function_kwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Abstract method; helper method to pass additional arguments to the</span>
+<span class="sd">        spectral_function.</span>
+
+<span class="sd">        Should return a dict containing the kwarg names as keys with the values</span>
+<span class="sd">        to pass as associated values.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : martini.sources.SPHSource (or derived class) instance</span>
+<span class="sd">            The source object will be provided so that its attributes can be</span>
+<span class="sd">            accessed.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        GaussianSpectrum (example implementation)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">pass</span>
+
+
+<div class="viewcode-block" id="GaussianSpectrum"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.GaussianSpectrum">[docs]</a><span class="k">class</span> <span class="nc">GaussianSpectrum</span><span class="p">(</span><span class="n">_BaseSpectrum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class implementing a Gaussian model for the spectrum of the HI line.</span>
+
+<span class="sd">    The line is modelled as a Gaussian of either fixed width, or of width</span>
+<span class="sd">    scaling with the particle temperature as sqrt(k_B * T / m_p), centered</span>
+<span class="sd">    at the particle velocity.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    sigma : astropy.units.Quantity, with dimensions of velocity, or string: \</span>
+<span class="sd">    &#39;thermal&#39;</span>
+<span class="sd">        Width of the Gaussian modelling the line (constant for all particles),</span>
+<span class="sd">        or specify &#39;thermal&#39; for width equal to sqrt(k_B * T / m_p) where k_B</span>
+<span class="sd">        is Boltzmann&#39;s constant, T is the particle temperature and m_p is the</span>
+<span class="sd">        particle mass.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : GaussianSpectrum</span>
+<span class="sd">        An appropriately initialized GaussianSpectrum object.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    _BaseSpectrum</span>
+<span class="sd">    DiracDeltaSpectrum</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">7.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma_mode</span> <span class="o">=</span> <span class="n">sigma</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="GaussianSpectrum.spectral_function"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.GaussianSpectrum.spectral_function">[docs]</a>    <span class="k">def</span> <span class="nf">spectral_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">vmids</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">1.0</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate a Gaussian integral in a channel.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        a : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">            Lower spectral channel edge(s).</span>
+
+<span class="sd">        b : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">            Upper spectral channel edge(s).</span>
+
+<span class="sd">        vmids : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">            Particle velocities along the line of sight.</span>
+
+<span class="sd">        sigma : astropy.units.Quantity array, or astropy.units.Quantity, with \</span>
+<span class="sd">        dimensions of velocity</span>
+<span class="sd">            Velocity dispersion for HI line width, either for each particle or</span>
+<span class="sd">            constant.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : astropy.units.Quantity, dimesionless</span>
+<span class="sd">            The evaluated spectral model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># erf strips units</span>
+        <span class="k">return</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">erf</span><span class="p">((</span><span class="n">b</span> <span class="o">-</span> <span class="n">vmids</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.</span><span class="p">)</span> <span class="o">*</span> <span class="n">sigma</span><span class="p">))</span> <span class="o">-</span>
+            <span class="n">erf</span><span class="p">((</span><span class="n">a</span> <span class="o">-</span> <span class="n">vmids</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.</span><span class="p">)</span> <span class="o">*</span> <span class="n">sigma</span><span class="p">))</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">dimensionless_unscaled</span></div>
+
+<div class="viewcode-block" id="GaussianSpectrum.spectral_function_kwargs"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.GaussianSpectrum.spectral_function_kwargs">[docs]</a>    <span class="k">def</span> <span class="nf">spectral_function_kwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Helper function to pass particle velocity dispersions to the</span>
+<span class="sd">        spectral_function.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : martini.sources.SPHSource (or derived class) instance</span>
+<span class="sd">            Source object.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : dict</span>
+<span class="sd">            Keyword arguments for the spectral_function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;sigma&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">half_width</span><span class="p">(</span><span class="n">source</span><span class="p">)}</span></div>
+
+<div class="viewcode-block" id="GaussianSpectrum.half_width"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.GaussianSpectrum.half_width">[docs]</a>    <span class="k">def</span> <span class="nf">half_width</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate velocity dispersions from particle temperatures, or return</span>
+<span class="sd">        constant.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : martini.sources.SPHSource (or derived class) instance</span>
+<span class="sd">            Source object, making particle properties available.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : astropy.unit.Quantity, with dimensions of velocity</span>
+<span class="sd">            Velocity dispersion (constant, or per particle).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma_mode</span> <span class="o">==</span> <span class="s1">&#39;thermal&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">k_B</span> <span class="o">*</span> <span class="n">source</span><span class="o">.</span><span class="n">T_g</span> <span class="o">/</span> <span class="n">C</span><span class="o">.</span><span class="n">m_p</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma_mode</span></div></div>
+
+
+<div class="viewcode-block" id="DiracDeltaSpectrum"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.DiracDeltaSpectrum">[docs]</a><span class="k">class</span> <span class="nc">DiracDeltaSpectrum</span><span class="p">(</span><span class="n">_BaseSpectrum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class implemeting a Dirac-delta model for the spectrum of the HI line.</span>
+
+<span class="sd">    The line is modelled as a Dirac-delta function, centered at the particle</span>
+<span class="sd">    velocity.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : DiracDeltaSpectrum</span>
+<span class="sd">        An appropriately initialized DiracDeltaSpectrum object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="DiracDeltaSpectrum.spectral_function"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.DiracDeltaSpectrum.spectral_function">[docs]</a>    <span class="k">def</span> <span class="nf">spectral_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">vmids</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate a Dirac-delta function in a channel.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        a : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">            Lower spectral channel edge(s).</span>
+
+<span class="sd">        b : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">            Upper spectral channel edge(s).</span>
+
+<span class="sd">        vmids : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">            Particle velocities along the line of sight.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : astropy.units.Quantity, dimesionless</span>
+<span class="sd">            The evaluated spectral model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">heaviside</span><span class="p">(</span><span class="n">vmids</span> <span class="o">-</span> <span class="n">a</span><span class="p">,</span> <span class="mf">1.</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">heaviside</span><span class="p">(</span><span class="n">b</span> <span class="o">-</span> <span class="n">vmids</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DiracDeltaSpectrum.spectral_function_kwargs"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.DiracDeltaSpectrum.spectral_function_kwargs">[docs]</a>    <span class="k">def</span> <span class="nf">spectral_function_kwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        No additional kwargs.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : martini.sources.SPHSource (or derived class) instance</span>
+<span class="sd">            Source object, making particle properties available.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : dict</span>
+<span class="sd">            Empty; no additional kwargs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="DiracDeltaSpectrum.half_width"><a class="viewcode-back" href="../../spectral_model.html#martini.spectral_models.DiracDeltaSpectrum.half_width">[docs]</a>    <span class="k">def</span> <span class="nf">half_width</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Dirac-delta function has 0 width.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : martini.sources.SPHSource (or derived class) instance</span>
+<span class="sd">            Source object, making particle properties available.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : astropy.units.Quantity</span>
+<span class="sd">            Velocity dispersion of 0 km/s.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="mi">0</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Kyle Oman
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

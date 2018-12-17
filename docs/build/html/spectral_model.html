@@ -1,0 +1,448 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Spectral Models &mdash; MARTINI 1.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="SPH Kernels" href="sph_kernel.html" />
+    <link rel="prev" title="Noise Models" href="noise.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> MARTINI
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="martini.html">Martini</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source.html">Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="datacube.html">Data Cube</a></li>
+<li class="toctree-l1"><a class="reference internal" href="beam.html">Beam Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="noise.html">Noise Models</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Spectral Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sph_kernel.html">SPH Kernels</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">MARTINI</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Spectral Models</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/spectral_model.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-martini.spectral_models">
+<span id="spectral-models"></span><h1>Spectral Models<a class="headerlink" href="#module-martini.spectral_models" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="martini.spectral_models.DiracDeltaSpectrum">
+<em class="property">class </em><code class="descclassname">martini.spectral_models.</code><code class="descname">DiracDeltaSpectrum</code><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class implemeting a Dirac-delta model for the spectrum of the HI line.</p>
+<p>The line is modelled as a Dirac-delta function, centered at the particle
+velocity.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">DiracDeltaSpectrum</span></dt>
+<dd><p class="first last">An appropriately initialized DiracDeltaSpectrum object.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="martini.spectral_models.DiracDeltaSpectrum.half_width">
+<code class="descname">half_width</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.half_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.half_width" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dirac-delta function has 0 width.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
+<dd><p class="first last">Source object, making particle properties available.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity</span></dt>
+<dd><p class="first last">Velocity dispersion of 0 km/s.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.spectral_models.DiracDeltaSpectrum.spectral_function">
+<code class="descname">spectral_function</code><span class="sig-paren">(</span><em>a</em>, <em>b</em>, <em>vmids</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.spectral_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.spectral_function" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate a Dirac-delta function in a channel.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>a</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Lower spectral channel edge(s).</p>
+</dd>
+<dt><strong>b</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Upper spectral channel edge(s).</p>
+</dd>
+<dt><strong>vmids</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity array, with dimensions of velocity</span></dt>
+<dd><p class="first last">Particle velocities along the line of sight.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, dimesionless</span></dt>
+<dd><p class="first last">The evaluated spectral model.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.spectral_models.DiracDeltaSpectrum.spectral_function_kwargs">
+<code class="descname">spectral_function_kwargs</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.spectral_function_kwargs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.spectral_function_kwargs" title="Permalink to this definition">¶</a></dt>
+<dd><p>No additional kwargs.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
+<dd><p class="first last">Source object, making particle properties available.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
+<dd><p class="first last">Empty; no additional kwargs.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="martini.spectral_models.GaussianSpectrum">
+<em class="property">class </em><code class="descclassname">martini.spectral_models.</code><code class="descname">GaussianSpectrum</code><span class="sig-paren">(</span><em>sigma=&lt;Quantity 7. km / s&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class implementing a Gaussian model for the spectrum of the HI line.</p>
+<p>The line is modelled as a Gaussian of either fixed width, or of width
+scaling with the particle temperature as sqrt(k_B * T / m_p), centered
+at the particle velocity.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>sigma</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of velocity, or string:     ‘thermal’</span></dt>
+<dd><p class="first last">Width of the Gaussian modelling the line (constant for all particles),
+or specify ‘thermal’ for width equal to sqrt(k_B * T / m_p) where k_B
+is Boltzmann’s constant, T is the particle temperature and m_p is the
+particle mass.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">GaussianSpectrum</span></dt>
+<dd><p class="first last">An appropriately initialized GaussianSpectrum object.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><code class="xref py py-obj docutils literal notranslate"><span class="pre">_BaseSpectrum</span></code>, <a class="reference internal" href="#martini.spectral_models.DiracDeltaSpectrum" title="martini.spectral_models.DiracDeltaSpectrum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DiracDeltaSpectrum</span></code></a></p>
+</div>
+<dl class="method">
+<dt id="martini.spectral_models.GaussianSpectrum.half_width">
+<code class="descname">half_width</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.half_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.half_width" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate velocity dispersions from particle temperatures, or return
+constant.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
+<dd><p class="first last">Source object, making particle properties available.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.unit.Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Velocity dispersion (constant, or per particle).</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.spectral_models.GaussianSpectrum.spectral_function">
+<code class="descname">spectral_function</code><span class="sig-paren">(</span><em>a</em>, <em>b</em>, <em>vmids</em>, <em>sigma=&lt;Quantity 1. km / s&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.spectral_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.spectral_function" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate a Gaussian integral in a channel.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>a</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Lower spectral channel edge(s).</p>
+</dd>
+<dt><strong>b</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Upper spectral channel edge(s).</p>
+</dd>
+<dt><strong>vmids</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity array, with dimensions of velocity</span></dt>
+<dd><p class="first last">Particle velocities along the line of sight.</p>
+</dd>
+<dt><strong>sigma</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity array, or astropy.units.Quantity, with         dimensions of velocity</span></dt>
+<dd><p class="first last">Velocity dispersion for HI line width, either for each particle or
+constant.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, dimesionless</span></dt>
+<dd><p class="first last">The evaluated spectral model.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.spectral_models.GaussianSpectrum.spectral_function_kwargs">
+<code class="descname">spectral_function_kwargs</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.spectral_function_kwargs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.spectral_function_kwargs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Helper function to pass particle velocity dispersions to the
+spectral_function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
+<dd><p class="first last">Source object.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
+<dd><p class="first last">Keyword arguments for the spectral_function.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="sph_kernel.html" class="btn btn-neutral float-right" title="SPH Kernels" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="noise.html" class="btn btn-neutral" title="Noise Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Kyle Oman
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

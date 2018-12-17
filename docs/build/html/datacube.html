@@ -1,0 +1,381 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Data Cube &mdash; MARTINI 1.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Beam Models" href="beam.html" />
+    <link rel="prev" title="Sources" href="source.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> MARTINI
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="martini.html">Martini</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source.html">Sources</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Data Cube</a></li>
+<li class="toctree-l1"><a class="reference internal" href="beam.html">Beam Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="noise.html">Noise Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spectral_model.html">Spectral Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sph_kernel.html">SPH Kernels</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">MARTINI</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Data Cube</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/datacube.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-martini._datacube">
+<span id="data-cube"></span><h1>Data Cube<a class="headerlink" href="#module-martini._datacube" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="martini._datacube.DataCube">
+<em class="property">class </em><code class="descclassname">martini._datacube.</code><code class="descname">DataCube</code><span class="sig-paren">(</span><em>n_px_x=256</em>, <em>n_px_y=256</em>, <em>n_channels=64</em>, <em>px_size=&lt;Quantity 15. arcsec&gt;</em>, <em>channel_width=&lt;Quantity 4. km / s&gt;</em>, <em>velocity_centre=&lt;Quantity 0. km / s&gt;</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube" title="Permalink to this definition">¶</a></dt>
+<dd><p>Handles creation and management of the data cube itself.</p>
+<p>Basic usage simply involves initializing with the parameters listed below.
+More advanced usage might arise if designing custom classes for other sub-
+modules, especially beams.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>n_px_x</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">Pixel count along the x (RA) axis. Even integers strongly preferred.</p>
+</dd>
+<dt><strong>n_px_y</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">Pixel count along the y (Dec) axis. Even integers strongly preferred.</p>
+</dd>
+<dt><strong>n_channels</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">Number of channels along the spectral axis.</p>
+</dd>
+<dt><strong>px_size</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of angle</span></dt>
+<dd><p class="first last">Angular scale of one pixel.</p>
+</dd>
+<dt><strong>channel_width</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Step size along the spectral axis. Must be provided as a velocity.</p>
+</dd>
+<dt><strong>velocity_centre</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Velocity of the central channel along the spectral axis.</p>
+</dd>
+<dt><strong>ra</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of angle</span></dt>
+<dd><p class="first last">Right ascension of the cube centroid.</p>
+</dd>
+<dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of angle</span></dt>
+<dd><p class="first last">Declination of the cube centroid.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">DataCube</span></dt>
+<dd><p class="first last">An appropriately configured DataCube object.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<p>TODO</p>
+<dl class="method">
+<dt id="martini._datacube.DataCube.add_pad">
+<code class="descname">add_pad</code><span class="sig-paren">(</span><em>pad</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.add_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.add_pad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Resize the cube to add a padding region in the spatial direction.</p>
+<p>Accurate convolution with a beam requires a cube padded according to
+the size of the beam kernel (its representation sampled on a grid with
+the same spacing). The beam class is required to handle defining the
+size of pad required.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>pad</strong> <span class="classifier-delimiter">:</span> <span class="classifier">tuple or other sequence of length 2</span></dt>
+<dd><p class="first last">Number of pixels to add in the x (RA) and y (Dec) directions.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="#martini._datacube.DataCube.drop_pad" title="martini._datacube.DataCube.drop_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">drop_pad</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.copy">
+<code class="descname">copy</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.copy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.copy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Produce a copy of the DataCube.</p>
+<p>May be especially useful to create multiple datacubes with differing
+intermediate steps.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">DataCube</span></dt>
+<dd><p class="first last">Copy of the DataCube object.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<p>TODO</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.drop_pad">
+<code class="descname">drop_pad</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.drop_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.drop_pad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove the padding added using add_pad.</p>
+<p>After convolution, the pad region contains meaningless information and
+can be discarded.</p>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="#martini._datacube.DataCube.add_pad" title="martini._datacube.DataCube.add_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_pad</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.freq_channels">
+<code class="descname">freq_channels</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.freq_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.freq_channels" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert spectral axis to frequency units.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.spatial_slices">
+<code class="descname">spatial_slices</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spatial_slices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spatial_slices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterator over the spatial ‘slices’ of the cube.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">iterator</span></dt>
+<dd><p class="first last">Iterator over the spatial ‘slices’ of the cube.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.spectra">
+<code class="descname">spectra</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spectra"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spectra" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterator over the spectra (one in each spatial pixel).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">iterator</span></dt>
+<dd><p class="first last">Iterator over the spectra (one in each spatial pixel).</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.velocity_channels">
+<code class="descname">velocity_channels</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.velocity_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.velocity_channels" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert spectral axis (back) to velocity units.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="beam.html" class="btn btn-neutral float-right" title="Beam Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="source.html" class="btn btn-neutral" title="Sources" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Kyle Oman
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
