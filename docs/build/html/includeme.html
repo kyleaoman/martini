@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Noise Models (martini.noise) &mdash; MARTINI 1.0.1 documentation</title>
+  <title>Overview &mdash; MARTINI 1.0.1 documentation</title>
   
 
   
@@ -29,8 +29,8 @@
   <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Spectral Models (martini.spectral_models)" href="spectral_model.html" />
-    <link rel="prev" title="Beam Models (martini.beams)" href="beam.html" /> 
+    <link rel="next" title="Martini (martini.Martini)" href="martini.html" />
+    <link rel="prev" title="Indices and tables" href="index.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -81,12 +81,12 @@
             
               <p class="caption"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="includeme.html">Overview</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="martini.html">Martini (martini.Martini)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="datacube.html">Data Cube (martini.DataCube)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source.html">Sources (martini.sources)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="beam.html">Beam Models (martini.beams)</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Noise Models (martini.noise)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="noise.html">Noise Models (martini.noise)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="spectral_model.html">Spectral Models (martini.spectral_models)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sph_kernel.html">SPH Kernels (martini.sph_kernels)</a></li>
 </ul>
@@ -134,13 +134,13 @@
     
       <li><a href="index.html">Docs</a> &raquo;</li>
         
-      <li>Noise Models (martini.noise)</li>
+      <li>Overview</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/noise.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/includeme.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -153,65 +153,16 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="module-martini.noise">
-<span id="noise-models-martini-noise"></span><h1>Noise Models (martini.noise)<a class="headerlink" href="#module-martini.noise" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
-<dt id="martini.noise.GaussianNoise">
-<em class="property">class </em><code class="descclassname">martini.noise.</code><code class="descname">GaussianNoise</code><span class="sig-paren">(</span><em>rms=&lt;Quantity 1. Jy&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/noise.html#GaussianNoise"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.noise.GaussianNoise" title="Permalink to this definition">¶</a></dt>
-<dd><p>Implementation of a simple Gaussian noise model.</p>
-<p>Provides a ‘generate’ method producing a cube of Gaussian Noise.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>rms</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity with dimensions of flux density (e.g. Jy)</span></dt>
-<dd><p class="first last">Root mean square amplitude of the noise field.</p>
-</dd>
-</dl>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">GaussianNoise</span></dt>
-<dd><p class="first last">An appropriately initialized GaussianNoise object.</p>
-</dd>
-</dl>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="method">
-<dt id="martini.noise.GaussianNoise.generate">
-<code class="descname">generate</code><span class="sig-paren">(</span><em>datacube</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/noise.html#GaussianNoise.generate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.noise.GaussianNoise.generate" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a cube containing Gaussian noise.</p>
-<p>Some numpy functions such as np.random.normal strip units, so need to
-handle them explicitly.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>datacube</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.DataCube instance</span></dt>
-<dd><p class="first last">This method will be called passing the martini.DataCube instance as
-an argument; its attributes can thus be accessed here.
-datacube._array.shape is particularly relevant.</p>
-</dd>
-</dl>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity array, with dimensions of flux density</span></dt>
-<dd><p class="first last">Noise realization with size matching the DataCube._array.</p>
-</dd>
-</dl>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
+  <img alt="_images/martini_banner.png" src="_images/martini_banner.png" />
+<div class="section" id="overview">
+<h1>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h1>
+<p>MARTINI is a modular package for the creation of synthetic resolved HI line observations (data cubes) of smoothed-particle hydrodynamics simulations of galaxies. The various aspects of the mock-observing process are divided logically into sub-modules handling the data cube, source, beam, noise, spectral model and SPH kernel. MARTINI is object-oriented: each sub-module provides a class (or classes) which can be configured as desired. For most sub-modules, base classes are provided to allow for straightforward customization. Instances of each sub-module class are then given as parameters to the Martini class. A mock observation is then constructed by calling a handful of functions to execute the desired steps in the mock-observing process.</p>
+<p>The package is functional and (an old version) has been used in this <a class="reference external" href="https://ui.adsabs.harvard.edu/#abs/2019MNRAS.482..821O/abstract">paper</a>. Stable releases are available via PyPI (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">astromartini</span></code>) and the numbered branches on github. The github master branch is under active development: things will change, bugs will happen. Any feedback is greatly appreciated.</p>
+<p>See the help for <a class="reference external" href="https://kyleaoman.github.io/martini/build/html/martini.html">martini.Martini</a> for an example script to configure MARTINI and create a datacube. This example can be run by doing:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;from martini import demo; demo()&quot;</span>
+</pre></div>
+</div>
+<p>If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via <a class="reference external" href="mailto:koman&#37;&#52;&#48;astro&#46;rug&#46;nl">koman<span>&#64;</span>astro<span>&#46;</span>rug<span>&#46;</span>nl</a>.</p>
 </div>
 
 
@@ -222,10 +173,10 @@ datacube._array.shape is particularly relevant.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="spectral_model.html" class="btn btn-neutral float-right" title="Spectral Models (martini.spectral_models)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="martini.html" class="btn btn-neutral float-right" title="Martini (martini.Martini)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="beam.html" class="btn btn-neutral" title="Beam Models (martini.beams)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="index.html" class="btn btn-neutral" title="Indices and tables" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

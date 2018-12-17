@@ -1,5 +1,5 @@
-Noise Models
-============
+Noise Models (martini.noise)
+============================
 
 .. automodule:: martini.noise
    :members:

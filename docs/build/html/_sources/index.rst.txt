@@ -3,16 +3,16 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-MARTINI
-=======
-.. automodule:: martini
+.. image:: martini_banner.png
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   includeme
    martini
-   source
    datacube
+   source
    beam
    noise
    spectral_model
