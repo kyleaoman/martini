@@ -1,7 +1,7 @@
 import numpy as np
 
 # copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
-# commit-id 81e08768bcf3f910d86757c07b44632f393f29aa
+# commit-id 63dc535c5de1a0dc3caf09f98a33c9d09aa0eddc
 # Note: No git-based solution (e.g. via submodules) seems practical to include
 # selected files from external repositories; a direct copy is included here
 # to produce a self-contained package.
@@ -34,8 +34,8 @@ def L_align(xyz, vxyz, m, frac=.3, saverot=None, Laxis='z'):
     Nfrac = np.argmin(np.abs(mcumul - frac))
     Nfrac = np.max([Nfrac, 100])  # use a minimum of 100 particles
     Nfrac = np.min([Nfrac, len(m)])  # unless this exceeds particle count
-    p = p[:Nfrac]
-    L = L[:Nfrac]
+    p = p[:, :Nfrac]
+    L = L[:, :Nfrac]
     Ltot = np.sqrt(np.sum(np.power(np.sum(L, axis=1), 2)))
     Lhat = np.sum(L, axis=1) / Ltot
     zhat = Lhat / np.sqrt(np.sum(np.power(Lhat, 2)))  # normalized
