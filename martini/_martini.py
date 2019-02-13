@@ -399,8 +399,7 @@ class Martini():
         # header.append(('RMS', ???))
         # header.append(('LWIDTH', ???))
         # header.append(('LSTEP', ???))
-        header.append(('BUNIT', str(self.datacube._array.unit).replace(
-            ' ', '')))
+        header.append(('BUNIT', self.datacube._array.unit.to_string('fits')))
         # header.append(('PCDEC', ???))
         # header.append(('LSTART', ???))
         header.append(('DATE-OBS', datetime.utcnow().isoformat()[:-5]))
