@@ -540,7 +540,7 @@ class TNGSource(SPHSource):
 
         # optional dependencies for this source class
         from illustris_python.groupcat import loadSingle, loadHeader
-        from illustris_python.snapshot import loadHalo
+        from illustris_python.snapshot import loadSubset, getSnapOffsets
 
         data_header = loadHeader(basePath, snapNum)
         data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
@@ -549,8 +549,9 @@ class TNGSource(SPHSource):
                     'Velocities', 'SubfindHsml', 'InternalEnergy',
                     'ElectronAbundance', 'GFM_Metals')
         mdi_g = (None, None, None, None, None, None, None, 0)
-        data_g = loadHalo(basePath, snapNum, haloID, 'gas', fields=fields_g,
-                          mdi=mdi_g)
+        subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
+        data_g = loadSubset(basePath, snapNum, haloID, 'gas', fields=fields_g,
+                            subset=subset_g, mdi=mdi_g)
 
         a = data_header['Time']
         h = data_header['HubbleParam']
