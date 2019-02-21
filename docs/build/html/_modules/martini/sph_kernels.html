@@ -284,7 +284,10 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.WendlandC2Kernel.validate:&quot;</span>
                                <span class="s2">&quot; SPH smoothing lengths must be &gt;= 2 px in size&quot;</span>
                                <span class="s2">&quot; for WendlandC2 kernel integral approximation &quot;</span>
-                               <span class="s2">&quot;accuracy.&quot;</span><span class="p">)</span>
+                               <span class="s2">&quot;accuracy. This check may be disabled by &quot;</span>
+                               <span class="s2">&quot;calling Martini.Martini.insert_source_in_cube &quot;</span>
+                               <span class="s2">&quot;with &#39;skip_validation=True&#39;, but use this with&quot;</span>
+                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
         <span class="k">return</span></div></div>
 
 
@@ -345,8 +348,9 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.DiracDeltaKernel.validate:&quot;</span>
                                <span class="s2">&quot; SPH smoothing lengths must be &lt;= 1 px in size&quot;</span>
                                <span class="s2">&quot; for DiracDelta kernel to be a reasonable &quot;</span>
-                               <span class="s2">&quot;approximation. Initialize with &quot;</span>
-                               <span class="s2">&quot;&#39;ignore_smoothing=True&#39; to override.&quot;</span><span class="p">)</span>
+                               <span class="s2">&quot;approximation. Call Martini.Martini.insert_&quot;</span>
+                               <span class="s2">&quot;source_in_cube with &#39;skip_validation=True&#39; to &quot;</span>
+                               <span class="s2">&quot;override, at the cost of accuracy.&quot;</span><span class="p">)</span>
         <span class="k">return</span></div></div>
 </pre></div>
 
