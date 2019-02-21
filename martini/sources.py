@@ -550,7 +550,7 @@ class TNGSource(SPHSource):
                     'ElectronAbundance', 'GFM_Metals')
         mdi_g = (None, None, None, None, None, None, None, 0)
         subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
-        data_g = loadSubset(basePath, snapNum, haloID, 'gas', fields=fields_g,
+        data_g = loadSubset(basePath, snapNum, 'gas', fields=fields_g,
                             subset=subset_g, mdi=mdi_g)
 
         a = data_header['Time']
