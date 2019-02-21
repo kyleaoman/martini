@@ -132,7 +132,10 @@ class WendlandC2Kernel(_BaseSPHKernel):
             raise RuntimeError("Martini.sph_kernels.WendlandC2Kernel.validate:"
                                " SPH smoothing lengths must be >= 2 px in size"
                                " for WendlandC2 kernel integral approximation "
-                               "accuracy.")
+                               "accuracy. This check may be disabled by "
+                               "calling Martini.Martini.insert_source_in_cube "
+                               "with 'skip_validation=True', but use this with"
+                               "care.")
         return
 
 
@@ -193,6 +196,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
             raise RuntimeError("Martini.sph_kernels.DiracDeltaKernel.validate:"
                                " SPH smoothing lengths must be <= 1 px in size"
                                " for DiracDelta kernel to be a reasonable "
-                               "approximation. Initialize with "
-                               "'ignore_smoothing=True' to override.")
+                               "approximation. Call Martini.Martini.insert_"
+                               "source_in_cube with 'skip_validation=True' to "
+                               "override, at the cost of accuracy.")
         return
