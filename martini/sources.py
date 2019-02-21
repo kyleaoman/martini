@@ -3,6 +3,7 @@ from astropy.coordinates import CartesianRepresentation,\
     CartesianDifferential, ICRS
 from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
+import astropy.constants as C
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
 
@@ -449,7 +450,7 @@ class SOSource(SPHSource):
     ):
 
         from simobj import SimObj  # optional dependency for this source class
-        
+
         self._SO_args = SO_args
         with SimObj(**self._SO_args) as SO:
             super().__init__(
@@ -464,4 +465,126 @@ class SOSource(SPHSource):
                 vxyz_g=SO.vxyz_g,
                 hsm_g=SO.hsm_g
                 )
+        return
+
+
+class TNGSource(SPHSource):
+    """
+    Class abstracting HI sources designed to run in the IllustrisTNG JupyterLab
+    environment for access to simulation data. Can also be used in other
+    environments, but requires that the 'illustris_python' module be
+    importable, and further that the data are laid out on disk in the fiducial
+    way (see: http://www.tng-project.org/data/docs/scripts/).
+
+    Parameters
+    ----------
+    basePath : string
+        Directory containing simulation data, for instance 'TNG100-1/output/',
+        see also http://www.tng-project.org/data/docs/scripts/
+
+    snapNum : int
+        Snapshot number. In TNG, snapshot 99 is the final output. Note that
+        a full snapshot (not a 'mini' snapshot, see
+        http://www.tng-project.org/data/docs/specifications/#sec1a) must be
+        used.
+
+    subID : int
+        Subhalo ID of the target object. Note that all particles in the FOF
+        group to which the subhalo belongs are used to construct the data cube.
+        This avoids strange "holes" at the locations of other subhaloes in the
+        same group, and gives a more realistic treatment of foreground and
+        background emission local to the source.
+
+    distance : astropy.units.Quantity, with dimensions of length
+        Source distance, also used to set the velocity offset via Hubble's law.
+
+    rotation : dict
+        Keys may be any combination of 'axis_angle', 'rotmat' and/or
+        'L_coords'. These will be applied in this order. Note that the 'y-z'
+        plane will be the one eventually placed in the plane of the "sky". The
+        corresponding values:
+        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element an astropy.units.Quantity with \
+        dimensions of angle, indicating the angle to rotate through.
+        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
+        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
+        angle (both astropy.units.Quantity instances with dimensions of \
+        angle). The routine will first attempt to identify a preferred plane \
+        based on the angular momenta of the central 1/3 of particles in the \
+        source. This plane will then be rotated to lie in the plane of the \
+        "sky" ('y-z'), rotated by the azimuthal angle about its angular \
+        momentum pole (rotation about 'x'), and inclined (rotation about 'y').
+
+    ra : astropy.units.Quantity, with dimensions of angle
+        Right ascension for the source centroid.
+
+    dec : astropy.units.Quantity, with dimensions of angle
+        Declination for the source centroid.
+
+    Returns
+    -------
+    out : TNGSource
+        An appropriately initialized TNGSource object.
+    """
+
+    def __init__(
+            self,
+            basePath,
+            snapNum,
+            subID,
+            distance=3.*U.Mpc,
+            rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
+            ra=0.*U.deg,
+            dec=0.*U.deg
+    ):
+
+        # optional dependencies for this source class
+        from illustris_python.groupcat import loadSingle, loadHeader
+        from illustris_python.snapshot import loadHalo
+
+        data_header = loadHeader(basePath, snapNum)
+        data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
+        haloID = data_sub['SubhaloGrNr']
+        fields_g = ('Masses', 'NeutralHydrogenAbundance', 'CenterOfMass',
+                    'Velocities', 'SubfindHsml', 'InternalEnergy',
+                    'ElectronAbundance', 'GFM_Metals')
+        mdi_g = (None, None, None, None, None, None, None, 0)
+        data_g = loadHalo(basePath, snapNum, haloID, 'gas', fields=fields_g,
+                          mdi=mdi_g)
+
+        a = data_header['Time']
+        h = data_header['HubbleParam']
+        X_H = 0.76  # not in headers?
+        xe_g = data_g['ElectronAbundance']
+        u_g = data_g['InternalEnergy']  # unit conversion handled in T_g
+        mu_g = 4 * C.m_p.to(U.g).value / (1 + 3 * X_H + 4 * X_H * xe_g)
+        gamma = 5. / 3.  # not in headers?
+        T_g = (gamma - 1) * u_g / C.k_B.to(U.erg / U.K).value * 1E10 * mu_g \
+            * U.K
+        m_g = data_g['Masses'] * 1E10 / h * U.Msun
+        fH_g = data_g['GFM_Metals']  # only loaded hydrogen abundances
+        fHneutral_g = data_g['NeutralHydrogenAbundance']
+        fHmolecular_g = 0.  # replace with molecular fractions
+        mHI_g = m_g * fH_g * fHneutral_g * (1. - fHmolecular_g)
+        xyz_g = data_g['CenterOfMass'] * a / h * U.kpc
+        vxyz_g = data_g['Velocities'] * np.sqrt(a) * U.km / U.s
+        hsm_g = data_g['SubfindHsml'] * a / h * U.kpc
+
+        xyz_centre = data_sub['SubhaloPos'] * a / h * U.kpc
+        xyz_g -= xyz_centre
+        vxyz_centre = data_sub['SubhaloVel'] * np.sqrt(a) * U.km / U.s
+        vxyz_g -= vxyz_centre
+
+        super().__init__(
+            distance=distance,
+            rotation=rotation,
+            ra=ra,
+            dec=dec,
+            h=h,
+            T_g=T_g,
+            mHI_g=mHI_g,
+            xyz_g=xyz_g,
+            vxyz_g=vxyz_g,
+            hsm_g=hsm_g
+        )
         return
