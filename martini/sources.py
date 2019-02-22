@@ -547,7 +547,7 @@ class TNGSource(SPHSource):
         data_header = loadHeader(basePath, snapNum)
         data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
         haloID = data_sub['SubhaloGrNr']
-        fields_g = ('Masses', 'CenterOfMass', 'Velocities', 'SubfindHsml',
+        fields_g = ('Masses', 'Velocities', 'SubfindHsml',
                     'InternalEnergy', 'ElectronAbundance', 'Density',
                     'StarFormationRate')
         subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
@@ -555,8 +555,20 @@ class TNGSource(SPHSource):
                             subset=subset_g)
         try:
             data_g.update(loadSubset(basePath, snapNum, 'gas',
+                                     fields=('CenterOfMass', ),
+                                     subset=subset_g, sq=False))
+        except Exception as exc:
+            if ('Particle type' in exc.args[0]) and \
+               ('does not have field' in exc.args[0]):
+                data_g.update(loadSubset(basePath, snapNum, 'gas',
+                                         fields=('Coordinates', ),
+                                         subset=subset_g, sq=False))
+            else:
+                raise
+        try:
+            data_g.update(loadSubset(basePath, snapNum, 'gas',
                                      fields=('GFM_Metals', ), subset=subset_g,
-                                     mdi=(0, )))
+                                     mdi=(0, ), sq=False))
         except Exception as exc:
             if ('Particle type' in exc.args[0]) and \
                ('does not have field' in exc.args[0]):
@@ -601,7 +613,10 @@ class TNGSource(SPHSource):
             T0=1E4 * U.K
         )
         mHI_g = m_g * X_H_g * fatomic_g
-        xyz_g = data_g['CenterOfMass'] * a / h * U.kpc
+        try:
+            xyz_g = data_g['CenterOfMass'] * a / h * U.kpc
+        except KeyError:
+            xyz_g = data_g['Coordinates'] * a / h * U.kpc
         vxyz_g = data_g['Velocities'] * np.sqrt(a) * U.km / U.s
         hsm_g = data_g['SubfindHsml'] * a / h * U.kpc
 
