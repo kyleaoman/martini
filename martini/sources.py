@@ -548,9 +548,8 @@ class TNGSource(SPHSource):
         data_header = loadHeader(basePath, snapNum)
         data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
         haloID = data_sub['SubhaloGrNr']
-        fields_g = ('Masses', 'Velocities', 'SubfindHsml',
-                    'InternalEnergy', 'ElectronAbundance', 'Density',
-                    'StarFormationRate')
+        fields_g = ('Masses', 'Velocities', 'InternalEnergy',
+                    'ElectronAbundance', 'Density', 'StarFormationRate')
         subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
         data_g = loadSubset(basePath, snapNum, 'gas', fields=fields_g,
                             subset=subset_g)
