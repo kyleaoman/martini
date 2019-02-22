@@ -541,32 +541,66 @@ class TNGSource(SPHSource):
         # optional dependencies for this source class
         from illustris_python.groupcat import loadSingle, loadHeader
         from illustris_python.snapshot import loadSubset, getSnapOffsets
+        from Hdecompose.atomic_frac import atomic_frac
 
+        X_H = 0.76
         data_header = loadHeader(basePath, snapNum)
         data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
         haloID = data_sub['SubhaloGrNr']
-        fields_g = ('Masses', 'NeutralHydrogenAbundance', 'CenterOfMass',
-                    'Velocities', 'SubfindHsml', 'InternalEnergy',
-                    'ElectronAbundance', 'GFM_Metals')
-        mdi_g = (None, None, None, None, None, None, None, 0)
+        fields_g = ('Masses', 'CenterOfMass', 'Velocities', 'SubfindHsml',
+                    'InternalEnergy', 'ElectronAbundance', 'Density',
+                    'StarFormationRate')
         subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
         data_g = loadSubset(basePath, snapNum, 'gas', fields=fields_g,
-                            subset=subset_g, mdi=mdi_g)
+                            subset=subset_g)
+        try:
+            data_g.update(loadSubset(basePath, snapNum, 'gas',
+                                     fields=('GFM_Metals', ), subset=subset_g,
+                                     mdi=(0, )))
+        except Exception as exc:
+            if ('Particle type' in exc.args[0]) and \
+               ('does not have field' in exc.args[0]):
+                X_H_g = X_H
+            else:
+                raise
+        else:
+            X_H_g = data_g['GFM_Metals']  # only loaded column 0: Hydrogen
 
         a = data_header['Time']
+        z = data_header['Redshift']
         h = data_header['HubbleParam']
-        X_H = 0.76  # not in headers?
         xe_g = data_g['ElectronAbundance']
+        rho_g = data_g['Density'] * 1E10 / h * U.Msun \
+            * np.power(a / h * U.kpc, -3)
+        SFR_g = data_g['StarFormationRate'] * U.Msun / U.yr
         u_g = data_g['InternalEnergy']  # unit conversion handled in T_g
-        mu_g = 4 * C.m_p.to(U.g).value / (1 + 3 * X_H + 4 * X_H * xe_g)
-        gamma = 5. / 3.  # not in headers?
+        mu_g = 4 * C.m_p.to(U.g).value / (1 + 3 * X_H_g + 4 * X_H_g * xe_g)
+        gamma = 5. / 3.  # see http://www.tng-project.org/data/docs/faq/#gen4
         T_g = (gamma - 1) * u_g / C.k_B.to(U.erg / U.K).value * 1E10 * mu_g \
             * U.K
         m_g = data_g['Masses'] * 1E10 / h * U.Msun
-        fH_g = data_g['GFM_Metals']  # only loaded hydrogen abundances
-        fHneutral_g = data_g['NeutralHydrogenAbundance']
-        fHmolecular_g = 0.  # replace with molecular fractions
-        mHI_g = m_g * fH_g * fHneutral_g * (1. - fHmolecular_g)
+        # In TNG_corrections I just assume a Springel & Hernquist 2003 model
+        # which doesn't quite correspond to what is used in TNG, there is an
+        # extra isothermal eEOS at 1E4K and the two are interpolated between
+        # with an interpolation parameter qEOS=0.3. Would rather not overthink
+        # this for the moment, since H2 tables for TNG will be available soon
+        # anyway. Also not sure I'm using exactly the right T0 at the moment,
+        # but it is pretty close...
+        fatomic_g = atomic_frac(
+            z,
+            rho_g * X_H_g / (mu_g * C.m_p),
+            T_g,
+            rho_g,
+            X_H_g,
+            onlyA1=True,
+            TNG_corrections=True,
+            SFR=SFR_g,
+            mu=mu_g,
+            gamma=gamma,
+            fH=X_H,
+            T0=1E4 * U.K
+        )
+        mHI_g = m_g * X_H_g * fatomic_g
         xyz_g = data_g['CenterOfMass'] * a / h * U.kpc
         vxyz_g = data_g['Velocities'] * np.sqrt(a) * U.km / U.s
         hsm_g = data_g['SubfindHsml'] * a / h * U.kpc
