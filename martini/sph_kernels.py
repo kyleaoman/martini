@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
+from scipy.special import erf
 
 
 class _BaseSPHKernel(object):
@@ -225,6 +226,140 @@ class CubicSplineKernel(_BaseSPHKernel):
                                "Martini.Martini.insert_source_in_cube with "
                                "'skip_validation=True', but use this with "
                                "care.")
+        return
+
+
+class GaussianKernel(_BaseSPHKernel):
+    """
+    Implementation of a (truncated) Gaussian kernel integral.
+
+    The 3 integrals (along dx, dy, dz) are evaluated exactly, however the
+    truncation is implemented approximately in the dx and dy directions. For
+    poorly sampled kernels (i.e. large pixels), the normalization is adjusted
+    in order to minimize the error.
+
+    Parameters
+    ----------
+    truncate : float
+        Number of standard deviations at which to truncate kernel (default=3).
+        Truncation radii <2 may lead to large errors and are not recommended.
+
+    Returns
+    -------
+    out : GaussianKernel
+        An appropriately initialized GaussianKernel object.
+    """
+
+    def __init__(self, truncate=3):
+        self.truncate = truncate
+        super().__init__()
+
+    def px_weight(self, dij, h):
+        """
+        Calculate the kernel integral over a pixel. The 3 integrals (along dx,
+        dy, dz) are evaluated exactly, however the truncation is implemented
+        approximately in the dx and dy directions. For poorly sampled kernels
+        (i.e. large pixels), the normalization is adjusted in order to minimize
+        the error.
+
+        Parameters
+        ----------
+        dij : astropy.units.Quantity, with dimensions of pixels
+            Distances from pixel centre to particle positions, in pixels.
+
+        h : astropy.units.Quantity, with dimensions of pixels
+            Particle smoothing lengths, in pixels.
+
+        Returns
+        -------
+        out : np.array
+            Approximate kernel integral over the pixel area.
+        """
+
+        dr2 = np.power(dij, 2).sum(axis=0)
+        retval = np.zeros(h.shape)
+        R2 = dr2 / (h * h)
+        retval[R2 == 0] = 11. / 16. + .25 * .5
+        case1 = np.logical_and(R2 > 0, R2 <= 1)
+        case2 = np.logical_and(R2 > 1, R2 <= 4)
+
+        R2_1 = R2[case1]
+        R2_2 = R2[case2]
+        A_1 = np.sqrt(1 - R2_1)
+        B_1 = np.sqrt(4 - R2_1)
+        B_2 = np.sqrt(4 - R2_2)
+        I1 = A_1 - .5 * np.power(A_1, 3) - 1.5 * R2_1 * A_1 + 3. / 32. * A_1 \
+            * (3 * R2_1 + 2) + 9. / 32. * R2_1 * R2_1 \
+            * (np.log(1 + A_1) - np.log(np.sqrt(R2_1)))
+        I2 = B_2 - .5 * R2_2 * np.log(2 + B_2) + .5 * R2_2 \
+            * np.log(np.sqrt(R2_2))
+        I3 = B_1 - .5 * R2_1 * np.log(2 + B_1) - 1.5 * A_1 + .5 * R2_1 \
+            * np.log(1 + A_1)
+        retval[case1] = I1 + .25 * I3
+        retval[case2] = .25 * I2
+        # 2.434 is normalization s.t. kernel integral = 1 for particle mass = 1
+        return retval / 2.434734306530712 / np.power(h, 2)
+
+    def validate(self, sm_lengths):
+        """
+        Check conditions for validity of kernel integral calculation.
+
+        Convergence within 1% of the exact integral is achieved when the
+        smoothing lengths are >= 2.5 pixels.
+
+        Parameters
+        ----------
+        sm_lengths : astropy.units.Quantity, with dimensions of pixels
+            Particle smoothing lengths, in units of pixels.x
+        """
+
+        if (sm_lengths < 0 * U.pix).any():
+            raise RuntimeError("Martini.sph_kernels.CubicSplineKernel.validate"
+                               ": SPH smoothing lengths must be >= 2.5 px in "
+                               "size for cubic spline kernel integral "
+                               "approximation accuracy. This check may be "
+                               "disabled by calling "
+                               "Martini.Martini.insert_source_in_cube with "
+                               "'skip_validation=True', but use this with "
+                               "care.")
+=======
+            Kernel integral over the pixel area.
+        """
+
+        retval = .25 \
+            * (erf((dij[0] + .5) / h) - erf((dij[0] - .5) / h)) \
+            * (erf((dij[1] + .5) / h) - erf((dij[1] - .5) / h))
+
+        # explicit truncation not required as only pixels inside
+        # truncation radius should be passed, next 2 lines useful
+        # for testing, however
+        # dr = np.sqrt(np.power(dij, 2).sum(axis=0))
+        # retval[(dr - np.sqrt(.5)) / h > self.truncate] = 0
+
+        # empirically, removing this normalization for poorly sampled kernels
+        # leads to increased accuracy
+        retval[h > 2.5] = retval[h > 2.5] / np.power(erf(self.truncate), 2)
+        return retval
+
+    def validate(self, sm_lengths):
+
+        """
+        Check conditions for validity of kernel integral calculation.
+
+        Parameters
+        ----------
+        sm_lengths : astropy.units.Quantity, with dimensions of pixels
+            Particle smoothing lengths, in units of pixels.
+        """
+        if self.truncate < 2:
+            raise RuntimeError("Martini.sph_kernels.GaussianKernel.validate: "
+                               "truncation radius of <2 may lead to errors in "
+                               "mass of >1% per particle (depending on size of"
+                               " smoothing kernel relative to pixels). Call "
+                               "Martini.Martini.insert_source_in_cube with "
+                               "'skip_validation=True' to override, at the "
+                               "cost of accuracy.")
+>>>>>>> gaussiankernel
         return
 
 
