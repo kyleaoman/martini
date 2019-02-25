@@ -8,26 +8,33 @@ class _BaseSPHKernel(object):
     """
     Abstract base class for classes implementing SPH kernels to inherit from.
 
-    Classes inheriting from _BaseSPHKernel must implement two methods:
-    'px_weight' and 'validate'.
+    Classes inheriting from _BaseSPHKernel must implement three methods:
+    'kernel_integral', 'validate' and 'size_in_h'.
 
-    'px_weight' should define the integral of the kernel over a pixel given the
-    distance between the pixel centre and the particle centre, and the
-    smoothing length (both in units of pixels). The integral should be
+    'kernel_integral' should define the integral of the kernel over a pixel
+    given the distance between the pixel centre and the particle centre, and
+    the smoothing length (both in units of pixels). The integral should be
     normalized so that evaluated over the entire kernel it is equal to 1.
 
     'validate' should check whether any approximations converge to sufficient
     accuracy (for instance, depending on the ratio of the pixel size and
     smoothing length), and raise an error if not.
+
+    'size_in_h' should return the maximum distance in units of the sph
+    smoothing length where the kernel is non-zero.
     """
 
     __metaclass__ = ABCMeta
 
-    def __init__(self):
+    def __init__(self, rescale_sph_h=1):
+        self.rescale_sph_h = rescale_sph_h
         return
 
-    @abstractmethod
     def px_weight(self, dij, h):
+        return self.kernel_integral(dij, h * self.rescale_sph_h)
+
+    @abstractmethod
+    def kernel_integral(self, dij, h):
         """
         Abstract method; calculate the kernel integral over a pixel.
 
@@ -62,6 +69,14 @@ class _BaseSPHKernel(object):
 
         pass
 
+    @abstractmethod
+    def size_in_h(self):
+        """
+        Abstract method; return the maximum distance where the kernel is non-
+        zero, in units of the SPH smoothing parameter of the particles.
+        """
+        pass
+
 
 class WendlandC2Kernel(_BaseSPHKernel):
     """
@@ -73,16 +88,24 @@ class WendlandC2Kernel(_BaseSPHKernel):
     across the pixel, which converges to within 1% of the exact integral
     provided the SPH smoothing lengths are at least 2 pixels in size.
 
+    Parameters
+    ----------
+    rescale_sph_h : float
+        Factor by which to rescale SPH smoothing lengths. This can be used to
+        adjust particle smoothing lengths in order to approximate the kernel
+        actually used in simulation with a similar kernel with different
+        scaling.
+
     Returns
     -------
     out : WendlandC2Kernel
         An appropriately initialized WendlandC2Kernel object.
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, rescale_sph_h=1):
+        super().__init__(rescale_sph_h=rescale_sph_h)
         return
 
-    def px_weight(self, dij, h):
+    def kernel_integral(self, dij, h):
         """
         Calculate the kernel integral over a pixel. The formula used
         approximates the kernel amplitude as constant across the pixel area and
@@ -139,6 +162,14 @@ class WendlandC2Kernel(_BaseSPHKernel):
                                "care.")
         return
 
+    def size_in_h(self):
+        """
+        Return the maximum distance where the kernel is non-zero.
+
+        The WendlandC2 kernel is defined such that it reaches 0 at h=1.
+        """
+        return 1
+
 
 class CubicSplineKernel(_BaseSPHKernel):
     """
@@ -150,16 +181,25 @@ class CubicSplineKernel(_BaseSPHKernel):
     the exact integral provided the SPH smoothing lengths are at least 2.5
     pixels in size.
 
+    Parameters
+    ----------
+    rescale_sph_h : float
+        Factor by which to rescale SPH smoothing lengths. This can be used to
+        adjust particle smoothing lengths in order to approximate the kernel
+        actually used in simulation with a similar kernel with different
+        scaling.
+
     Returns
     -------
     out : CubicSplineKernel
         An appropriately initialized CubicSplineKernel object.
     """
-    def __init__(self):
-        super().__init__()
+
+    def __init__(self, rescale_sph_h=1):
+        super().__init__(rescale_sph_h=rescale_sph_h)
         return
 
-    def px_weight(self, dij, h):
+    def kernel_integral(self, dij, h):
         """
         Calculate the kernel integral over a pixel. The formula used
         approximates the kernel amplitude as constant across the pixel area and
@@ -228,6 +268,14 @@ class CubicSplineKernel(_BaseSPHKernel):
                                "care.")
         return
 
+    def size_in_h(self):
+        """
+        Return the maximum distance where the kernel is non-zero.
+
+        The cubic spline kernel is defined such that it reaches 0 at h=2.
+        """
+        return 1
+
 
 class GaussianKernel(_BaseSPHKernel):
     """
@@ -244,17 +292,24 @@ class GaussianKernel(_BaseSPHKernel):
         Number of standard deviations at which to truncate kernel (default=3).
         Truncation radii <2 may lead to large errors and are not recommended.
 
+    rescale_sph_h : float
+        Factor by which to rescale SPH smoothing lengths. This can be used to
+        adjust particle smoothing lengths in order to approximate the kernel
+        actually used in simulation with a similar kernel with different
+        scaling.
+
     Returns
     -------
     out : GaussianKernel
         An appropriately initialized GaussianKernel object.
     """
 
-    def __init__(self, truncate=3):
+    def __init__(self, truncate=3, rescale_sph_h=1):
         self.truncate = truncate
-        super().__init__()
+        super().__init__(rescale_sph_h=rescale_sph_h)
+        return
 
-    def px_weight(self, dij, h):
+    def kernel_integral(self, dij, h):
         """
         Calculate the kernel integral over a pixel. The 3 integrals (along dx,
         dy, dz) are evaluated exactly, however the truncation is implemented
@@ -276,9 +331,10 @@ class GaussianKernel(_BaseSPHKernel):
             Kernel integral over the pixel area.
         """
 
-        retval = .25 \
-            * (erf((dij[0] + .5) / h) - erf((dij[0] - .5) / h)) \
-            * (erf((dij[1] + .5) / h) - erf((dij[1] - .5) / h))
+        retval = .25 * (
+            (erf((dij[0] + .5 * U.pix) / h) - erf((dij[0] - .5 * U.pix) / h)) *
+            (erf((dij[1] + .5 * U.pix) / h) - erf((dij[1] - .5 * U.pix) / h))
+        )
 
         # explicit truncation not required as only pixels inside
         # truncation radius should be passed, next 2 lines useful
@@ -288,8 +344,9 @@ class GaussianKernel(_BaseSPHKernel):
 
         # empirically, removing this normalization for poorly sampled kernels
         # leads to increased accuracy
-        retval[h > 2.5] = retval[h > 2.5] / np.power(erf(self.truncate), 2)
-        return retval
+        retval[h > 2.5 * U.pix] = \
+            retval[h > 2.5 * U.pix] / np.power(erf(self.truncate), 2)
+        return retval * h.unit ** -2
 
     def validate(self, sm_lengths):
 
@@ -311,10 +368,27 @@ class GaussianKernel(_BaseSPHKernel):
                                "cost of accuracy.")
         return
 
+    def size_in_h(self):
+        """
+        Return the maximum distance where the kernel is non-zero.
+
+        The Gaussian kernel is defined such that it reaches 0 at the truncation
+        radius.
+        """
+        return self.truncate
+
 
 class DiracDeltaKernel(_BaseSPHKernel):
     """
     Implementation of a Dirac-delta kernel integral.
+
+    Parameters
+    ----------
+    rescale_sph_h : float
+        Factor by which to rescale SPH smoothing lengths. This can be used to
+        adjust particle smoothing lengths in order to approximate the kernel
+        actually used in simulation with a similar kernel with different
+        scaling.
 
     Returns
     -------
@@ -322,11 +396,11 @@ class DiracDeltaKernel(_BaseSPHKernel):
         An appropriately initialized DiracDeltaKernel object.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, rescale_sph_h=1):
+        super().__init__(rescale_sph_h=rescale_sph_h)
         return
 
-    def px_weight(self, dij, h):
+    def kernel_integral(self, dij, h):
         """
         Calculate the kernel integral over a pixel. The particles are
         approximated as point-like, ignoring any finite-sized kernel.
@@ -373,3 +447,13 @@ class DiracDeltaKernel(_BaseSPHKernel):
                                "source_in_cube with 'skip_validation=True' to "
                                "override, at the cost of accuracy.")
         return
+
+    def size_in_h(self):
+        """
+        Return the maximum distance where the kernel is non-zero.
+
+        In principle the size for a DiracDelta kernel is 0, but this would lead
+        to no particles being used. Ideally we would want ~the pixel size here,
+        but the sph smoothing length is acceptable.
+        """
+        return 1

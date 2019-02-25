@@ -228,7 +228,8 @@ class Martini():
         """
         Determines which particles cannot contribute to the DataCube and
         removes them to speed up calculation. Assumes the kernel is 0 at
-        distances greater than the SPH smoothing length.
+        distances greater than the kernel size (which may differ from the
+        SPH smoothing length).
         """
 
         # pixels indexed from 0 (not like in FITS!) for better use with numpy
@@ -246,7 +247,7 @@ class Martini():
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance).to(
                 U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
-        sm_range = np.ceil(sm_length).astype(int)
+        sm_range = np.ceil(sm_length * self.sph_kernel.size_in_h()).astype(int)
         spectrum_half_width = self.spectral_model.half_width(self.source) / \
             self.datacube.channel_width
         reject_conditions = (
@@ -295,7 +296,7 @@ class Martini():
                 U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         if not skip_validation:
             self.sph_kernel.validate(sm_length)
-        sm_range = np.ceil(sm_length).astype(int)
+        sm_range = np.ceil(sm_length * self.sph_kernel.size_in_h()).astype(int)
 
         # pixel iteration
         ij_pxs = list(
