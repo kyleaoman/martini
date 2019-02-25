@@ -145,15 +145,15 @@ class GaussianKernel(_BaseSPHKernel):
     Implementation of a (truncated) Gaussian kernel integral.
 
     The 3 integrals (along dx, dy, dz) are evaluated exactly, however the
-    truncation is implemented approximately in the dx and dy directions. In
-    the dz direction the integral is taken from -inf to inf, which minimizes
-    the error. In practice for truncations > ?? this makes a difference of less
-    than ??%.
+    truncation is implemented approximately in the dx and dy directions. For
+    poorly sampled kernels (i.e. large pixels), the normalization is adjusted
+    in order to minimize the error.
 
     Parameters
     ----------
     truncate : float
         Number of standard deviations at which to truncate kernel (default=3).
+        Truncation radii <2 may lead to large errors and are not recommended.
 
     Returns
     -------
@@ -167,12 +167,11 @@ class GaussianKernel(_BaseSPHKernel):
 
     def px_weight(self, dij, h):
         """
-        Calculate the kernel integral over a pixel. The integral is exact,
-        however the truncation radius is implemented approximately in the dx
-        and dy directions, such that the integration region is slightly larger
-        than the truncation radius. In the dz direction, the integral is taken
-        from -inf to inf, as this minimizes the error. A truncation radius of
-        ?? results in a relative error of less than ??%.
+        Calculate the kernel integral over a pixel. The 3 integrals (along dx,
+        dy, dz) are evaluated exactly, however the truncation is implemented
+        approximately in the dx and dy directions. For poorly sampled kernels
+        (i.e. large pixels), the normalization is adjusted in order to minimize
+        the error.
 
         Parameters
         ----------
@@ -188,12 +187,16 @@ class GaussianKernel(_BaseSPHKernel):
             Kernel integral over the pixel area.
         """
 
-        # commented lines important for testing
-        # dr = np.sqrt(np.power(dij, 2).sum(axis=0))
         retval = .25 \
             * (erf((dij[0] + .5) / h) - erf((dij[0] - .5) / h)) \
             * (erf((dij[1] + .5) / h) - erf((dij[1] - .5) / h))
+
+        # explicit truncation not required as only pixels inside
+        # truncation radius should be passed, next 2 lines useful
+        # for testing, however
+        # dr = np.sqrt(np.power(dij, 2).sum(axis=0))
         # retval[(dr - np.sqrt(.5)) / h > self.truncate] = 0
+
         # empirically, removing this normalization for poorly sampled kernels
         # leads to increased accuracy
         retval[h > 2.5] = retval[h > 2.5] / np.power(erf(self.truncate), 2)
