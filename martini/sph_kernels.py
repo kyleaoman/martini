@@ -33,6 +33,9 @@ class _BaseSPHKernel(object):
     def px_weight(self, dij, h):
         return self.kernel_integral(dij, h * self.rescale_sph_h)
 
+    def confirm_validation(self, sm_lengths):
+        return self.validate(sm_lengths * self.rescale_sph_h)
+
     @abstractmethod
     def kernel_integral(self, dij, h):
         """
