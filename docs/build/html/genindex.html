@@ -163,7 +163,6 @@
  | <a href="#I"><strong>I</strong></a>
  | <a href="#K"><strong>K</strong></a>
  | <a href="#M"><strong>M</strong></a>
- | <a href="#P"><strong>P</strong></a>
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
  | <a href="#T"><strong>T</strong></a>
@@ -190,11 +189,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="martini.html#martini._martini.Martini.convolve_beam">convolve_beam() (martini._martini.Martini method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="datacube.html#martini._datacube.DataCube.copy">copy() (martini._datacube.DataCube method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source.html#martini.sources.CrossSource">CrossSource (class in martini.sources)</a>
+</li>
+      <li><a href="sph_kernel.html#martini.sph_kernels.CubicSplineKernel">CubicSplineKernel (class in martini.sph_kernels)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -236,10 +237,12 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="beam.html#martini.beams.GaussianBeam">GaussianBeam (class in martini.beams)</a>
 </li>
-      <li><a href="noise.html#martini.noise.GaussianNoise">GaussianNoise (class in martini.noise)</a>
+      <li><a href="sph_kernel.html#martini.sph_kernels.GaussianKernel">GaussianKernel (class in martini.sph_kernels)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="noise.html#martini.noise.GaussianNoise">GaussianNoise (class in martini.noise)</a>
+</li>
       <li><a href="spectral_model.html#martini.spectral_models.GaussianSpectrum">GaussianSpectrum (class in martini.spectral_models)</a>
 </li>
       <li><a href="noise.html#martini.noise.GaussianNoise.generate">generate() (martini.noise.GaussianNoise method)</a>
@@ -274,6 +277,18 @@
 <h2 id="K">K</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel_integral">kernel_integral() (martini.sph_kernels.CubicSplineKernel method)</a>
+
+      <ul>
+        <li><a href="sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.kernel_integral">(martini.sph_kernels.DiracDeltaKernel method)</a>
+</li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.GaussianKernel.kernel_integral">(martini.sph_kernels.GaussianKernel method)</a>
+</li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.kernel_integral">(martini.sph_kernels.WendlandC2Kernel method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="beam.html#martini.beams.GaussianBeam.kernel_size_px">kernel_size_px() (martini.beams.GaussianBeam method)</a>
 
       <ul>
@@ -307,18 +322,6 @@
   </ul></td>
 </tr></table>
 
-<h2 id="P">P</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.px_weight">px_weight() (martini.sph_kernels.DiracDeltaKernel method)</a>
-
-      <ul>
-        <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.px_weight">(martini.sph_kernels.WendlandC2Kernel method)</a>
-</li>
-      </ul></li>
-  </ul></td>
-</tr></table>
-
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -332,14 +335,24 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source.html#martini.sources.SingleParticleSource">SingleParticleSource (class in martini.sources)</a>
 </li>
+      <li><a href="sph_kernel.html#martini.sph_kernels.CubicSplineKernel.size_in_h">size_in_h() (martini.sph_kernels.CubicSplineKernel method)</a>
+
+      <ul>
+        <li><a href="sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.size_in_h">(martini.sph_kernels.DiracDeltaKernel method)</a>
+</li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.GaussianKernel.size_in_h">(martini.sph_kernels.GaussianKernel method)</a>
+</li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.size_in_h">(martini.sph_kernels.WendlandC2Kernel method)</a>
+</li>
+      </ul></li>
       <li><a href="source.html#martini.sources.SOSource">SOSource (class in martini.sources)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="datacube.html#martini._datacube.DataCube.spatial_slices">spatial_slices() (martini._datacube.DataCube method)</a>
 </li>
       <li><a href="datacube.html#martini._datacube.DataCube.spectra">spectra() (martini._datacube.DataCube method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="spectral_model.html#martini.spectral_models.DiracDeltaSpectrum.spectral_function">spectral_function() (martini.spectral_models.DiracDeltaSpectrum method)</a>
 
       <ul>
@@ -360,10 +373,12 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source.html#martini.sources.SPHSource.translate_position">translate_position() (martini.sources.SPHSource method)</a>
+      <li><a href="source.html#martini.sources.TNGSource">TNGSource (class in martini.sources)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source.html#martini.sources.SPHSource.translate_position">translate_position() (martini.sources.SPHSource method)</a>
+</li>
       <li><a href="source.html#martini.sources.SPHSource.translate_velocity">translate_velocity() (martini.sources.SPHSource method)</a>
 </li>
   </ul></td>
@@ -372,9 +387,13 @@
 <h2 id="V">V</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.validate">validate() (martini.sph_kernels.DiracDeltaKernel method)</a>
+      <li><a href="sph_kernel.html#martini.sph_kernels.CubicSplineKernel.validate">validate() (martini.sph_kernels.CubicSplineKernel method)</a>
 
       <ul>
+        <li><a href="sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.validate">(martini.sph_kernels.DiracDeltaKernel method)</a>
+</li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.GaussianKernel.validate">(martini.sph_kernels.GaussianKernel method)</a>
+</li>
         <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.validate">(martini.sph_kernels.WendlandC2Kernel method)</a>
 </li>
       </ul></li>

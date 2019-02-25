@@ -153,32 +153,40 @@
 <span></span><span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABCMeta</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
+<span class="kn">from</span> <span class="nn">scipy.special</span> <span class="k">import</span> <span class="n">erf</span>
 
 
 <span class="k">class</span> <span class="nc">_BaseSPHKernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Abstract base class for classes implementing SPH kernels to inherit from.</span>
 
-<span class="sd">    Classes inheriting from _BaseSPHKernel must implement two methods:</span>
-<span class="sd">    &#39;px_weight&#39; and &#39;validate&#39;.</span>
+<span class="sd">    Classes inheriting from _BaseSPHKernel must implement three methods:</span>
+<span class="sd">    &#39;kernel_integral&#39;, &#39;validate&#39; and &#39;size_in_h&#39;.</span>
 
-<span class="sd">    &#39;px_weight&#39; should define the integral of the kernel over a pixel given the</span>
-<span class="sd">    distance between the pixel centre and the particle centre, and the</span>
-<span class="sd">    smoothing length (both in units of pixels). The integral should be</span>
+<span class="sd">    &#39;kernel_integral&#39; should define the integral of the kernel over a pixel</span>
+<span class="sd">    given the distance between the pixel centre and the particle centre, and</span>
+<span class="sd">    the smoothing length (both in units of pixels). The integral should be</span>
 <span class="sd">    normalized so that evaluated over the entire kernel it is equal to 1.</span>
 
 <span class="sd">    &#39;validate&#39; should check whether any approximations converge to sufficient</span>
 <span class="sd">    accuracy (for instance, depending on the ratio of the pixel size and</span>
 <span class="sd">    smoothing length), and raise an error if not.</span>
+
+<span class="sd">    &#39;size_in_h&#39; should return the maximum distance in units of the sph</span>
+<span class="sd">    smoothing length where the kernel is non-zero.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">ABCMeta</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rescale_sph_h</span> <span class="o">=</span> <span class="n">rescale_sph_h</span>
         <span class="k">return</span>
 
-    <span class="nd">@abstractmethod</span>
     <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel_integral</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="n">h</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Abstract method; calculate the kernel integral over a pixel.</span>
 
@@ -213,6 +221,14 @@
 
         <span class="k">pass</span>
 
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Abstract method; return the maximum distance where the kernel is non-</span>
+<span class="sd">        zero, in units of the SPH smoothing parameter of the particles.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
 
 <div class="viewcode-block" id="WendlandC2Kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel">[docs]</a><span class="k">class</span> <span class="nc">WendlandC2Kernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -224,16 +240,24 @@
 <span class="sd">    across the pixel, which converges to within 1% of the exact integral</span>
 <span class="sd">    provided the SPH smoothing lengths are at least 2 pixels in size.</span>
 
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rescale_sph_h : float</span>
+<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
+<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
+<span class="sd">        actually used in simulation with a similar kernel with different</span>
+<span class="sd">        scaling.</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    out : WendlandC2Kernel</span>
 <span class="sd">        An appropriately initialized WendlandC2Kernel object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
         <span class="k">return</span>
 
-<div class="viewcode-block" id="WendlandC2Kernel.px_weight"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.px_weight">[docs]</a>    <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+<div class="viewcode-block" id="WendlandC2Kernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate the kernel integral over a pixel. The formula used</span>
 <span class="sd">        approximates the kernel amplitude as constant across the pixel area and</span>
@@ -288,12 +312,235 @@
                                <span class="s2">&quot;calling Martini.Martini.insert_source_in_cube &quot;</span>
                                <span class="s2">&quot;with &#39;skip_validation=True&#39;, but use this with&quot;</span>
                                <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
-        <span class="k">return</span></div></div>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="WendlandC2Kernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
+
+<span class="sd">        The WendlandC2 kernel is defined such that it reaches 0 at h=1.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">1</span></div></div>
+
+
+<div class="viewcode-block" id="CubicSplineKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel">[docs]</a><span class="k">class</span> <span class="nc">CubicSplineKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of the cubic spline (M4) kernel integral.</span>
+
+<span class="sd">    The cubic spline is the &#39;classic&#39; SPH kernel. The exact integral is usually</span>
+<span class="sd">    too slow to be practical; the implementation here approximates the kernel</span>
+<span class="sd">    amplitude as constant across the pixel, which converges to within 1% of</span>
+<span class="sd">    the exact integral provided the SPH smoothing lengths are at least 2.5</span>
+<span class="sd">    pixels in size.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rescale_sph_h : float</span>
+<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
+<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
+<span class="sd">        actually used in simulation with a similar kernel with different</span>
+<span class="sd">        scaling.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : CubicSplineKernel</span>
+<span class="sd">        An appropriately initialized CubicSplineKernel object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="CubicSplineKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the kernel integral over a pixel. The formula used</span>
+<span class="sd">        approximates the kernel amplitude as constant across the pixel area and</span>
+<span class="sd">        converges to the true value within 1% for smoothing lengths &gt;= 2.5</span>
+<span class="sd">        pixels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
+
+<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in pixels.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : np.array</span>
+<span class="sd">            Approximate kernel integral over the pixel area.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dr2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">R2</span> <span class="o">=</span> <span class="n">dr2</span> <span class="o">/</span> <span class="p">(</span><span class="n">h</span> <span class="o">*</span> <span class="n">h</span><span class="p">)</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">R2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">11.</span> <span class="o">/</span> <span class="mf">16.</span> <span class="o">+</span> <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="o">.</span><span class="mi">5</span>
+        <span class="n">case1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">R2</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">R2</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">case2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">R2</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">R2</span> <span class="o">&lt;=</span> <span class="mi">4</span><span class="p">)</span>
+
+        <span class="n">R2_1</span> <span class="o">=</span> <span class="n">R2</span><span class="p">[</span><span class="n">case1</span><span class="p">]</span>
+        <span class="n">R2_2</span> <span class="o">=</span> <span class="n">R2</span><span class="p">[</span><span class="n">case2</span><span class="p">]</span>
+        <span class="n">A_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">R2_1</span><span class="p">)</span>
+        <span class="n">B_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">4</span> <span class="o">-</span> <span class="n">R2_1</span><span class="p">)</span>
+        <span class="n">B_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">4</span> <span class="o">-</span> <span class="n">R2_2</span><span class="p">)</span>
+        <span class="n">I1</span> <span class="o">=</span> <span class="n">A_1</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">A_1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">R2_1</span> <span class="o">*</span> <span class="n">A_1</span> <span class="o">+</span> <span class="mf">3.</span> <span class="o">/</span> <span class="mf">32.</span> <span class="o">*</span> <span class="n">A_1</span> \
+            <span class="o">*</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">R2_1</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mf">9.</span> <span class="o">/</span> <span class="mf">32.</span> <span class="o">*</span> <span class="n">R2_1</span> <span class="o">*</span> <span class="n">R2_1</span> \
+            <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">A_1</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">R2_1</span><span class="p">)))</span>
+        <span class="n">I2</span> <span class="o">=</span> <span class="n">B_2</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">R2_2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span> <span class="o">+</span> <span class="n">B_2</span><span class="p">)</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">R2_2</span> \
+            <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">R2_2</span><span class="p">))</span>
+        <span class="n">I3</span> <span class="o">=</span> <span class="n">B_1</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">R2_1</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span> <span class="o">+</span> <span class="n">B_1</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">A_1</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">R2_1</span> \
+            <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">A_1</span><span class="p">)</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">case1</span><span class="p">]</span> <span class="o">=</span> <span class="n">I1</span> <span class="o">+</span> <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="n">I3</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">case2</span><span class="p">]</span> <span class="o">=</span> <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="n">I2</span>
+        <span class="c1"># 2.434 is normalization s.t. kernel integral = 1 for particle mass = 1</span>
+        <span class="k">return</span> <span class="n">retval</span> <span class="o">/</span> <span class="mf">2.434734306530712</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CubicSplineKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
+<span class="sd">        Convergence within 1% of the exact integral is achieved when the</span>
+<span class="sd">        smoothing lengths are &gt;= 2.5 pixels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in units of pixels.x</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.CubicSplineKernel.validate&quot;</span>
+                               <span class="s2">&quot;: SPH smoothing lengths must be &gt;= 2.5 px in &quot;</span>
+                               <span class="s2">&quot;size for cubic spline kernel integral &quot;</span>
+                               <span class="s2">&quot;approximation accuracy. This check may be &quot;</span>
+                               <span class="s2">&quot;disabled by calling &quot;</span>
+                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with &quot;</span>
+                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="CubicSplineKernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
+
+<span class="sd">        The cubic spline kernel is defined such that it reaches 0 at h=2.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">1</span></div></div>
+
+
+<div class="viewcode-block" id="GaussianKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel">[docs]</a><span class="k">class</span> <span class="nc">GaussianKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of a (truncated) Gaussian kernel integral.</span>
+
+<span class="sd">    The 3 integrals (along dx, dy, dz) are evaluated exactly, however the</span>
+<span class="sd">    truncation is implemented approximately in the dx and dy directions. For</span>
+<span class="sd">    poorly sampled kernels (i.e. large pixels), the normalization is adjusted</span>
+<span class="sd">    in order to minimize the error.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    truncate : float</span>
+<span class="sd">        Number of standard deviations at which to truncate kernel (default=3).</span>
+<span class="sd">        Truncation radii &lt;2 may lead to large errors and are not recommended.</span>
+
+<span class="sd">    rescale_sph_h : float</span>
+<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
+<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
+<span class="sd">        actually used in simulation with a similar kernel with different</span>
+<span class="sd">        scaling.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : GaussianKernel</span>
+<span class="sd">        An appropriately initialized GaussianKernel object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">truncate</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">=</span> <span class="n">truncate</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="GaussianKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the kernel integral over a pixel. The 3 integrals (along dx,</span>
+<span class="sd">        dy, dz) are evaluated exactly, however the truncation is implemented</span>
+<span class="sd">        approximately in the dx and dy directions. For poorly sampled kernels</span>
+<span class="sd">        (i.e. large pixels), the normalization is adjusted in order to minimize</span>
+<span class="sd">        the error.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
+
+<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in pixels.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : np.array</span>
+<span class="sd">            Kernel integral over the pixel area.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">retval</span> <span class="o">=</span> <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">)</span> <span class="o">-</span> <span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">))</span> <span class="o">*</span>
+            <span class="p">(</span><span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">)</span> <span class="o">-</span> <span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">))</span>
+        <span class="p">)</span>
+
+        <span class="c1"># explicit truncation not required as only pixels inside</span>
+        <span class="c1"># truncation radius should be passed, next 2 lines useful</span>
+        <span class="c1"># for testing, however</span>
+        <span class="c1"># dr = np.sqrt(np.power(dij, 2).sum(axis=0))</span>
+        <span class="c1"># retval[(dr - np.sqrt(.5)) / h &gt; self.truncate] = 0</span>
+
+        <span class="c1"># empirically, removing this normalization for poorly sampled kernels</span>
+        <span class="c1"># leads to increased accuracy</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">h</span> <span class="o">&gt;</span> <span class="mf">2.5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="n">retval</span><span class="p">[</span><span class="n">h</span> <span class="o">&gt;</span> <span class="mf">2.5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">erf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">retval</span> <span class="o">*</span> <span class="n">h</span><span class="o">.</span><span class="n">unit</span> <span class="o">**</span> <span class="o">-</span><span class="mi">2</span></div>
+
+<div class="viewcode-block" id="GaussianKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in units of pixels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.GaussianKernel.validate: &quot;</span>
+                               <span class="s2">&quot;truncation radius of &lt;2 may lead to errors in &quot;</span>
+                               <span class="s2">&quot;mass of &gt;1% per particle (depending on size of&quot;</span>
+                               <span class="s2">&quot; smoothing kernel relative to pixels). Call &quot;</span>
+                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39; to override, at the &quot;</span>
+                               <span class="s2">&quot;cost of accuracy.&quot;</span><span class="p">)</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="GaussianKernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
+
+<span class="sd">        The Gaussian kernel is defined such that it reaches 0 at the truncation</span>
+<span class="sd">        radius.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span></div></div>
 
 
 <div class="viewcode-block" id="DiracDeltaKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel">[docs]</a><span class="k">class</span> <span class="nc">DiracDeltaKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of a Dirac-delta kernel integral.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rescale_sph_h : float</span>
+<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
+<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
+<span class="sd">        actually used in simulation with a similar kernel with different</span>
+<span class="sd">        scaling.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -301,11 +548,11 @@
 <span class="sd">        An appropriately initialized DiracDeltaKernel object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
         <span class="k">return</span>
 
-<div class="viewcode-block" id="DiracDeltaKernel.px_weight"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.px_weight">[docs]</a>    <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+<div class="viewcode-block" id="DiracDeltaKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate the kernel integral over a pixel. The particles are</span>
 <span class="sd">        approximated as point-like, ignoring any finite-sized kernel.</span>
@@ -351,7 +598,17 @@
                                <span class="s2">&quot;approximation. Call Martini.Martini.insert_&quot;</span>
                                <span class="s2">&quot;source_in_cube with &#39;skip_validation=True&#39; to &quot;</span>
                                <span class="s2">&quot;override, at the cost of accuracy.&quot;</span><span class="p">)</span>
-        <span class="k">return</span></div></div>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="DiracDeltaKernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
+
+<span class="sd">        In principle the size for a DiracDelta kernel is 0, but this would lead</span>
+<span class="sd">        to no particles being used. Ideally we would want ~the pixel size here,</span>
+<span class="sd">        but the sph smoothing length is acceptable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">1</span></div></div>
 </pre></div>
 
            </div>

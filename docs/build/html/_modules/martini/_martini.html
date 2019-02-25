@@ -380,7 +380,8 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Determines which particles cannot contribute to the DataCube and</span>
 <span class="sd">        removes them to speed up calculation. Assumes the kernel is 0 at</span>
-<span class="sd">        distances greater than the SPH smoothing length.</span>
+<span class="sd">        distances greater than the kernel size (which may differ from the</span>
+<span class="sd">        SPH smoothing length).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># pixels indexed from 0 (not like in FITS!) for better use with numpy</span>
@@ -398,7 +399,7 @@
         <span class="n">sm_length</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">hsm_g</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span><span class="o">.</span><span class="n">distance</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
                 <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">U</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">px_size</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">))</span>
-        <span class="n">sm_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">sm_length</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">sm_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">sm_length</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">size_in_h</span><span class="p">())</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
         <span class="n">spectrum_half_width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spectral_model</span><span class="o">.</span><span class="n">half_width</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">)</span> <span class="o">/</span> \
             <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">channel_width</span>
         <span class="n">reject_conditions</span> <span class="o">=</span> <span class="p">(</span>
@@ -447,7 +448,7 @@
                 <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">U</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">px_size</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">))</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">skip_validation</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">sm_length</span><span class="p">)</span>
-        <span class="n">sm_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">sm_length</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">sm_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">sm_length</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">size_in_h</span><span class="p">())</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
         <span class="c1"># pixel iteration</span>
         <span class="n">ij_pxs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
