@@ -31,9 +31,36 @@ class _BaseSPHKernel(object):
         return
 
     def px_weight(self, dij, h):
+        """
+        Calculate kernel integral using scaled smoothing lengths.
+
+        This is the method that should be called by other modules in
+        martini, rather than 'kernel_integral'.
+
+        Parameters
+        ----------
+        dij : astropy.units.Quantity, with dimensions of pixels
+            Distances from pixel centre to particle positions, in pixels.
+
+        h : astropy.units.Quantity, with dimensions of pixels
+            Particle smoothing lengths, in pixels.
+        """
+
         return self.kernel_integral(dij, h * self.rescale_sph_h)
 
     def confirm_validation(self, sm_lengths):
+        """
+        Verify kernel accuracy using scaled smoothing lengths.
+
+        This is the method that should be called by other modules in
+        martini, rather than 'validate'.
+
+        Parameters
+        ----------
+        sm_lengths : astropy.units.Quantity, with dimensions of pixels
+            Particle smoothing lengths, in units of pixels.
+        """
+
         return self.validate(sm_lengths * self.rescale_sph_h)
 
     @abstractmethod
