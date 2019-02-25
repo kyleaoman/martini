@@ -273,56 +273,6 @@ class GaussianKernel(_BaseSPHKernel):
         Returns
         -------
         out : np.array
-            Approximate kernel integral over the pixel area.
-        """
-
-        dr2 = np.power(dij, 2).sum(axis=0)
-        retval = np.zeros(h.shape)
-        R2 = dr2 / (h * h)
-        retval[R2 == 0] = 11. / 16. + .25 * .5
-        case1 = np.logical_and(R2 > 0, R2 <= 1)
-        case2 = np.logical_and(R2 > 1, R2 <= 4)
-
-        R2_1 = R2[case1]
-        R2_2 = R2[case2]
-        A_1 = np.sqrt(1 - R2_1)
-        B_1 = np.sqrt(4 - R2_1)
-        B_2 = np.sqrt(4 - R2_2)
-        I1 = A_1 - .5 * np.power(A_1, 3) - 1.5 * R2_1 * A_1 + 3. / 32. * A_1 \
-            * (3 * R2_1 + 2) + 9. / 32. * R2_1 * R2_1 \
-            * (np.log(1 + A_1) - np.log(np.sqrt(R2_1)))
-        I2 = B_2 - .5 * R2_2 * np.log(2 + B_2) + .5 * R2_2 \
-            * np.log(np.sqrt(R2_2))
-        I3 = B_1 - .5 * R2_1 * np.log(2 + B_1) - 1.5 * A_1 + .5 * R2_1 \
-            * np.log(1 + A_1)
-        retval[case1] = I1 + .25 * I3
-        retval[case2] = .25 * I2
-        # 2.434 is normalization s.t. kernel integral = 1 for particle mass = 1
-        return retval / 2.434734306530712 / np.power(h, 2)
-
-    def validate(self, sm_lengths):
-        """
-        Check conditions for validity of kernel integral calculation.
-
-        Convergence within 1% of the exact integral is achieved when the
-        smoothing lengths are >= 2.5 pixels.
-
-        Parameters
-        ----------
-        sm_lengths : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in units of pixels.x
-        """
-
-        if (sm_lengths < 0 * U.pix).any():
-            raise RuntimeError("Martini.sph_kernels.CubicSplineKernel.validate"
-                               ": SPH smoothing lengths must be >= 2.5 px in "
-                               "size for cubic spline kernel integral "
-                               "approximation accuracy. This check may be "
-                               "disabled by calling "
-                               "Martini.Martini.insert_source_in_cube with "
-                               "'skip_validation=True', but use this with "
-                               "care.")
-=======
             Kernel integral over the pixel area.
         """
 
@@ -359,7 +309,6 @@ class GaussianKernel(_BaseSPHKernel):
                                "Martini.Martini.insert_source_in_cube with "
                                "'skip_validation=True' to override, at the "
                                "cost of accuracy.")
->>>>>>> gaussiankernel
         return
 
 
