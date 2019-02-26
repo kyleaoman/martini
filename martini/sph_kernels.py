@@ -253,7 +253,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
     vice-versa.
 
     The WendlandC2 kernel is here defined as (q = r / h):
-        W(q) = (21 / (29 * pi)) * (1 - q)^4 * (4 * q + 1)
+        W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
             for 0 <= q < 1
         W(q) = 0
             for q >= 1
@@ -283,7 +283,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         Evaluate the kernel function.
 
         The WendlandC2 kernel is here defined as (q = r / h):
-        W(q) = (21 / (29 * pi)) * (1 - q)^4 * (4 * q + 1)
+        W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
             for 0 <= q < 1
         W(q) = 0
             for q >= 1
@@ -388,9 +388,9 @@ class CubicSplineKernel(_BaseSPHKernel):
     can be used to approximate this kernel using other kernels, or vice-versa.
 
     The cubic spline kernel is here defined as (q = r / h):
-        W(q) = (30 / (57 * pi)) * (1 - 1.5 * q^2) * (1 - 0.5 * q)
+        W(q) = (2 / pi) * (1 - 1.5 * q^2 * (1 - 0.5 * q))
             for 0 <= q < 1
-        W(q) = (30 / 57 * pi) * (2 - q)
+        W(q) = (2 / pi) * (2 - q)^3
             for 1 <= q < 2
         W(q) = 0
             for q >= 2
@@ -420,9 +420,9 @@ class CubicSplineKernel(_BaseSPHKernel):
         Evaluate the kernel function.
 
         The cubic spline kernel is here defined as (q = r / h):
-        W(q) = (30 / (57 * pi)) * (1 - 1.5 * q^2) * (1 - 0.5 * q)
+        W(q) = (2 / pi) * (1 - 1.5 * q^2 * (1 - 0.5 * q))
             for 0 <= q < 1
-        W(q) = (30 / 57 * pi) * (2 - q)
+        W(q) = (2 / pi) * (2 - q)^3
             for 1 <= q < 2
         W(q) = 0
             for q >= 2
@@ -471,7 +471,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
         R2 = dr2 / (h * h)
-        retval[R2 == 0] = 11. / 16. + .25 * .5
+        retval[R2 == 0] = 11. / 16. + .25 * .25
         case1 = np.logical_and(R2 > 0, R2 <= 1)
         case2 = np.logical_and(R2 > 1, R2 <= 4)
 
@@ -483,21 +483,25 @@ class CubicSplineKernel(_BaseSPHKernel):
         I1 = A_1 - .5 * np.power(A_1, 3) - 1.5 * R2_1 * A_1 + 3. / 32. * A_1 \
             * (3 * R2_1 + 2) + 9. / 32. * R2_1 * R2_1 \
             * (np.log(1 + A_1) - np.log(np.sqrt(R2_1)))
-        I2 = B_2 - .5 * R2_2 * np.log(2 + B_2) + .5 * R2_2 \
-            * np.log(np.sqrt(R2_2))
-        I3 = B_1 - .5 * R2_1 * np.log(2 + B_1) - 1.5 * A_1 + .5 * R2_1 \
-            * np.log(1 + A_1)
+        I2 = -B_2 * (3 * R2_2 + 56) / 4. \
+            - 3. / 8. * R2_2 * (R2_2 + 16) \
+            * np.log((2 + B_2) / np.sqrt(R2_2)) \
+            + 2 * (3 * R2_2 + 4) * B_2 + 2 * np.power(B_2, 3)
+        I3 = -B_1 * (3 * R2_1 + 56) / 4. + A_1 * (4 * R2_1 + 50) / 8. \
+            - 3. / 8. * R2_1 * (R2_1 + 16) * np.log((2 + B_1) / (1 + A_1)) \
+            + 2 * (3 * R2_1 + 4) * (B_1 - A_1) \
+            + 2 * (np.power(B_1, 3) - np.power(A_1, 3))
         retval[case1] = I1 + .25 * I3
         retval[case2] = .25 * I2
-        # 2.434 is normalization s.t. kernel integral = 1 for particle mass = 1
-        return retval / 2.434734306530712 / np.power(h, 2)
+        # 1.597 is normalization s.t. kernel integral = 1 for particle mass = 1
+        return retval / 1.59689476201133 / np.power(h, 2)
 
     def validate(self, sm_lengths):
         """
         Check conditions for validity of kernel integral calculation.
 
         Convergence within 1% of the exact integral is achieved when the
-        smoothing lengths are >= 2.5 pixels.
+        smoothing lengths are >= 1.0 pixels.
 
         Parameters
         ----------
@@ -505,9 +509,9 @@ class CubicSplineKernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.x
         """
 
-        if (sm_lengths < 0 * U.pix).any():
+        if (sm_lengths < 1.0 * U.pix).any():
             raise RuntimeError("Martini.sph_kernels.CubicSplineKernel.validate"
-                               ": SPH smoothing lengths must be >= 2.5 px in "
+                               ": SPH smoothing lengths must be >= 1.0 px in "
                                "size for cubic spline kernel integral "
                                "approximation accuracy. This check may be "
                                "disabled by calling "
