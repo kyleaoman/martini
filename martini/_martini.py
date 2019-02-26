@@ -267,7 +267,7 @@ class Martini():
         self.source.apply_mask(np.logical_not(reject_mask))
         return
 
-    def insert_source_in_cube(self, skip_validation=False):
+    def insert_source_in_cube(self, skip_validation=False, printfreq=100):
         """
         Populates the DataCube with flux from the particles in the source.
 
@@ -303,14 +303,20 @@ class Martini():
             product(
                 np.arange(self.datacube._array.shape[0]),
                 np.arange(self.datacube._array.shape[1])))
-        print(
-            '  ' + self.logtag + '  [columns: {0:.0f}, rows: {1:.0f}]'.format(
-                self.datacube._array.shape[0], self.datacube._array.shape[1]))
+        if printfreq is not None:
+            print(
+                '  ' + self.logtag + '  [columns: {0:.0f}, rows: {1:.0f}]'
+                .format(
+                    self.datacube._array.shape[0],
+                    self.datacube._array.shape[1]
+                )
+            )
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            if (ij[1, 0].value == 0) and (ij[0, 0].value % 100 == 0):
-                print('  ' + self.logtag +
-                      '  [row {:.0f}]'.format(ij[0, 0].value))
+            if printfreq is not None:
+                if (ij[1, 0].value == 0) and (ij[0, 0].value % printfreq == 0):
+                    print('  ' + self.logtag +
+                          '  [row {:.0f}]'.format(ij[0, 0].value))
             mask = (np.abs(ij - particle_coords[:2]) <= sm_range).all(axis=0)
             weights = self.sph_kernel.px_weight(particle_coords[:2, mask] - ij,
                                                 sm_length[mask])
