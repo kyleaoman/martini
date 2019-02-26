@@ -8,8 +8,11 @@ class _BaseSPHKernel(object):
     """
     Abstract base class for classes implementing SPH kernels to inherit from.
 
-    Classes inheriting from _BaseSPHKernel must implement three methods:
-    'kernel_integral', 'validate' and 'size_in_h'.
+    Classes inheriting from _BaseSPHKernel must implement four methods:
+    'kernel', 'kernel_integral', 'validate' and 'size_in_h'.
+
+    'kernel' should define the kernel function, normalized such that its volume
+    integral is 1.
 
     'kernel_integral' should define the integral of the kernel over a pixel
     given the distance between the pixel centre and the particle centre, and
@@ -30,6 +33,66 @@ class _BaseSPHKernel(object):
         self.rescale_sph_h = rescale_sph_h
         return
 
+    @classmethod
+    def mimic(cls, other_kernel):
+        """
+        Approximate a different kernel using this kernel.
+
+        Note that the only class at present which has no restrictions on the
+        smoothing lengths relative to the pixel size is the GaussianKernel. In
+        cases where other kernels cannot be used due to such restrictions, it
+        may be useful to approximate them using the GaussianKernel.
+
+        Parameters
+        ----------
+        other_kernel : a class or instance inheriting from _BaseSPHKernel
+            The kernel to be imitated. If the class is passed, its default
+            parameters are used.
+
+        Returns
+        -------
+        out : an instance of a class inheriting from _BaseSPHKernel
+            An appropriately initialized object of the same type as this
+            kernel.
+
+        Examples
+        --------
+        The WendlandC2Kernel implementation loses accuracy when the smoothing
+        lengths are small relative to the pixels. A GaussianKernel of similar
+        shape can be used instead::
+
+            kernel = GaussianKernel.mimic(WendlandC2Kernel)
+
+        If the kernel to be mimicked must itself be rescaled for use with the
+        particle SPH smoothing lengths, it can be rescaled before being
+        mimicked. For instance, the CubicSplineKernel implementation here is
+        non-zero in the interval [0, 2). There is an equivalent formulation of
+        the same kernel which is non-zero in the interval [0, 1). To mimic this
+        kernel using a GaussianKernel::
+
+            kernel = GaussianKernel.mimic(CubicSplineKernel(rescale_sph_h=0.5))
+        """
+
+        try:
+            other_kernel = other_kernel()
+        except TypeError:
+            pass
+        if other_kernel.hscale_to_gaussian is None:
+            raise ValueError(
+                "{:s} cannot be rescaled, and therefore cannot be mimicked."
+                .format(type(other_kernel).__name__)
+            )
+        if cls.hscale_to_gaussian is None:
+            raise ValueError(
+                "{:s} cannot be rescaled, and therefore cannot mimic other "
+                "kernels.".format(cls.__name__)
+            )
+        return cls(
+            rescale_sph_h=cls.hscale_to_gaussian
+            / other_kernel.hscale_to_gaussian
+            * other_kernel.rescale_sph_h
+        )
+
     def px_weight(self, dij, h):
         """
         Calculate kernel integral using scaled smoothing lengths.
@@ -44,6 +107,11 @@ class _BaseSPHKernel(object):
 
         h : astropy.units.Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+
+        Returns
+        -------
+        out : astropy.units.Quantity, with dimensions of pixels^-2
+            Integral of smoothing kernel over pixel, per unit pixel area.
         """
 
         return self.kernel_integral(dij, h * self.rescale_sph_h)
@@ -63,6 +131,56 @@ class _BaseSPHKernel(object):
 
         return self.validate(sm_lengths * self.rescale_sph_h)
 
+    def eval_kernel(self, r, h):
+        """
+        Evaluate the kernel, handling array casting and rescaling. Note that
+        if the object was initialized with rescale_sph_h, this will be applied.
+
+        This is the method that should be called by other modules in
+        martini, rather than 'kernel'.
+
+        Parameters
+        ----------
+        r : float or np.array or astropy.units.Quantity
+            Distance parameter, same units as h.
+
+        h : float or np.array or astropy.units.Quantity
+            Smoothing scale parameter, same units as r.
+
+        Returns
+        -------
+        out : float or np.array
+            Kernel value at position(s) r / h.
+        """
+
+        q = np.array(r / h / self.rescale_sph_h)
+        if isinstance(q, U.Quantity):
+            q = q.to(U.dimensionless_unscaled).value
+        scalar_input = q.ndim == 0
+        W = self.kernel(q)
+        W /= np.power(self.rescale_sph_h, 3)
+        if scalar_input:
+            return W.item()
+        else:
+            return W
+
+    @abstractmethod
+    def kernel(self, q):
+        """
+        Abstract method; evaluate the kernel.
+
+        Parameters
+        ----------
+        q : np.array
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : np.array
+            Kernel value at positions q.
+        """
+        pass
+
     @abstractmethod
     def kernel_integral(self, dij, h):
         """
@@ -75,6 +193,11 @@ class _BaseSPHKernel(object):
 
         h : astropy.units.Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+
+        Returns
+        -------
+        out : astropy.units.Quantity, with dimensions of pixels^-2
+            Integral of smoothing kernel over pixel, per unit pixel area.
         """
 
         pass
@@ -104,6 +227,12 @@ class _BaseSPHKernel(object):
         """
         Abstract method; return the maximum distance where the kernel is non-
         zero, in units of the SPH smoothing parameter of the particles.
+
+        Returns
+        -------
+        out : float
+            Maximum distance where the kernel is non-zero, in units of the SPH
+            smoothing parameter.
         """
         pass
 
@@ -118,6 +247,17 @@ class WendlandC2Kernel(_BaseSPHKernel):
     across the pixel, which converges to within 1% of the exact integral
     provided the SPH smoothing lengths are at least 2 pixels in size.
 
+    To obtain a Wendland C2 kernel which resembles a Gaussian kernel with
+    sigma = 1, use rescale_sph_h = 2 * sqrt(2 * log(2)). Note that this
+    scaling can be used to approximate this kernel using other kernels, or
+    vice-versa.
+
+    The WendlandC2 kernel is here defined as (q = r / h):
+        W(q) = (21 / (29 * pi)) * (1 - q)^4 * (4 * q + 1)
+            for 0 <= q < 1
+        W(q) = 0
+            for q >= 1
+
     Parameters
     ----------
     rescale_sph_h : float
@@ -131,9 +271,41 @@ class WendlandC2Kernel(_BaseSPHKernel):
     out : WendlandC2Kernel
         An appropriately initialized WendlandC2Kernel object.
     """
+
+    hscale_to_gaussian = 2 * np.sqrt(2 * np.log(2))
+
     def __init__(self, rescale_sph_h=1):
         super().__init__(rescale_sph_h=rescale_sph_h)
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function.
+
+        The WendlandC2 kernel is here defined as (q = r / h):
+        W(q) = (21 / (29 * pi)) * (1 - q)^4 * (4 * q + 1)
+            for 0 <= q < 1
+        W(q) = 0
+            for q >= 1
+
+        Parameters
+        ----------
+        q : np.array
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : np.array
+            Kernel value at positions q.
+        """
+
+        W = np.where(
+            q < 1,
+            np.power(1 - q, 4) * (4 * q + 1),
+            np.zeros(q.shape)
+        )
+        W *= (21 / np.pi)
+        return W
 
     def kernel_integral(self, dij, h):
         """
@@ -211,6 +383,18 @@ class CubicSplineKernel(_BaseSPHKernel):
     the exact integral provided the SPH smoothing lengths are at least 2.5
     pixels in size.
 
+    To obtain a cubic spline kernel which resembles a Gaussian kernel with
+    sigma = 1, use rescale_sph_h = sqrt(2 * log(2)). Note that this scaling
+    can be used to approximate this kernel using other kernels, or vice-versa.
+
+    The cubic spline kernel is here defined as (q = r / h):
+        W(q) = (30 / (57 * pi)) * (1 - 1.5 * q^2) * (1 - 0.5 * q)
+            for 0 <= q < 1
+        W(q) = (30 / 57 * pi) * (2 - q)
+            for 1 <= q < 2
+        W(q) = 0
+            for q >= 2
+
     Parameters
     ----------
     rescale_sph_h : float
@@ -225,9 +409,43 @@ class CubicSplineKernel(_BaseSPHKernel):
         An appropriately initialized CubicSplineKernel object.
     """
 
+    hscale_to_gaussian = np.sqrt(2 * np.log(2))
+
     def __init__(self, rescale_sph_h=1):
         super().__init__(rescale_sph_h=rescale_sph_h)
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function.
+
+        The cubic spline kernel is here defined as (q = r / h):
+        W(q) = (30 / (57 * pi)) * (1 - 1.5 * q^2) * (1 - 0.5 * q)
+            for 0 <= q < 1
+        W(q) = (30 / 57 * pi) * (2 - q)
+            for 1 <= q < 2
+        W(q) = 0
+            for q >= 2
+
+        Parameters
+        ----------
+        q : np.array
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : np.array
+            Kernel value at positions q.
+        """
+
+        W = np.where(
+            q < 1,
+            1 - 1.5 * np.power(q, 2) + .75 * np.power(q, 3),
+            .25 * np.power(2 - q, 3)
+        )
+        W[q > 2] = 0
+        W *= 2 / np.pi
+        return W
 
     def kernel_integral(self, dij, h):
         """
@@ -316,6 +534,12 @@ class GaussianKernel(_BaseSPHKernel):
     poorly sampled kernels (i.e. large pixels), the normalization is adjusted
     in order to minimize the error.
 
+    The Gaussian kernel is here defined as (q = r / h):
+    W(q) = (2 / pi^1.5) * np.exp(-q^2)
+        for 0 <= q < truncate
+    W(q) = 0
+        for q >= truncate
+
     Parameters
     ----------
     truncate : float
@@ -334,10 +558,39 @@ class GaussianKernel(_BaseSPHKernel):
         An appropriately initialized GaussianKernel object.
     """
 
+    hscale_to_gaussian = 1
+
     def __init__(self, truncate=3, rescale_sph_h=1):
         self.truncate = truncate
         super().__init__(rescale_sph_h=rescale_sph_h)
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function.
+
+        The Gaussian kernel is here defined as (q = r / h):
+        W(q) = (2 / pi^1.5) * np.exp(-q^2)
+            for 0 <= q < truncate
+        W(q) = 0
+            for q >= truncate
+
+        Parameters
+        ----------
+        q : np.array
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : np.array
+            Kernel value at positions q.
+        """
+
+        return np.where(
+            q < self.truncate,
+            2 * np.power(np.pi, -1.5) * np.exp(-np.power(q, 2)),
+            np.zeros(q.shape)
+        )
 
     def kernel_integral(self, dij, h):
         """
@@ -412,6 +665,12 @@ class DiracDeltaKernel(_BaseSPHKernel):
     """
     Implementation of a Dirac-delta kernel integral.
 
+    The Dirac-delta kernel is here defined as (q = r / h):
+    W(q) = inf
+        for q == 0
+    W(q) = 0
+        for q != 0
+
     Parameters
     ----------
     rescale_sph_h : float
@@ -426,9 +685,34 @@ class DiracDeltaKernel(_BaseSPHKernel):
         An appropriately initialized DiracDeltaKernel object.
     """
 
+    hscale_to_gaussian = None
+
     def __init__(self, rescale_sph_h=1):
         super().__init__(rescale_sph_h=rescale_sph_h)
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function.
+
+        The Dirac-delta kernel is here defined as (q = r / h):
+        W(q) = inf
+            for q == 0
+        W(q) = 0
+            for q != 0
+
+        Parameters
+        ----------
+        q : np.array
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : np.array
+            Kernel value at positions q.
+        """
+
+        return np.where(q, np.inf * np.ones(q.shape), np.zeros(q.shape))
 
     def kernel_integral(self, dij, h):
         """
