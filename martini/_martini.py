@@ -280,6 +280,10 @@ class Martini():
             kernel class will check whether this will occur and raise a
             RuntimeError if so. This validation can be skipped (at the cost
             of accuracy!) by setting this parameter True.
+
+        printfreq : int or None
+            Every printfreq rows a message will be printed to track progress.
+            Messages completely suppressed with printfreq=None.
         """
 
         # pixels indexed from 0 (not like in FITS!) for better use with numpy
