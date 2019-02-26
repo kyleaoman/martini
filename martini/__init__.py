@@ -1,6 +1,7 @@
 from ._martini import Martini
 from ._datacube import DataCube
 from ._demo import demo
+from ._tngdemo import tngdemo
 from ._version import __version__
 
 __doc__ = """
