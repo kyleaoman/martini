@@ -34,7 +34,7 @@ class _BaseSPHKernel(object):
         return
 
     @classmethod
-    def mimic(cls, other_kernel):
+    def mimic(cls, other_kernel, **kwargs):
         """
         Approximate a different kernel using this kernel.
 
@@ -90,7 +90,8 @@ class _BaseSPHKernel(object):
         return cls(
             rescale_sph_h=cls.hscale_to_gaussian
             / other_kernel.hscale_to_gaussian
-            * other_kernel.rescale_sph_h
+            * other_kernel.rescale_sph_h,
+            **kwargs
         )
 
     def px_weight(self, dij, h):
