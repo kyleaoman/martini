@@ -322,6 +322,157 @@ crude model of a gas disk. This example can be run by doing
 <span class="n">M</span><span class="o">.</span><span class="n">write_fits</span><span class="p">(</span><span class="s1">&#39;testcube.fits&#39;</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="s1">&#39;velocity&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>The following example illustrates the usage of Martini for an IllustrisTNG
+source. The example can be run in the TNG JupyterLab environment, or in a
+local environment configured following the fiducial TNG setup
+(<a class="reference external" href="http://www.tng-project.org/data/docs/scripts/">http://www.tng-project.org/data/docs/scripts/</a>). It can be run by doing
+‘from martini import tngdemo; tngdemo()’:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">martini.sources</span> <span class="k">import</span> <span class="n">TNGSource</span>
+<span class="kn">from</span> <span class="nn">martini</span> <span class="k">import</span> <span class="n">DataCube</span><span class="p">,</span> <span class="n">Martini</span>
+<span class="kn">from</span> <span class="nn">martini.beams</span> <span class="k">import</span> <span class="n">GaussianBeam</span>
+<span class="kn">from</span> <span class="nn">martini.noise</span> <span class="k">import</span> <span class="n">GaussianNoise</span>
+<span class="kn">from</span> <span class="nn">martini.spectral_models</span> <span class="k">import</span> <span class="n">GaussianSpectrum</span>
+<span class="kn">from</span> <span class="nn">martini.sph_kernels</span> <span class="k">import</span> <span class="n">GaussianKernel</span><span class="p">,</span> <span class="n">CubicSplineKernel</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
+
+<span class="c1"># This example runs in about 5 minutes in the IllustrisTNG JupyterLab</span>
+<span class="c1"># environment.</span>
+
+<span class="c1"># Parameters myBasePath, mySnap and myId follow the usual TNG</span>
+<span class="c1"># conventions as in the illustris_python package.</span>
+<span class="n">myBasePath</span> <span class="o">=</span> <span class="s1">&#39;sims.TNG/TNG100-1/output/&#39;</span>
+<span class="n">mySnap</span> <span class="o">=</span> <span class="mi">99</span>
+<span class="n">myId</span> <span class="o">=</span> <span class="mi">60748</span>  <span class="c1"># first subhalo with 218 &lt; Vmax &lt; 220, and SFR &gt; 1</span>
+
+<span class="c1"># The different martini sub-modules need to be initialized, see</span>
+<span class="c1"># https://kyleaoman.github.io/martini/build/html/martini.html for a</span>
+<span class="c1"># high-level overview. See the documentation for the individual sub-</span>
+<span class="c1"># modules for details of all configuration options. Comments below</span>
+<span class="c1"># highlight a few suggested best-practices specific to TNG.</span>
+
+<span class="c1"># SOURCE</span>
+<span class="c1"># The rotation configuration takes an inclination (here 60deg) and</span>
+<span class="c1"># rotation about the pole (here 0deg). The code attempts to</span>
+<span class="c1"># automatically align the galactic disk in the y-z plane by aligning</span>
+<span class="c1"># the angular momentum along the x-axis. The polar rotation is then</span>
+<span class="c1"># applied, and finally the disc inclined by a rotation around the</span>
+<span class="c1"># y-axis (the line of sight is along the x-axis). The automatic</span>
+<span class="c1"># alignment will work for typical reasonably isolated discs, but will</span>
+<span class="c1"># struggle when companions are present, when the angular momentum axis</span>
+<span class="c1"># is a poor tracer of the disc plane, and especially for satellites. If</span>
+<span class="c1"># finer control of the orientation is needed, derive the transformation</span>
+<span class="c1"># from the simulation box coordinates to the desired coordinates for</span>
+<span class="c1"># the &#39;observation&#39;, keepingn in mind that the line of sight is along</span>
+<span class="c1"># the x-axis. This rotation matrix can then be passed to rotation as</span>
+<span class="c1"># {&#39;rotmat&#39;: np.eye(3)} (here the identity rotation matrix used as an</span>
+<span class="c1"># example). A common problem in this case is deriving the inverse</span>
+<span class="c1"># transform instead of the forward transform, if unexpected results are</span>
+<span class="c1"># obtained, first try passing the transpose of the rotation matrix.</span>
+<span class="c1"># Note that initializing the source takes some time as the particle</span>
+<span class="c1"># data must be read from disk.</span>
+<span class="n">source</span> <span class="o">=</span> <span class="n">TNGSource</span><span class="p">(</span>
+    <span class="n">myBasePath</span><span class="p">,</span>
+    <span class="n">mySnap</span><span class="p">,</span>
+    <span class="n">myId</span><span class="p">,</span>
+    <span class="n">distance</span><span class="o">=</span><span class="mi">30</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">,</span>
+    <span class="n">rotation</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;L_coords&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">60</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">)},</span>
+    <span class="n">ra</span><span class="o">=</span><span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+    <span class="n">dec</span><span class="o">=</span><span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span>
+<span class="p">)</span>
+
+<span class="c1"># DATACUBE</span>
+<span class="c1"># It is usually advisable to set the centre of the cube to track the</span>
+<span class="c1"># centre of the source, as illustrated below. Note that the source</span>
+<span class="c1"># systemic velocity is set according to the distance and Hubble&#39;s law.</span>
+<span class="c1"># These values can instead be set explicitly, if desired. A datacube</span>
+<span class="c1"># with 128x128 pixels usually takes a few minutes, 1024x1024 could take</span>
+<span class="c1"># several hours. The number of channels has less influence on the</span>
+<span class="c1"># runtime. Most of the runtime is spent when M.insert_source_in_cube is</span>
+<span class="c1"># called below.</span>
+<span class="n">datacube</span> <span class="o">=</span> <span class="n">DataCube</span><span class="p">(</span>
+    <span class="n">n_px_x</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">n_px_y</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">n_channels</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+    <span class="n">px_size</span><span class="o">=</span><span class="mf">10.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">arcsec</span><span class="p">,</span>
+    <span class="n">channel_width</span><span class="o">=</span><span class="mf">10.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">velocity_centre</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">vsys</span><span class="p">,</span>
+    <span class="n">ra</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span>
+    <span class="n">dec</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">dec</span>
+<span class="p">)</span>
+
+<span class="c1"># BEAM</span>
+<span class="c1"># It is usually advisable to set the beam size to be ~3x the pixel</span>
+<span class="c1"># size. Note that the data cube is padded according to the size of the</span>
+<span class="c1"># beam, this usually results in the number of pixel rows printed in the</span>
+<span class="c1"># progress messages to differ from the requested dimensions. The</span>
+<span class="c1"># padding is required for accurate convolution with the beam, but</span>
+<span class="c1"># contains incorrect values after convolution and is discarded to</span>
+<span class="c1"># produce the final data cube of the requested size.</span>
+<span class="n">beam</span> <span class="o">=</span> <span class="n">GaussianBeam</span><span class="p">(</span>
+    <span class="n">bmaj</span><span class="o">=</span><span class="mf">30.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">arcsec</span><span class="p">,</span>
+    <span class="n">bmin</span><span class="o">=</span><span class="mf">30.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">arcsec</span><span class="p">,</span>
+    <span class="n">bpa</span><span class="o">=</span><span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+    <span class="n">truncate</span><span class="o">=</span><span class="mf">3.</span>
+<span class="p">)</span>
+
+<span class="c1"># NOISE</span>
+<span class="c1"># The noise is normally added before convolution with the beam (as</span>
+<span class="c1"># below in this example). The rms value passed is for the noise before</span>
+<span class="c1"># convolution, the rms noise in the output data cube will therefore</span>
+<span class="c1"># typically differ from this value.</span>
+<span class="n">noise</span> <span class="o">=</span> <span class="n">GaussianNoise</span><span class="p">(</span>
+    <span class="n">rms</span><span class="o">=</span><span class="mf">5.E-6</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Jy</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">arcsec</span> <span class="o">**</span> <span class="o">-</span><span class="mi">2</span>
+<span class="p">)</span>
+
+<span class="c1"># SPECTRAL MODEL</span>
+<span class="c1"># The &#39;subgrid&#39; velocity dispersion can also be fixed to a constant</span>
+<span class="c1"># value, e.g. sigma=7 * U.km * U.s**-1.</span>
+<span class="n">spectral_model</span> <span class="o">=</span> <span class="n">GaussianSpectrum</span><span class="p">(</span>
+    <span class="n">sigma</span><span class="o">=</span><span class="s1">&#39;thermal&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># SPH KERNEL</span>
+<span class="c1"># Since IllustrisTNG uses a moving mesh hydrodynamics solver (Arepo),</span>
+<span class="c1"># there are no formal SPH smoothing lengths and no specified kernel.</span>
+<span class="c1"># However, approximate smoothing lengths are provided by Subfind, so a</span>
+<span class="c1"># reasonable approximation is to use these for imaging. The lengths</span>
+<span class="c1"># correspond roughly to a cubic spline kernel. The implementation of</span>
+<span class="c1"># the cubic spline kernel included in Martini uses an approximation</span>
+<span class="c1"># which breaks down when the particle smoothing lengths are small</span>
+<span class="c1"># compared to the size of the pixels (at the distance of the source).</span>
+<span class="c1"># The Gaussian kernel implementation does not suffer from this</span>
+<span class="c1"># limitation and can be scaled to mimic the cubic spline kernel as</span>
+<span class="c1"># illustrated below. This solution should generally work; for</span>
+<span class="c1"># specialized applications, consider making a histogram of the</span>
+<span class="c1"># smoothing lengths of the particles in the source (in units of the</span>
+<span class="c1"># pixel scale) and consulting the documentation of the sph_kernels sub-</span>
+<span class="c1"># module to select an appropriate kernel.</span>
+<span class="n">sph_kernel</span> <span class="o">=</span> <span class="n">GaussianKernel</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span><span class="n">CubicSplineKernel</span><span class="p">,</span> <span class="n">truncate</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+<span class="n">M</span> <span class="o">=</span> <span class="n">Martini</span><span class="p">(</span>
+    <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+    <span class="n">datacube</span><span class="o">=</span><span class="n">datacube</span><span class="p">,</span>
+    <span class="n">beam</span><span class="o">=</span><span class="n">beam</span><span class="p">,</span>
+    <span class="n">noise</span><span class="o">=</span><span class="n">noise</span><span class="p">,</span>
+    <span class="n">spectral_model</span><span class="o">=</span><span class="n">spectral_model</span><span class="p">,</span>
+    <span class="n">sph_kernel</span><span class="o">=</span><span class="n">sph_kernel</span>
+<span class="p">)</span>
+
+<span class="c1"># Progress messages will be printed every printfreq rows; suppress by</span>
+<span class="c1"># setting to None.</span>
+<span class="n">M</span><span class="o">.</span><span class="n">insert_source_in_cube</span><span class="p">(</span><span class="n">printfreq</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">M</span><span class="o">.</span><span class="n">add_noise</span><span class="p">()</span>
+<span class="n">M</span><span class="o">.</span><span class="n">convolve_beam</span><span class="p">()</span>
+
+<span class="c1"># Two output formats are available, depending on preference. Both</span>
+<span class="c1"># formats are self-documenting, via FITS header keywords and HDF5</span>
+<span class="c1"># attributes, respectively. For HDF5 output, the beam image is included</span>
+<span class="c1"># in the same file.</span>
+<span class="n">M</span><span class="o">.</span><span class="n">write_fits</span><span class="p">(</span><span class="s1">&#39;tngdemo.fits&#39;</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="s1">&#39;velocity&#39;</span><span class="p">)</span>
+<span class="n">M</span><span class="o">.</span><span class="n">write_beam_fits</span><span class="p">(</span><span class="s1">&#39;tngdemo_beam.fits&#39;</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="s1">&#39;velocity&#39;</span><span class="p">)</span>
+<span class="n">M</span><span class="o">.</span><span class="n">write_hdf5</span><span class="p">(</span><span class="s1">&#39;tngdemo.hdf5&#39;</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="s1">&#39;velocity&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
 <dl class="method">
 <dt id="martini._martini.Martini.add_noise">
 <code class="descname">add_noise</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.add_noise"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.add_noise" title="Permalink to this definition">¶</a></dt>
@@ -336,7 +487,7 @@ crude model of a gas disk. This example can be run by doing
 
 <dl class="method">
 <dt id="martini._martini.Martini.insert_source_in_cube">
-<code class="descname">insert_source_in_cube</code><span class="sig-paren">(</span><em>skip_validation=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.insert_source_in_cube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.insert_source_in_cube" title="Permalink to this definition">¶</a></dt>
+<code class="descname">insert_source_in_cube</code><span class="sig-paren">(</span><em>skip_validation=False</em>, <em>printfreq=100</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.insert_source_in_cube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.insert_source_in_cube" title="Permalink to this definition">¶</a></dt>
 <dd><p>Populates the DataCube with flux from the particles in the source.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -350,6 +501,10 @@ and SPH smoothing length, the approximation may break down. The
 kernel class will check whether this will occur and raise a
 RuntimeError if so. This validation can be skipped (at the cost
 of accuracy!) by setting this parameter True.</p>
+</dd>
+<dt><strong>printfreq</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int or None</span></dt>
+<dd><p class="first last">Every printfreq rows a message will be printed to track progress.
+Messages completely suppressed with printfreq=None.</p>
 </dd>
 </dl>
 </td>

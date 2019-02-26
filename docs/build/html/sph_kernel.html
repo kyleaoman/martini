@@ -163,6 +163,21 @@ too slow to be practical; the implementation here approximates the kernel
 amplitude as constant across the pixel, which converges to within 1% of
 the exact integral provided the SPH smoothing lengths are at least 2.5
 pixels in size.</p>
+<p>To obtain a cubic spline kernel which resembles a Gaussian kernel with
+sigma = 1, use rescale_sph_h = sqrt(2 * log(2)). Note that this scaling
+can be used to approximate this kernel using other kernels, or vice-versa.</p>
+<dl class="docutils">
+<dt>The cubic spline kernel is here defined as (q = r / h):</dt>
+<dd><dl class="first last docutils">
+<dt>W(q) = (2 / pi) * (1 - 1.5 * q^2 * (1 - 0.5 * q))</dt>
+<dd>for 0 &lt;= q &lt; 1</dd>
+<dt>W(q) = (2 / pi) * (2 - q)^3</dt>
+<dd>for 1 &lt;= q &lt; 2</dd>
+<dt>W(q) = 0</dt>
+<dd>for q &gt;= 2</dd>
+</dl>
+</dd>
+</dl>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -186,6 +201,39 @@ scaling.</p>
 </tr>
 </tbody>
 </table>
+<dl class="method">
+<dt id="martini.sph_kernels.CubicSplineKernel.kernel">
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the kernel function.</p>
+<p>The cubic spline kernel is here defined as (q = r / h):
+W(q) = (2 / pi) * (1 - 1.5 * q^2 * (1 - 0.5 * q))
+for 0 &lt;= q &lt; 1
+W(q) = (2 / pi) * (2 - q)^3
+for 1 &lt;= q &lt; 2
+W(q) = 0
+for q &gt;= 2</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Dimensionless distance parameter.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Kernel value at positions q.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="method">
 <dt id="martini.sph_kernels.CubicSplineKernel.kernel_integral">
 <code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
@@ -230,7 +278,7 @@ pixels.</p>
 <code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <p>Convergence within 1% of the exact integral is achieved when the
-smoothing lengths are &gt;= 2.5 pixels.</p>
+smoothing lengths are &gt;= 1.0 pixels.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -252,6 +300,11 @@ smoothing lengths are &gt;= 2.5 pixels.</p>
 <dt id="martini.sph_kernels.DiracDeltaKernel">
 <em class="property">class </em><code class="descclassname">martini.sph_kernels.</code><code class="descname">DiracDeltaKernel</code><span class="sig-paren">(</span><em>rescale_sph_h=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Implementation of a Dirac-delta kernel integral.</p>
+<p>The Dirac-delta kernel is here defined as (q = r / h)
+W(q) = inf
+for q == 0
+W(q) = 0
+for q != 0</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -275,6 +328,37 @@ scaling.</p>
 </tr>
 </tbody>
 </table>
+<dl class="method">
+<dt id="martini.sph_kernels.DiracDeltaKernel.kernel">
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the kernel function.</p>
+<p>The Dirac-delta kernel is here defined as (q = r / h):
+W(q) = inf
+for q == 0
+W(q) = 0
+for q != 0</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Dimensionless distance parameter.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Kernel value at positions q.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="method">
 <dt id="martini.sph_kernels.DiracDeltaKernel.kernel_integral">
 <code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
@@ -348,6 +432,11 @@ be less than half the pixel size.</p>
 truncation is implemented approximately in the dx and dy directions. For
 poorly sampled kernels (i.e. large pixels), the normalization is adjusted
 in order to minimize the error.</p>
+<p>The Gaussian kernel is here defined as (q = r / h):
+W(q) = (2 / pi^1.5) * np.exp(-q^2)
+for 0 &lt;= q &lt; truncate
+W(q) = 0
+for q &gt;= truncate</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -375,6 +464,37 @@ scaling.</p>
 </tr>
 </tbody>
 </table>
+<dl class="method">
+<dt id="martini.sph_kernels.GaussianKernel.kernel">
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the kernel function.</p>
+<p>The Gaussian kernel is here defined as (q = r / h):
+W(q) = (2 / pi^1.5) * np.exp(-q^2)
+for 0 &lt;= q &lt; truncate
+W(q) = 0
+for q &gt;= truncate</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Dimensionless distance parameter.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Kernel value at positions q.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="method">
 <dt id="martini.sph_kernels.GaussianKernel.kernel_integral">
 <code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
@@ -446,6 +566,17 @@ Gadget/Gadget2!). The exact integral is usually too slow to be practical;
 the implementation here approximates the kernel amplitude as constant
 across the pixel, which converges to within 1% of the exact integral
 provided the SPH smoothing lengths are at least 2 pixels in size.</p>
+<p>To obtain a Wendland C2 kernel which resembles a Gaussian kernel with
+sigma = 1, use rescale_sph_h = 2 * sqrt(2 * log(2)). Note that this
+scaling can be used to approximate this kernel using other kernels, or
+vice-versa.</p>
+<dl class="docutils">
+<dt>The WendlandC2 kernel is here defined as (q = r / h):</dt>
+<dd>W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
+for 0 &lt;= q &lt; 1
+W(q) = 0
+for q &gt;= 1</dd>
+</dl>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -469,6 +600,37 @@ scaling.</p>
 </tr>
 </tbody>
 </table>
+<dl class="method">
+<dt id="martini.sph_kernels.WendlandC2Kernel.kernel">
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the kernel function.</p>
+<p>The WendlandC2 kernel is here defined as (q = r / h):
+W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
+for 0 &lt;= q &lt; 1
+W(q) = 0
+for q &gt;= 1</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Dimensionless distance parameter.</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.array</span></dt>
+<dd><p class="first last">Kernel value at positions q.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC2Kernel.kernel_integral">
 <code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
