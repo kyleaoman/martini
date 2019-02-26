@@ -255,9 +255,9 @@ class WendlandC2Kernel(_BaseSPHKernel):
 
     The WendlandC2 kernel is here defined as (q = r / h):
         W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
-            for 0 <= q < 1
+        for 0 <= q < 1
         W(q) = 0
-            for q >= 1
+        for q >= 1
 
     Parameters
     ----------
@@ -285,9 +285,9 @@ class WendlandC2Kernel(_BaseSPHKernel):
 
         The WendlandC2 kernel is here defined as (q = r / h):
         W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
-            for 0 <= q < 1
+        for 0 <= q < 1
         W(q) = 0
-            for q >= 1
+        for q >= 1
 
         Parameters
         ----------
@@ -422,11 +422,11 @@ class CubicSplineKernel(_BaseSPHKernel):
 
         The cubic spline kernel is here defined as (q = r / h):
         W(q) = (2 / pi) * (1 - 1.5 * q^2 * (1 - 0.5 * q))
-            for 0 <= q < 1
+        for 0 <= q < 1
         W(q) = (2 / pi) * (2 - q)^3
-            for 1 <= q < 2
+        for 1 <= q < 2
         W(q) = 0
-            for q >= 2
+        for q >= 2
 
         Parameters
         ----------
@@ -541,9 +541,9 @@ class GaussianKernel(_BaseSPHKernel):
 
     The Gaussian kernel is here defined as (q = r / h):
     W(q) = (2 / pi^1.5) * np.exp(-q^2)
-        for 0 <= q < truncate
+    for 0 <= q < truncate
     W(q) = 0
-        for q >= truncate
+    for q >= truncate
 
     Parameters
     ----------
@@ -576,9 +576,9 @@ class GaussianKernel(_BaseSPHKernel):
 
         The Gaussian kernel is here defined as (q = r / h):
         W(q) = (2 / pi^1.5) * np.exp(-q^2)
-            for 0 <= q < truncate
+        for 0 <= q < truncate
         W(q) = 0
-            for q >= truncate
+        for q >= truncate
 
         Parameters
         ----------
@@ -670,11 +670,11 @@ class DiracDeltaKernel(_BaseSPHKernel):
     """
     Implementation of a Dirac-delta kernel integral.
 
-    The Dirac-delta kernel is here defined as (q = r / h):
+    The Dirac-delta kernel is here defined as (q = r / h)
     W(q) = inf
-        for q == 0
+    for q == 0
     W(q) = 0
-        for q != 0
+    for q != 0
 
     Parameters
     ----------
@@ -702,9 +702,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         The Dirac-delta kernel is here defined as (q = r / h):
         W(q) = inf
-            for q == 0
+        for q == 0
         W(q) = 0
-            for q != 0
+        for q != 0
 
         Parameters
         ----------
