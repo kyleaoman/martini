@@ -187,7 +187,7 @@ class Martini():
         from martini.sph_kernels import GaussianKernel, CubicSplineKernel
         import astropy.units as U
 
-        # This example runs in about 45s in the IllustrisTNG JupyterLab
+        # This example runs in about 5 minutes in the IllustrisTNG JupyterLab
         # environment.
 
         # Parameters myBasePath, mySnap and myId follow the usual TNG
@@ -320,9 +320,9 @@ class Martini():
         # formats are self-documenting, via FITS header keywords and HDF5
         # attributes, respectively. For HDF5 output, the beam image is included
         # in the same file.
-        M.write_fits('martini_demo.fits', channels='velocity')
-        M.write_beam_fits('martini_beam_demo.fits', channels='velocity')
-        M.write_hdf5('martini_demo.hdf5', channels='velocity')
+        M.write_fits('tngdemo.fits', channels='velocity')
+        M.write_beam_fits('tngdemo_beam.fits', channels='velocity')
+        M.write_hdf5('tngdemo.hdf5', channels='velocity')
 
     """
 
