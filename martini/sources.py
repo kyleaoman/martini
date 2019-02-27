@@ -601,6 +601,8 @@ class TNGSource(SPHSource):
         T_g = (gamma - 1) * u_g / C.k_B.to(U.erg / U.K).value * 1E10 * mu_g \
             * U.K
         m_g = data_g['Masses'] * 1E10 / h * U.Msun
+        # cast to float64 to avoid underflow error
+        nH_g = U.Quantity(rho_g * X_H_g / mu_g, dtype=np.float64) / C.m_p
         # In TNG_corrections I just assume a Springel & Hernquist 2003 model
         # which doesn't quite correspond to what is used in TNG, there is an
         # extra isothermal eEOS at 1E4K and the two are interpolated between
@@ -610,7 +612,7 @@ class TNGSource(SPHSource):
         # but it is pretty close...
         fatomic_g = atomic_frac(
             z,
-            rho_g * X_H_g / (mu_g * C.m_p),
+            nH_g,
             T_g,
             rho_g,
             X_H_g,
