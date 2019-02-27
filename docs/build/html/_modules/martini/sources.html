@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>martini.sources &mdash; MARTINI 1.0.1 documentation</title>
+  <title>martini.sources &mdash; MARTINI 1.0.2 documentation</title>
   
 
   
@@ -55,6 +55,10 @@
 
           
             
+            
+              <div class="version">
+                1.0.2
+              </div>
             
           
 
@@ -753,6 +757,8 @@
         <span class="n">T_g</span> <span class="o">=</span> <span class="p">(</span><span class="n">gamma</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">u_g</span> <span class="o">/</span> <span class="n">C</span><span class="o">.</span><span class="n">k_B</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">erg</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">K</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="o">*</span> <span class="mf">1E10</span> <span class="o">*</span> <span class="n">mu_g</span> \
             <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">K</span>
         <span class="n">m_g</span> <span class="o">=</span> <span class="n">data_g</span><span class="p">[</span><span class="s1">&#39;Masses&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="mf">1E10</span> <span class="o">/</span> <span class="n">h</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Msun</span>
+        <span class="c1"># cast to float64 to avoid underflow error</span>
+        <span class="n">nH_g</span> <span class="o">=</span> <span class="n">U</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">rho_g</span> <span class="o">*</span> <span class="n">X_H_g</span> <span class="o">/</span> <span class="n">mu_g</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span> <span class="o">/</span> <span class="n">C</span><span class="o">.</span><span class="n">m_p</span>
         <span class="c1"># In TNG_corrections I just assume a Springel &amp; Hernquist 2003 model</span>
         <span class="c1"># which doesn&#39;t quite correspond to what is used in TNG, there is an</span>
         <span class="c1"># extra isothermal eEOS at 1E4K and the two are interpolated between</span>
@@ -762,7 +768,7 @@
         <span class="c1"># but it is pretty close...</span>
         <span class="n">fatomic_g</span> <span class="o">=</span> <span class="n">atomic_frac</span><span class="p">(</span>
             <span class="n">z</span><span class="p">,</span>
-            <span class="n">rho_g</span> <span class="o">*</span> <span class="n">X_H_g</span> <span class="o">/</span> <span class="p">(</span><span class="n">mu_g</span> <span class="o">*</span> <span class="n">C</span><span class="o">.</span><span class="n">m_p</span><span class="p">),</span>
+            <span class="n">nH_g</span><span class="p">,</span>
             <span class="n">T_g</span><span class="p">,</span>
             <span class="n">rho_g</span><span class="p">,</span>
             <span class="n">X_H_g</span><span class="p">,</span>

@@ -1,3 +1,10 @@
+import os
+
+with open(
+        os.path.join(os.path.dirname(__file__), '../martini/VERSION')
+) as version_file:
+    __version__ = version_file.read().strip()
+
 # -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
@@ -24,9 +31,9 @@ copyright = '2018, Kyle Oman'
 author = 'Kyle Oman'
 
 # The short X.Y version
-version = ''
+version = __version__
 # The full version, including alpha/beta/rc tags
-release = '1.0.1'
+release = version + ''
 
 
 # -- General configuration ---------------------------------------------------
