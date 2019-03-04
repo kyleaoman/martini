@@ -616,8 +616,9 @@ class TNGSource(SPHSource):
         except KeyError:
             xyz_g = data_g['Coordinates'] * a / h * U.kpc
         vxyz_g = data_g['Velocities'] * np.sqrt(a) * U.km / U.s
-        V_cell = data_g['Masses'] / data_g['Density']  # Voronoi cell volume
-        r_cell = np.power(3. * V_cell / 4. / np.pi, 1. / 3.)
+        V_cell = data_g['Masses'] / data_g['Density'] \
+            / np.power(a / h * U.kpc, -3)  # Voronoi cell volume
+        r_cell = np.power(3. * V_cell / 4. / np.pi, 1. / 3.).to(U.kpc)
         hsm_g = 2.5 * r_cell  # in mind a cubic spline that =0 at h, I think
         xyz_centre = data_sub['SubhaloPos'] * a / h * U.kpc
         xyz_g -= xyz_centre
