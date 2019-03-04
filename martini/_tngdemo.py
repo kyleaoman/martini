@@ -16,7 +16,7 @@ def tngdemo(cubefile='tngdemo.fits', beamfile='tngdemo_beam.fits',
     # conventions as in the illustris_python package.
     myBasePath = 'sims.TNG/TNG100-1/output/'
     mySnap = 99
-    myId = 60748  # first subhalo with 218 < Vmax < 220, and SFR > 1
+    myId = 385350  # first central with 218 < Vmax < 222, and SFR > 1
 
     # The different martini sub-modules need to be initialized, see
     # https://kyleaoman.github.io/martini/build/html/martini.html for a
@@ -66,7 +66,7 @@ def tngdemo(cubefile='tngdemo.fits', beamfile='tngdemo_beam.fits',
     datacube = DataCube(
         n_px_x=128,
         n_px_y=128,
-        n_channels=32,
+        n_channels=64,
         px_size=10. * U.arcsec,
         channel_width=10. * U.km * U.s ** -1,
         velocity_centre=source.vsys,
