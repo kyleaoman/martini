@@ -121,7 +121,10 @@ def tngdemo(cubefile='tngdemo.fits', beamfile='tngdemo_beam.fits',
     # smoothing lengths of the particles in the source (in units of the
     # pixel scale) and consulting the documentation of the sph_kernels sub-
     # module to select an appropriate kernel.
-    sph_kernel = GaussianKernel.mimic(CubicSplineKernel, truncate=3)
+    sph_kernel = GaussianKernel.mimic(
+        CubicSplineKernel(rescale_sph_h=.5),
+        truncate=3
+    )
 
     M = Martini(
         source=source,

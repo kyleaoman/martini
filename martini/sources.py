@@ -577,16 +577,6 @@ class TNGSource(SPHSource):
                 raise
         else:
             X_H_g = data_g['GFM_Metals']  # only loaded column 0: Hydrogen
-        try:
-            data_g.update(loadSubset(basePath, snapNum, 'gas',
-                                     fields=('SubfindHsml', ), subset=subset_g,
-                                     sq=False))
-        except Exception as exc:
-            if ('Particle type' in exc.args[0]) and \
-               ('does not have field' in exc.args[0]):
-                pass
-            else:
-                raise
 
         a = data_header['Time']
         z = data_header['Redshift']
@@ -603,13 +593,9 @@ class TNGSource(SPHSource):
         m_g = data_g['Masses'] * 1E10 / h * U.Msun
         # cast to float64 to avoid underflow error
         nH_g = U.Quantity(rho_g * X_H_g / mu_g, dtype=np.float64) / C.m_p
-        # In TNG_corrections I just assume a Springel & Hernquist 2003 model
-        # which doesn't quite correspond to what is used in TNG, there is an
-        # extra isothermal eEOS at 1E4K and the two are interpolated between
-        # with an interpolation parameter qEOS=0.3. Would rather not overthink
-        # this for the moment, since H2 tables for TNG will be available soon
-        # anyway. Also not sure I'm using exactly the right T0 at the moment,
-        # but it is pretty close...
+        # In TNG_corrections I set f_neutral = 1 for particles with density
+        # > .1cm^-3. Might be possible to do a bit better here, but HI & H2
+        # tables for TNG will be available soon anyway.
         fatomic_g = atomic_frac(
             z,
             nH_g,
@@ -630,23 +616,9 @@ class TNGSource(SPHSource):
         except KeyError:
             xyz_g = data_g['Coordinates'] * a / h * U.kpc
         vxyz_g = data_g['Velocities'] * np.sqrt(a) * U.km / U.s
-        try:
-            hsm_g = data_g['SubfindHsml'] * a / h * U.kpc
-        except KeyError:
-            hsm_g = np.zeros(data_g['Masses'].shape) * U.kpc
-            warnings.warn("TNG 'mini' snapshots do not include smoothing "
-                          "length information, smoothing lengths set to 0."
-                          "You MUST use the DiracDeltaKernel sph_kernel, "
-                          "other kernels will lead to crashes or invalid "
-                          "output. If the smoothing lengths (were they "
-                          "computed) would exceed the pixel size of your "
-                          "DataCube, use of the DiracDeltaKernel will lead "
-                          "to a poor representation of the gas distribution, "
-                          "and the usual checks in Martini will NOT catch "
-                          "this. In other words, if you are attempting to "
-                          "make a mock with high spatial resolution from a "
-                          "TNG mini-snapshot, exercise care.")
-
+        V_cell = data_g['Masses'] / data_g['Density']  # Voronoi cell volume
+        r_cell = np.power(3. * V_cell / 4. / np.pi, 1. / 3.)
+        hsm_g = 2.5 * r_cell  # in mind a cubic spline that =0 at h, I think
         xyz_centre = data_sub['SubhaloPos'] * a / h * U.kpc
         xyz_g -= xyz_centre
         vxyz_centre = data_sub['SubhaloVel'] * np.sqrt(a) * U.km / U.s
