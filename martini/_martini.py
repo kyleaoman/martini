@@ -194,7 +194,7 @@ class Martini():
         # conventions as in the illustris_python package.
         myBasePath = 'sims.TNG/TNG100-1/output/'
         mySnap = 99
-        myId = 60748  # first subhalo with 218 < Vmax < 220, and SFR > 1
+        myId = 385350  # first central with 218 < Vmax < 220, and SFR > 1
 
         # The different martini sub-modules need to be initialized, see
         # https://kyleaoman.github.io/martini/build/html/martini.html for a
