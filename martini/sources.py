@@ -539,7 +539,6 @@ class TNGSource(SPHSource):
     ):
 
         # optional dependencies for this source class
-        import warnings
         from illustris_python.groupcat import loadSingle, loadHeader
         from illustris_python.snapshot import loadSubset, getSnapOffsets
         from Hdecompose.atomic_frac import atomic_frac
