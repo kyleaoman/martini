@@ -548,7 +548,7 @@ class TNGSource(SPHSource):
         data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
         haloID = data_sub['SubhaloGrNr']
         fields_g = ('Masses', 'Velocities', 'InternalEnergy',
-                    'ElectronAbundance', 'Density', 'StarFormationRate')
+                    'ElectronAbundance', 'Density')
         subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
         data_g = loadSubset(basePath, snapNum, 'gas', fields=fields_g,
                             subset=subset_g)
@@ -583,7 +583,6 @@ class TNGSource(SPHSource):
         xe_g = data_g['ElectronAbundance']
         rho_g = data_g['Density'] * 1E10 / h * U.Msun \
             * np.power(a / h * U.kpc, -3)
-        SFR_g = data_g['StarFormationRate'] * U.Msun / U.yr
         u_g = data_g['InternalEnergy']  # unit conversion handled in T_g
         mu_g = 4 * C.m_p.to(U.g).value / (1 + 3 * X_H_g + 4 * X_H_g * xe_g)
         gamma = 5. / 3.  # see http://www.tng-project.org/data/docs/faq/#gen4
