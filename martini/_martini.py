@@ -1,4 +1,5 @@
 import subprocess
+import os
 from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
@@ -6,14 +7,15 @@ from astropy.io import fits
 from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
-from ._version import __version__
+from ._version import __version__ as martini_version
 
 try:
-    gc = subprocess.check_output(['git', 'describe', '--always'])
+    gc = subprocess.check_output(['git', 'describe', '--always'],
+                                 stderr=open(os.devnull, 'w'))
 except (subprocess.CalledProcessError, FileNotFoundError):
     pass
 else:
-    __version__ = __version__ + '_commit_' + gc.strip().decode()
+    martini_version = martini_version + '_commit_' + gc.strip().decode()
 
 
 class Martini():
@@ -557,7 +559,7 @@ class Martini():
         header.append(('CTYPE4', wcs_header['CTYPE4']))
         header.append(('CUNIT4', 'PAR'))
         header.append(('EPOCH', 2000))
-        header.append(('INSTRUME', 'MARTINI', __version__))
+        header.append(('INSTRUME', 'MARTINI', martini_version))
         # header.append(('BLANK', -32768)) #only for integer data
         header.append(('BSCALE', 1.0))
         header.append(('BZERO', 0.0))
@@ -673,7 +675,7 @@ class Martini():
         header.append(('OBSERVER', 'K. Oman'))
         # long names break fits format
         header.append(('OBJECT', 'MOCKBEAM'))
-        header.append(('INSTRUME', 'MARTINI', __version__))
+        header.append(('INSTRUME', 'MARTINI', martini_version))
         header.append(('DATAMAX', np.max(self.beam.kernel.value)))
         header.append(('DATAMIN', np.min(self.beam.kernel.value)))
         header.append(('ORIGIN', 'astropy v' + astropy_version))
@@ -782,7 +784,7 @@ class Martini():
             c.attrs['BeamMajor_in_deg'] = self.beam.bmaj.to(U.deg).value
             c.attrs['BeamMinor_in_deg'] = self.beam.bmin.to(U.deg).value
         c.attrs['DateCreated'] = datetime.utcnow().isoformat()[:-5]
-        c.attrs['MartiniVersion'] = __version__
+        c.attrs['MartiniVersion'] = martini_version
         c.attrs['AstropyVersion'] = astropy_version
         if self.beam is not None:
             f['Beam'] = self.beam.kernel.value[..., np.newaxis]
@@ -807,7 +809,7 @@ class Martini():
             b.attrs['BeamMajor_in_deg'] = self.beam.bmaj.to(U.deg).value
             b.attrs['BeamMinor_in_deg'] = self.beam.bmin.to(U.deg).value
             b.attrs['DateCreated'] = datetime.utcnow().isoformat()[:-5]
-            b.attrs['MartiniVersion'] = __version__
+            b.attrs['MartiniVersion'] = martini_version
             b.attrs['AstropyVersion'] = astropy_version
 
         if channels == 'frequency':
