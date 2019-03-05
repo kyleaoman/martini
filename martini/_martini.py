@@ -187,7 +187,7 @@ class Martini():
         from martini.sph_kernels import GaussianKernel, CubicSplineKernel
         import astropy.units as U
 
-        # This example runs in about 5 minutes in the IllustrisTNG JupyterLab
+        # This example runs in about 1 minute in the IllustrisTNG JupyterLab
         # environment.
 
         # Parameters myBasePath, mySnap and myId follow the usual TNG

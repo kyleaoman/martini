@@ -9,7 +9,7 @@ import astropy.units as U
 
 def tngdemo(cubefile='tngdemo.fits', beamfile='tngdemo_beam.fits',
             hdf5file='tngdemo.hdf5'):
-    # This example runs in about 5 minutes in the IllustrisTNG JupyterLab
+    # This example runs in about 1 minute in the IllustrisTNG JupyterLab
     # environment.
 
     # Parameters myBasePath, mySnap and myId follow the usual TNG
