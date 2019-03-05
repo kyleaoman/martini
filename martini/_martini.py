@@ -227,7 +227,7 @@ class Martini():
         # is a poor tracer of the disc plane, and especially for satellites. If
         # finer control of the orientation is needed, derive the transformation
         # from the simulation box coordinates to the desired coordinates for
-        # the 'observation', keepingn in mind that the line of sight is along
+        # the 'observation', keeping in mind that the line of sight is along
         # the x-axis. This rotation matrix can then be passed to rotation as
         # {'rotmat': np.eye(3)} (here the identity rotation matrix used as an
         # example). A common problem in this case is deriving the inverse

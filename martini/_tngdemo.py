@@ -36,7 +36,7 @@ def tngdemo(cubefile='tngdemo.fits', beamfile='tngdemo_beam.fits',
     # is a poor tracer of the disc plane, and especially for satellites. If
     # finer control of the orientation is needed, derive the transformation
     # from the simulation box coordinates to the desired coordinates for
-    # the 'observation', keepingn in mind that the line of sight is along
+    # the 'observation', keeping in mind that the line of sight is along
     # the x-axis. This rotation matrix can then be passed to rotation as
     # {'rotmat': np.eye(3)} (here the identity rotation matrix used as an
     # example). A common problem in this case is deriving the inverse
@@ -108,12 +108,13 @@ def tngdemo(cubefile='tngdemo.fits', beamfile='tngdemo_beam.fits',
     # SPH KERNEL
     # Since IllustrisTNG uses a moving mesh hydrodynamics solver (Arepo),
     # there are no formal SPH smoothing lengths and no specified kernel.
-    # However, approximate smoothing lengths are provided by Subfind, so a
-    # reasonable approximation is to use these for imaging. The lengths
-    # correspond roughly to a cubic spline kernel. The implementation of
-    # the cubic spline kernel included in Martini uses an approximation
-    # which breaks down when the particle smoothing lengths are small
-    # compared to the size of the pixels (at the distance of the source).
+    # However, approximate smoothing lengths can be estimated from the
+    # Voronoi cell volumes, so a reasonable approximation is to use these
+    # for imaging. The lengths correspond roughly to a cubic spline kernel.
+    # The implementation of the cubic spline kernel included in Martini
+    # uses an approximation which breaks down when the particle smoothing
+    # lengths are small compared to the size of the pixels (at the distance
+    # of the source).
     # The Gaussian kernel implementation does not suffer from this
     # limitation and can be scaled to mimic the cubic spline kernel as
     # illustrated below. This solution should generally work; for
