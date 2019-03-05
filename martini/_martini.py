@@ -1,3 +1,4 @@
+import subprocess
 from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
@@ -6,6 +7,13 @@ from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
 from ._version import __version__
+
+try:
+    gc = subprocess.check_output(['git', 'describe', '--always'])
+except (subprocess.CalledProcessError, FileNotFoundError):
+    pass
+else:
+    __version__ = __version__ + '_commit_' + gc.strip().decode()
 
 
 class Martini():
