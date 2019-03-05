@@ -10,8 +10,11 @@ from itertools import product
 from ._version import __version__ as martini_version
 
 try:
-    gc = subprocess.check_output(['git', 'describe', '--always'],
-                                 stderr=open(os.devnull, 'w'))
+    gc = subprocess.check_output(
+        ['git', 'describe', '--always'],
+        stderr=open(os.devnull, 'w'),
+        cwd=os.path.dirname(os.path.realpath(__file__))
+    )
 except (subprocess.CalledProcessError, FileNotFoundError):
     pass
 else:
