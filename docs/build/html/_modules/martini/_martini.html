@@ -350,7 +350,7 @@
 <span class="sd">        # conventions as in the illustris_python package.</span>
 <span class="sd">        myBasePath = &#39;sims.TNG/TNG100-1/output/&#39;</span>
 <span class="sd">        mySnap = 99</span>
-<span class="sd">        myId = 60748  # first subhalo with 218 &lt; Vmax &lt; 220, and SFR &gt; 1</span>
+<span class="sd">        myId = 385350  # first central with 218 &lt; Vmax &lt; 220, and SFR &gt; 1</span>
 
 <span class="sd">        # The different martini sub-modules need to be initialized, see</span>
 <span class="sd">        # https://kyleaoman.github.io/martini/build/html/martini.html for a</span>
@@ -455,7 +455,10 @@
 <span class="sd">        # smoothing lengths of the particles in the source (in units of the</span>
 <span class="sd">        # pixel scale) and consulting the documentation of the sph_kernels sub-</span>
 <span class="sd">        # module to select an appropriate kernel.</span>
-<span class="sd">        sph_kernel = GaussianKernel.mimic(CubicSplineKernel, truncate=3)</span>
+<span class="sd">        sph_kernel = GaussianKernel.mimic(</span>
+<span class="sd">            CubicSplineKernel(rescale_sph_h=0.5),</span>
+<span class="sd">            truncate=3</span>
+<span class="sd">        )</span>
 
 <span class="sd">        M = Martini(</span>
 <span class="sd">            source=source,</span>

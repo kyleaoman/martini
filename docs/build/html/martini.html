@@ -346,7 +346,7 @@ local environment configured following the fiducial TNG setup
 <span class="c1"># conventions as in the illustris_python package.</span>
 <span class="n">myBasePath</span> <span class="o">=</span> <span class="s1">&#39;sims.TNG/TNG100-1/output/&#39;</span>
 <span class="n">mySnap</span> <span class="o">=</span> <span class="mi">99</span>
-<span class="n">myId</span> <span class="o">=</span> <span class="mi">60748</span>  <span class="c1"># first subhalo with 218 &lt; Vmax &lt; 220, and SFR &gt; 1</span>
+<span class="n">myId</span> <span class="o">=</span> <span class="mi">385350</span>  <span class="c1"># first central with 218 &lt; Vmax &lt; 220, and SFR &gt; 1</span>
 
 <span class="c1"># The different martini sub-modules need to be initialized, see</span>
 <span class="c1"># https://kyleaoman.github.io/martini/build/html/martini.html for a</span>
@@ -451,7 +451,10 @@ local environment configured following the fiducial TNG setup
 <span class="c1"># smoothing lengths of the particles in the source (in units of the</span>
 <span class="c1"># pixel scale) and consulting the documentation of the sph_kernels sub-</span>
 <span class="c1"># module to select an appropriate kernel.</span>
-<span class="n">sph_kernel</span> <span class="o">=</span> <span class="n">GaussianKernel</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span><span class="n">CubicSplineKernel</span><span class="p">,</span> <span class="n">truncate</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">sph_kernel</span> <span class="o">=</span> <span class="n">GaussianKernel</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span>
+    <span class="n">CubicSplineKernel</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
+    <span class="n">truncate</span><span class="o">=</span><span class="mi">3</span>
+<span class="p">)</span>
 
 <span class="n">M</span> <span class="o">=</span> <span class="n">Martini</span><span class="p">(</span>
     <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
