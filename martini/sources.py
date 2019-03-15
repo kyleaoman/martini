@@ -433,7 +433,11 @@ class SOSource(SPHSource):
         Dictionary of keyword arguments to pass to a call to simobj.SimObj.
         Arguments are: 'obj_id', 'snap_id', 'mask_type', 'mask_args',
         'mask_kwargs', 'configfile', 'simfiles_configfile', 'ncpu'. See simobj
-        package documentation for details.
+        package documentation for details. Provide SO_args or SO_instance, not
+        both.
+
+    SO_instance : SimObj instance
+        An initialized SimObj object. Provide SO_instance or SO_args, not both.
 
     Returns
     -------
@@ -446,25 +450,47 @@ class SOSource(SPHSource):
             distance=3.*U.Mpc,
             rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
             ra=0.*U.deg,
-            dec=0.*U.deg, SO_args=dict()
+            dec=0.*U.deg,
+            SO_args=None,
+            SO_instance=None
     ):
 
         from simobj import SimObj  # optional dependency for this source class
 
         self._SO_args = SO_args
-        with SimObj(**self._SO_args) as SO:
+        if (SO_args is not None) and (SO_instance is not None):
+            raise ValueError('martini.source.SOSource: Provide SO_args or '
+                             'SO_instance, not both.')
+        if SO_args is not None:
+            with SimObj(**self._SO_args) as SO:
+                super().__init__(
+                    distance=distance,
+                    rotation=rotation,
+                    ra=ra,
+                    dec=dec,
+                    h=SO.h,
+                    T_g=SO.T_g,
+                    mHI_g=SO.mHI_g,
+                    xyz_g=SO.xyz_g,
+                    vxyz_g=SO.vxyz_g,
+                    hsm_g=SO.hsm_g
+                )
+        elif SO_instance is not None:
             super().__init__(
                 distance=distance,
                 rotation=rotation,
                 ra=ra,
                 dec=dec,
-                h=SO.h,
-                T_g=SO.T_g,
-                mHI_g=SO.mHI_g,
-                xyz_g=SO.xyz_g,
-                vxyz_g=SO.vxyz_g,
-                hsm_g=SO.hsm_g
-                )
+                h=SO_instance.h,
+                T_g=SO_instance.T_g,
+                mHI_g=SO_instance.mHI_g,
+                xyz_g=SO_instance.xyz_g,
+                vxyz_g=SO_instance.vxyz_g,
+                hsm_g=SO_instance.hsm_g
+            )
+        else:
+            raise ValueError('martini.sources.SOSource: Provide one of SO_args'
+                             ' or SO_instance.')
         return
 
 
