@@ -15,7 +15,7 @@ setup(
     author_email='koman@astro.rug.nl',
     license='GNU GPL v3',
     packages=['martini'],
-    install_requires=['numpy', 'astropy', 'scipy'],
+    install_requires=['numpy >= 1.15.3', 'astropy >= 3.0', 'scipy'],
     include_package_data=True,
     zip_safe=False
 )
