@@ -490,24 +490,12 @@ class Martini():
                     print('  ' + self.logtag +
                           '  [row {:.0f}]'.format(ij[0, 0].value))
             mask = (np.abs(ij - particle_coords[:2]) <= sm_range).all(axis=0)
-            # Astropy github issue 8507: memory leak
-            # Here caused by applying mask to Quantity (x2)
-            # See also patch in GaussianKernel.kernel_integral
-            # weights = self.sph_kernel.px_weight(
-            #     particle_coords[:2, mask] - ij,
-            #     sm_length[mask]
-            # )
             weights = self.sph_kernel.px_weight(
-                particle_coords.value[:2, mask] * particle_coords.unit - ij,
-                sm_length.value[mask] * sm_length.unit
+                particle_coords[:2, mask] - ij,
+                sm_length[mask]
             )
-            # Also leaks memory, same reason.
-            # self.datacube._array[ij_px[0], ij_px[1], :, 0] = \
-            #     (self.spectral_model.spectra[mask] *
-            #      weights[..., np.newaxis]).sum(axis=-2)
             self.datacube._array[ij_px[0], ij_px[1], :, 0] = \
-                (self.spectral_model.spectra.value[mask] *
-                 self.spectral_model.spectra.unit *
+                (self.spectral_model.spectra[mask] *
                  weights[..., np.newaxis]).sum(axis=-2)
 
         self.datacube._array = \

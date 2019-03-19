@@ -632,11 +632,8 @@ class GaussianKernel(_BaseSPHKernel):
 
         # empirically, removing this normalization for poorly sampled kernels
         # leads to increased accuracy
-        retval_unit = retval.unit  # memory leak patch
-        retval = retval.value  # memory leak patch
         retval[h > 2.5 * U.pix] = \
             retval[h > 2.5 * U.pix] / np.power(erf(self.truncate), 2)
-        retval = retval * retval_unit  # memory leak patch
         return retval * h.unit ** -2
 
     def validate(self, sm_lengths):
