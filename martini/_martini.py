@@ -524,7 +524,7 @@ class Martini():
         if channels == 'frequency':
             self.datacube.freq_channels()
         elif channels == 'velocity':
-            pass
+            self.datacube.velocity_channels()
         else:
             raise ValueError("Martini.write_fits: Unknown 'channels' value "
                              "(use 'frequency' or 'velocity'.")
@@ -634,7 +634,7 @@ class Martini():
         if channels == 'frequency':
             self.datacube.freq_channels()
         elif channels == 'velocity':
-            pass
+            self.datacube.velocity_channels()
         else:
             raise ValueError("Martini.write_beam_fits: Unknown 'channels' "
                              "value (use 'frequency' or 'velocity'.")
