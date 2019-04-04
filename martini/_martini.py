@@ -8,6 +8,7 @@ from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
 from ._version import __version__ as martini_version
+from warnings import warn
 
 try:
     gc = subprocess.check_output(
@@ -373,6 +374,9 @@ class Martini():
         Convolve the beam and DataCube.
         """
 
+        if self.beam is None:
+            warn('Skipping beam convolution, no beam object provided to Martini.')
+
         unit = self.datacube._array.unit
         for spatial_slice in self.datacube.spatial_slices():
             # use a view [...] to force in-place modification
@@ -387,6 +391,10 @@ class Martini():
         """
         Insert noise into the DataCube.
         """
+
+        if self.noise is None:
+            warn('Skipping noise, no noise object provided to Martini.')
+            return
 
         self.datacube._array = \
             self.datacube._array + self.noise.generate(self.datacube)
