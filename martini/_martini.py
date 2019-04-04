@@ -824,3 +824,20 @@ class Martini():
         else:
             f.close()
             return
+
+    def reset(self):
+        """
+        Re-initializes the DataCube with zero-values.
+        """
+        init_kwargs = dict(
+            n_px_x=self.datacube.n_px_x,
+            n_px_y=self.datacube.n_px_y,
+            n_channels=self.datacube.n_channels,
+            px_size=self.datacube.px_size,
+            channel_width=self.datacube.channel_width,
+            velocity_centre=self.datacube.velocity_centre,
+            ra=self.datacube.ra,
+            dec=self.datacube.dec
+        )
+        self.datacube.__init__(**init_kwargs)
+        return
