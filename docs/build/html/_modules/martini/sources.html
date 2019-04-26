@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>martini.sources &mdash; MARTINI 1.0.2 documentation</title>
+  <title>martini.sources &mdash; MARTINI 1.0.4 documentation</title>
   
 
   
@@ -57,7 +57,7 @@
             
             
               <div class="version">
-                1.0.2
+                1.0.4
               </div>
             
           
@@ -589,7 +589,11 @@
 <span class="sd">        Dictionary of keyword arguments to pass to a call to simobj.SimObj.</span>
 <span class="sd">        Arguments are: &#39;obj_id&#39;, &#39;snap_id&#39;, &#39;mask_type&#39;, &#39;mask_args&#39;,</span>
 <span class="sd">        &#39;mask_kwargs&#39;, &#39;configfile&#39;, &#39;simfiles_configfile&#39;, &#39;ncpu&#39;. See simobj</span>
-<span class="sd">        package documentation for details.</span>
+<span class="sd">        package documentation for details. Provide SO_args or SO_instance, not</span>
+<span class="sd">        both.</span>
+
+<span class="sd">    SO_instance : SimObj instance</span>
+<span class="sd">        An initialized SimObj object. Provide SO_instance or SO_args, not both.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -602,25 +606,47 @@
             <span class="n">distance</span><span class="o">=</span><span class="mf">3.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">,</span>
             <span class="n">rotation</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;L_coords&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">60.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">)},</span>
             <span class="n">ra</span><span class="o">=</span><span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
-            <span class="n">dec</span><span class="o">=</span><span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">SO_args</span><span class="o">=</span><span class="nb">dict</span><span class="p">()</span>
+            <span class="n">dec</span><span class="o">=</span><span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+            <span class="n">SO_args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">SO_instance</span><span class="o">=</span><span class="kc">None</span>
     <span class="p">):</span>
 
         <span class="kn">from</span> <span class="nn">simobj</span> <span class="k">import</span> <span class="n">SimObj</span>  <span class="c1"># optional dependency for this source class</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_SO_args</span> <span class="o">=</span> <span class="n">SO_args</span>
-        <span class="k">with</span> <span class="n">SimObj</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_SO_args</span><span class="p">)</span> <span class="k">as</span> <span class="n">SO</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">SO_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">SO_instance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;martini.source.SOSource: Provide SO_args or &#39;</span>
+                             <span class="s1">&#39;SO_instance, not both.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">SO_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">SimObj</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_SO_args</span><span class="p">)</span> <span class="k">as</span> <span class="n">SO</span><span class="p">:</span>
+                <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+                    <span class="n">distance</span><span class="o">=</span><span class="n">distance</span><span class="p">,</span>
+                    <span class="n">rotation</span><span class="o">=</span><span class="n">rotation</span><span class="p">,</span>
+                    <span class="n">ra</span><span class="o">=</span><span class="n">ra</span><span class="p">,</span>
+                    <span class="n">dec</span><span class="o">=</span><span class="n">dec</span><span class="p">,</span>
+                    <span class="n">h</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">h</span><span class="p">,</span>
+                    <span class="n">T_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">T_g</span><span class="p">,</span>
+                    <span class="n">mHI_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">mHI_g</span><span class="p">,</span>
+                    <span class="n">xyz_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">xyz_g</span><span class="p">,</span>
+                    <span class="n">vxyz_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">vxyz_g</span><span class="p">,</span>
+                    <span class="n">hsm_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">hsm_g</span>
+                <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">SO_instance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
                 <span class="n">distance</span><span class="o">=</span><span class="n">distance</span><span class="p">,</span>
                 <span class="n">rotation</span><span class="o">=</span><span class="n">rotation</span><span class="p">,</span>
                 <span class="n">ra</span><span class="o">=</span><span class="n">ra</span><span class="p">,</span>
                 <span class="n">dec</span><span class="o">=</span><span class="n">dec</span><span class="p">,</span>
-                <span class="n">h</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">h</span><span class="p">,</span>
-                <span class="n">T_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">T_g</span><span class="p">,</span>
-                <span class="n">mHI_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">mHI_g</span><span class="p">,</span>
-                <span class="n">xyz_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">xyz_g</span><span class="p">,</span>
-                <span class="n">vxyz_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">vxyz_g</span><span class="p">,</span>
-                <span class="n">hsm_g</span><span class="o">=</span><span class="n">SO</span><span class="o">.</span><span class="n">hsm_g</span>
-                <span class="p">)</span>
+                <span class="n">h</span><span class="o">=</span><span class="n">SO_instance</span><span class="o">.</span><span class="n">h</span><span class="p">,</span>
+                <span class="n">T_g</span><span class="o">=</span><span class="n">SO_instance</span><span class="o">.</span><span class="n">T_g</span><span class="p">,</span>
+                <span class="n">mHI_g</span><span class="o">=</span><span class="n">SO_instance</span><span class="o">.</span><span class="n">mHI_g</span><span class="p">,</span>
+                <span class="n">xyz_g</span><span class="o">=</span><span class="n">SO_instance</span><span class="o">.</span><span class="n">xyz_g</span><span class="p">,</span>
+                <span class="n">vxyz_g</span><span class="o">=</span><span class="n">SO_instance</span><span class="o">.</span><span class="n">vxyz_g</span><span class="p">,</span>
+                <span class="n">hsm_g</span><span class="o">=</span><span class="n">SO_instance</span><span class="o">.</span><span class="n">hsm_g</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;martini.sources.SOSource: Provide one of SO_args&#39;</span>
+                             <span class="s1">&#39; or SO_instance.&#39;</span><span class="p">)</span>
         <span class="k">return</span></div>
 
 

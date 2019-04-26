@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Sources (martini.sources) &mdash; MARTINI 1.0.2 documentation</title>
+  <title>Sources (martini.sources) &mdash; MARTINI 1.0.4 documentation</title>
   
 
   
@@ -59,7 +59,7 @@
             
             
               <div class="version">
-                1.0.2
+                1.0.4
               </div>
             
           
@@ -216,7 +216,7 @@ corresponding values:
 
 <dl class="class">
 <dt id="martini.sources.SOSource">
-<em class="property">class </em><code class="descclassname">martini.sources.</code><code class="descname">SOSource</code><span class="sig-paren">(</span><em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em>, <em>SO_args={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources.html#SOSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources.SOSource" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">martini.sources.</code><code class="descname">SOSource</code><span class="sig-paren">(</span><em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em>, <em>SO_args=None</em>, <em>SO_instance=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources.html#SOSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources.SOSource" title="Permalink to this definition">¶</a></dt>
 <dd><p>Class abstracting HI sources using the SimObj package for interface to
 simulation data.</p>
 <p>This class accesses simulation data via the SimObj package
@@ -249,7 +249,11 @@ corresponding values:
 <dd><p class="first last">Dictionary of keyword arguments to pass to a call to simobj.SimObj.
 Arguments are: ‘obj_id’, ‘snap_id’, ‘mask_type’, ‘mask_args’,
 ‘mask_kwargs’, ‘configfile’, ‘simfiles_configfile’, ‘ncpu’. See simobj
-package documentation for details.</p>
+package documentation for details. Provide SO_args or SO_instance, not
+both.</p>
+</dd>
+<dt><strong>SO_instance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">SimObj instance</span></dt>
+<dd><p class="first last">An initialized SimObj object. Provide SO_instance or SO_args, not both.</p>
 </dd>
 </dl>
 </td>
