@@ -9,6 +9,8 @@ The package is functional and (an old version) has been used in this paper_. Sta
 
 .. _paper: https://ui.adsabs.harvard.edu/#abs/2019MNRAS.482..821O/abstract
 
+MARTINI does not support use with python2.
+
 See the help for martini.Martini_ for an example script to configure MARTINI and create a datacube. This example can be run by doing::
   
   python -c "from martini import demo; demo()"
