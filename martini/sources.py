@@ -58,7 +58,7 @@ class SPHSource(object):
         Particle temperature.
 
     mHI_g : astropy.unit.Quantity, with dimensions of mass
-        Particle mass.
+        Particle HI mass.
 
     xyz_g : astropy.units.Quantity array of length 3, with dimensions of length
         Particle position offset from source centroid. Note that the 'y-z'
