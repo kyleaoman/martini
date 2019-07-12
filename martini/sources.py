@@ -657,3 +657,16 @@ class TNGSource(SPHSource):
             hsm_g=hsm_g
         )
         return
+
+    def save_current_rotation(self, fname):
+        """
+        Output current rotation matrix to file.
+
+        Parameters
+        ----------
+        fname : filename or file handle
+            File in which to save rotation matrix.
+        """
+
+        np.savetxt(fname, self.current_rot)
+        return
