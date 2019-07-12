@@ -268,7 +268,7 @@ class SPHSource(object):
             File in which to save rotation matrix.
         """
 
-        np.savetxt(fname, self.current_rot)
+        np.savetxt(fname, self.current_rotation)
         return
 
 
