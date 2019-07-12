@@ -812,7 +812,20 @@
             <span class="n">vxyz_g</span><span class="o">=</span><span class="n">vxyz_g</span><span class="p">,</span>
             <span class="n">hsm_g</span><span class="o">=</span><span class="n">hsm_g</span>
         <span class="p">)</span>
-        <span class="k">return</span></div>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="TNGSource.save_current_rotation"><a class="viewcode-back" href="../../source.html#martini.sources.TNGSource.save_current_rotation">[docs]</a>    <span class="k">def</span> <span class="nf">save_current_rotation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fname</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Output current rotation matrix to file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fname : filename or file handle</span>
+<span class="sd">            File in which to save rotation matrix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_rot</span><span class="p">)</span>
+        <span class="k">return</span></div></div>
 </pre></div>
 
            </div>
