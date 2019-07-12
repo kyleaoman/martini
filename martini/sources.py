@@ -258,6 +258,19 @@ class SPHSource(object):
             self.coordinates_g.differentials['s'].translate(translation_vector)
         return
 
+    def save_current_rotation(self, fname):
+        """
+        Output current rotation matrix to file.
+
+        Parameters
+        ----------
+        fname : filename or file handle
+            File in which to save rotation matrix.
+        """
+
+        np.savetxt(fname, self.current_rot)
+        return
+
 
 class SingleParticleSource(SPHSource):
     """
@@ -656,17 +669,4 @@ class TNGSource(SPHSource):
             vxyz_g=vxyz_g,
             hsm_g=hsm_g
         )
-        return
-
-    def save_current_rotation(self, fname):
-        """
-        Output current rotation matrix to file.
-
-        Parameters
-        ----------
-        fname : filename or file handle
-            File in which to save rotation matrix.
-        """
-
-        np.savetxt(fname, self.current_rot)
         return
