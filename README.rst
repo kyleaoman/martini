@@ -17,6 +17,21 @@ See the help for martini.Martini_ for an example script to configure MARTINI and
 
 .. _martini.Martini: https://kyleaoman.github.io/martini/build/html/martini.html
 
+Martini has (so far) been successfully run on the output of these simulations:
+ - EAGLE
+ - APOSTLE
+ - C-EAGLE/Hydrangea
+ - Illustris
+ - IllustrisTNG
+ - Augiga
+ - MaGICC
+I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please contact me at the address below. Currently custom source modules exist for:
+ - EAGLE (martini.sources.EAGLESource_)
+ - IllustrisTNG (martini.sources.TNGSource_; also works with Illustris)
+
+.. _martini.sources.EAGLESource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource
+.. _martini.sources.TNGSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource
+   
 If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via koman@astro.rug.nl.
 
 .. _koman@astro.rug.nl: mailto:koman@astro.rug.nl
