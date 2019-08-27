@@ -18,7 +18,13 @@ setup(
     install_requires=['numpy >= 1.15.3', 'astropy >= 3.0', 'scipy'],
     extras_require={
         'hdf5_output': 'h5py',
-        'hdecompose': 'Hdecompose @ https://github.com/kyleaoman/Hdecompose/'
+        'eaglesource': [
+            'Hdecompose @ https://github.com/kyleaoman/Hdecompose/'
+            'archive/master.zip#egg=Hdecompose',
+            'read_eagle @ https://github.com/jchelly/read_eagle/'
+            'archive/master.zip#egg=read_eagle'
+        ],
+        'tngsource': 'Hdecompose @ https://github.com/kyleaoman/Hdecompose/'
         'archive/master.zip#egg=Hdecompose',
         'sosource': [
             'simfiles @ https://github.com/kyleaoman/simfiles/'
