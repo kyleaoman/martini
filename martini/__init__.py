@@ -42,7 +42,8 @@ Martini has (so far) been successfully run on the output of these simulations:
  - Illustris
  - IllustrisTNG
  - Augiga
- - MaGICC
+ - MaGICC (and therefore in principle NIHAO)
+ - Magneticum
 I attempt to support publicly available simulations with a customized source
 module. If your simulation is public and not supported, please contact me at
 the address below. Currently custom source modules exist for:
@@ -54,4 +55,8 @@ to the github page, ideally specifying the version used (git commit ID or
 version number).
 
 Suport available via koman@astro.rug.nl.
+
+Installation Notes available on https://github.com/kyleaoman/martini, or
+https://kyleaoman.github.io/martini/build/html/index.html
+
 """
