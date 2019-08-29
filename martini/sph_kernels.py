@@ -374,6 +374,123 @@ class WendlandC2Kernel(_BaseSPHKernel):
         return 1
 
 
+class WendlandC6Kernel(_BaseSPHKernel):
+    """
+    Implementation of the Wendland C6 kernel integral.
+
+    The Wendland C6 kernel is used in the Magneticum code (not in
+    Gadget/Gadget2!). The exact integral is usually too slow to be practical,
+    and I have not yet undertaken the painful process of deriving a useful
+    approximation. Instead, use the GaussianKernel.mimic functionality.
+
+    To obtain a Wendland C6 kernel which resembles a Gaussian kernel with
+    sigma = 1, use rescale_sph_h = 2 * sqrt(2 * log(2)). Note that this
+    scaling can be used to approximate this kernel using other kernels, or
+    vice-versa.
+
+    Incomplete implementation based on Dehnen & Aly (2012).
+
+    The WendlandC6 kernel is here defined as (q = r / h):
+        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * r + 25 * r^2 + 32 * r^3)
+        for 0 <= q < 2
+        W(q) = 0
+        for q >= 2
+
+    Parameters
+    ----------
+    rescale_sph_h : float
+        Factor by which to rescale SPH smoothing lengths. This can be used to
+        adjust particle smoothing lengths in order to approximate the kernel
+        actually used in simulation with a similar kernel with different
+        scaling.
+
+    Returns
+    -------
+    out : WendlandC6Kernel
+        An appropriately initialized WendlandC6Kernel object.
+    """
+
+    hscale_to_gaussian = 2 * np.sqrt(2 * np.log(2))
+
+    def __init__(self, rescale_sph_h=1):
+        super().__init__(rescale_sph_h=rescale_sph_h)
+        return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function.
+
+        The WendlandC6 kernel is here defined as (q = r / h):
+        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * r + 25 * r^2 + 32 * r^3)
+        for 0 <= q < 2 (or 2.449490?)
+        W(q) = 0
+        for q >= 2
+
+
+        Parameters
+        ----------
+        q : np.array
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : np.array
+            Kernel value at positions q.
+        """
+
+        W = np.where(
+            q < 1,
+            np.power(1 - q, 8)
+            * (1 + 8 * q + 25 * np.power(q, 2) + 32 * np.power(q, 3)),
+            np.zeros(q.shape)
+        )
+        W *= (1365 / 64 / np.pi)  # this normalization maybe /32pi?
+        return W
+
+    def kernel_integral(self, dij, h):
+        """
+        Calculate the kernel integral over a pixel. Not currently implemented.
+
+        Parameters
+        ----------
+        dij : astropy.units.Quantity, with dimensions of pixels
+            Distances from pixel centre to particle positions, in pixels.
+
+        h : astropy.units.Quantity, with dimensions of pixels
+            Particle smoothing lengths, in pixels.
+
+        Returns
+        -------
+        out : np.array
+            Approximate kernel integral over the pixel area.
+        """
+
+        raise NotImplementedError('WendlandC6 integral not implemented.'
+                                  ' Use mimic and GaussianKernel insteal.')
+        return
+
+    def validate(self, sm_lengths):
+        """
+        Check conditions for validity of kernel integral calculation.
+
+        Parameters
+        ----------
+        sm_lengths : astropy.units.Quantity, with dimensions of pixels
+            Particle smoothing lengths, in units of pixels.x
+        """
+
+        return
+
+    def size_in_h(self):
+        """
+        Return the maximum distance where the kernel is non-zero.
+
+        The WendlandC6 kernel is defined such that it reaches 0 at h=1.
+        (Or maybe a bit further? See Dehnen & Aly 2012).
+        """
+        return 1
+
+
 class CubicSplineKernel(_BaseSPHKernel):
     """
     Implementation of the cubic spline (M4) kernel integral.
