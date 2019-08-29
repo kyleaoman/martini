@@ -1,6 +1,6 @@
 .. image:: martini_banner.png
 	   
-Overview	   
+Overview
 ========
 
 MARTINI is a modular package for the creation of synthetic resolved HI line observations (data cubes) of smoothed-particle hydrodynamics simulations of galaxies. The various aspects of the mock-observing process are divided logically into sub-modules handling the data cube, source, beam, noise, spectral model and SPH kernel. MARTINI is object-oriented: each sub-module provides a class (or classes) which can be configured as desired. For most sub-modules, base classes are provided to allow for straightforward customization. Instances of each sub-module class are then given as parameters to the Martini class. A mock observation is then constructed by calling a handful of functions to execute the desired steps in the mock-observing process.
@@ -25,7 +25,8 @@ Martini has (so far) been successfully run on the output of these simulations:
 - Illustris
 - IllustrisTNG
 - Augiga
-- MaGICC
+- MaGICC (and therefore in principle NIHAO)
+- Magneticum
 
 I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please contact me at the address below. Currently custom source modules exist for:
 
@@ -38,3 +39,29 @@ I attempt to support publicly available simulations with a customized source mod
 If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via koman@astro.rug.nl.
 
 .. _koman@astro.rug.nl: mailto:koman@astro.rug.nl
+
+Installation Notes
+==================
+
+The easiest way to install martini is from PyPI by doing ``python3 -m pip install astromartini``; python2 is not supported. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. However, some optional features require additional dependencies hosted on github, and PyPI does not allow installing these automatically. In particular, EAGLE and Illustris/TNG users who wish to use the custom source modules for those simulations in Martini must install from github (see below) to automatically install the optional dependencies. Or, it is also possible to install from PyPI and then manually install the optional dependencies.
+
+Installing from github
+----------------------
+
+Choose a branch_. The numbered branches (e.g. 1.0.X) are stable, while the master branch is actively developed. The latest numbered branch is usually the best choice. From the branch page (e.g. ``https://github.com/kyleaoman/martini/tree/1.0.X``), click the green 'Clone or download' button and follow instructions to obtain the files. Unpack the zip file if necessary. You should then be able to do ``python3 -m pip install martini/[optional]``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``setup.py`` file for Martini. The currently available options are:
+
+- ``hdf5_output``: Supports output to hdf5 files via the h5py package. Since h5py is hosted on PyPI, this option may be used when installing via PyPI.
+- ``eaglesource``: Dependencies for the EAGLESource_ module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions. Also installs John Helly's `read_eagle`_ package for quick extraction of particles in a simulation sub-volume. Unfortunately this requires a C compiler which can find an installation of the hdf5_ libraries.
+- ``tngsource``: Dependencies for the TNGSource_ module, which greatly simplifies reading input from IllustrisTNG (and original Illustris) snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions.
+- ``sosource``: Dependencies for the SOSource_ module, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may contact_ me for further information.
+
+.. _branch: https://github.com/kyleaoman/martini/branches
+.. _EAGLESource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource
+.. _Hdecompose: https://github.com/kyleaoman/Hdecompose
+.. _`Rahmati et al. (2013)`: https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract
+.. _`Blitz & Rosolowsky (2006)`: https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract
+.. _`read_eagle`: https://github.com/jchelly/read_eagle
+.. _`hdf5`: https://www.hdfgroup.org/solutions/hdf5/
+.. _TNGSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource
+.. _SOSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.SOSource
+.. _contact: mailto:koman@astro.rug.nl
