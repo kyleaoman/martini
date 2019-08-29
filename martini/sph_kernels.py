@@ -2,6 +2,15 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
 from scipy.special import erf
+from scipy.optimize import fsolve
+
+# *** TODO *** Review definition of h, I think this would make sense to always map
+# onto the FWHM of the kernel, which is unambiguous. Then the user must specify how
+# their SPH smoothing length table values relate to the kernel FWHM.
+
+
+def find_fwhm(f):
+    return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, .5)
 
 
 class _BaseSPHKernel(object):
@@ -77,19 +86,20 @@ class _BaseSPHKernel(object):
             other_kernel = other_kernel()
         except TypeError:
             pass
-        if other_kernel.hscale_to_gaussian is None:
+        inst = cls()
+        if other_kernel.fwhm is None:
             raise ValueError(
                 "{:s} cannot be rescaled, and therefore cannot be mimicked."
                 .format(type(other_kernel).__name__)
             )
-        if cls.hscale_to_gaussian is None:
+        if inst.fwhm is None:
             raise ValueError(
                 "{:s} cannot be rescaled, and therefore cannot mimic other "
                 "kernels.".format(cls.__name__)
             )
         return cls(
-            rescale_sph_h=cls.hscale_to_gaussian
-            / other_kernel.hscale_to_gaussian
+            rescale_sph_h=other_kernel.fwhm
+            / inst.fwhm
             * other_kernel.rescale_sph_h,
             **kwargs
         )
@@ -273,10 +283,9 @@ class WendlandC2Kernel(_BaseSPHKernel):
         An appropriately initialized WendlandC2Kernel object.
     """
 
-    hscale_to_gaussian = 2 * np.sqrt(2 * np.log(2))
-
     def __init__(self, rescale_sph_h=1):
         super().__init__(rescale_sph_h=rescale_sph_h)
+        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         return
 
     def kernel(self, q):
@@ -369,7 +378,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         """
         Return the maximum distance where the kernel is non-zero.
 
-        The WendlandC2 kernel is defined such that it reaches 0 at h=1.
+        The WendlandC2 kernel is defined such that it reaches 0 at r/h=1.
         """
         return 1
 
@@ -392,9 +401,9 @@ class WendlandC6Kernel(_BaseSPHKernel):
 
     The WendlandC6 kernel is here defined as (q = r / h):
         W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * r + 25 * r^2 + 32 * r^3)
-        for 0 <= q < 2
+        for 0 <= q < 1
         W(q) = 0
-        for q >= 2
+        for q >= 1
 
     Parameters
     ----------
@@ -410,10 +419,9 @@ class WendlandC6Kernel(_BaseSPHKernel):
         An appropriately initialized WendlandC6Kernel object.
     """
 
-    hscale_to_gaussian = 2 * np.sqrt(2 * np.log(2))
-
     def __init__(self, rescale_sph_h=1):
         super().__init__(rescale_sph_h=rescale_sph_h)
+        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         return
 
     def kernel(self, q):
@@ -422,9 +430,9 @@ class WendlandC6Kernel(_BaseSPHKernel):
 
         The WendlandC6 kernel is here defined as (q = r / h):
         W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * r + 25 * r^2 + 32 * r^3)
-        for 0 <= q < 2 (or 2.449490?)
+        for 0 <= q < 1
         W(q) = 0
-        for q >= 2
+        for q >= 1
 
 
         Parameters
@@ -444,7 +452,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
             * (1 + 8 * q + 25 * np.power(q, 2) + 32 * np.power(q, 3)),
             np.zeros(q.shape)
         )
-        W *= (1365 / 64 / np.pi)  # this normalization maybe /32pi?
+        W *= (1365 / 64 / np.pi)
         return W
 
     def kernel_integral(self, dij, h):
@@ -485,8 +493,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         """
         Return the maximum distance where the kernel is non-zero.
 
-        The WendlandC6 kernel is defined such that it reaches 0 at h=1.
-        (Or maybe a bit further? See Dehnen & Aly 2012).
+        The WendlandC6 kernel is defined such that it reaches 0 at r/h=1.
         """
         return 1
 
@@ -527,10 +534,9 @@ class CubicSplineKernel(_BaseSPHKernel):
         An appropriately initialized CubicSplineKernel object.
     """
 
-    hscale_to_gaussian = np.sqrt(2 * np.log(2))
-
     def __init__(self, rescale_sph_h=1):
         super().__init__(rescale_sph_h=rescale_sph_h)
+        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         return
 
     def kernel(self, q):
@@ -657,7 +663,7 @@ class GaussianKernel(_BaseSPHKernel):
     in order to minimize the error.
 
     The Gaussian kernel is here defined as (q = r / h):
-    W(q) = (2 / pi^1.5) * np.exp(-q^2)
+    W(q) = (2 * pi)^-1.5 * np.exp(-q^2)
     for 0 <= q < truncate
     W(q) = 0
     for q >= truncate
@@ -680,11 +686,10 @@ class GaussianKernel(_BaseSPHKernel):
         An appropriately initialized GaussianKernel object.
     """
 
-    hscale_to_gaussian = 1
-
     def __init__(self, truncate=3, rescale_sph_h=1):
         self.truncate = truncate
         super().__init__(rescale_sph_h=rescale_sph_h)
+        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         return
 
     def kernel(self, q):
@@ -692,7 +697,7 @@ class GaussianKernel(_BaseSPHKernel):
         Evaluate the kernel function.
 
         The Gaussian kernel is here defined as (q = r / h):
-        W(q) = (2 / pi^1.5) * np.exp(-q^2)
+        W(q) = (2 * pi)^-1.5 * np.exp(-q^2 / 2)
         for 0 <= q < truncate
         W(q) = 0
         for q >= truncate
@@ -708,9 +713,11 @@ class GaussianKernel(_BaseSPHKernel):
             Kernel value at positions q.
         """
 
+        sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
         return np.where(
             q < self.truncate,
-            2 * np.power(np.pi, -1.5) * np.exp(-np.power(q, 2)),
+            np.power(sig * np.sqrt(2 * np.pi), -3)
+            * np.exp(-np.power(q / sig, 2) / 2),
             np.zeros(q.shape)
         )
 
@@ -807,10 +814,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         An appropriately initialized DiracDeltaKernel object.
     """
 
-    hscale_to_gaussian = None
-
     def __init__(self, rescale_sph_h=1):
         super().__init__(rescale_sph_h=rescale_sph_h)
+        self.fwhm = None
         return
 
     def kernel(self, q):
