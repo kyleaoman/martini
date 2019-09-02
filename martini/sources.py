@@ -714,7 +714,9 @@ class EAGLESource(SPHSource):
     Parameters
     ----------
     snapPath : string
-        Directory containing snapshot files.
+        Directory containing snapshot files. The directory structure unpacked
+        from the publicly available tarballs is expected; removing/renaming
+        files or directories below this will cause errors.
 
     snapBase : string
         Filename of snapshot files, omitting portion '.X.hdf5'.
@@ -740,9 +742,10 @@ class EAGLESource(SPHSource):
 
     subBoxSize : astropy.units.Quantity, with dimensions of length
         Box half-side length of a region to load around the object of interest,
-        in physical (not comoving, no little h) units. This is to avoid needing
-        to load the entire particle arrays. By default set to 1 Mpc, which
-        should be adequate for most galaxies.
+        in physical (not comoving, no little h) units. Using larger values
+        will include more foreground/background, which may be desirable, but
+        will also slow down execution and impair the automatic routine used
+        to find a disc plane.
 
     distance : astropy.units.Quantity, with dimensions of length
         Source distance, also used to set the velocity offset via Hubble's law.
@@ -773,6 +776,9 @@ class EAGLESource(SPHSource):
     dec : astropy.units.Quantity, with dimensions of angle
         Declination for the source centroid.
 
+    print_query : bool
+        If True, the SQL query submitted to the EAGLE database is printed.
+
     Returns
     -------
     out : EAGLESource
@@ -787,12 +793,13 @@ class EAGLESource(SPHSource):
             sub=None,
             db_user=None,
             db_key=None,
-            subBoxSize=1*U.Mpc,
+            subBoxSize=50.*U.kpc,
             distance=3.*U.Mpc,
             vpeculiar=0*U.km/U.s,
             rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
             ra=0.*U.deg,
-            dec=0.*U.deg
+            dec=0.*U.deg,
+            print_query=False
     ):
 
         if snapPath is None:
@@ -805,8 +812,6 @@ class EAGLESource(SPHSource):
             raise ValueError('Provide sub argument to EAGLESource.')
         if db_user is None:
             raise ValueError('Provide EAGLE database username.')
-        if db_key is None:
-            print('EAGLE database')
 
         # optional dependencies for this source class
         from eagleSqlTools import connect, execute_query
@@ -816,23 +821,28 @@ class EAGLESource(SPHSource):
 
         snapNum = int(snapBase.split('_')[1])
         volCode = normpath(snapPath).split(sep)[-2]
-        q = execute_query(
-            connect(db_user, db_key),
-            'SELECT '
-            '  sh.redshift as redshift, '
-            '  sh.CentreOfPotential_x as x, '
-            '  sh.CentreOfPotential_y as y, '
-            '  sh.CentreOfPotential_z as z, '
-            '  sh.Velocity_x as vx, '
-            '  sh.Velocity_y as vy, '
-            '  sh.Velocity_z as vz '
-            'FROM '
-            '  {:s}_SubHalo as sh '.format(volCode) +
-            'WHERE '
-            '  sh.Snapnum = {:d} '.format(snapNum) +
-            '  and sh.GroupNumber = {:d} '.format(fof) +
+        query = \
+            'SELECT '\
+            '  sh.redshift as redshift, '\
+            '  sh.CentreOfPotential_x as x, '\
+            '  sh.CentreOfPotential_y as y, '\
+            '  sh.CentreOfPotential_z as z, '\
+            '  sh.Velocity_x as vx, '\
+            '  sh.Velocity_y as vy, '\
+            '  sh.Velocity_z as vz '\
+            'FROM '\
+            '  {:s}_SubHalo as sh '.format(volCode) + \
+            'WHERE '\
+            '  sh.Snapnum = {:d} '.format(snapNum) + \
+            '  and sh.GroupNumber = {:d} '.format(fof) + \
             '  and sh.SubGroupNumber = {:d}'.format(sub)
-        )
+        if print_query:
+            print('-----EAGLE-DB-QUERY-----')
+            print(query)
+            print('-------QUERY-ENDS-------')
+        if db_key is None:
+            print('EAGLE database')
+        q = execute_query(connect(db_user, db_key), query)
         redshift = q['redshift']
         a = np.power(1 + redshift, -1)
         cop = np.array([q[coord] for coord in 'xyz']) * a * U.Mpc
