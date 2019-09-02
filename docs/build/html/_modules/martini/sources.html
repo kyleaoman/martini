@@ -156,7 +156,7 @@
             
   <h1>Source code for martini.sources</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">os.path</span> <span class="k">import</span> <span class="n">join</span>
+<span class="kn">from</span> <span class="nn">os.path</span> <span class="k">import</span> <span class="n">join</span><span class="p">,</span> <span class="n">normpath</span><span class="p">,</span> <span class="n">sep</span>
 <span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="k">import</span> <span class="n">CartesianRepresentation</span><span class="p">,</span>\
     <span class="n">CartesianDifferential</span><span class="p">,</span> <span class="n">ICRS</span>
 <span class="kn">from</span> <span class="nn">astropy.coordinates.matrix_utilities</span> <span class="k">import</span> <span class="n">rotation_matrix</span>
@@ -871,20 +871,12 @@
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    snapPath : string</span>
-<span class="sd">        Directory containing snapshot files.</span>
+<span class="sd">        Directory containing snapshot files. The directory structure unpacked</span>
+<span class="sd">        from the publicly available tarballs is expected; removing/renaming</span>
+<span class="sd">        files or directories below this will cause errors.</span>
 
 <span class="sd">    snapBase : string</span>
-<span class="sd">        Filename of snapshot files, omitting portion &#39;.X.hdf5&#39;. Note these must</span>
-<span class="sd">        be the subfind-processed files, usually named </span>
-<span class="sd">        &#39;eagle_subfind_particles[...]&#39;.</span>
-
-<span class="sd">    groupPath : string</span>
-<span class="sd">        Directory containing group catalog files.</span>
-
-<span class="sd">    groupBase : string</span>
-<span class="sd">        Filename of group catalog files, omitting portion &#39;.X.hdf5&#39;. Note</span>
-<span class="sd">        these must be the subfind tables, usually named </span>
-<span class="sd">        &#39;eagle_subfind_tab[...]&#39;.</span>
+<span class="sd">        Filename of snapshot files, omitting portion &#39;.X.hdf5&#39;.</span>
 
 <span class="sd">    fof : int</span>
 <span class="sd">        FOF group number of the target object. Note that all particles in the</span>
@@ -899,11 +891,18 @@
 <span class="sd">        number is 0, for satellites &gt;0. In the EAGLE database, this is then</span>
 <span class="sd">        &#39;SubGroupNumber&#39;.</span>
 
+<span class="sd">    db_user : string</span>
+<span class="sd">        Database username.</span>
+
+<span class="sd">    db_key : string</span>
+<span class="sd">        Database password.</span>
+
 <span class="sd">    subBoxSize : astropy.units.Quantity, with dimensions of length</span>
 <span class="sd">        Box half-side length of a region to load around the object of interest,</span>
-<span class="sd">        in physical (not comoving, no little h) units. This is only to avoid</span>
-<span class="sd">        needing to load the entire particle arrays. By default set to 1 Mpc,</span>
-<span class="sd">        which should be adequate for most galaxies.</span>
+<span class="sd">        in physical (not comoving, no little h) units. Using larger values</span>
+<span class="sd">        will include more foreground/background, which may be desirable, but</span>
+<span class="sd">        will also slow down execution and impair the automatic routine used</span>
+<span class="sd">        to find a disc plane.</span>
 
 <span class="sd">    distance : astropy.units.Quantity, with dimensions of length</span>
 <span class="sd">        Source distance, also used to set the velocity offset via Hubble&#39;s law.</span>
@@ -934,6 +933,9 @@
 <span class="sd">    dec : astropy.units.Quantity, with dimensions of angle</span>
 <span class="sd">        Declination for the source centroid.</span>
 
+<span class="sd">    print_query : bool</span>
+<span class="sd">        If True, the SQL query submitted to the EAGLE database is printed.</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    out : EAGLESource</span>
@@ -944,79 +946,78 @@
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">snapPath</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">snapBase</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">groupPath</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">groupBase</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">fof</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">sub</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">subBoxSize</span><span class="o">=</span><span class="mi">1</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">,</span>
+            <span class="n">db_user</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">db_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">subBoxSize</span><span class="o">=</span><span class="mf">50.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">kpc</span><span class="p">,</span>
             <span class="n">distance</span><span class="o">=</span><span class="mf">3.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">,</span>
             <span class="n">vpeculiar</span><span class="o">=</span><span class="mi">0</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">km</span><span class="o">/</span><span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="p">,</span>
             <span class="n">rotation</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;L_coords&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">60.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">)},</span>
             <span class="n">ra</span><span class="o">=</span><span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
-            <span class="n">dec</span><span class="o">=</span><span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span>
+            <span class="n">dec</span><span class="o">=</span><span class="mf">0.</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+            <span class="n">print_query</span><span class="o">=</span><span class="kc">False</span>
     <span class="p">):</span>
 
         <span class="k">if</span> <span class="n">snapPath</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provide snapPath argument to EAGLESource.&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">snapBase</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provide snapBase argument to EAGLESource.&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">groupPath</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provide groupPath argument to EAGLESource.&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">groupBase</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provide groupBase argument to EAGLESource.&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fof</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provide fof argument to EAGLESource.&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">sub</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provide sub argument to EAGLESource.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">db_user</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provide EAGLE database username.&#39;</span><span class="p">)</span>
 
         <span class="c1"># optional dependencies for this source class</span>
+        <span class="kn">from</span> <span class="nn">eagleSqlTools</span> <span class="k">import</span> <span class="n">connect</span><span class="p">,</span> <span class="n">execute_query</span>
         <span class="kn">from</span> <span class="nn">read_eagle</span> <span class="k">import</span> <span class="n">EagleSnapshot</span>
         <span class="kn">from</span> <span class="nn">Hdecompose.atomic_frac</span> <span class="k">import</span> <span class="n">atomic_frac</span>
         <span class="kn">import</span> <span class="nn">h5py</span>
 
-        <span class="n">fileN</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>  <span class="c1"># will break when group found or raise when out of files</span>
-            <span class="n">groupFile</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">groupPath</span><span class="p">,</span> <span class="n">groupBase</span><span class="o">+</span><span class="s1">&#39;.</span><span class="si">{:d}</span><span class="s1">.hdf5&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fileN</span><span class="p">))</span>
-            <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">groupFile</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">g</span><span class="p">:</span>
-                <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span>
-                    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;/Subhalo/GroupNumber&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="n">fof</span><span class="p">,</span>
-                    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;/Subhalo/SubGroupNumber&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="n">sub</span>
-                <span class="p">)</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">mask</span><span class="p">):</span>
-                    <span class="n">fileN</span> <span class="o">+=</span> <span class="mi">1</span>
-                    <span class="k">continue</span>  <span class="c1"># group not in this file, try next one</span>
-                <span class="n">a</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;Header&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;Time&#39;</span><span class="p">]</span>
-                <span class="n">redshift</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">a</span> <span class="o">-</span> <span class="mi">1</span>
-                <span class="n">h</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;Header&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;HubbleParam&#39;</span><span class="p">]</span>
-                <span class="n">lbox</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;Header&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;BoxSize&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Mpc</span> <span class="o">/</span> <span class="n">h</span>
-                <span class="n">code_to_g</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;/Units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;UnitMass_in_g&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">g</span>
-                <span class="n">code_to_cm</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;/Units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;UnitLength_in_cm&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">cm</span>
-                <span class="n">code_to_cm_s</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;/Units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;UnitVelocity_in_cm_per_s&#39;</span><span class="p">]</span> \
-                    <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">cm</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span>
-                <span class="n">dset</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;/Subhalo/CentreOfPotential&#39;</span><span class="p">]</span>
-                <span class="n">aexp</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;aexp-scale-exponent&#39;</span><span class="p">)</span>
-                <span class="n">hexp</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;h-scale-exponent&#39;</span><span class="p">)</span>
-                <span class="n">cop</span> <span class="o">=</span> <span class="p">(</span><span class="n">dset</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">aexp</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">hexp</span><span class="p">)</span>
-                       <span class="o">*</span> <span class="n">code_to_cm</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">kpc</span><span class="p">)</span>
-                <span class="n">dset</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;/Subhalo/Velocity&#39;</span><span class="p">]</span>
-                <span class="n">aexp</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;aexp-scale-exponent&#39;</span><span class="p">)</span>
-                <span class="n">hexp</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;h-scale-exponent&#39;</span><span class="p">)</span>
-                <span class="n">vcent</span> <span class="o">=</span> <span class="p">(</span><span class="n">dset</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">aexp</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">hexp</span><span class="p">)</span>
-                         <span class="o">*</span> <span class="n">code_to_cm_s</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="p">)</span>
-                <span class="k">break</span>
+        <span class="n">snapNum</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">snapBase</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">volCode</span> <span class="o">=</span> <span class="n">normpath</span><span class="p">(</span><span class="n">snapPath</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">sep</span><span class="p">)[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">query</span> <span class="o">=</span> \
+            <span class="s1">&#39;SELECT &#39;</span>\
+            <span class="s1">&#39;  sh.redshift as redshift, &#39;</span>\
+            <span class="s1">&#39;  sh.CentreOfPotential_x as x, &#39;</span>\
+            <span class="s1">&#39;  sh.CentreOfPotential_y as y, &#39;</span>\
+            <span class="s1">&#39;  sh.CentreOfPotential_z as z, &#39;</span>\
+            <span class="s1">&#39;  sh.Velocity_x as vx, &#39;</span>\
+            <span class="s1">&#39;  sh.Velocity_y as vy, &#39;</span>\
+            <span class="s1">&#39;  sh.Velocity_z as vz &#39;</span>\
+            <span class="s1">&#39;FROM &#39;</span>\
+            <span class="s1">&#39;  </span><span class="si">{:s}</span><span class="s1">_SubHalo as sh &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">volCode</span><span class="p">)</span> <span class="o">+</span> \
+            <span class="s1">&#39;WHERE &#39;</span>\
+            <span class="s1">&#39;  sh.Snapnum = </span><span class="si">{:d}</span><span class="s1"> &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snapNum</span><span class="p">)</span> <span class="o">+</span> \
+            <span class="s1">&#39;  and sh.GroupNumber = </span><span class="si">{:d}</span><span class="s1"> &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fof</span><span class="p">)</span> <span class="o">+</span> \
+            <span class="s1">&#39;  and sh.SubGroupNumber = </span><span class="si">{:d}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">print_query</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;-----EAGLE-DB-QUERY-----&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;-------QUERY-ENDS-------&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">db_key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;EAGLE database&#39;</span><span class="p">)</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">execute_query</span><span class="p">(</span><span class="n">connect</span><span class="p">(</span><span class="n">db_user</span><span class="p">,</span> <span class="n">db_key</span><span class="p">),</span> <span class="n">query</span><span class="p">)</span>
+        <span class="n">redshift</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="s1">&#39;redshift&#39;</span><span class="p">]</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">redshift</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">cop</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">q</span><span class="p">[</span><span class="n">coord</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="s1">&#39;xyz&#39;</span><span class="p">])</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Mpc</span>
+        <span class="n">vcent</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">q</span><span class="p">[</span><span class="s1">&#39;v&#39;</span><span class="o">+</span><span class="n">coord</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="s1">&#39;xyz&#39;</span><span class="p">])</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span>
 
         <span class="n">snapFile</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">snapPath</span><span class="p">,</span> <span class="n">snapBase</span><span class="o">+</span><span class="s1">&#39;.0.hdf5&#39;</span><span class="p">)</span>
-        <span class="n">subBoxSize</span> <span class="o">=</span> <span class="p">(</span><span class="n">subBoxSize</span> <span class="o">*</span> <span class="n">h</span> <span class="o">/</span> <span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
-        <span class="n">centre</span> <span class="o">=</span> <span class="p">(</span><span class="n">cop</span> <span class="o">*</span> <span class="n">h</span> <span class="o">/</span> <span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
-        <span class="n">eagle_data</span> <span class="o">=</span> <span class="n">EagleSnapshot</span><span class="p">(</span><span class="n">snapFile</span><span class="p">)</span>
-        <span class="n">region</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span>
-            <span class="n">centre</span> <span class="o">-</span> <span class="n">subBoxSize</span><span class="p">,</span>
-            <span class="n">centre</span> <span class="o">+</span> <span class="n">subBoxSize</span>
-        <span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-        <span class="n">eagle_data</span><span class="o">.</span><span class="n">select_region</span><span class="p">(</span><span class="o">*</span><span class="n">region</span><span class="p">)</span>
 
         <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">snapFile</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-
+            <span class="n">h</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;RuntimePars&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;HubbleParam&#39;</span><span class="p">]</span>
+            <span class="n">subBoxSize</span> <span class="o">=</span> <span class="p">(</span><span class="n">subBoxSize</span> <span class="o">*</span> <span class="n">h</span> <span class="o">/</span> <span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">centre</span> <span class="o">=</span> <span class="p">(</span><span class="n">cop</span> <span class="o">*</span> <span class="n">h</span> <span class="o">/</span> <span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">eagle_data</span> <span class="o">=</span> <span class="n">EagleSnapshot</span><span class="p">(</span><span class="n">snapFile</span><span class="p">)</span>
+            <span class="n">region</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span>
+                <span class="n">centre</span> <span class="o">-</span> <span class="n">subBoxSize</span><span class="p">,</span>
+                <span class="n">centre</span> <span class="o">+</span> <span class="n">subBoxSize</span>
+            <span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">eagle_data</span><span class="o">.</span><span class="n">select_region</span><span class="p">(</span><span class="o">*</span><span class="n">region</span><span class="p">)</span>
+            <span class="n">lbox</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;/Header&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;BoxSize&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Mpc</span> <span class="o">/</span> <span class="n">h</span>
             <span class="n">fH</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;/RuntimePars&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;InitAbundance_Hydrogen&#39;</span><span class="p">]</span>
             <span class="n">fHe</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;/RuntimePars&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;InitAbundance_Helium&#39;</span><span class="p">]</span>
             <span class="n">proton_mass</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;/Constants&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;PROTONMASS&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">g</span>
@@ -1033,6 +1034,10 @@
                 <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tmp</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;f8&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">aexp</span><span class="p">)</span> \
                     <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">hexp</span><span class="p">)</span>
 
+            <span class="n">code_to_g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;/Units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;UnitMass_in_g&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">g</span>
+            <span class="n">code_to_cm</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;/Units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;UnitLength_in_cm&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">cm</span>
+            <span class="n">code_to_cm_s</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;/Units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;UnitVelocity_in_cm_per_s&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">cm</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span>
             <span class="n">ng_g</span> <span class="o">=</span> <span class="n">fetch</span><span class="p">(</span><span class="s1">&#39;GroupNumber&#39;</span><span class="p">)</span>
             <span class="n">particles</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
                 <span class="n">xyz_g</span><span class="o">=</span><span class="p">(</span><span class="n">fetch</span><span class="p">(</span><span class="s1">&#39;Coordinates&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="n">code_to_cm</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">kpc</span><span class="p">),</span>
