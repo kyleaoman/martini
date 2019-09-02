@@ -719,12 +719,6 @@ class EAGLESource(SPHSource):
     snapBase : string
         Filename of snapshot files, omitting portion '.X.hdf5'.
 
-    db_user : string
-        Database username.
-
-    db_key : string
-        Database password.
-
     fof : int
         FOF group number of the target object. Note that all particles in the
         FOF group to which the subhalo belongs are used to construct the data
@@ -737,6 +731,12 @@ class EAGLESource(SPHSource):
         Subfind subhalo number of the target object. For centrals the subhalo
         number is 0, for satellites >0. In the EAGLE database, this is then
         'SubGroupNumber'.
+
+    db_user : string
+        Database username.
+
+    db_key : string
+        Database password.
 
     subBoxSize : astropy.units.Quantity, with dimensions of length
         Box half-side length of a region to load around the object of interest,
@@ -799,14 +799,14 @@ class EAGLESource(SPHSource):
             raise ValueError('Provide snapPath argument to EAGLESource.')
         if snapBase is None:
             raise ValueError('Provide snapBase argument to EAGLESource.')
-        if groupPath is None:
-            raise ValueError('Provide groupPath argument to EAGLESource.')
-        if groupBase is None:
-            raise ValueError('Provide groupBase argument to EAGLESource.')
         if fof is None:
             raise ValueError('Provide fof argument to EAGLESource.')
         if sub is None:
             raise ValueError('Provide sub argument to EAGLESource.')
+        if db_user is None:
+            raise ValueError('Provide EAGLE database username.')
+        if db_key is None:
+            print('EAGLE database')
 
         # optional dependencies for this source class
         from eagleSqlTools import connect, execute_query
@@ -827,27 +827,29 @@ class EAGLESource(SPHSource):
             '  sh.Velocity_y as vy, '
             '  sh.Velocity_z as vz '
             'FROM '
-            '  {:s} as sh'.format(volCode) +
+            '  {:s}_SubHalo as sh '.format(volCode) +
             'WHERE '
             '  sh.Snapnum = {:d} '.format(snapNum) +
             '  and sh.GroupNumber = {:d} '.format(fof) +
             '  and sh.SubGroupNumber = {:d}'.format(sub)
         )
-        a = np.power(1 + z, -1)
+        redshift = q['redshift']
+        a = np.power(1 + redshift, -1)
         cop = np.array([q[coord] for coord in 'xyz']) * a * U.Mpc
         vcent = np.array([q['v'+coord] for coord in 'xyz']) * U.km / U.s
 
         snapFile = join(snapPath, snapBase+'.0.hdf5')
-        subBoxSize = (subBoxSize * h / a).to(U.Mpc).value
-        centre = (cop * h / a).to(U.Mpc).value
-        eagle_data = EagleSnapshot(snapFile)
-        region = np.vstack((
-            centre - subBoxSize,
-            centre + subBoxSize
-        )).T.flatten()
-        eagle_data.select_region(*region)
 
         with h5py.File(snapFile, 'r') as f:
+            h = f['RuntimePars'].attrs['HubbleParam']
+            subBoxSize = (subBoxSize * h / a).to(U.Mpc).value
+            centre = (cop * h / a).to(U.Mpc).value
+            eagle_data = EagleSnapshot(snapFile)
+            region = np.vstack((
+                centre - subBoxSize,
+                centre + subBoxSize
+            )).T.flatten()
+            eagle_data.select_region(*region)
             lbox = f['/Header'].attrs['BoxSize'] * U.Mpc / h
             fH = f['/RuntimePars'].attrs['InitAbundance_Hydrogen']
             fHe = f['/RuntimePars'].attrs['InitAbundance_Helium']
@@ -865,6 +867,10 @@ class EAGLESource(SPHSource):
                 return np.array(tmp, dtype='f8') * np.power(a, aexp) \
                     * np.power(h, hexp)
 
+            code_to_g = f['/Units'].attrs['UnitMass_in_g'] * U.g
+            code_to_cm = f['/Units'].attrs['UnitLength_in_cm'] * U.cm
+            code_to_cm_s = f['/Units'].attrs['UnitVelocity_in_cm_per_s'] \
+                * U.cm / U.s
             ng_g = fetch('GroupNumber')
             particles = dict(
                 xyz_g=(fetch('Coordinates') * code_to_cm).to(U.kpc),
