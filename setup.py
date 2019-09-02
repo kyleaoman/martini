@@ -22,7 +22,9 @@ setup(
             'Hdecompose @ https://github.com/kyleaoman/Hdecompose/'
             'archive/master.zip#egg=Hdecompose',
             'read_eagle @ https://github.com/jchelly/read_eagle/'
-            'archive/master.zip#egg=read_eagle'
+            'archive/master.zip#egg=read_eagle',
+            'eagleSqlTools @ https://github.com/kyleaoman/eagleSqlTools/'
+            'archive/master.zip#egg=eagleSqlTools'
         ],
         'tngsource': 'Hdecompose @ https://github.com/kyleaoman/Hdecompose/'
         'archive/master.zip#egg=Hdecompose',
