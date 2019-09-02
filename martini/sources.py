@@ -1,5 +1,5 @@
 import numpy as np
-from os.path import join
+from os.path import join, normpath, sep
 from astropy.coordinates import CartesianRepresentation,\
     CartesianDifferential, ICRS
 from astropy.coordinates.matrix_utilities import rotation_matrix
@@ -717,17 +717,13 @@ class EAGLESource(SPHSource):
         Directory containing snapshot files.
 
     snapBase : string
-        Filename of snapshot files, omitting portion '.X.hdf5'. Note these must
-        be the subfind-processed files, usually named 
-        'eagle_subfind_particles[...]'.
+        Filename of snapshot files, omitting portion '.X.hdf5'.
 
-    groupPath : string
-        Directory containing group catalog files.
+    db_user : string
+        Database username.
 
-    groupBase : string
-        Filename of group catalog files, omitting portion '.X.hdf5'. Note
-        these must be the subfind tables, usually named 
-        'eagle_subfind_tab[...]'.
+    db_key : string
+        Database password.
 
     fof : int
         FOF group number of the target object. Note that all particles in the
@@ -744,9 +740,9 @@ class EAGLESource(SPHSource):
 
     subBoxSize : astropy.units.Quantity, with dimensions of length
         Box half-side length of a region to load around the object of interest,
-        in physical (not comoving, no little h) units. This is only to avoid
-        needing to load the entire particle arrays. By default set to 1 Mpc,
-        which should be adequate for most galaxies.
+        in physical (not comoving, no little h) units. This is to avoid needing
+        to load the entire particle arrays. By default set to 1 Mpc, which
+        should be adequate for most galaxies.
 
     distance : astropy.units.Quantity, with dimensions of length
         Source distance, also used to set the velocity offset via Hubble's law.
@@ -787,10 +783,10 @@ class EAGLESource(SPHSource):
             self,
             snapPath=None,
             snapBase=None,
-            groupPath=None,
-            groupBase=None,
             fof=None,
             sub=None,
+            db_user=None,
+            db_key=None,
             subBoxSize=1*U.Mpc,
             distance=3.*U.Mpc,
             vpeculiar=0*U.km/U.s,
@@ -813,40 +809,33 @@ class EAGLESource(SPHSource):
             raise ValueError('Provide sub argument to EAGLESource.')
 
         # optional dependencies for this source class
+        from eagleSqlTools import connect, execute_query
         from read_eagle import EagleSnapshot
         from Hdecompose.atomic_frac import atomic_frac
         import h5py
 
-        fileN = 0
-        while True:  # will break when group found or raise when out of files
-            groupFile = join(groupPath, groupBase+'.{:d}.hdf5'.format(fileN))
-            with h5py.File(groupFile, 'r') as g:
-                mask = np.logical_and(
-                    np.array(g['/Subhalo/GroupNumber']) == fof,
-                    np.array(g['/Subhalo/SubGroupNumber']) == sub
-                )
-                if not np.sum(mask):
-                    fileN += 1
-                    continue  # group not in this file, try next one
-                a = g['Header'].attrs['Time']
-                redshift = 1 / a - 1
-                h = g['Header'].attrs['HubbleParam']
-                lbox = g['Header'].attrs['BoxSize'] * U.Mpc / h
-                code_to_g = g['/Units'].attrs['UnitMass_in_g'] * U.g
-                code_to_cm = g['/Units'].attrs['UnitLength_in_cm'] * U.cm
-                code_to_cm_s = g['/Units'].attrs['UnitVelocity_in_cm_per_s'] \
-                    * U.cm / U.s
-                dset = g['/Subhalo/CentreOfPotential']
-                aexp = dset.attrs.get('aexp-scale-exponent')
-                hexp = dset.attrs.get('h-scale-exponent')
-                cop = (dset[mask, :] * np.power(a, aexp) * np.power(h, hexp)
-                       * code_to_cm).to(U.kpc)
-                dset = g['/Subhalo/Velocity']
-                aexp = dset.attrs.get('aexp-scale-exponent')
-                hexp = dset.attrs.get('h-scale-exponent')
-                vcent = (dset[mask, :] * np.power(a, aexp) * np.power(h, hexp)
-                         * code_to_cm_s).to(U.km / U.s)
-                break
+        snapNum = int(snapBase.split('_')[1])
+        volCode = normpath(snapPath).split(sep)[-2]
+        q = execute_query(
+            connect(db_user, db_key),
+            'SELECT '
+            '  sh.redshift as redshift, '
+            '  sh.CentreOfPotential_x as x, '
+            '  sh.CentreOfPotential_y as y, '
+            '  sh.CentreOfPotential_z as z, '
+            '  sh.Velocity_x as vx, '
+            '  sh.Velocity_y as vy, '
+            '  sh.Velocity_z as vz '
+            'FROM '
+            '  {:s} as sh'.format(volCode) +
+            'WHERE '
+            '  sh.Snapnum = {:d} '.format(snapNum) +
+            '  and sh.GroupNumber = {:d} '.format(fof) +
+            '  and sh.SubGroupNumber = {:d}'.format(sub)
+        )
+        a = np.power(1 + z, -1)
+        cop = np.array([q[coord] for coord in 'xyz']) * a * U.Mpc
+        vcent = np.array([q['v'+coord] for coord in 'xyz']) * U.km / U.s
 
         snapFile = join(snapPath, snapBase+'.0.hdf5')
         subBoxSize = (subBoxSize * h / a).to(U.Mpc).value
@@ -859,7 +848,7 @@ class EAGLESource(SPHSource):
         eagle_data.select_region(*region)
 
         with h5py.File(snapFile, 'r') as f:
-
+            lbox = f['/Header'].attrs['BoxSize'] * U.Mpc / h
             fH = f['/RuntimePars'].attrs['InitAbundance_Hydrogen']
             fHe = f['/RuntimePars'].attrs['InitAbundance_Helium']
             proton_mass = f['/Constants'].attrs['PROTONMASS'] * U.g
