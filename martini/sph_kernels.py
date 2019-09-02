@@ -497,12 +497,12 @@ class CubicSplineKernel(_BaseSPHKernel):
         """
 
         W = np.where(
-            q < 1,
-            1 - 1.5 * np.power(q, 2) + .75 * np.power(q, 3),
-            .25 * np.power(2 - q, 3)
+            q < .5,
+            1 - 6 * np.power(q, 2) + 6 * np.power(q, 3),
+            2 * np.power(1 - q, 3)
         )
-        W[q > 2] = 0
-        W *= 2 / np.pi
+        W[q > 1] = 0
+        W *= 8 / np.pi
         return W
 
     def kernel_integral(self, dij, h):
@@ -523,6 +523,7 @@ class CubicSplineKernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
 
+        dij *= 2  # changes interval from [0, 2) to [0, 1)
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
         R2 = dr2 / (h * h)
@@ -549,7 +550,8 @@ class CubicSplineKernel(_BaseSPHKernel):
         retval[case1] = I1 + .25 * I3
         retval[case2] = .25 * I2
         # 1.597 is normalization s.t. kernel integral = 1 for particle mass = 1
-        return retval / 1.59689476201133 / np.power(h, 2)
+        # rescaling from interval [0, 2) to [0, 1) requires mult. by 4
+        return retval / 1.59689476201133 / np.power(h, 2) * 4
 
     def validate(self, sm_lengths):
         """
@@ -660,10 +662,17 @@ class GaussianKernel(_BaseSPHKernel):
             Kernel integral over the pixel area.
         """
 
-        retval = .25 * (
-            (erf((dij[0] + .5 * U.pix) / h) - erf((dij[0] - .5 * U.pix) / h)) *
-            (erf((dij[1] + .5 * U.pix) / h) - erf((dij[1] - .5 * U.pix) / h))
-        )
+        # rescaling by 1.17 (~sqrt(2log(2))), or removing sqrt(2) in
+        # x0, x1, y0, y1, seems to roughly work...
+        rescale = 1.
+        dij *= rescale
+        sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
+        x0 = (dij[0] - .5 * U.pix) / h / np.sqrt(2) / sig
+        x1 = (dij[0] + .5 * U.pix) / h / np.sqrt(2) / sig
+        y0 = (dij[1] - .5 * U.pix) / h / np.sqrt(2) / sig
+        y1 = (dij[1] + .5 * U.pix) / h / np.sqrt(2) / sig
+
+        retval = .25 * (erf(x1) - erf(x0)) * (erf(y1) - erf(y0))
 
         # explicit truncation not required as only pixels inside
         # truncation radius should be passed, next 2 lines useful
@@ -675,7 +684,7 @@ class GaussianKernel(_BaseSPHKernel):
         # leads to increased accuracy
         retval[h > 2.5 * U.pix] = \
             retval[h > 2.5 * U.pix] / np.power(erf(self.truncate), 2)
-        return retval * h.unit ** -2
+        return retval * h.unit ** -2 * rescale ** 2
 
     def validate(self, sm_lengths):
 
