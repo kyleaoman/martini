@@ -254,7 +254,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
     vice-versa.
 
     The WendlandC2 kernel is here defined as (q = r / h):
-        W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
+        W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)
         for 0 <= q < 1
         W(q) = 0
         for q >= 1
@@ -284,7 +284,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         Evaluate the kernel function.
 
         The WendlandC2 kernel is here defined as (q = r / h):
-        W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
+        W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)
         for 0 <= q < 1
         W(q) = 0
         for q >= 1
@@ -305,7 +305,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
             np.power(1 - q, 4) * (4 * q + 1),
             np.zeros(q.shape)
         )
-        W *= (21 / np.pi)
+        W *= (21 / 2 / np.pi)
         return W
 
     def kernel_integral(self, dij, h):
@@ -339,8 +339,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
         retval[use] = 5 * R2 * R2 * (.5 * R2 + 3) * \
             np.log((1 + A) / np.sqrt(R2)) + \
             A * (-27. / 2. * R2 * R2 - 14. / 3. * R2 + 2. / 3.)
-        # .2992 is normalization s.t. kernel integral = 1 for particle mass = 1
-        return retval / .2992 / np.power(h, 2)
+        # 21 / (2 * pi) is WendlandC2 normalization in 3D
+        return retval * 21 / (2 * np.pi * np.power(h, 2))
 
     def validate(self, sm_lengths):
         """

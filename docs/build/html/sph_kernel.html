@@ -577,7 +577,7 @@ scaling can be used to approximate this kernel using other kernels, or
 vice-versa.</p>
 <dl class="docutils">
 <dt>The WendlandC2 kernel is here defined as (q = r / h):</dt>
-<dd>W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
+<dd>W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)
 for 0 &lt;= q &lt; 1
 W(q) = 0
 for q &gt;= 1</dd>
@@ -610,7 +610,7 @@ scaling.</p>
 <code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate the kernel function.</p>
 <p>The WendlandC2 kernel is here defined as (q = r / h):
-W(q) = (21 / pi) * (1 - q)^4 * (4 * q + 1)
+W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)
 for 0 &lt;= q &lt; 1
 W(q) = 0
 for q &gt;= 1</p>

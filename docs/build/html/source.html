@@ -220,7 +220,7 @@ corresponding values:
 
 <dl class="class">
 <dt id="martini.sources.EAGLESource">
-<em class="property">class </em><code class="descclassname">martini.sources.</code><code class="descname">EAGLESource</code><span class="sig-paren">(</span><em>snapPath=None</em>, <em>snapBase=None</em>, <em>groupPath=None</em>, <em>groupBase=None</em>, <em>fof=None</em>, <em>sub=None</em>, <em>subBoxSize=&lt;Quantity 1. Mpc&gt;</em>, <em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>vpeculiar=&lt;Quantity 0. km / s&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources.html#EAGLESource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources.EAGLESource" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">martini.sources.</code><code class="descname">EAGLESource</code><span class="sig-paren">(</span><em>snapPath=None</em>, <em>snapBase=None</em>, <em>fof=None</em>, <em>sub=None</em>, <em>db_user=None</em>, <em>db_key=None</em>, <em>subBoxSize=&lt;Quantity 50. kpc&gt;</em>, <em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>vpeculiar=&lt;Quantity 0. km / s&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em>, <em>print_query=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources.html#EAGLESource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources.EAGLESource" title="Permalink to this definition">¶</a></dt>
 <dd><p>Class abstracting HI sources designed to work with publicly available
 EAGLE snapshot + group files. For file access, see
 <a class="reference external" href="http://icc.dur.ac.uk/Eagle/database.php">http://icc.dur.ac.uk/Eagle/database.php</a>.</p>
@@ -230,20 +230,12 @@ EAGLE snapshot + group files. For file access, see
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
 <dt><strong>snapPath</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
-<dd><p class="first last">Directory containing snapshot files.</p>
+<dd><p class="first last">Directory containing snapshot files. The directory structure unpacked
+from the publicly available tarballs is expected; removing/renaming
+files or directories below this will cause errors.</p>
 </dd>
 <dt><strong>snapBase</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
-<dd><p class="first last">Filename of snapshot files, omitting portion ‘.X.hdf5’. Note these must
-be the subfind-processed files, usually named 
-‘eagle_subfind_particles[…]’.</p>
-</dd>
-<dt><strong>groupPath</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
-<dd><p class="first last">Directory containing group catalog files.</p>
-</dd>
-<dt><strong>groupBase</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
-<dd><p class="first last">Filename of group catalog files, omitting portion ‘.X.hdf5’. Note
-these must be the subfind tables, usually named 
-‘eagle_subfind_tab[…]’.</p>
+<dd><p class="first last">Filename of snapshot files, omitting portion ‘.X.hdf5’.</p>
 </dd>
 <dt><strong>fof</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
 <dd><p class="first last">FOF group number of the target object. Note that all particles in the
@@ -258,11 +250,18 @@ this is the ‘GroupNumber’.</p>
 number is 0, for satellites &gt;0. In the EAGLE database, this is then
 ‘SubGroupNumber’.</p>
 </dd>
+<dt><strong>db_user</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd><p class="first last">Database username.</p>
+</dd>
+<dt><strong>db_key</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd><p class="first last">Database password.</p>
+</dd>
 <dt><strong>subBoxSize</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of length</span></dt>
 <dd><p class="first last">Box half-side length of a region to load around the object of interest,
-in physical (not comoving, no little h) units. This is only to avoid
-needing to load the entire particle arrays. By default set to 1 Mpc,
-which should be adequate for most galaxies.</p>
+in physical (not comoving, no little h) units. Using larger values
+will include more foreground/background, which may be desirable, but
+will also slow down execution and impair the automatic routine used
+to find a disc plane.</p>
 </dd>
 <dt><strong>distance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of length</span></dt>
 <dd><p class="first last">Source distance, also used to set the velocity offset via Hubble’s law.</p>
@@ -284,6 +283,9 @@ corresponding values:
 </dd>
 <dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of angle</span></dt>
 <dd><p class="first last">Declination for the source centroid.</p>
+</dd>
+<dt><strong>print_query</strong> <span class="classifier-delimiter">:</span> <span class="classifier">bool</span></dt>
+<dd><p class="first last">If True, the SQL query submitted to the EAGLE database is printed.</p>
 </dd>
 </dl>
 </td>
