@@ -6,14 +6,15 @@ from astropy import units as U
 from matplotlib.backends.backend_pdf import PdfPages
 
 with PdfPages('k.pdf') as pdffile:
-    for K in (GaussianKernel(truncate=2.), WendlandC2Kernel(),
+    for K in (GaussianKernel(truncate=4.), WendlandC2Kernel(),
               CubicSplineKernel(), WendlandC6Kernel()):
         pp.clf()
         r = np.linspace(0, 2, 50)
         pp.semilogy(r, K.eval_kernel(r, 1), '-k')
         pp.axhline(K.eval_kernel(0, 1) / 2)
-        pp.axvline(K.fwhm / 2)
-        pp.axvline(K.fwhm * K.size_in_fwhm())
+        fwhm = 1  # all kernels should be implemented s.t. this is true
+        pp.axvline(fwhm / 2)
+        pp.axvline(fwhm * K.size_in_fwhm)
         pp.savefig(pdffile, format='pdf')
         pp.clf()
         vmax = 100
@@ -35,7 +36,7 @@ with PdfPages('k.pdf') as pdffile:
             eval_grid = rgrid <= ri
             dij = np.vstack((xgrid[eval_grid], ygrid[eval_grid]))
             try:
-                IKi = dr ** 2 * np.sum(K.kernel_integral(
+                IKi = dr ** 2 * np.sum(K.px_weight(
                     dij * U.pix,
                     h * np.ones(rgrid.shape)[eval_grid].flatten() * U.pix
                 ))
@@ -73,5 +74,15 @@ with PdfPages('k.pdf') as pdffile:
                 dr ** 3 * np.sum(K.eval_kernel(rgrid[eval_grid], 1)),
                 'xb',
                 zorder=-1
+            )
+
+        GK = GaussianKernel()
+        for ri in rmid:
+            eval_grid = Rgrid <= ri
+            pp.plot(
+                ri,
+                dr ** 3 * np.sum(GK.eval_kernel(rgrid[eval_grid], 1)),
+                '+g',
+                zorder=-2
             )
         pp.savefig(pdffile, format='pdf')

@@ -7,17 +7,6 @@ from scipy.optimize import fsolve
 
 # *** TODO ***
 
-# Review definition of h, I think this would make sense to always
-# map onto the FWHM of the kernel, which is unambiguous. Then the user must
-# convert their tabulated smoothing lengths to be in units of the FWHM
-# before passing to martini (helper classes need to be updated to do this).
-# This is now mostly achieved, except only the GaussianKernel is
-# implemented to have a fwhm=1, need to add some treatment of in other
-# cases such that h=1 is interpreted as a smoothing length equal to the
-# kernel fwhm.
-
-# size_in_fwhm can just be set in __init__ rather than be a function?
-
 # need to re-derive validation checks
 
 # ************
@@ -30,8 +19,8 @@ def find_fwhm(f):
 class _BaseSPHKernel(object):
     """
     Abstract base class for classes implementing SPH kernels to inherit from.
-    Classes inheriting from _BaseSPHKernel must implement four methods:
-    'kernel', 'kernel_integral', 'validate' and 'size_in_fwhm'.
+    Classes inheriting from _BaseSPHKernel must implement three methods:
+    'kernel', 'kernel_integral' and 'validate'.
     'kernel' should define the kernel function, normalized such that its volume
     integral is 1.
     'kernel_integral' should define the integral of the kernel over a pixel
@@ -41,63 +30,12 @@ class _BaseSPHKernel(object):
     'validate' should check whether any approximations converge to sufficient
     accuracy (for instance, depending on the ratio of the pixel size and
     smoothing length), and raise an error if not.
-    'size_in_fwhm' should return the maximum distance in units of the kernel
-    fwhm where the kernel is non-zero.
     """
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, _rescale=1):
-        self._rescale = _rescale
+    def __init__(self):
         return
-
-    @classmethod
-    def mimic(cls, other_kernel, **kwargs):
-        """
-        Approximate a different kernel using this kernel.
-        Note that the only class at present which has no restrictions on the
-        smoothing lengths relative to the pixel size is the GaussianKernel. In
-        cases where other kernels cannot be used due to such restrictions, it
-        may be useful to approximate them using the GaussianKernel.
-        Parameters
-        ----------
-        other_kernel : a class or instance inheriting from _BaseSPHKernel
-            The kernel to be imitated. If the class is passed, its default
-            parameters are used.
-        Returns
-        -------
-        out : an instance of a class inheriting from _BaseSPHKernel
-            An appropriately initialized object of the same type as this
-            kernel.
-        Examples
-        --------
-        The WendlandC2Kernel implementation loses accuracy when the smoothing
-        lengths are small relative to the pixels. A GaussianKernel of similar
-        shape can be used instead::
-            kernel = GaussianKernel.mimic(WendlandC2Kernel)
-        """
-
-        try:
-            other_kernel = other_kernel()
-        except TypeError:
-            pass
-        inst = cls()
-        if other_kernel.fwhm is None:
-            raise ValueError(
-                "{:s} cannot be rescaled, and therefore cannot be mimicked."
-                .format(type(other_kernel).__name__)
-            )
-        if inst.fwhm is None:
-            raise ValueError(
-                "{:s} cannot be rescaled, and therefore cannot mimic other "
-                "kernels.".format(cls.__name__)
-            )
-        return cls(
-            _rescale=other_kernel.fwhm
-            / inst.fwhm
-            * other_kernel._rescale,
-            **kwargs
-        )
 
     def px_weight(self, dij, h):
         """
@@ -109,7 +47,7 @@ class _BaseSPHKernel(object):
         dij : astropy.units.Quantity, with dimensions of pixels
             Distances from pixel centre to particle positions, in pixels.
         h : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in pixels.
+            Particle smoothing lengths, defined as the kernel FWHM, in pixels.
         Returns
         -------
         out : astropy.units.Quantity, with dimensions of pixels^-2
@@ -181,7 +119,7 @@ class _BaseSPHKernel(object):
         dij : astropy.units.Quantity, with dimensions of pixels
             Distances from pixel centre to particle positions, in pixels.
         h : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in pixels.
+            Particle smoothing lengths (FWHM), in pixels.
         Returns
         -------
         out : astropy.units.Quantity, with dimensions of pixels^-2
@@ -208,19 +146,6 @@ class _BaseSPHKernel(object):
 
         pass
 
-    @abstractmethod
-    def size_in_fwhm(self):
-        """
-        Abstract method; return the maximum distance where the kernel is non-
-        zero, in units of the kernel fwhm.
-        Returns
-        -------
-        out : float
-            Maximum distance where the kernel is non-zero, in units of the
-            kernel fwhm.
-        """
-        pass
-
 
 class WendlandC2Kernel(_BaseSPHKernel):
     """
@@ -230,30 +155,29 @@ class WendlandC2Kernel(_BaseSPHKernel):
     the implementation here approximates the kernel amplitude as constant
     across the pixel, which converges to within 1% of the exact integral
     provided the SPH smoothing lengths are at least 2 pixels in size.
-    The WendlandC2 kernel is here defined as (q = r / h):
+    The WendlandC2 kernel is here defined as:
         W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)
         for 0 <= q < 1
         W(q) = 0
         for q >= 1
-    Parameters
-    ----------
-    _rescale : float
-        Factor by which to rescale SPH smoothing lengths.
     Returns
     -------
     out : WendlandC2Kernel
         An appropriately initialized WendlandC2Kernel object.
     """
 
-    def __init__(self, _rescale=1):
-        super().__init__(_rescale=_rescale)
-        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+    def __init__(self):
+        super().__init__()
+        _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+        self.size_in_fwhm = 1 / _unscaled_fwhm
+        self._rescale /= _unscaled_fwhm
+
         return
 
     def kernel(self, q):
         """
         Evaluate the kernel function.
-        The WendlandC2 kernel is here defined as (q = r / h):
+        The WendlandC2 kernel is here defined as:
         W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)
         for 0 <= q < 1
         W(q) = 0
@@ -287,7 +211,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         dij : astropy.units.Quantity, with dimensions of pixels
             Distances from pixel centre to particle positions, in pixels.
         h : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in pixels.
+            Particle smoothing lengths (FWHM), in pixels.
         Returns
         -------
         out : np.array
@@ -313,17 +237,10 @@ class WendlandC2Kernel(_BaseSPHKernel):
         Parameters
         ----------
         sm_lengths : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in units of pixels.
+            Particle smoothing lengths (FWHM), in units of pixels.
         """
 
         return
-
-    def size_in_fwhm(self):
-        """
-        Return the maximum distance where the kernel is non-zero, in units of
-        the fwhm.
-        """
-        return 1 / self.fwhm
 
 
 class WendlandC6Kernel(_BaseSPHKernel):
@@ -333,31 +250,29 @@ class WendlandC6Kernel(_BaseSPHKernel):
     Gadget/Gadget2!). The exact integral is usually too slow to be practical,
     and I have not yet undertaken the painful process of deriving a useful
     approximation. Instead, use the GaussianKernel.mimic functionality.
-    The WendlandC6 kernel is here defined as (q = r / h):
-        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * r + 25 * r^2 + 32 * r^3)
+    The WendlandC6 kernel is here defined as:
+        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * q + 25 * q^2 + 32 * q^3)
         for 0 <= q < 1
         W(q) = 0
         for q >= 1
-    Parameters
-    ----------
-    _rescale : float
-        Factor by which to rescale SPH smoothing lengths.
     Returns
     -------
     out : WendlandC6Kernel
         An appropriately initialized WendlandC6Kernel object.
     """
 
-    def __init__(self, _rescale=1):
-        super().__init__(_rescale=_rescale)
-        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+    def __init__(self):
+        super().__init__()
+        _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+        self.size_in_fwhm = 1 / _unscaled_fwhm
+        self._rescale /= _unscaled_fwhm
         return
 
     def kernel(self, q):
         """
         Evaluate the kernel function.
-        The WendlandC6 kernel is here defined as (q = r / h):
-        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * r + 25 * r^2 + 32 * r^3)
+        The WendlandC6 kernel is here defined as:
+        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * q + 25 * q^2 + 32 * q^3)
         for 0 <= q < 1
         W(q) = 0
         for q >= 1
@@ -479,13 +394,6 @@ class WendlandC6Kernel(_BaseSPHKernel):
 
         return
 
-    def size_in_fwhm(self):
-        """
-        Return the maximum distance where the kernel is non-zero, in units of
-        the kernel fwhm.
-        """
-        return 1 / self.fwhm
-
 
 class CubicSplineKernel(_BaseSPHKernel):
     """
@@ -495,32 +403,30 @@ class CubicSplineKernel(_BaseSPHKernel):
     amplitude as constant across the pixel, which converges to within 1% of
     the exact integral provided the SPH smoothing lengths are at least 2.5
     pixels in size.
-    The cubic spline kernel is here defined as (q = r / h):
+    The cubic spline kernel is here defined as:
         W(q) = (8 / pi) * (1 - 6 * q^2 * (1 - 0.5 * q))
         for 0 <= q < 0.5
         W(q) = (8 / pi) * 2 * (1 - q)^3
         for 0.5 <= q < 1
         W(q) = 0
         for q >= 1
-    Parameters
-    ----------
-    _rescale : float
-        Factor by which to rescale SPH smoothing lengths.
     Returns
     -------
     out : CubicSplineKernel
         An appropriately initialized CubicSplineKernel object.
     """
 
-    def __init__(self, _rescale=1):
-        super().__init__(_rescale=_rescale)
-        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+    def __init__(self):
+        super().__init__()
+        _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+        self.size_in_fwhm = 1 / _unscaled_fwhm
+        self._rescale /= _unscaled_fwhm
         return
 
     def kernel(self, q):
         """
         Evaluate the kernel function.
-        The cubic spline kernel is here defined as (q = r / h):
+        The cubic spline kernel is here defined as:
         W(q) = (8 / pi) * (1 - 6 * q^2 * (1 - 0.5 * q))
         for 0 <= q < 0.5
         W(q) = (8 / pi) * 2 * (1 - q)^3
@@ -605,22 +511,15 @@ class CubicSplineKernel(_BaseSPHKernel):
 
         return
 
-    def size_in_fwhm(self):
-        """
-        Return the maximum distance where the kernel is non-zero, in units of
-        the kernel fwhm.
-        """
-        return 1 / self.fwhm
-
 
 class GaussianKernel(_BaseSPHKernel):
     """
     Implementation of a (truncated) Gaussian kernel integral.
-    Calculate the kernel integral over a pixel. The 3 integrals (along dx,
+    Calculates the kernel integral over a pixel. The 3 integrals (along dx,
     dy, dz) are evaluated exactly, however the truncation is implemented
     approximately, erring on the side of integrating slightly further than
     the truncation radius.
-    The Gaussian kernel is here defined as (q = r / h):
+    The Gaussian kernel is here defined as:
     W(q) = (sqrt(2 * pi) * sigma)^-3 * np.exp(-(q / sigma)^2 / 2)
     for 0 <= q < truncate
     W(q) = 0
@@ -631,26 +530,24 @@ class GaussianKernel(_BaseSPHKernel):
     truncate : float
         Number of standard deviations at which to truncate kernel (default=3).
         Truncation radii <2 may lead to large errors and are not recommended.
-    _rescale : float
-        Factor by which to rescale SPH smoothing lengths.
     Returns
     -------
     out : GaussianKernel
         An appropriately initialized GaussianKernel object.
     """
 
-    def __init__(self, truncate=3, _rescale=1):
+    def __init__(self, truncate=3):
         self.truncate = truncate
         self.norm = erf(self.truncate / np.sqrt(2)) - 2 * self.truncate \
             / np.sqrt(2 * np.pi) * np.exp(-np.power(self.truncate, 2) / 2)
-        super().__init__(_rescale=_rescale)
-        self.fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+        super().__init__()
+        self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
         return
 
     def kernel(self, q):
         """
         Evaluate the kernel function.
-        The Gaussian kernel is here defined as (q = r / h):
+        The Gaussian kernel is here defined as:
         W(q) = (sqrt(2 * pi) * sigma)^-3 * np.exp(-(q / sigma)^2 / 2)
         for 0 <= q < truncate
         W(q) = 0
@@ -725,47 +622,39 @@ class GaussianKernel(_BaseSPHKernel):
         Parameters
         ----------
         sm_lengths : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in units of pixels.
+            Particle smoothing lengths (FWHM), in units of pixels.
         """
 
         return
-
-    def size_in_fwhm(self):
-        """
-        Return the maximum distance where the kernel is non-zero, in units of
-        the kernel fwhm.
-        """
-        sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
-        return self.truncate * sig
 
 
 class DiracDeltaKernel(_BaseSPHKernel):
     """
     Implementation of a Dirac-delta kernel integral.
-    The Dirac-delta kernel is here defined as (q = r / h)
+    The Dirac-delta kernel is here defined as:
     W(q) = inf
     for q == 0
     W(q) = 0
     for q != 0
-    Parameters
-    ----------
-    _rescale : float
-        Factor by which to rescale SPH smoothing lengths.
     Returns
     -------
     out : DiracDeltaKernel
         An appropriately initialized DiracDeltaKernel object.
     """
 
-    def __init__(self, _rescale=1):
-        super().__init__(_rescale=_rescale)
-        self.fwhm = None
+    def __init__(self):
+        super().__init__()
+        # In principle the size for a DiracDelta kernel is 0, but this would
+        # lead to no particles being used. Ideally we would want ~the pixel
+        # size here, but the sph smoothing length is acceptable.
+        self.size_in_fwhm = 1
+        self._rescale = 1  # need this to be present
         return
 
     def kernel(self, q):
         """
         Evaluate the kernel function.
-        The Dirac-delta kernel is here defined as (q = r / h):
+        The Dirac-delta kernel is here defined as:
         W(q) = inf
         for q == 0
         W(q) = 0
@@ -793,7 +682,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         dij : astropy.units.Quantity, with dimensions of pixels
             Distances from pixel centre to particle positions, in pixels.
         h : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in pixels.
+            Particle smoothing lengths (FWHM), in pixels.
         Returns
         -------
         out : np.array
@@ -812,7 +701,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         Parameters
         ----------
         sm_lengths : astropy.units.Quantity, with dimensions of pixels
-            Particle smoothing lengths, in units of pixels.
+            Particle smoothing lengths (FWHM), in units of pixels.
         """
 
         if (sm_lengths > .5 * U.pix).any():
@@ -824,13 +713,3 @@ class DiracDeltaKernel(_BaseSPHKernel):
                                "'skip_validation=True' to override, at the "
                                "cost of accuracy.")
         return
-
-    def size_in_fwhm(self):
-        """
-        Return the maximum distance where the kernel is non-zero, in units of
-        the kernel fwhm.
-        In principle the size for a DiracDelta kernel is 0, but this would lead
-        to no particles being used. Ideally we would want ~the pixel size here,
-        but the sph smoothing length is acceptable.
-        """
-        return 1
