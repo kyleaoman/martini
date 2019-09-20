@@ -394,9 +394,77 @@ class WendlandC6Kernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
 
-        raise NotImplementedError('WendlandC6 integral not implemented.'
-                                  ' Use mimic and GaussianKernel insteal.')
-        return
+        def indef(R, z):
+            # integral(1 - sqrt(R^2 + z^2))^8 \
+            # (1 + 8 sqrt(R^2 + z^2) + 25 (R^2 + z^2) \
+            # + 32 (R^2 + z^2)^1.5) dz =
+            return -231 * np.power(R, 10) * z \
+                - 385 * np.power(R, 8) * np.power(z, 3) \
+                - 1155 * np.power(R, 8) * z \
+                - 462 * np.power(R, 6) * np.power(z, 5) \
+                - 1540 * np.power(R, 6) * np.power(z, 3) \
+                - 462 * np.power(R, 6) * z \
+                - 330 * np.power(R, 4) * np.power(z, 7) \
+                - 1386 * np.power(R, 4) * np.power(z, 5) \
+                - 462 * np.power(R, 4) * np.power(z, 3) \
+                + 66 * np.power(R, 4) * z \
+                - (128 + 1 / 3) * np.power(R, 2) * np.power(z, 9) \
+                - 660 * np.power(R, 2) * np.power(z, 7) \
+                - 277.2 * np.power(R, 2) * np.power(z, 5) \
+                + 44 * np.power(R, 2) * np.power(z, 3) \
+                + 8 / 3 * np.power(z, 11) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + (16 + 4 / 15) * np.power(R, 2) * np.power(z, 9) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 70.4 * np.power(z, 9) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 360.8 * np.power(R, 2) * np.power(z, 7) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 132 * np.power(z, 7) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 550 * np.power(R, 2) * np.power(z, 5) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                - 11 * np.power(R, 2) * z \
+                + 7.21875 * np.power(R, 12) * (
+                    np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z)) \
+                + 24.7813 * np.power(R, 10) * z * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 173.25 * np.power(R, 10) * (
+                    np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z)) \
+                + 530.75 * np.power(R, 8) * z * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 288.75 * np.power(R, 8) * (
+                    np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z)) \
+                + 47.4792 * np.power(R, 8) * np.power(z, 3) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 767.25 * np.power(R, 6) * z * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 58.0167 * np.power(R, 6) * np.power(z, 5) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 819.5 * np.power(R, 6) * np.power(z, 3) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 41.7 * np.power(R, 4) * np.power(z, 7) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 752.4 * np.power(R, 4) * np.power(z, 5) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                + 896.5 * np.power(R, 4) * np.power(z, 3) * (
+                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
+                - 21 * np.power(z, 11) \
+                - (128 + 1 / 3) * np.power(z, 9) \
+                - 66 * np.power(z, 7) \
+                + 13.2 * np.power(z, 5) \
+                - 11 / 3 * np.power(z, 3) \
+                + z
+
+        dr2 = np.power(dij, 2).sum(axis=0)
+        retval = np.zeros(h.shape)
+        R = np.sqrt(dr2 / (h * h))
+        use = np.logical_and(R < 1, R != 0)
+        norm = 1365 / 64 / np.pi
+        zmax = np.sqrt(1 - np.power(R[use], 2))
+        retval[use] = norm * 2 * (indef(R[use], zmax) - indef(R[use], 0))
+        retval[R == 0] = norm * 2 * (4 / 15)
+        return retval
 
     def validate(self, sm_lengths):
         """
