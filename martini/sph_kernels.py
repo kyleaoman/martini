@@ -304,7 +304,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
         retval[use] = 5 * R2 * R2 * (.5 * R2 + 3) * \
             np.log((1 + A) / np.sqrt(R2)) + \
             A * (-27. / 2. * R2 * R2 - 14. / 3. * R2 + 2. / 3.)
-        return retval * 21 / (2 * np.pi * np.power(h, 2))
+        norm = 21 / 2 / np.pi
+        return retval * norm / np.power(h, 2)
 
     def validate(self, sm_lengths):
         """
@@ -458,12 +459,13 @@ class WendlandC6Kernel(_BaseSPHKernel):
 
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
-        R = np.sqrt(dr2 / (h * h))
+        R = np.sqrt(dr2) / h
         use = np.logical_and(R < 1, R != 0)
         norm = 1365 / 64 / np.pi
         zmax = np.sqrt(1 - np.power(R[use], 2))
         retval[use] = norm * 2 * (indef(R[use], zmax) - indef(R[use], 0))
         retval[R == 0] = norm * 2 * (4 / 15)
+        retval = retval / np.power(h, 2)
         return retval
 
     def validate(self, sm_lengths):
