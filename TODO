@@ -1,0 +1,2 @@
+Rescale smoothing lengths in EAGLESource and TNGSource to account for FWHM definition.
+(double-)Check Magneticum smoothing length definition and implement.

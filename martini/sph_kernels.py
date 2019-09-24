@@ -1,15 +1,9 @@
-
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
 from scipy.special import erf
 from scipy.optimize import fsolve
-
-# *** TODO ***
-
-# need to re-derive validation checks
-
-# ************
+from warnings import warn
 
 
 def find_fwhm(f):
@@ -35,6 +29,14 @@ class _BaseSPHKernel(object):
     __metaclass__ = ABCMeta
 
     def __init__(self):
+        self._rescale = 1
+        warn('The definition of the smoothing length has changed since earlier'
+             ' versions. Now all kernel modules expect the smoothing lengths'
+             ' provided (via the source module) to be the FWHM of the kernel.'
+             ' This is to avoid ambiguity in the definition. Users of'
+             ' simulation-specific sources (TNGSource, EAGLESource, ...) do'
+             ' not need to worry about this change: the sources have been'
+             ' updated accordingly.')
         return
 
     def px_weight(self, dij, h):
@@ -240,6 +242,16 @@ class WendlandC2Kernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
         """
 
+        if (sm_lengths < 1.51 * U.pix).any():
+            raise RuntimeError("Martini.sph_kernels.WendlandC2Kernel.validate:"
+                               " SPH smoothing lengths must be >= 1.51 px in "
+                               "size for WendlandC2 kernel integral "
+                               "approximation accuracy within 1%. This check "
+                               "may be disabled by calling "
+                               "Martini.Martini.insert_source_in_cube with "
+                               "'skip_validation=True', but use this with"
+                               "care.")
+
         return
 
 
@@ -392,6 +404,15 @@ class WendlandC6Kernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
         """
 
+        if (sm_lengths < 1.29 * U.pix).any():
+            raise RuntimeError("Martini.sph_kernels.WendlandC6Kernel.validate:"
+                               " SPH smoothing lengths must be >= 1.29 px in "
+                               "size for WendlandC2 kernel integral "
+                               "approximation accuracy within 1%. This check "
+                               "may be disabled by calling "
+                               "Martini.Martini.insert_source_in_cube with "
+                               "'skip_validation=True', but use this with"
+                               "care.")
         return
 
 
@@ -509,6 +530,15 @@ class CubicSplineKernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
         """
 
+        if (sm_lengths < 1.16 * U.pix).any():
+            raise RuntimeError("Martini.sph_kernels.CubicSplineKernel.validate"
+                               ": SPH smoothing lengths must be >= 1.16 px in "
+                               "size for WendlandC2 kernel integral "
+                               "approximation accuracy within 1%. This check "
+                               "may be disabled by calling "
+                               "Martini.Martini.insert_source_in_cube with "
+                               "'skip_validation=True', but use this with"
+                               "care.")
         return
 
 
@@ -625,6 +655,34 @@ class GaussianKernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
         """
 
+        if self.truncate < 1:
+            raise RuntimeError("GaussianKernel with truncation <1sigma will "
+                               "cause large errors in total mass.")
+        elif (self.truncate >= 1) and (self.truncate < 2):
+            lims = (0, 20)
+        elif (self.truncate >= 2) and (self.truncate < 3):
+            lims = (0, 7)
+        elif (self.truncate >= 3) and (self.truncate < 4):
+            lims = (0, 3)
+        elif (self.truncate >= 4) and (self.truncate < 5):
+            lims = (.4, 1)
+        elif (self.truncate >= 5) and (self.truncate < 6):
+            lims = (.4, .5)
+        elif (self.truncate >= 6):
+            lims = None
+            warn("GaussianKernel with truncation >=6sigma may unnecessarily "
+                 "slow down computation.")
+        if (lims is not None) and \
+           (np.logical_and(sm_lengths > lims[0], sm_lengths < lims[1]).any()):
+            raise RuntimeError("Martini.sph_kernels.GaussianKernel.validate: "
+                               "SPH smoothing lengths must not be in interval "
+                               "[{0:.1f}, {1:.1f}] px ".format(*lims) +
+                               "for Gaussian kernel integral approximation "
+                               "accuracy within 1%. "
+                               "This check may be disabled by calling "
+                               "Martini.Martini.insert_source_in_cube with "
+                               "'skip_validation=True', but use this with"
+                               "care.")
         return
 
 
