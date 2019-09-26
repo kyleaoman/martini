@@ -423,7 +423,9 @@ class Martini():
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance).to(
                 U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
-        sm_range = np.ceil(sm_length * self.sph_kernel.size_in_h()).astype(int)
+        sm_range = np.ceil(
+            sm_length * self.sph_kernel.size_in_fwhm
+        ).astype(int)
         spectrum_half_width = self.spectral_model.half_width(self.source) / \
             self.datacube.channel_width
         reject_conditions = (
@@ -476,7 +478,9 @@ class Martini():
                 U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
         if not skip_validation:
             self.sph_kernel.confirm_validation(sm_length)
-        sm_range = np.ceil(sm_length * self.sph_kernel.size_in_h()).astype(int)
+        sm_range = np.ceil(
+            sm_length * self.sph_kernel.size_in_fwhm
+        ).astype(int)
 
         # pixel iteration
         ij_pxs = list(
