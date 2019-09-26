@@ -2,7 +2,7 @@ import numpy as np
 from os.path import join
 import astropy.units as U
 from ._sph_source import SPHSource
-
+from ..sph_kernels import WendlandC2Kernel, find_fwhm
 
 class EAGLESource(SPHSource):
     """
@@ -181,6 +181,7 @@ class EAGLESource(SPHSource):
                 vxyz_g=(fetch('Velocity') * code_to_cm_s).to(U.km / U.s),
                 T_g=fetch('Temperature') * U.K,
                 hsm_g=(fetch('SmoothingLength') * code_to_cm).to(U.kpc)
+                * find_fwhm(WendlandC2Kernel().kernel)
             )
             rho_g = fetch('Density') * U.g * U.cm ** -3
             SFR_g = fetch('StarFormationRate')
