@@ -66,12 +66,14 @@ class SOSource(SPHSource):
             ra=0.*U.deg,
             dec=0.*U.deg,
             SO_args=None,
-            SO_instance=None
+            SO_instance=None,
+            rescale_hsm_g=1
     ):
 
         from simobj import SimObj  # optional dependency for this source class
 
         self._SO_args = SO_args
+        self.rescale_hsm_g = rescale_hsm_g
         if (SO_args is not None) and (SO_instance is not None):
             raise ValueError('martini.source.SOSource: Provide SO_args or '
                              'SO_instance, not both.')
@@ -87,7 +89,7 @@ class SOSource(SPHSource):
                     mHI_g=SO.mHI_g,
                     xyz_g=SO.xyz_g,
                     vxyz_g=SO.vxyz_g,
-                    hsm_g=SO.hsm_g
+                    hsm_g=SO.hsm_g * self.rescale_hsm_g
                 )
         elif SO_instance is not None:
             super().__init__(
