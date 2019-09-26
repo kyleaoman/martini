@@ -2,7 +2,7 @@ import numpy as np
 import astropy.units as U
 import astropy.constants as C
 from ._sph_source import SPHSource
-
+from ..sph_kernels import CubicSplineKernel, find_fwhm
 
 class TNGSource(SPHSource):
     """
@@ -152,7 +152,8 @@ class TNGSource(SPHSource):
         V_cell = data_g['Masses'] / data_g['Density'] \
             * np.power(a / h * U.kpc, 3)  # Voronoi cell volume
         r_cell = np.power(3. * V_cell / 4. / np.pi, 1. / 3.).to(U.kpc)
-        hsm_g = 2.5 * r_cell  # in mind a cubic spline that =0 at h, I think
+        # hsm_g has in mind a cubic spline that =0 at h, I think
+        hsm_g = 2.5 * r_cell * find_fwhm(CubicSplineKernel().kernel)
         xyz_centre = data_sub['SubhaloPos'] * a / h * U.kpc
         xyz_g -= xyz_centre
         vxyz_centre = data_sub['SubhaloVel'] * np.sqrt(a) * U.km / U.s
