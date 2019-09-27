@@ -12,34 +12,58 @@ class MagneticumSource(SPHSource):
     Parameters
     ----------
     snapBase : string
-        x
+        Path to snapshot file, omitting the portion numbering the snapshot
+        pieces, e.g. /path/snap_136.0 becomes /path/snap_136
 
     haloPosition : numpy.ndarray with shape (3, )
-        x
+        Location of source centre in simulation units. Provide either
+        arguments haloPosition, haloVelocity and haloRadius, or arguments
+        groupFile, (haloID | subhaloID), not both.
 
     haloVelocity : numpy.ndarray with shape (3, )
-        x
+        Velocity of halo in the simulation box frame, in simulation units.
+        Provide either arguments haloPosition, haloVelocity and
+        haloRadius, or arguments groupFile, (haloID | subhaloID), not
+        both.
 
     haloRadius : float
-        x
+        Aperture within which to select particles around the source
+        centre, in simulation units. Provide either arguments
+        haloPosition, haloVelocity and haloRadius, or arguments groupFile,
+        (haloID | subhaloID), not both.
 
     groupFile : string
-        x
+        Path to group file (e.g. /path/to/groups_136). Provide either
+        arguments haloPosition, haloVelocity and haloRadius, or arguments
+        groupFile, (haloID | subhaloID), not both.
 
     haloID : int
-        x
+        ID of FOF group to use as source. Provice either arguments
+        haloPosition, haloVelocity and haloRadius, or arguments groupFile,
+        (haloID | subhaloID), not both.
 
     subhaloID : int
-        x
+        ID of subhalo to use as source. Provide either arguments haloPostion,
+        haloVelocity and haloRadius, or arguments groupFile, (haloID |
+        subhaloID), not both.
 
     xH : float
-        x
+        Primordial hydrogen fraction (default: 0.76).
 
     Lbox : astropy.units.Quantity, with dimensions of length
-        x
+        Comoving box side length, without factor h.
 
     internal_units : dict
-        x
+        Specify the system of units used in the snapshot file. The dict keys
+        should be 'L' (length), 'M' (mass), 'V' (velocity), 'T' (temperature).
+        The values should use astropy.units.Quantity. (default:
+        dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K))
+
+    rescaleRadius : float
+        Factor by which to multiply the haloRadius to define the aperture
+        within which particles are selected. Useful in conjunction with
+        arguments groupFile, (haloID | subhaloID): by default the aperture
+        will be the halo virial radius, use this argument to adjust as needed.
 
     distance : astropy.units.Quantity, with dimensions of length
         Source distance, also used to set the velocity offset via Hubble's law.
@@ -84,6 +108,7 @@ class MagneticumSource(SPHSource):
             groupFile=None,
             haloID=None,
             subhaloID=None,
+            rescaleRadius=1.0,
             xH=0.76,  # not in header
             Lbox=100*U.Mpc,  # what is it, actually?
             internal_units=dict(
@@ -127,6 +152,8 @@ class MagneticumSource(SPHSource):
             haloVelocity = vx[fsub[haloID]]
             haloRadius = rvir[haloID]
 
+        haloRadius *= rescaleRadius
+
         particles = {}
 
         # Here all is still in code units
@@ -149,15 +176,16 @@ class MagneticumSource(SPHSource):
         )
 
         particles['xyz_g'] = f_gas['POS '] * l_unit
-        particles['vxyz_g'] = f_gas['VEL '] * v_unit
-        # full kernel width - CHECK IF NEED .5?
+        particles['vxyz_g'] = f_gas['VEL '] * v_uni
         particles['hsm_g'] = f_gas['HSML'] * l_unit
         particles['T_g'] = f_gas['TEMP'] * T_unit
         particles['mHI_g'] = f_gas['NH  '] * xH * f_gas['MASS'] * m_unit
 
         particles['xyz_g'] -= haloPosition * l_unit
-        particles['xyz_g'][particles['xyz_g'] > Lbox / 2.] -= Lbox.to(U.kpc)
-        particles['xyz_g'][particles['xyz_g'] < -Lbox / 2.] += Lbox.to(U.kpc)
+        particles['xyz_g'][particles['xyz_g'] > Lbox * a / 2.] \
+            -= Lbox.to(U.kpc) * a
+        particles['xyz_g'][particles['xyz_g'] < -Lbox * a / 2.] \
+            += Lbox.to(U.kpc) * a
         particles['vxyz_g'] -= haloVelocity * v_unit
 
         super().__init__(
