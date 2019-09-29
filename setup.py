@@ -33,7 +33,9 @@ setup(
             'archive/master.zip#egg=simfiles',
             'simobj @ https://github.com/kyleaoman/simobj/'
             'archive/master.zip#egg=simobj'
-        ]
+        ],
+        'magneticumsource': 'g3t @ https://github.com/kyleaoman/g3t/'
+        'archive/master.zip#egg=g3t'
     },
     include_package_data=True,
     zip_safe=False
