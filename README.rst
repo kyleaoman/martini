@@ -32,9 +32,11 @@ I attempt to support publicly available simulations with a customized source mod
 
 - EAGLE (martini.sources.EAGLESource_)
 - IllustrisTNG (martini.sources.TNGSource_; also works with Illustris)
+- Magneticum (martini.sources.MagneticumSource_)
 
 .. _martini.sources.EAGLESource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource
 .. _martini.sources.TNGSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource
+.. _martini.sources.MagneticumSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.MagneticumSource
    
 If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via koman@astro.rug.nl.
 
