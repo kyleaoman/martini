@@ -115,7 +115,7 @@ class EAGLESource(SPHSource):
 
         # optional dependencies for this source class
         from eagleSqlTools import connect, execute_query
-        from read_eagle import EagleSnapshot
+        from pyread_eagle import EagleSnapshot
         from Hdecompose.atomic_frac import atomic_frac
         import h5py
 

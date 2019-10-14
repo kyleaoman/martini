@@ -21,8 +21,8 @@ setup(
         'eaglesource': [
             'Hdecompose @ https://github.com/kyleaoman/Hdecompose/'
             'archive/master.zip#egg=Hdecompose',
-            'read_eagle @ https://github.com/jchelly/read_eagle/'
-            'archive/master.zip#egg=read_eagle',
+            'pyread_eagle @ https://github.com/kyleaoman/pyread_eagle/'
+            'archive/master.zip#egg=pyread_eagle',
             'eagleSqlTools @ https://github.com/kyleaoman/eagleSqlTools/'
             'archive/master.zip#egg=eagleSqlTools'
         ],
