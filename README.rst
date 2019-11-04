@@ -47,6 +47,8 @@ Installation Notes
 
 The easiest way to install martini is from PyPI by doing ``python3 -m pip install astromartini``; python2 is not supported. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. However, some optional features require additional dependencies hosted on github, and PyPI does not allow installing these automatically. In particular, EAGLE and Illustris/TNG users who wish to use the custom source modules for those simulations in Martini must install from github (see below) to automatically install the optional dependencies. Or, it is also possible to install from PyPI and then manually install the optional dependencies.
 
+Installation by doing ``python setup.py install`` is not recommended.
+
 Installing from github
 ----------------------
 
