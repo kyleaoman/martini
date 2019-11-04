@@ -375,7 +375,8 @@ class Martini():
         """
 
         if self.beam is None:
-            warn('Skipping beam convolution, no beam object provided to Martini.')
+            warn('Skipping beam convolution, no beam object provided to '
+                 'Martini.')
 
         unit = self.datacube._array.unit
         for spatial_slice in self.datacube.spatial_slices():
