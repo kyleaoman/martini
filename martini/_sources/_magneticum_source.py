@@ -1,12 +1,11 @@
 import numpy as np
 import astropy.units as U
 from ._sph_source import SPHSource
-from g3t.stable.g3read import GadgetFile, read_particles_in_box
 
 
 class MagneticumSource(SPHSource):
     """
-    Class abstracting HI sources designed to work with Magneticum snapshot 
+    Class abstracting HI sources designed to work with Magneticum snapshot
     + group fies.
 
     Parameters
@@ -91,7 +90,7 @@ class MagneticumSource(SPHSource):
     ra : astropy.units.Quantity, with dimensions of angle
         Right ascension for the source centroid.
 
-    dec : astropy.units.Quantity, with dimensions of angle 
+    dec : astropy.units.Quantity, with dimensions of angle
         Declination for the source centroid.
 
     Returns
@@ -124,6 +123,8 @@ class MagneticumSource(SPHSource):
             dec=0*U.deg
     ):
 
+        from g3t.stable.g3read import GadgetFile, read_particles_in_box
+
         # I guess I should allow rescaling of radius to get fore/background
 
         if (haloID is not None) or (subhaloID is not None) \
@@ -136,7 +137,7 @@ class MagneticumSource(SPHSource):
                 raise
 
         if (haloID is not None) or (subhaloID is not None):
-            f = g3read.GadgetFile(groupFile)
+            f = GadgetFile(groupFile)
             data_sub = f.read_new(blocks=["SPOS", "SVEL", "GRNR"], ptypes=[1])
             data_fof = f.read_new(blocks=["RVIR", "FSUB"], ptypes=[0])
             xyz = data_sub["SPOS"]
@@ -149,7 +150,7 @@ class MagneticumSource(SPHSource):
             if haloID is None:
                 haloID = grnr[subhaloID]
             haloPosition = xyz[fsub[haloID]]
-            haloVelocity = vx[fsub[haloID]]
+            haloVelocity = vxyz[fsub[haloID]]
             haloRadius = rvir[haloID]
 
         haloRadius *= rescaleRadius
@@ -176,7 +177,7 @@ class MagneticumSource(SPHSource):
         )
 
         particles['xyz_g'] = f_gas['POS '] * l_unit
-        particles['vxyz_g'] = f_gas['VEL '] * v_uni
+        particles['vxyz_g'] = f_gas['VEL '] * v_unit
         particles['hsm_g'] = f_gas['HSML'] * l_unit
         particles['T_g'] = f_gas['TEMP'] * T_unit
         particles['mHI_g'] = f_gas['NH  '] * xH * f_gas['MASS'] * m_unit
