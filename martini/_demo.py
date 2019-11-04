@@ -1,9 +1,9 @@
-from martini import Martini, DataCube
-from martini.beams import GaussianBeam
-from martini.noise import GaussianNoise
-from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import DiracDeltaKernel
-from martini.sources import SPHSource
+from . import Martini, DataCube
+from .beams import GaussianBeam
+from .noise import GaussianNoise
+from .spectral_models import GaussianSpectrum
+from .sph_kernels import DiracDeltaKernel
+from .sources import SPHSource
 import astropy.units as U
 import numpy as np
 from scipy.optimize import fsolve
