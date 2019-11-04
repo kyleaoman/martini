@@ -18,33 +18,35 @@
   
 
   
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
 
-  
-  
     
 
   
-
   <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
     <link rel="index" title="Index" href="#" />
     <link rel="search" title="Search" href="search.html" /> 
-
-  
-  <script src="_static/js/modernizr.min.js"></script>
-
 </head>
 
 <body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
           
 
           
@@ -162,7 +164,6 @@
  <a href="#A"><strong>A</strong></a>
  | <a href="#C"><strong>C</strong></a>
  | <a href="#D"><strong>D</strong></a>
- | <a href="#E"><strong>E</strong></a>
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
  | <a href="#H"><strong>H</strong></a>
@@ -171,7 +172,6 @@
  | <a href="#M"><strong>M</strong></a>
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
- | <a href="#T"><strong>T</strong></a>
  | <a href="#V"><strong>V</strong></a>
  | <a href="#W"><strong>W</strong></a>
  
@@ -185,8 +185,6 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="datacube.html#martini._datacube.DataCube.add_pad">add_pad() (martini._datacube.DataCube method)</a>
 </li>
-      <li><a href="source.html#martini.sources.SPHSource.apply_mask">apply_mask() (martini.sources.SPHSource method)</a>
-</li>
   </ul></td>
 </tr></table>
 
@@ -195,11 +193,9 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="martini.html#martini._martini.Martini.convolve_beam">convolve_beam() (martini._martini.Martini method)</a>
 </li>
-      <li><a href="datacube.html#martini._datacube.DataCube.copy">copy() (martini._datacube.DataCube method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source.html#martini.sources.CrossSource">CrossSource (class in martini.sources)</a>
+      <li><a href="datacube.html#martini._datacube.DataCube.copy">copy() (martini._datacube.DataCube method)</a>
 </li>
       <li><a href="sph_kernel.html#martini.sph_kernels.CubicSplineKernel">CubicSplineKernel (class in martini.sph_kernels)</a>
 </li>
@@ -218,14 +214,6 @@
       <li><a href="spectral_model.html#martini.spectral_models.DiracDeltaSpectrum">DiracDeltaSpectrum (class in martini.spectral_models)</a>
 </li>
       <li><a href="datacube.html#martini._datacube.DataCube.drop_pad">drop_pad() (martini._datacube.DataCube method)</a>
-</li>
-  </ul></td>
-</tr></table>
-
-<h2 id="E">E</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source.html#martini.sources.EAGLESource">EAGLESource (class in martini.sources)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -300,6 +288,8 @@
 </li>
         <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.kernel">(martini.sph_kernels.WendlandC2Kernel method)</a>
 </li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.kernel">(martini.sph_kernels.WendlandC6Kernel method)</a>
+</li>
       </ul></li>
       <li><a href="sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel_integral">kernel_integral() (martini.sph_kernels.CubicSplineKernel method)</a>
 
@@ -309,6 +299,8 @@
         <li><a href="sph_kernel.html#martini.sph_kernels.GaussianKernel.kernel_integral">(martini.sph_kernels.GaussianKernel method)</a>
 </li>
         <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.kernel_integral">(martini.sph_kernels.WendlandC2Kernel method)</a>
+</li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.kernel_integral">(martini.sph_kernels.WendlandC6Kernel method)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -352,32 +344,10 @@
       <li><a href="martini.html#martini._martini.Martini.reset">reset() (martini._martini.Martini method)</a>
 </li>
   </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source.html#martini.sources.SPHSource.rotate">rotate() (martini.sources.SPHSource method)</a>
-</li>
-  </ul></td>
 </tr></table>
 
 <h2 id="S">S</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source.html#martini.sources.SPHSource.save_current_rotation">save_current_rotation() (martini.sources.SPHSource method)</a>
-</li>
-      <li><a href="source.html#martini.sources.SingleParticleSource">SingleParticleSource (class in martini.sources)</a>
-</li>
-      <li><a href="sph_kernel.html#martini.sph_kernels.CubicSplineKernel.size_in_h">size_in_h() (martini.sph_kernels.CubicSplineKernel method)</a>
-
-      <ul>
-        <li><a href="sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.size_in_h">(martini.sph_kernels.DiracDeltaKernel method)</a>
-</li>
-        <li><a href="sph_kernel.html#martini.sph_kernels.GaussianKernel.size_in_h">(martini.sph_kernels.GaussianKernel method)</a>
-</li>
-        <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.size_in_h">(martini.sph_kernels.WendlandC2Kernel method)</a>
-</li>
-      </ul></li>
-      <li><a href="source.html#martini.sources.SOSource">SOSource (class in martini.sources)</a>
-</li>
-  </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="datacube.html#martini._datacube.DataCube.spatial_slices">spatial_slices() (martini._datacube.DataCube method)</a>
 </li>
@@ -389,28 +359,14 @@
         <li><a href="spectral_model.html#martini.spectral_models.GaussianSpectrum.spectral_function">(martini.spectral_models.GaussianSpectrum method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="spectral_model.html#martini.spectral_models.DiracDeltaSpectrum.spectral_function_kwargs">spectral_function_kwargs() (martini.spectral_models.DiracDeltaSpectrum method)</a>
 
       <ul>
         <li><a href="spectral_model.html#martini.spectral_models.GaussianSpectrum.spectral_function_kwargs">(martini.spectral_models.GaussianSpectrum method)</a>
 </li>
       </ul></li>
-      <li><a href="source.html#martini.sources.SPHSource">SPHSource (class in martini.sources)</a>
-</li>
-  </ul></td>
-</tr></table>
-
-<h2 id="T">T</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source.html#martini.sources.TNGSource">TNGSource (class in martini.sources)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source.html#martini.sources.SPHSource.translate_position">translate_position() (martini.sources.SPHSource method)</a>
-</li>
-      <li><a href="source.html#martini.sources.SPHSource.translate_velocity">translate_velocity() (martini.sources.SPHSource method)</a>
-</li>
   </ul></td>
 </tr></table>
 
@@ -426,6 +382,8 @@
 </li>
         <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.validate">(martini.sph_kernels.WendlandC2Kernel method)</a>
 </li>
+        <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.validate">(martini.sph_kernels.WendlandC6Kernel method)</a>
+</li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -438,6 +396,8 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC2Kernel">WendlandC2Kernel (class in martini.sph_kernels)</a>
+</li>
+      <li><a href="sph_kernel.html#martini.sph_kernels.WendlandC6Kernel">WendlandC6Kernel (class in martini.sph_kernels)</a>
 </li>
       <li><a href="martini.html#martini._martini.Martini.write_beam_fits">write_beam_fits() (martini._martini.Martini method)</a>
 </li>
@@ -481,25 +441,16 @@
   
 
 
-  
-
-    
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script type="text/javascript" src="_static/jquery.js"></script>
-        <script type="text/javascript" src="_static/underscore.js"></script>
-        <script type="text/javascript" src="_static/doctools.js"></script>
-    
-
-  
-
-  <script type="text/javascript" src="_static/js/theme.js"></script>
-
   <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>

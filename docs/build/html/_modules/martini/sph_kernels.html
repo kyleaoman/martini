@@ -17,33 +17,35 @@
   
 
   
+  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
 
-  
-  
     
 
   
-
   <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" /> 
-
-  
-  <script src="../../_static/js/modernizr.min.js"></script>
-
 </head>
 
 <body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
           
 
           
@@ -159,164 +161,96 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
 <span class="kn">from</span> <span class="nn">scipy.special</span> <span class="k">import</span> <span class="n">erf</span>
+<span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="k">import</span> <span class="n">fsolve</span>
+<span class="kn">from</span> <span class="nn">warnings</span> <span class="k">import</span> <span class="n">warn</span>
+
+
+<span class="k">def</span> <span class="nf">find_fwhm</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">fsolve</span><span class="p">(</span><span class="k">lambda</span> <span class="n">q</span><span class="p">:</span> <span class="n">f</span><span class="p">(</span><span class="n">q</span><span class="p">)</span> <span class="o">-</span> <span class="n">f</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="o">.</span><span class="mi">5</span><span class="p">)</span>
 
 
 <span class="k">class</span> <span class="nc">_BaseSPHKernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Abstract base class for classes implementing SPH kernels to inherit from.</span>
-
-<span class="sd">    Classes inheriting from _BaseSPHKernel must implement four methods:</span>
-<span class="sd">    &#39;kernel&#39;, &#39;kernel_integral&#39;, &#39;validate&#39; and &#39;size_in_h&#39;.</span>
-
+<span class="sd">    Classes inheriting from _BaseSPHKernel must implement three methods:</span>
+<span class="sd">    &#39;kernel&#39;, &#39;kernel_integral&#39; and &#39;validate&#39;.</span>
 <span class="sd">    &#39;kernel&#39; should define the kernel function, normalized such that its volume</span>
 <span class="sd">    integral is 1.</span>
-
 <span class="sd">    &#39;kernel_integral&#39; should define the integral of the kernel over a pixel</span>
 <span class="sd">    given the distance between the pixel centre and the particle centre, and</span>
 <span class="sd">    the smoothing length (both in units of pixels). The integral should be</span>
 <span class="sd">    normalized so that evaluated over the entire kernel it is equal to 1.</span>
-
 <span class="sd">    &#39;validate&#39; should check whether any approximations converge to sufficient</span>
 <span class="sd">    accuracy (for instance, depending on the ratio of the pixel size and</span>
 <span class="sd">    smoothing length), and raise an error if not.</span>
-
-<span class="sd">    &#39;size_in_h&#39; should return the maximum distance in units of the sph</span>
-<span class="sd">    smoothing length where the kernel is non-zero.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">ABCMeta</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">rescale_sph_h</span> <span class="o">=</span> <span class="n">rescale_sph_h</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">warn</span><span class="p">(</span><span class="s1">&#39;The definition of the smoothing length has changed since earlier&#39;</span>
+             <span class="s1">&#39; versions. Now all kernel modules expect the smoothing lengths&#39;</span>
+             <span class="s1">&#39; provided (via the source module) to be the FWHM of the kernel.&#39;</span>
+             <span class="s1">&#39; This is to avoid ambiguity in the definition. Users of&#39;</span>
+             <span class="s1">&#39; simulation-specific sources (TNGSource, EAGLESource, ...) do&#39;</span>
+             <span class="s1">&#39; not need to worry about this change: the sources have been&#39;</span>
+             <span class="s1">&#39; updated accordingly.&#39;</span><span class="p">)</span>
         <span class="k">return</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">mimic</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">other_kernel</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Approximate a different kernel using this kernel.</span>
-
-<span class="sd">        Note that the only class at present which has no restrictions on the</span>
-<span class="sd">        smoothing lengths relative to the pixel size is the GaussianKernel. In</span>
-<span class="sd">        cases where other kernels cannot be used due to such restrictions, it</span>
-<span class="sd">        may be useful to approximate them using the GaussianKernel.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        other_kernel : a class or instance inheriting from _BaseSPHKernel</span>
-<span class="sd">            The kernel to be imitated. If the class is passed, its default</span>
-<span class="sd">            parameters are used.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        out : an instance of a class inheriting from _BaseSPHKernel</span>
-<span class="sd">            An appropriately initialized object of the same type as this</span>
-<span class="sd">            kernel.</span>
-
-<span class="sd">        Examples</span>
-<span class="sd">        --------</span>
-<span class="sd">        The WendlandC2Kernel implementation loses accuracy when the smoothing</span>
-<span class="sd">        lengths are small relative to the pixels. A GaussianKernel of similar</span>
-<span class="sd">        shape can be used instead::</span>
-
-<span class="sd">            kernel = GaussianKernel.mimic(WendlandC2Kernel)</span>
-
-<span class="sd">        If the kernel to be mimicked must itself be rescaled for use with the</span>
-<span class="sd">        particle SPH smoothing lengths, it can be rescaled before being</span>
-<span class="sd">        mimicked. For instance, the CubicSplineKernel implementation here is</span>
-<span class="sd">        non-zero in the interval [0, 2). There is an equivalent formulation of</span>
-<span class="sd">        the same kernel which is non-zero in the interval [0, 1). To mimic this</span>
-<span class="sd">        kernel using a GaussianKernel::</span>
-
-<span class="sd">            kernel = GaussianKernel.mimic(CubicSplineKernel(rescale_sph_h=0.5))</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">other_kernel</span> <span class="o">=</span> <span class="n">other_kernel</span><span class="p">()</span>
-        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-            <span class="k">pass</span>
-        <span class="k">if</span> <span class="n">other_kernel</span><span class="o">.</span><span class="n">hscale_to_gaussian</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;</span><span class="si">{:s}</span><span class="s2"> cannot be rescaled, and therefore cannot be mimicked.&quot;</span>
-                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">other_kernel</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">hscale_to_gaussian</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;</span><span class="si">{:s}</span><span class="s2"> cannot be rescaled, and therefore cannot mimic other &quot;</span>
-                <span class="s2">&quot;kernels.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
-            <span class="p">)</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">rescale_sph_h</span><span class="o">=</span><span class="bp">cls</span><span class="o">.</span><span class="n">hscale_to_gaussian</span>
-            <span class="o">/</span> <span class="n">other_kernel</span><span class="o">.</span><span class="n">hscale_to_gaussian</span>
-            <span class="o">*</span> <span class="n">other_kernel</span><span class="o">.</span><span class="n">rescale_sph_h</span><span class="p">,</span>
-            <span class="o">**</span><span class="n">kwargs</span>
-        <span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate kernel integral using scaled smoothing lengths.</span>
-
 <span class="sd">        This is the method that should be called by other modules in</span>
 <span class="sd">        martini, rather than &#39;kernel_integral&#39;.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-
 <span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in pixels.</span>
-
+<span class="sd">            Particle smoothing lengths, defined as the kernel FWHM, in pixels.</span>
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : astropy.units.Quantity, with dimensions of pixels^-2</span>
 <span class="sd">            Integral of smoothing kernel over pixel, per unit pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel_integral</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="n">h</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel_integral</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="n">h</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">confirm_validation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Verify kernel accuracy using scaled smoothing lengths.</span>
-
 <span class="sd">        This is the method that should be called by other modules in</span>
 <span class="sd">        martini, rather than &#39;validate&#39;.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">sm_lengths</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">sm_lengths</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">eval_kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Evaluate the kernel, handling array casting and rescaling. Note that</span>
-<span class="sd">        if the object was initialized with rescale_sph_h, this will be applied.</span>
-
-<span class="sd">        This is the method that should be called by other modules in</span>
-<span class="sd">        martini, rather than &#39;kernel&#39;.</span>
-
+<span class="sd">        Evaluate the kernel, handling array casting and rescaling.</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        r : float or np.array or astropy.units.Quantity</span>
 <span class="sd">            Distance parameter, same units as h.</span>
-
 <span class="sd">        h : float or np.array or astropy.units.Quantity</span>
-<span class="sd">            Smoothing scale parameter, same units as r.</span>
-
+<span class="sd">            Smoothing scale parameter (FWHM), same units as r.</span>
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : float or np.array</span>
 <span class="sd">            Kernel value at position(s) r / h.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">r</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">r</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">U</span><span class="o">.</span><span class="n">Quantity</span><span class="p">):</span>
             <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
         <span class="n">scalar_input</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span>
         <span class="n">W</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
-        <span class="n">W</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rescale_sph_h</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">W</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">scalar_input</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">W</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
@@ -326,12 +260,10 @@
     <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Abstract method; evaluate the kernel.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        q : np.array</span>
 <span class="sd">            Dimensionless distance parameter.</span>
-
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
@@ -343,15 +275,12 @@
     <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Abstract method; calculate the kernel integral over a pixel.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-
 <span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in pixels.</span>
-
+<span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : astropy.units.Quantity, with dimensions of pixels^-2</span>
@@ -365,13 +294,11 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Abstract method; check conditions for validity of kernel integral</span>
 <span class="sd">        calculation.</span>
-
 <span class="sd">        Some approximations may only converge if the ratio of the pixel size</span>
 <span class="sd">        and the smoothing length is sufficiently large, or sufficiently small.</span>
 <span class="sd">        This method should check these conditions and raise errors when</span>
 <span class="sd">        appropriate. The smoothing lengths are provided normalized to the pixel</span>
 <span class="sd">        size.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
@@ -380,77 +307,46 @@
 
         <span class="k">pass</span>
 
-    <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Abstract method; return the maximum distance where the kernel is non-</span>
-<span class="sd">        zero, in units of the SPH smoothing parameter of the particles.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        out : float</span>
-<span class="sd">            Maximum distance where the kernel is non-zero, in units of the SPH</span>
-<span class="sd">            smoothing parameter.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">pass</span>
-
 
 <div class="viewcode-block" id="WendlandC2Kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel">[docs]</a><span class="k">class</span> <span class="nc">WendlandC2Kernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of the Wendland C2 kernel integral.</span>
-
 <span class="sd">    The Wendland C2 kernel is used in the EAGLE code and derivatives (not in</span>
 <span class="sd">    Gadget/Gadget2!). The exact integral is usually too slow to be practical;</span>
 <span class="sd">    the implementation here approximates the kernel amplitude as constant</span>
 <span class="sd">    across the pixel, which converges to within 1% of the exact integral</span>
 <span class="sd">    provided the SPH smoothing lengths are at least 2 pixels in size.</span>
-
-<span class="sd">    To obtain a Wendland C2 kernel which resembles a Gaussian kernel with</span>
-<span class="sd">    sigma = 1, use rescale_sph_h = 2 * sqrt(2 * log(2)). Note that this</span>
-<span class="sd">    scaling can be used to approximate this kernel using other kernels, or</span>
-<span class="sd">    vice-versa.</span>
-
-<span class="sd">    The WendlandC2 kernel is here defined as (q = r / h):</span>
+<span class="sd">    The WendlandC2 kernel is here defined as:</span>
 <span class="sd">        W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)</span>
 <span class="sd">        for 0 &lt;= q &lt; 1</span>
 <span class="sd">        W(q) = 0</span>
 <span class="sd">        for q &gt;= 1</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    rescale_sph_h : float</span>
-<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
-<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
-<span class="sd">        actually used in simulation with a similar kernel with different</span>
-<span class="sd">        scaling.</span>
-
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    out : WendlandC2Kernel</span>
 <span class="sd">        An appropriately initialized WendlandC2Kernel object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">hscale_to_gaussian</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">_unscaled_fwhm</span> <span class="o">=</span> <span class="n">find_fwhm</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval_kernel</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size_in_fwhm</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">_unscaled_fwhm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span> <span class="o">/=</span> <span class="n">_unscaled_fwhm</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
         <span class="k">return</span>
 
 <div class="viewcode-block" id="WendlandC2Kernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
-
-<span class="sd">        The WendlandC2 kernel is here defined as (q = r / h):</span>
+<span class="sd">        The WendlandC2 kernel is here defined as:</span>
 <span class="sd">        W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)</span>
 <span class="sd">        for 0 &lt;= q &lt; 1</span>
 <span class="sd">        W(q) = 0</span>
 <span class="sd">        for q &gt;= 1</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        q : np.array</span>
 <span class="sd">            Dimensionless distance parameter.</span>
-
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
@@ -471,15 +367,12 @@
 <span class="sd">        approximates the kernel amplitude as constant across the pixel area and</span>
 <span class="sd">        converges to the true value within 1% for smoothing lengths &gt;= 2</span>
 <span class="sd">        pixels.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-
 <span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in pixels.</span>
-
+<span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
@@ -496,100 +389,68 @@
         <span class="n">retval</span><span class="p">[</span><span class="n">use</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">*</span> <span class="p">(</span><span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">+</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> \
             <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="n">A</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">R2</span><span class="p">))</span> <span class="o">+</span> \
             <span class="n">A</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="mf">27.</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">-</span> <span class="mf">14.</span> <span class="o">/</span> <span class="mf">3.</span> <span class="o">*</span> <span class="n">R2</span> <span class="o">+</span> <span class="mf">2.</span> <span class="o">/</span> <span class="mf">3.</span><span class="p">)</span>
-        <span class="c1"># 21 / (2 * pi) is WendlandC2 normalization in 3D</span>
-        <span class="k">return</span> <span class="n">retval</span> <span class="o">*</span> <span class="mi">21</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span></div>
+        <span class="n">norm</span> <span class="o">=</span> <span class="mi">21</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="k">return</span> <span class="n">retval</span> <span class="o">*</span> <span class="n">norm</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="WendlandC2Kernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
-
-<span class="sd">        Convergence within 1% of the exact integral is achieved when the</span>
-<span class="sd">        smoothing lengths are &gt;= 2 pixels.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in units of pixels.x</span>
+<span class="sd">            Particle smoothing lengths (FWHM), in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.51</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.WendlandC2Kernel.validate:&quot;</span>
-                               <span class="s2">&quot; SPH smoothing lengths must be &gt;= 2 px in size&quot;</span>
-                               <span class="s2">&quot; for WendlandC2 kernel integral approximation &quot;</span>
-                               <span class="s2">&quot;accuracy. This check may be disabled by &quot;</span>
-                               <span class="s2">&quot;calling Martini.Martini.insert_source_in_cube &quot;</span>
-                               <span class="s2">&quot;with &#39;skip_validation=True&#39;, but use this with&quot;</span>
+                               <span class="s2">&quot; SPH smoothing lengths must be &gt;= 1.51 px in &quot;</span>
+                               <span class="s2">&quot;size for WendlandC2 kernel integral &quot;</span>
+                               <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
+                               <span class="s2">&quot;may be disabled by calling &quot;</span>
+                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
                                <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
-        <span class="k">return</span></div>
 
-<div class="viewcode-block" id="WendlandC2Kernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
-
-<span class="sd">        The WendlandC2 kernel is defined such that it reaches 0 at h=1.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="mi">1</span></div></div>
+        <span class="k">return</span></div></div>
 
 
-<div class="viewcode-block" id="CubicSplineKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel">[docs]</a><span class="k">class</span> <span class="nc">CubicSplineKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
+<div class="viewcode-block" id="WendlandC6Kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel">[docs]</a><span class="k">class</span> <span class="nc">WendlandC6Kernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Implementation of the cubic spline (M4) kernel integral.</span>
-
-<span class="sd">    The cubic spline is the &#39;classic&#39; SPH kernel. The exact integral is usually</span>
-<span class="sd">    too slow to be practical; the implementation here approximates the kernel</span>
-<span class="sd">    amplitude as constant across the pixel, which converges to within 1% of</span>
-<span class="sd">    the exact integral provided the SPH smoothing lengths are at least 2.5</span>
-<span class="sd">    pixels in size.</span>
-
-<span class="sd">    To obtain a cubic spline kernel which resembles a Gaussian kernel with</span>
-<span class="sd">    sigma = 1, use rescale_sph_h = sqrt(2 * log(2)). Note that this scaling</span>
-<span class="sd">    can be used to approximate this kernel using other kernels, or vice-versa.</span>
-
-<span class="sd">    The cubic spline kernel is here defined as (q = r / h):</span>
-<span class="sd">        W(q) = (2 / pi) * (1 - 1.5 * q^2 * (1 - 0.5 * q))</span>
-<span class="sd">            for 0 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = (2 / pi) * (2 - q)^3</span>
-<span class="sd">            for 1 &lt;= q &lt; 2</span>
+<span class="sd">    Implementation of the Wendland C6 kernel integral.</span>
+<span class="sd">    The Wendland C6 kernel is used in the Magneticum code (not in</span>
+<span class="sd">    Gadget/Gadget2!). The exact integral is usually too slow to be practical,</span>
+<span class="sd">    and I have not yet undertaken the painful process of deriving a useful</span>
+<span class="sd">    approximation. Instead, use the GaussianKernel.mimic functionality.</span>
+<span class="sd">    The WendlandC6 kernel is here defined as:</span>
+<span class="sd">        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * q + 25 * q^2 + 32 * q^3)</span>
+<span class="sd">        for 0 &lt;= q &lt; 1</span>
 <span class="sd">        W(q) = 0</span>
-<span class="sd">            for q &gt;= 2</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    rescale_sph_h : float</span>
-<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
-<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
-<span class="sd">        actually used in simulation with a similar kernel with different</span>
-<span class="sd">        scaling.</span>
-
+<span class="sd">        for q &gt;= 1</span>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    out : CubicSplineKernel</span>
-<span class="sd">        An appropriately initialized CubicSplineKernel object.</span>
+<span class="sd">    out : WendlandC6Kernel</span>
+<span class="sd">        An appropriately initialized WendlandC6Kernel object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">hscale_to_gaussian</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">_unscaled_fwhm</span> <span class="o">=</span> <span class="n">find_fwhm</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval_kernel</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size_in_fwhm</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">_unscaled_fwhm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span> <span class="o">/=</span> <span class="n">_unscaled_fwhm</span>
         <span class="k">return</span>
 
-<div class="viewcode-block" id="CubicSplineKernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
+<div class="viewcode-block" id="WendlandC6Kernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
-
-<span class="sd">        The cubic spline kernel is here defined as (q = r / h):</span>
-<span class="sd">        W(q) = (2 / pi) * (1 - 1.5 * q^2 * (1 - 0.5 * q))</span>
+<span class="sd">        The WendlandC6 kernel is here defined as:</span>
+<span class="sd">        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * q + 25 * q^2 + 32 * q^3)</span>
 <span class="sd">        for 0 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = (2 / pi) * (2 - q)^3</span>
-<span class="sd">        for 1 &lt;= q &lt; 2</span>
 <span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= 2</span>
-
+<span class="sd">        for q &gt;= 1</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        q : np.array</span>
 <span class="sd">            Dimensionless distance parameter.</span>
-
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
@@ -598,11 +459,177 @@
 
         <span class="n">W</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
             <span class="n">q</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span>
-            <span class="mi">1</span> <span class="o">-</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="o">.</span><span class="mi">75</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
-            <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">q</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+            <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">q</span> <span class="o">+</span> <span class="mi">25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">32</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
         <span class="p">)</span>
-        <span class="n">W</span><span class="p">[</span><span class="n">q</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">W</span> <span class="o">*=</span> <span class="mi">2</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="n">W</span> <span class="o">*=</span> <span class="p">(</span><span class="mi">1365</span> <span class="o">/</span> <span class="mi">64</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">W</span></div>
+
+<div class="viewcode-block" id="WendlandC6Kernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the kernel integral over a pixel. Not currently implemented.</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
+<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in pixels.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : np.array</span>
+<span class="sd">            Approximate kernel integral over the pixel area.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">indef</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+            <span class="c1"># integral(1 - sqrt(R^2 + z^2))^8 \</span>
+            <span class="c1"># (1 + 8 sqrt(R^2 + z^2) + 25 (R^2 + z^2) \</span>
+            <span class="c1"># + 32 (R^2 + z^2)^1.5) dz =</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">231</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> \
+                <span class="o">-</span> <span class="mi">385</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">1155</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> \
+                <span class="o">-</span> <span class="mi">462</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">1540</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">462</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> \
+                <span class="o">-</span> <span class="mi">330</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">1386</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">462</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> \
+                <span class="o">+</span> <span class="mi">66</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> \
+                <span class="o">-</span> <span class="p">(</span><span class="mi">128</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">660</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mf">277.2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> \
+                <span class="o">+</span> <span class="mi">44</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> \
+                <span class="o">+</span> <span class="mi">8</span> <span class="o">/</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="p">(</span><span class="mi">16</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">/</span> <span class="mi">15</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">70.4</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">360.8</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mi">132</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mi">550</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">-</span> <span class="mi">11</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> \
+                <span class="o">+</span> <span class="mf">7.21875</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="n">z</span><span class="p">))</span> \
+                <span class="o">+</span> <span class="mf">24.7813</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">173.25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="n">z</span><span class="p">))</span> \
+                <span class="o">+</span> <span class="mf">530.75</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">288.75</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="n">z</span><span class="p">))</span> \
+                <span class="o">+</span> <span class="mf">47.4792</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">767.25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">58.0167</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">819.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">41.7</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">752.4</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">+</span> <span class="mf">896.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span> \
+                <span class="o">-</span> <span class="mi">21</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="p">(</span><span class="mi">128</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">66</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span> \
+                <span class="o">+</span> <span class="mf">13.2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> \
+                <span class="o">-</span> <span class="mi">11</span> <span class="o">/</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> \
+                <span class="o">+</span> <span class="n">z</span>
+
+        <span class="n">dr2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">dr2</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span>
+        <span class="n">use</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">R</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">R</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="mi">1365</span> <span class="o">/</span> <span class="mi">64</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="n">zmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">R</span><span class="p">[</span><span class="n">use</span><span class="p">],</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">use</span><span class="p">]</span> <span class="o">=</span> <span class="n">norm</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">indef</span><span class="p">(</span><span class="n">R</span><span class="p">[</span><span class="n">use</span><span class="p">],</span> <span class="n">zmax</span><span class="p">)</span> <span class="o">-</span> <span class="n">indef</span><span class="p">(</span><span class="n">R</span><span class="p">[</span><span class="n">use</span><span class="p">],</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="n">retval</span><span class="p">[</span><span class="n">R</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">norm</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="mi">4</span> <span class="o">/</span> <span class="mi">15</span><span class="p">)</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="n">retval</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">retval</span></div>
+
+<div class="viewcode-block" id="WendlandC6Kernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">            Particle smoothing lengths, in units of pixels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.29</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.WendlandC6Kernel.validate:&quot;</span>
+                               <span class="s2">&quot; SPH smoothing lengths must be &gt;= 1.29 px in &quot;</span>
+                               <span class="s2">&quot;size for WendlandC2 kernel integral &quot;</span>
+                               <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
+                               <span class="s2">&quot;may be disabled by calling &quot;</span>
+                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
+                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
+        <span class="k">return</span></div></div>
+
+
+<div class="viewcode-block" id="CubicSplineKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel">[docs]</a><span class="k">class</span> <span class="nc">CubicSplineKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of the cubic spline (M4) kernel integral.</span>
+<span class="sd">    The cubic spline is the &#39;classic&#39; SPH kernel. The exact integral is usually</span>
+<span class="sd">    too slow to be practical; the implementation here approximates the kernel</span>
+<span class="sd">    amplitude as constant across the pixel, which converges to within 1% of</span>
+<span class="sd">    the exact integral provided the SPH smoothing lengths are at least 2.5</span>
+<span class="sd">    pixels in size.</span>
+<span class="sd">    The cubic spline kernel is here defined as:</span>
+<span class="sd">        W(q) = (8 / pi) * (1 - 6 * q^2 * (1 - 0.5 * q))</span>
+<span class="sd">        for 0 &lt;= q &lt; 0.5</span>
+<span class="sd">        W(q) = (8 / pi) * 2 * (1 - q)^3</span>
+<span class="sd">        for 0.5 &lt;= q &lt; 1</span>
+<span class="sd">        W(q) = 0</span>
+<span class="sd">        for q &gt;= 1</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : CubicSplineKernel</span>
+<span class="sd">        An appropriately initialized CubicSplineKernel object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">_unscaled_fwhm</span> <span class="o">=</span> <span class="n">find_fwhm</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval_kernel</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size_in_fwhm</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">_unscaled_fwhm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span> <span class="o">/=</span> <span class="n">_unscaled_fwhm</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="CubicSplineKernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate the kernel function.</span>
+<span class="sd">        The cubic spline kernel is here defined as:</span>
+<span class="sd">        W(q) = (8 / pi) * (1 - 6 * q^2 * (1 - 0.5 * q))</span>
+<span class="sd">        for 0 &lt;= q &lt; 0.5</span>
+<span class="sd">        W(q) = (8 / pi) * 2 * (1 - q)^3</span>
+<span class="sd">        for 0.5 &lt;= q &lt; 1</span>
+<span class="sd">        W(q) = 0</span>
+<span class="sd">        for q &gt;= 1</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        q : np.array</span>
+<span class="sd">            Dimensionless distance parameter.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : np.array</span>
+<span class="sd">            Kernel value at positions q.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">W</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">q</span> <span class="o">&lt;</span> <span class="o">.</span><span class="mi">5</span><span class="p">,</span>
+            <span class="mi">1</span> <span class="o">-</span> <span class="mi">6</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">6</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+            <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">q</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">W</span><span class="p">[</span><span class="n">q</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">W</span> <span class="o">*=</span> <span class="mi">8</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
         <span class="k">return</span> <span class="n">W</span></div>
 
 <div class="viewcode-block" id="CubicSplineKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
@@ -611,21 +638,19 @@
 <span class="sd">        approximates the kernel amplitude as constant across the pixel area and</span>
 <span class="sd">        converges to the true value within 1% for smoothing lengths &gt;= 2.5</span>
 <span class="sd">        pixels.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-
 <span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in pixels.</span>
-
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
 <span class="sd">            Approximate kernel integral over the pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
+        <span class="n">dij</span> <span class="o">*=</span> <span class="mi">2</span>  <span class="c1"># changes interval from [0, 2) to [0, 1)</span>
         <span class="n">dr2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
         <span class="n">retval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
         <span class="n">R2</span> <span class="o">=</span> <span class="n">dr2</span> <span class="o">/</span> <span class="p">(</span><span class="n">h</span> <span class="o">*</span> <span class="n">h</span><span class="p">)</span>
@@ -652,222 +677,209 @@
         <span class="n">retval</span><span class="p">[</span><span class="n">case1</span><span class="p">]</span> <span class="o">=</span> <span class="n">I1</span> <span class="o">+</span> <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="n">I3</span>
         <span class="n">retval</span><span class="p">[</span><span class="n">case2</span><span class="p">]</span> <span class="o">=</span> <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="n">I2</span>
         <span class="c1"># 1.597 is normalization s.t. kernel integral = 1 for particle mass = 1</span>
-        <span class="k">return</span> <span class="n">retval</span> <span class="o">/</span> <span class="mf">1.59689476201133</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span></div>
+        <span class="c1"># rescaling from interval [0, 2) to [0, 1) requires mult. by 4</span>
+        <span class="k">return</span> <span class="n">retval</span> <span class="o">/</span> <span class="mf">1.59689476201133</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="mi">4</span></div>
 
 <div class="viewcode-block" id="CubicSplineKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
-
-<span class="sd">        Convergence within 1% of the exact integral is achieved when the</span>
-<span class="sd">        smoothing lengths are &gt;= 1.0 pixels.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in units of pixels.x</span>
+<span class="sd">            Particle smoothing lengths, in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.0</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.16</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.CubicSplineKernel.validate&quot;</span>
-                               <span class="s2">&quot;: SPH smoothing lengths must be &gt;= 1.0 px in &quot;</span>
-                               <span class="s2">&quot;size for cubic spline kernel integral &quot;</span>
-                               <span class="s2">&quot;approximation accuracy. This check may be &quot;</span>
-                               <span class="s2">&quot;disabled by calling &quot;</span>
+                               <span class="s2">&quot;: SPH smoothing lengths must be &gt;= 1.16 px in &quot;</span>
+                               <span class="s2">&quot;size for WendlandC2 kernel integral &quot;</span>
+                               <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
+                               <span class="s2">&quot;may be disabled by calling &quot;</span>
                                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with &quot;</span>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
                                <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
-        <span class="k">return</span></div>
-
-<div class="viewcode-block" id="CubicSplineKernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
-
-<span class="sd">        The cubic spline kernel is defined such that it reaches 0 at h=2.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="mi">1</span></div></div>
+        <span class="k">return</span></div></div>
 
 
 <div class="viewcode-block" id="GaussianKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel">[docs]</a><span class="k">class</span> <span class="nc">GaussianKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of a (truncated) Gaussian kernel integral.</span>
-
-<span class="sd">    The 3 integrals (along dx, dy, dz) are evaluated exactly, however the</span>
-<span class="sd">    truncation is implemented approximately in the dx and dy directions. For</span>
-<span class="sd">    poorly sampled kernels (i.e. large pixels), the normalization is adjusted</span>
-<span class="sd">    in order to minimize the error.</span>
-
-<span class="sd">    The Gaussian kernel is here defined as (q = r / h):</span>
-<span class="sd">    W(q) = (2 / pi^1.5) * np.exp(-q^2)</span>
+<span class="sd">    Calculates the kernel integral over a pixel. The 3 integrals (along dx,</span>
+<span class="sd">    dy, dz) are evaluated exactly, however the truncation is implemented</span>
+<span class="sd">    approximately, erring on the side of integrating slightly further than</span>
+<span class="sd">    the truncation radius.</span>
+<span class="sd">    The Gaussian kernel is here defined as:</span>
+<span class="sd">    W(q) = (sqrt(2 * pi) * sigma)^-3 * np.exp(-(q / sigma)^2 / 2)</span>
 <span class="sd">    for 0 &lt;= q &lt; truncate</span>
 <span class="sd">    W(q) = 0</span>
 <span class="sd">    for q &gt;= truncate</span>
-
+<span class="sd">    with sigma=1/(2 * sqrt(2 * log(2))), s.t. FWHM = 1.</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    truncate : float</span>
 <span class="sd">        Number of standard deviations at which to truncate kernel (default=3).</span>
 <span class="sd">        Truncation radii &lt;2 may lead to large errors and are not recommended.</span>
-
-<span class="sd">    rescale_sph_h : float</span>
-<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
-<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
-<span class="sd">        actually used in simulation with a similar kernel with different</span>
-<span class="sd">        scaling.</span>
-
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    out : GaussianKernel</span>
 <span class="sd">        An appropriately initialized GaussianKernel object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">hscale_to_gaussian</span> <span class="o">=</span> <span class="mi">1</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">truncate</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">truncate</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">=</span> <span class="n">truncate</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">norm</span> <span class="o">=</span> <span class="n">erf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> \
+            <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size_in_fwhm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)))</span>
         <span class="k">return</span>
 
 <div class="viewcode-block" id="GaussianKernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
-
-<span class="sd">        The Gaussian kernel is here defined as (q = r / h):</span>
-<span class="sd">        W(q) = (2 / pi^1.5) * np.exp(-q^2)</span>
+<span class="sd">        The Gaussian kernel is here defined as:</span>
+<span class="sd">        W(q) = (sqrt(2 * pi) * sigma)^-3 * np.exp(-(q / sigma)^2 / 2)</span>
 <span class="sd">        for 0 &lt;= q &lt; truncate</span>
 <span class="sd">        W(q) = 0</span>
 <span class="sd">        for q &gt;= truncate</span>
-
+<span class="sd">        with sigma=1/(2 * sqrt(2 * log(2))), s.t. FWHM = 1.</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        q : np.array</span>
 <span class="sd">            Dimensionless distance parameter.</span>
-
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
 <span class="sd">            Kernel value at positions q.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
+        <span class="n">sig</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)))</span>  <span class="c1"># s.t. FWHM = 1</span>
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
-            <span class="n">q</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span><span class="p">,</span>
-            <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="mi">2</span><span class="p">)),</span>
+            <span class="n">q</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">*</span> <span class="n">sig</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">sig</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span> <span class="o">-</span><span class="mi">3</span><span class="p">)</span>
+            <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">q</span> <span class="o">/</span> <span class="n">sig</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span>
             <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-        <span class="p">)</span></div>
+        <span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">norm</span></div>
 
 <div class="viewcode-block" id="GaussianKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate the kernel integral over a pixel. The 3 integrals (along dx,</span>
 <span class="sd">        dy, dz) are evaluated exactly, however the truncation is implemented</span>
-<span class="sd">        approximately in the dx and dy directions. For poorly sampled kernels</span>
-<span class="sd">        (i.e. large pixels), the normalization is adjusted in order to minimize</span>
-<span class="sd">        the error.</span>
-
+<span class="sd">        approximately, erring on the side of integrating slightly further than</span>
+<span class="sd">        the truncation radius.</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-
 <span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in pixels.</span>
-
+<span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
 <span class="sd">            Kernel integral over the pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">retval</span> <span class="o">=</span> <span class="o">.</span><span class="mi">25</span> <span class="o">*</span> <span class="p">(</span>
-            <span class="p">(</span><span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">)</span> <span class="o">-</span> <span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">))</span> <span class="o">*</span>
-            <span class="p">(</span><span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">)</span> <span class="o">-</span> <span class="n">erf</span><span class="p">((</span><span class="n">dij</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">))</span>
+        <span class="n">sig</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)))</span>  <span class="c1"># s.t. FWHM = 1</span>
+        <span class="n">dr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">dij</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+        <span class="n">zmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&gt;</span> <span class="n">dr</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="n">sig</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+                <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">dr</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="n">sig</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="mi">0</span>
         <span class="p">)</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="p">(</span><span class="n">dij</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">sig</span>
+        <span class="n">x1</span> <span class="o">=</span> <span class="p">(</span><span class="n">dij</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">sig</span>
+        <span class="n">y0</span> <span class="o">=</span> <span class="p">(</span><span class="n">dij</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">sig</span>
+        <span class="n">y1</span> <span class="o">=</span> <span class="p">(</span><span class="n">dij</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">sig</span>
+
+        <span class="n">retval</span> <span class="o">=</span> <span class="o">.</span><span class="mi">25</span> \
+            <span class="o">*</span> <span class="n">erf</span><span class="p">(</span><span class="n">zmax</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> \
+            <span class="o">*</span> <span class="p">(</span><span class="n">erf</span><span class="p">(</span><span class="n">x1</span><span class="p">)</span> <span class="o">-</span> <span class="n">erf</span><span class="p">(</span><span class="n">x0</span><span class="p">))</span> \
+            <span class="o">*</span> <span class="p">(</span><span class="n">erf</span><span class="p">(</span><span class="n">y1</span><span class="p">)</span> <span class="o">-</span> <span class="n">erf</span><span class="p">(</span><span class="n">y0</span><span class="p">))</span>
 
         <span class="c1"># explicit truncation not required as only pixels inside</span>
-        <span class="c1"># truncation radius should be passed, next 2 lines useful</span>
-        <span class="c1"># for testing, however</span>
-        <span class="c1"># dr = np.sqrt(np.power(dij, 2).sum(axis=0))</span>
-        <span class="c1"># retval[(dr - np.sqrt(.5)) / h &gt; self.truncate] = 0</span>
+        <span class="c1"># truncation radius should be passed, next line useful for</span>
+        <span class="c1"># testing, however</span>
+        <span class="n">retval</span><span class="p">[(</span><span class="n">dr</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="o">.</span><span class="mi">5</span><span class="p">)</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span> <span class="o">/</span> <span class="n">sig</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
 
-        <span class="c1"># empirically, removing this normalization for poorly sampled kernels</span>
-        <span class="c1"># leads to increased accuracy</span>
-        <span class="n">retval</span><span class="p">[</span><span class="n">h</span> <span class="o">&gt;</span> <span class="mf">2.5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">]</span> <span class="o">=</span> \
-            <span class="n">retval</span><span class="p">[</span><span class="n">h</span> <span class="o">&gt;</span> <span class="mf">2.5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">erf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">retval</span> <span class="o">/=</span> <span class="bp">self</span><span class="o">.</span><span class="n">norm</span>
         <span class="k">return</span> <span class="n">retval</span> <span class="o">*</span> <span class="n">h</span><span class="o">.</span><span class="n">unit</span> <span class="o">**</span> <span class="o">-</span><span class="mi">2</span></div>
 
 <div class="viewcode-block" id="GaussianKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
-
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in units of pixels.</span>
+<span class="sd">            Particle smoothing lengths (FWHM), in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;GaussianKernel with truncation &lt;1sigma will &quot;</span>
+                               <span class="s2">&quot;cause large errors in total mass.&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">lims</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">):</span>
+            <span class="n">lims</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">):</span>
+            <span class="n">lims</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&gt;=</span> <span class="mi">4</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">):</span>
+            <span class="n">lims</span> <span class="o">=</span> <span class="p">(</span><span class="o">.</span><span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">):</span>
+            <span class="n">lims</span> <span class="o">=</span> <span class="p">(</span><span class="o">.</span><span class="mi">4</span><span class="p">,</span> <span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">truncate</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">):</span>
+            <span class="n">lims</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">warn</span><span class="p">(</span><span class="s2">&quot;GaussianKernel with truncation &gt;=6sigma may unnecessarily &quot;</span>
+                 <span class="s2">&quot;slow down computation.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">lims</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> \
+           <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.GaussianKernel.validate: &quot;</span>
-                               <span class="s2">&quot;truncation radius of &lt;2 may lead to errors in &quot;</span>
-                               <span class="s2">&quot;mass of &gt;1% per particle (depending on size of&quot;</span>
-                               <span class="s2">&quot; smoothing kernel relative to pixels). Call &quot;</span>
+                               <span class="s2">&quot;SPH smoothing lengths must not be in interval &quot;</span>
+                               <span class="s2">&quot;[</span><span class="si">{0:.1f}</span><span class="s2">, </span><span class="si">{1:.1f}</span><span class="s2">] px &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">*</span><span class="n">lims</span><span class="p">)</span> <span class="o">+</span>
+                               <span class="s2">&quot;for Gaussian kernel integral approximation &quot;</span>
+                               <span class="s2">&quot;accuracy within 1%. &quot;</span>
+                               <span class="s2">&quot;This check may be disabled by calling &quot;</span>
                                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39; to override, at the &quot;</span>
-                               <span class="s2">&quot;cost of accuracy.&quot;</span><span class="p">)</span>
-        <span class="k">return</span></div>
-
-<div class="viewcode-block" id="GaussianKernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
-
-<span class="sd">        The Gaussian kernel is defined such that it reaches 0 at the truncation</span>
-<span class="sd">        radius.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncate</span></div></div>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
+                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
+        <span class="k">return</span></div></div>
 
 
 <div class="viewcode-block" id="DiracDeltaKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel">[docs]</a><span class="k">class</span> <span class="nc">DiracDeltaKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of a Dirac-delta kernel integral.</span>
-
-<span class="sd">    The Dirac-delta kernel is here defined as (q = r / h)</span>
+<span class="sd">    The Dirac-delta kernel is here defined as:</span>
 <span class="sd">    W(q) = inf</span>
 <span class="sd">    for q == 0</span>
 <span class="sd">    W(q) = 0</span>
 <span class="sd">    for q != 0</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    rescale_sph_h : float</span>
-<span class="sd">        Factor by which to rescale SPH smoothing lengths. This can be used to</span>
-<span class="sd">        adjust particle smoothing lengths in order to approximate the kernel</span>
-<span class="sd">        actually used in simulation with a similar kernel with different</span>
-<span class="sd">        scaling.</span>
-
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    out : DiracDeltaKernel</span>
 <span class="sd">        An appropriately initialized DiracDeltaKernel object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">hscale_to_gaussian</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rescale_sph_h</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rescale_sph_h</span><span class="o">=</span><span class="n">rescale_sph_h</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># In principle the size for a DiracDelta kernel is 0, but this would</span>
+        <span class="c1"># lead to no particles being used. Ideally we would want ~the pixel</span>
+        <span class="c1"># size here, but the sph smoothing length is acceptable.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size_in_fwhm</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># need this to be present</span>
         <span class="k">return</span>
 
 <div class="viewcode-block" id="DiracDeltaKernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
-
-<span class="sd">        The Dirac-delta kernel is here defined as (q = r / h):</span>
+<span class="sd">        The Dirac-delta kernel is here defined as:</span>
 <span class="sd">        W(q) = inf</span>
 <span class="sd">        for q == 0</span>
 <span class="sd">        W(q) = 0</span>
 <span class="sd">        for q != 0</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        q : np.array</span>
 <span class="sd">            Dimensionless distance parameter.</span>
-
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
@@ -882,15 +894,12 @@
 <span class="sd">        approximated as point-like, ignoring any finite-sized kernel.</span>
 <span class="sd">        This is a reasonable approximation provided the smoothing</span>
 <span class="sd">        length is &lt; 0.5 pixel in size, ideally &lt;&lt; 1 pixel in size.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-
 <span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in pixels.</span>
-
+<span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        out : np.array</span>
@@ -901,38 +910,26 @@
             <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span> <span class="o">**</span> <span class="o">-</span><span class="mi">2</span></div>
 
 <div class="viewcode-block" id="DiracDeltaKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
-
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
-
 <span class="sd">        The Dirac-delta model approaches the exact integral when the smoothing</span>
 <span class="sd">        length is &lt;&lt; 1 pixel in size; at a minimum the smoothing length should</span>
 <span class="sd">        be less than half the pixel size.</span>
-
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
-<span class="sd">            Particle smoothing lengths, in units of pixels.</span>
+<span class="sd">            Particle smoothing lengths (FWHM), in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.DiracDeltaKernel.validate:&quot;</span>
-                               <span class="s2">&quot; SPH smoothing lengths must be &lt;= 1 px in size&quot;</span>
-                               <span class="s2">&quot; for DiracDelta kernel to be a reasonable &quot;</span>
-                               <span class="s2">&quot;approximation. Call Martini.Martini.insert_&quot;</span>
-                               <span class="s2">&quot;source_in_cube with &#39;skip_validation=True&#39; to &quot;</span>
-                               <span class="s2">&quot;override, at the cost of accuracy.&quot;</span><span class="p">)</span>
-        <span class="k">return</span></div>
-
-<div class="viewcode-block" id="DiracDeltaKernel.size_in_h"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.size_in_h">[docs]</a>    <span class="k">def</span> <span class="nf">size_in_h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the maximum distance where the kernel is non-zero.</span>
-
-<span class="sd">        In principle the size for a DiracDelta kernel is 0, but this would lead</span>
-<span class="sd">        to no particles being used. Ideally we would want ~the pixel size here,</span>
-<span class="sd">        but the sph smoothing length is acceptable.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="mi">1</span></div></div>
+                               <span class="s2">&quot; provided smoothing scale (FWHM) must be &lt;= 1 &quot;</span>
+                               <span class="s2">&quot;px in size for DiracDelta kernel to be a &quot;</span>
+                               <span class="s2">&quot;reasonable approximation. Call &quot;</span>
+                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39; to override, at the &quot;</span>
+                               <span class="s2">&quot;cost of accuracy.&quot;</span><span class="p">)</span>
+        <span class="k">return</span></div></div>
 </pre></div>
 
            </div>
@@ -962,25 +959,16 @@
   
 
 
-  
-
-    
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../_static/doctools.js"></script>
-    
-
-  
-
-  <script type="text/javascript" src="../../_static/js/theme.js"></script>
-
   <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>
