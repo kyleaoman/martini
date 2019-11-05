@@ -122,8 +122,22 @@ try:
 finally:
     run_chk('rm {:s}.*'.format(os.path.join('dist', distprefix())))
 
-# wait a bit, test pypi can be slow to index
-sleep(60)
+# check that the uploaded package is visible on test pypi
+errtxt = subprocess.run(
+    'pip install --index-url https://test.pypi.org/simple/ --no-deps'
+    ' {:s}==NULL'.format(pkgname),
+    shell=True,
+    universal_newlines=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE
+).stderr
+while True:
+    if '{:s}.{:s}.{:d}'.format(*version, rcc) in \
+       errtxt.split('from versions: ')[1].split(')')[0].split(', '):
+        break
+    print('Test pypi index slow to sync, waiting 10s...')
+    sleep(10)
+
 # check that the uploaded package works
 run_chk('conda create -y --name={:s}-test python={:s}'.format(
     pkgname, pyversion))
