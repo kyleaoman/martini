@@ -41,6 +41,8 @@ except RuntimeError as e:
     # branch exists, make sure it's up to date
     run_chk('git checkout {:s}.{:s}'.format(*version))
     run_chk('git merge master')
+else:
+    run_chk('git push --set-upstream origin {:s}.{:s}'.format(*version))
 
 # rebuild docs
 run_chk('git checkout docs')
