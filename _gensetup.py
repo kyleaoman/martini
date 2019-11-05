@@ -1,15 +1,17 @@
-top_lines = [
+lines0 = [
     "from setuptools import setup",
     "import os",
     "",
     "with open(",
     "    os.path.join(os.path.dirname(__file__), 'martini', 'VERSION')",
     ") as version_file:",
-    "version = version_file.read().strip()",
+    "    version = version_file.read().strip()",
     "",
     "setup(",
-    "    name='astromartini',",
-    "    version=version,",
+    "    name='astromartini',"
+]
+
+lines1 = [
     "    description='Synthetic datacube creation from simulations.',",
     "    url='',",
     "    author='Kyle Oman',",
@@ -43,21 +45,26 @@ er_lines = [
     "    },"
 ]
 
-bottom_lines = [
+lines2 = [
     "    include_package_data=True,",
     "    zip_safe=False",
     ")"
 ]
 
 
-def gensetup(for_pypi=False):
+def gensetup(for_pypi=False, test_subversion=None):
     lines = list()
-    lines += top_lines
+    lines += lines0
+    if test_subversion is not None:
+        lines.append("    version=version + '.{:d}',".format(test_subversion))
+    else:
+        lines.append("    version=version,")
+    lines += lines1
     if not for_pypi:
         lines += er_lines
     else:
         lines += ["    extras_require=dict(),", ]
-    lines += bottom_lines
+    lines += lines2
     with open('setup.py', 'w') as f:
         f.writelines([line + '\n' for line in lines])
     return
