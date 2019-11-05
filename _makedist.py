@@ -123,15 +123,15 @@ finally:
     run_chk('rm {:s}.*'.format(os.path.join('dist', distprefix())))
 
 # check that the uploaded package is visible on test pypi
-errtxt = subprocess.run(
-    'pip install --index-url https://test.pypi.org/simple/ --no-deps'
-    ' {:s}==NULL'.format(pkgname),
-    shell=True,
-    universal_newlines=True,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE
-).stderr
 while True:
+    errtxt = subprocess.run(
+        'pip install --index-url https://test.pypi.org/simple/ --no-deps'
+        ' {:s}==NULL'.format(pkgname),
+        shell=True,
+        universal_newlines=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    ).stderr
     if '{:s}.{:s}.{:d}'.format(*version, rcc) in \
        errtxt.split('from versions: ')[1].split(')')[0].split(', '):
         break
