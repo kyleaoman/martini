@@ -2,7 +2,6 @@ import os
 from _gensetup import gensetup
 from twine.commands.upload import upload as twine_upload
 from twine.settings import Settings as TwineSettings
-from requests.exceptions import HTTPError
 from getpass import getpass
 import sys
 import subprocess
@@ -187,6 +186,10 @@ if conf in ('y', 'Y', 'yes', 'YES', 'Yes'):
     )
 # still on version branch
 run_chk('git add .')
-run_chk('git commit -m "Ensure git branch matches pypi."')
+try:
+    run_chk('git commit -m "Ensure git branch matches pypi."')
+except RuntimeError as e:
+    if e.args[0] == 256:  # nothing to commit
+        pass
 run_chk('git push')
 run_chk('git checkout master')
