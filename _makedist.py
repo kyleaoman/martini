@@ -27,8 +27,8 @@ with open(version_file) as vf:
     version = tuple(vf.read().strip().split('.'))
 
 print('Check that git master branch is ready and committed.')
-passwd = getpass('Preparing version {:s}.{:s},'
-                 ' enter PyPI password to continue: '.format(*version))
+passwd = getpass('Preparing {:s}-{:s}.{:s}, enter PyPI password to'
+                 ' continue: '.format(pkgname, *version))
 
 run_chk('pip install --upgrade setuptools wheel twine')
 

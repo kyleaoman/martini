@@ -15,9 +15,9 @@ lines1 = [
     "    description='Synthetic datacube creation from simulations.',",
     "    url='',",
     "    author='Kyle Oman',",
-    "    author_email='koman@astro.rug.nl',",
+    "    author_email='kyle.a.oman@durham.ac.uk',",
     "    license='GNU GPL v3',",
-    "    packages=['martini'],",
+    "    packages=['martini', 'martini.sources'],",
     "    install_requires=['numpy >= 1.15.3', 'astropy >= 3.0', 'scipy'],"
 ]
 
