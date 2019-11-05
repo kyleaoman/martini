@@ -12,6 +12,7 @@ condash = '/opt/local/anaconda/anaconda3-2018.12/etc/profile.d/conda.sh'
 
 
 def run_chk(s):
+    print('system> ', s)
     ec = os.system(s)
     if ec != 0:
         raise RuntimeError(ec)
@@ -156,3 +157,8 @@ if conf in ('y', 'Y', 'yes', 'YES', 'Yes'):
         twine_settings,
         (os.path.join('dist', '{:s}*'.format(distprefix())), )
     )
+# still on version branch
+run_chk('git add .')
+run_chk('git commit -m "Ensure git branch matches pypi."')
+run_chk('git push')
+run_chk('git checkout master')
