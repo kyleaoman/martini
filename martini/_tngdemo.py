@@ -1,9 +1,9 @@
-from martini.sources import TNGSource
-from martini import DataCube, Martini
-from martini.beams import GaussianBeam
-from martini.noise import GaussianNoise
-from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import GaussianKernel, CubicSplineKernel
+from .sources import TNGSource
+from . import DataCube, Martini
+from .beams import GaussianBeam
+from .noise import GaussianNoise
+from .spectral_models import GaussianSpectrum
+from .sph_kernels import GaussianKernel, CubicSplineKernel
 import astropy.units as U
 
 
