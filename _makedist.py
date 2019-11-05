@@ -11,10 +11,10 @@ pkgname = 'astromartini'
 condash = '/opt/local/anaconda/anaconda3-2018.12/etc/profile.d/conda.sh'
 
 
-def run_chk(s):
+def run_chk(s, allow_fail=False):
     print('system> ', s)
     ec = os.system(s)
-    if ec != 0:
+    if not allow_fail and (ec != 0):
         raise RuntimeError(ec)
     return
 
@@ -53,7 +53,11 @@ os.chdir(os.path.join(pkgdir, 'docs'))
 run_chk('make html')
 os.chdir(pkgdir)
 run_chk('git add docs')
-run_chk('git commit -m "Rebuilt docs."')
+try:
+    run_chk('git commit -m "Rebuilt docs."')
+except RuntimeError as e:
+    if e.args[0] == 256:  # nothing to commit
+        pass
 run_chk('git checkout master')
 run_chk('git merge docs')
 run_chk('git checkout {:s}.{:s}'.format(*version))
@@ -133,7 +137,7 @@ try:
     # e.g. use actual python tests interface
 finally:
     # this directory may not exist, allow failure
-    ec = os.system('rm -r $HOME/{:s}-test-scratch'.format(pkgname))
+    run_chk('rm -r $HOME/{:s}-test-scratch'.format(pkgname), allow_fail=True)
     run_chk('conda env remove -y --name {:s}-test'.format(pkgname))
 
 # tests passed, so let's prepare final upload
