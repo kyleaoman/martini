@@ -6,6 +6,7 @@ from requests.exceptions import HTTPError
 from getpass import getpass
 import sys
 import subprocess
+from time import sleep
 
 pkgname = 'astromartini'
 condash = '/opt/local/anaconda/anaconda3-2018.12/etc/profile.d/conda.sh'
@@ -81,39 +82,48 @@ def tarname(rc=None):
 
 rcc = 0
 
-while True:
-    # generate setup.py for test-pypi
-    gensetup(for_pypi=True, test_subversion=rcc)
-    try:
-        # generate distribution archives
-        run_chk('python setup.py sdist bdist_wheel')
-    finally:
-        # revert setup.py no matter what
-        gensetup(for_pypi=False)
-    # upload to test.pypi
-    print('------------TRYING TO UPLOAD {:s}.{:s}.{:d}------------'.format(
-        *version, rcc))
-    twine_settings = TwineSettings(
-        username='kyleaoman',
-        password=passwd,
-        repository_url='https://test.pypi.org/legacy/'
-    )
-    try:
-        twine_upload(
-            twine_settings,
-            (os.path.join('dist', '{:s}*'.format(distprefix(rc=rcc))), )
-        )
-    except HTTPError as e:
-        if 'File already exists.' in e.args[0]:
-            rcc += 1
-            continue
-        else:
-            raise
-    else:
-        break
-    finally:
-        run_chk('rm {:s}.*'.format(os.path.join('dist', distprefix())))
+errtxt = subprocess.run(
+    'pip install --index-url https://test.pypi.org/simple/ --no-deps'
+    ' {:s}==NULL'.format(pkgname),
+    shell=True,
+    universal_newlines=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE
+).stderr
+compatible_test_versions = [
+    v for v in errtxt.split('from versions: ')[1].split(')')[0].split(', ')
+    if v.startswith('.'.join(version))
+]
+if len(compatible_test_versions) == 0:
+    rcc = 0
+else:
+    previous = compatible_test_versions[-1]
+    rcc = int(previous.split('.')[-1]) + 1
 
+# generate setup.py for test-pypi
+gensetup(for_pypi=True, test_subversion=rcc)
+try:
+    # generate distribution archives
+    run_chk('python setup.py sdist bdist_wheel')
+finally:
+    # revert setup.py no matter what
+    gensetup(for_pypi=False)
+# upload to test.pypi
+twine_settings = TwineSettings(
+    username='kyleaoman',
+    password=passwd,
+    repository_url='https://test.pypi.org/legacy/'
+)
+try:
+    twine_upload(
+        twine_settings,
+        (os.path.join('dist', '{:s}*'.format(distprefix(rc=rcc))), )
+    )
+finally:
+    run_chk('rm {:s}.*'.format(os.path.join('dist', distprefix())))
+
+# wait a bit, test pypi can be slow to index
+sleep(60)
 # check that the uploaded package works
 run_chk('conda create -y --name={:s}-test python={:s}'.format(
     pkgname, pyversion))
