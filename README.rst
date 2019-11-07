@@ -65,7 +65,7 @@ Choose a branch_. The numbered branches (e.g. 1.0.X) are stable, while the maste
 .. _Hdecompose: https://github.com/kyleaoman/Hdecompose
 .. _`Rahmati et al. (2013)`: https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract
 .. _`Blitz & Rosolowsky (2006)`: https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract
-.. _`my python-only version`:
+.. _`my python-only version`: https://github.com/kyleaoman/pyread_eagle
 .. _`read_eagle`: https://github.com/jchelly/read_eagle
 .. _TNGSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource
 .. _MagneticumSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.MagneticumSource
