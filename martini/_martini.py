@@ -716,6 +716,10 @@ class Martini():
             self.datacube.velocity_channels()
         return
 
+    # see also https://github.com/idia-astro/cpp_hdf5converter
+    # for a new (?) standard how to write FITS files. this IDIA schema
+    # has a viewer in the package CARTA (1.2 and up)
+
     def write_hdf5(self, filename, channels='frequency', overwrite=True,
                    memmap=False, compact=False):
         """
