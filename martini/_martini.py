@@ -358,6 +358,8 @@ class Martini():
         self.sph_kernel = sph_kernel
         self.spectral_model = spectral_model
         self.logtag = logtag
+        self.history = []
+        self.history.append("MARTINI")        
 
         if self.beam is not None:
             self.beam.init_kernel(self.datacube)
@@ -386,6 +388,7 @@ class Martini():
         self.datacube.drop_pad()
         self.datacube._array = self.datacube._array.to(
             U.Jy * U.beam**-1, equivalencies=[self.beam.arcsec_to_beam])
+        self.history.append("--convolve_beam")
         return
 
     def add_noise(self):
@@ -399,6 +402,7 @@ class Martini():
 
         self.datacube._array = \
             self.datacube._array + self.noise.generate(self.datacube)
+        self.history.append("--add_noise")        
         return
 
     def _prune_source(self):
@@ -444,6 +448,7 @@ class Martini():
         for condition in reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
+        self.history.append("--prune_source")        
         return
 
     def insert_source_in_cube(self, skip_validation=False, printfreq=100):
@@ -513,6 +518,7 @@ class Martini():
 
         self.datacube._array = \
             self.datacube._array / np.power(self.datacube.px_size / U.pix, 2)
+        self.history.append("--insert_source_in_cube")
         return
 
     def write_fits(self, filename, channels='frequency', overwrite=True):
@@ -605,6 +611,9 @@ class Martini():
             header.append(('BMIN', self.beam.bmin.to(U.deg).value))
         header.append(('BTYPE', 'Intensity'))
         header.append(('SPECSYS', wcs_header['SPECSYS']))
+        for h in  self.history + self.source.history + self.datacube.history + self.beam.history + \
+                  self.noise.history + self.sph_kernel.history + self.spectral_model.history:
+            header.append(('HISTORY',h))
 
         # flip axes to write
         hdu = fits.PrimaryHDU(header=header, data=self.datacube._array.value.T)
@@ -697,7 +706,7 @@ class Martini():
         header.append(('DATAMAX', np.max(self.beam.kernel.value)))
         header.append(('DATAMIN', np.min(self.beam.kernel.value)))
         header.append(('ORIGIN', 'astropy v' + astropy_version))
-
+        
         # flip axes to write
         hdu = fits.PrimaryHDU(
             header=header, data=self.beam.kernel.value[..., np.newaxis].T)

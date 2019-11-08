@@ -226,4 +226,6 @@ class EAGLESource(SPHSource):
             h=h,
             **particles
         )
+        self.history = []
+        self.history.append("eagle_source")
         return

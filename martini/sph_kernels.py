@@ -173,6 +173,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
         self._rescale /= _unscaled_fwhm
+        self.history = []
+        self.history.append("WendlandC2Kernel")
 
         return
 
@@ -278,6 +280,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
         self._rescale /= _unscaled_fwhm
+        self.history = []
+        self.history.append("WendlandC6Kernel")
         return
 
     def kernel(self, q):
@@ -442,6 +446,8 @@ class CubicSplineKernel(_BaseSPHKernel):
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
         self._rescale /= _unscaled_fwhm
+        self.history = []
+        self.history.append("CubicSplineKernel")
         return
 
     def kernel(self, q):
@@ -572,6 +578,8 @@ class GaussianKernel(_BaseSPHKernel):
             / np.sqrt(2 * np.pi) * np.exp(-np.power(self.truncate, 2) / 2)
         super().__init__()
         self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
+        self.history = []
+        self.history.append("GaussianKernel")
         return
 
     def kernel(self, q):
@@ -707,6 +715,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
         # size here, but the sph smoothing length is acceptable.
         self.size_in_fwhm = 1
         self._rescale = 1  # need this to be present
+        self.history = []
+        self.history.append("DiracDeltaKernel")
         return
 
     def kernel(self, q):

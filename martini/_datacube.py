@@ -92,6 +92,8 @@ class DataCube():
         self._channel_mids()
         self._channel_edges()
         self._freq_channel_mode = False
+        self.history = []
+        self.history.append("DataCube")
 
         return
 

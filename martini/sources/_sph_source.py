@@ -179,6 +179,8 @@ class SPHSource(object):
         self.npart = np.sum(mask)
         if self.npart == 0:
             raise RuntimeError('No source particles in target region.')
+        self.history = []
+        self.history.append("SPHSource")
         return
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
