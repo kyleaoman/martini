@@ -249,7 +249,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
                                "approximation accuracy within 1%. This check "
                                "may be disabled by calling "
                                "Martini.Martini.insert_source_in_cube with "
-                               "'skip_validation=True', but use this with"
+                               "'skip_validation=True', but use this with "
                                "care.")
 
         return
@@ -673,7 +673,10 @@ class GaussianKernel(_BaseSPHKernel):
             warn("GaussianKernel with truncation >=6sigma may unnecessarily "
                  "slow down computation.")
         if (lims is not None) and \
-           (np.logical_and(sm_lengths > lims[0], sm_lengths < lims[1]).any()):
+           (np.logical_and(
+               sm_lengths > lims[0] * U.pix,
+               sm_lengths < lims[1] * U.pix
+           ).any()):
             raise RuntimeError("Martini.sph_kernels.GaussianKernel.validate: "
                                "SPH smoothing lengths must not be in interval "
                                "[{0:.1f}, {1:.1f}] px ".format(*lims) +
