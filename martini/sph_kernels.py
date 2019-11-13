@@ -156,7 +156,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
     Gadget/Gadget2!). The exact integral is usually too slow to be practical;
     the implementation here approximates the kernel amplitude as constant
     across the pixel, which converges to within 1% of the exact integral
-    provided the SPH smoothing lengths are at least 2 pixels in size.
+    provided the SPH smoothing lengths are at least 1.51 pixels in size.
     The WendlandC2 kernel is here defined as:
         W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)
         for 0 <= q < 1
@@ -259,9 +259,10 @@ class WendlandC6Kernel(_BaseSPHKernel):
     """
     Implementation of the Wendland C6 kernel integral.
     The Wendland C6 kernel is used in the Magneticum code (not in
-    Gadget/Gadget2!). The exact integral is usually too slow to be practical,
-    and I have not yet undertaken the painful process of deriving a useful
-    approximation. Instead, use the GaussianKernel.mimic functionality.
+    Gadget/Gadget2!). The exact integral is usually too slow to be practical;
+    the implementation here approximates the kernel amplitude as constant
+    across the pixel, which converges to within 1% of the exact integral
+    provided the SPH smoothing lengths are at least 1.29 pixels in size.
     The WendlandC6 kernel is here defined as:
         W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * q + 25 * q^2 + 32 * q^3)
         for 0 <= q < 1
@@ -407,7 +408,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         if (sm_lengths < 1.29 * U.pix).any():
             raise RuntimeError("Martini.sph_kernels.WendlandC6Kernel.validate:"
                                " SPH smoothing lengths must be >= 1.29 px in "
-                               "size for WendlandC2 kernel integral "
+                               "size for WendlandC6 kernel integral "
                                "approximation accuracy within 1%. This check "
                                "may be disabled by calling "
                                "Martini.Martini.insert_source_in_cube with "
@@ -422,7 +423,7 @@ class CubicSplineKernel(_BaseSPHKernel):
     The cubic spline is the 'classic' SPH kernel. The exact integral is usually
     too slow to be practical; the implementation here approximates the kernel
     amplitude as constant across the pixel, which converges to within 1% of
-    the exact integral provided the SPH smoothing lengths are at least 2.5
+    the exact integral provided the SPH smoothing lengths are at least 1.16
     pixels in size.
     The cubic spline kernel is here defined as:
         W(q) = (8 / pi) * (1 - 6 * q^2 * (1 - 0.5 * q))
@@ -533,7 +534,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         if (sm_lengths < 1.16 * U.pix).any():
             raise RuntimeError("Martini.sph_kernels.CubicSplineKernel.validate"
                                ": SPH smoothing lengths must be >= 1.16 px in "
-                               "size for WendlandC2 kernel integral "
+                               "size for CubicSplineKernel kernel integral "
                                "approximation accuracy within 1%. This check "
                                "may be disabled by calling "
                                "Martini.Martini.insert_source_in_cube with "
