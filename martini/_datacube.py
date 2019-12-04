@@ -15,39 +15,33 @@ class DataCube():
 
     Parameters
     ----------
-    n_px_x : int
+    n_px_x : int, optional
         Pixel count along the x (RA) axis. Even integers strongly preferred.
+        (Default: 256.)
 
-    n_px_y : int
+    n_px_y : int, optional
         Pixel count along the y (Dec) axis. Even integers strongly preferred.
+        (Default: 256.)
 
-    n_channels : int
-        Number of channels along the spectral axis.
+    n_channels : int, optional
+        Number of channels along the spectral axis. (Default: 64.)
 
-    px_size : astropy.units.Quantity, with dimensions of angle
-        Angular scale of one pixel.
+    px_size : Quantity, with dimensions of angle, optional
+        Angular scale of one pixel. (Default: 15 arcsec.)
 
-    channel_width : astropy.units.Quantity, with dimensions of velocity
+    channel_width : Quantity, with dimensions of velocity, optional
         Step size along the spectral axis. Must be provided as a velocity.
+        (Default: 4 km/s.)
 
-    velocity_centre : astropy.units.Quantity, with dimensions of velocity
+    velocity_centre : Quantity, with dimensions of velocity, optional
         Velocity of the central channel along the spectral axis.
+        (Default: 0 km/s.)
 
-    ra : astropy.units.Quantity, with dimensions of angle
-        Right ascension of the cube centroid.
+    ra : Quantity, with dimensions of angle, optional
+        Right ascension of the cube centroid. (Default: 0 deg.)
 
-    dec : astropy.units.Quantity, with dimensions of angle
-        Declination of the cube centroid.
-
-    Returns
-    -------
-    out : DataCube
-        An appropriately configured DataCube object.
-
-    Examples
-    --------
-    TODO
-
+    dec : Quantity, with dimensions of angle, optional
+        Declination of the cube centroid. (Default: 0 deg.)
     """
 
     def __init__(self,
@@ -195,7 +189,7 @@ class DataCube():
 
         Parameters
         ----------
-        pad : tuple or other sequence of length 2
+        pad : 2-tuple (or other sequence)
             Number of pixels to add in the x (RA) and y (Dec) directions.
 
         See Also
@@ -243,10 +237,6 @@ class DataCube():
         -------
         out : DataCube
             Copy of the DataCube object.
-
-        Examples
-        --------
-        TODO
         """
         copy = DataCube(self.n_px_x, self.n_px_y, self.n_channels,
                         self.px_size, self.channel_width, self.velocity_centre,
@@ -262,7 +252,7 @@ class DataCube():
 
         Returns
         -------
-        out : string
+        out : str
             Text representation of the DataCube._array contents.
         """
         return self._array.__repr__()

@@ -24,13 +24,13 @@ else:
 
 class Martini():
     """
-    Used for the creation of synthetic HI data cubes from simulation data.
+    Creates synthetic HI data cubes from simulation data.
 
     Usual use of martini involves first creating instances of classes from each
     of the required and optional sub-modules, then creating a Martini with
     these instances as arguments. The object can then be used to create
-    synthetic observations, usually by calling 'insert_source_in_cube',
-    (optionally) 'add_noise', (optionally) 'convolve_beam' and 'write_fits' in
+    synthetic observations, usually by calling `insert_source_in_cube`,
+    (optionally) `add_noise`, (optionally) `convolve_beam` and `write_fits` in
     order.
 
     Parameters
@@ -48,21 +48,20 @@ class Martini():
         A description of the datacube to create, including pixels, channels,
         sky position. See sub-module documentation.
 
-    beam : (optional) an instance of a class derived from beams._BaseBeam
+    beam : an instance of a class derived from beams._BaseBeam, optional
         A description of the beam for the simulated telescope. Given a
         description, either mathematical or as an image, the creation of a
         custom beam is straightforward. See sub-module documentation.
 
-    noise : (optional) an instance of a class derived from noise._BaseNoise
+    noise : an instance of a class derived from noise._BaseNoise, optional
         A description of the simulated noise. A simple Gaussian noise model is
         provided; implementation of other noise models is straightforward. See
         sub-module documentation.
 
     sph_kernel : an instance of a class derived from sph_kernels._BaseSPHKernel
-        A description of the SPH smoothing kernel. The Wendland C2 kernel (used
-        in EAGLE), and a point-like Dirac-delta kernel are implemented,
-        implementation of other kernels is straightforward. See sub-module
-        documentation.
+        A description of the SPH smoothing kernel. Check simulation
+        documentation for the kernel used in a particular simulation, and
+        SPH kernel submodule documentation for guidance.
 
     spectral_model : an instance of a class derived from \
     spectral_models._BaseSpectrum
@@ -73,11 +72,6 @@ class Martini():
 
     logtag : string
         String to prepend to standard output messages.
-
-    Returns
-    -------
-    out : Martini
-        A Martini object configured with the specified sub-modules.
 
     See Also
     --------
@@ -452,17 +446,17 @@ class Martini():
 
         Parameters
         ----------
-        skip_validation : bool
+        skip_validation : bool, optional
             SPH kernel interpolation onto the DataCube is approximated for
             increased speed. For some combinations of pixel size, distance
             and SPH smoothing length, the approximation may break down. The
             kernel class will check whether this will occur and raise a
             RuntimeError if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter True.
+            of accuracy!) by setting this parameter True. (Default: False.)
 
-        printfreq : int or None
+        printfreq : int or None, optional
             Every printfreq rows a message will be printed to track progress.
-            Messages completely suppressed with printfreq=None.
+            Messages completely suppressed with printfreq=None. (Default: 100.)
         """
 
         # pixels indexed from 0 (not like in FITS!) for better use with numpy
@@ -525,12 +519,12 @@ class Martini():
             Name of the file to write. '.fits' will be appended if not already
             present.
 
-        channels : 'frequency' (default), or 'velocity'
+        channels : {'frequency', 'velocity'}, optional
             Type of units used along the spectral axis in output file.
+            (Default: 'frequency'.)
 
-        overwrite: bool
-            Whether to allow overwriting existing files, note that the default
-            is True.
+        overwrite: bool, optional
+            Whether to allow overwriting existing files. (Default: True.)
         """
 
         self.datacube.drop_pad()
@@ -627,12 +621,12 @@ class Martini():
             Name of the file to write. '.fits' will be appended if not already
             present.
 
-        channels : 'frequency' (default), or 'velocity'
+        channels : {'frequency', 'velocity'}, optional
             Type of units used along the spectral axis in output file.
+            (Default: 'frequency'.)
 
-        overwrite: bool
-            Whether to allow overwriting existing files, note that the default
-            is True.
+        overwrite: bool, optional
+            Whether to allow overwriting existing files. (Default: True.)
 
         Raises
         ------
@@ -719,21 +713,21 @@ class Martini():
             Name of the file to write. '.hdf5' will be appended if not already
             present.
 
-        channels : 'frequency' (default), or 'velocity'
+        channels : {'frequency', 'velocity'}, optional
             Type of units used along the spectral axis in output file.
+            (Default: 'frequency'.)
 
-        overwrite: bool
-            Whether to allow overwriting existing files, note that the default
-            is True.
+        overwrite: bool, optional
+            Whether to allow overwriting existing files. (Default: True.)
 
-        memmap: bool
+        memmap: bool, optional
             If True, create a file-like object in memory and return it instead
-            of writing file to disk.
+            of writing file to disk. (Default: False.)
 
-        compact: bool
+        compact: bool, optional
             If True, omit pixel coordinate arrays to save disk space. In this
             case pixel coordinates can still be reconstructed from FITS-style
-            keywords stored in the FluxCube attributes. Default is False.
+            keywords stored in the FluxCube attributes. (Default: False.)
         """
 
         import h5py

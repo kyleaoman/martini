@@ -4,17 +4,20 @@ import astropy.constants as C
 from ._sph_source import SPHSource
 from ..sph_kernels import CubicSplineKernel, find_fwhm
 
+
 class TNGSource(SPHSource):
     """
     Class abstracting HI sources designed to run in the IllustrisTNG JupyterLab
-    environment for access to simulation data. Can also be used in other
-    environments, but requires that the 'illustris_python' module be
-    importable, and further that the data are laid out on disk in the fiducial
-    way (see: http://www.tng-project.org/data/docs/scripts/).
+    environment for access to simulation data.
+
+    Can also be used in other environments, but requires that the
+    `illustris_python` module be importable, and further that the data are laid
+    out on disk in the fiducial way
+    (see: http://www.tng-project.org/data/docs/scripts/).
 
     Parameters
     ----------
-    basePath : string
+    basePath : str
         Directory containing simulation data, for instance 'TNG100-1/output/',
         see also http://www.tng-project.org/data/docs/scripts/
 
@@ -27,43 +30,43 @@ class TNGSource(SPHSource):
     subID : int
         Subhalo ID of the target object. Note that all particles in the FOF
         group to which the subhalo belongs are used to construct the data cube.
-        This avoids strange "holes" at the locations of other subhaloes in the
+        This avoids strange 'holes' at the locations of other subhaloes in the
         same group, and gives a more realistic treatment of foreground and
         background emission local to the source.
 
-    distance : astropy.units.Quantity, with dimensions of length
+    distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: 3 Mpc.)
 
-    vpeculiar : astropy.units.Quantity, with dimensions of velocity
+    vpeculiar : Quantity, with dimensions of velocity, optional
         Source peculiar velocity, added to the velocity from Hubble's law.
+        (Default: 0 km/s.)
 
-    rotation : dict
-        Keys may be any combination of 'axis_angle', 'rotmat' and/or
-        'L_coords'. These will be applied in this order. Note that the 'y-z'
+    rotation : dict, optional
+        Keys may be any combination of `axis_angle`, `rotmat` and/or
+        `L_coords`. These will be applied in this order. Note that the 'y-z'
         plane will be the one eventually placed in the plane of the "sky". The
         corresponding values:
-        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element an astropy.units.Quantity with \
+
+        - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element a Quantity with \
         dimensions of angle, indicating the angle to rotate through.
-        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
-        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
-        angle (both astropy.units.Quantity instances with dimensions of \
+        - `rotmat` : A (3, 3) numpy.array specifying a rotation.
+        - `L_coords` : A 2-tuple containing an inclination and an azimuthal \
+        angle (both Quantity instances with dimensions of \
         angle). The routine will first attempt to identify a preferred plane \
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
         momentum pole (rotation about 'x'), and inclined (rotation about 'y').
 
-    ra : astropy.units.Quantity, with dimensions of angle
-        Right ascension for the source centroid.
+        (Default: rotmat with the identity rotation.)
 
-    dec : astropy.units.Quantity, with dimensions of angle
-        Declination for the source centroid.
+    ra : Quantity, with dimensions of angle, optional
+        Right ascension for the source centroid. (Default: 0 deg.)
 
-    Returns
-    -------
-    out : TNGSource
-        An appropriately initialized TNGSource object.
+    dec : Quantity, with dimensions of angle, optional
+        Declination for the source centroid. (Default: 0 deg.)
     """
 
     def __init__(

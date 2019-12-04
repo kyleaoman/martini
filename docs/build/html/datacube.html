@@ -25,6 +25,7 @@
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -164,134 +165,162 @@
 <span id="data-cube-martini-datacube"></span><h1>Data Cube (martini.DataCube)<a class="headerlink" href="#module-martini._datacube" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="martini._datacube.DataCube">
-<em class="property">class </em><code class="sig-prename descclassname">martini._datacube.</code><code class="sig-name descname">DataCube</code><span class="sig-paren">(</span><em class="sig-param">n_px_x=256</em>, <em class="sig-param">n_px_y=256</em>, <em class="sig-param">n_channels=64</em>, <em class="sig-param">px_size=&lt;Quantity 15. arcsec&gt;</em>, <em class="sig-param">channel_width=&lt;Quantity 4. km / s&gt;</em>, <em class="sig-param">velocity_centre=&lt;Quantity 0. km / s&gt;</em>, <em class="sig-param">ra=&lt;Quantity 0. deg&gt;</em>, <em class="sig-param">dec=&lt;Quantity 0. deg&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">martini._datacube.</code><code class="descname">DataCube</code><span class="sig-paren">(</span><em>n_px_x=256</em>, <em>n_px_y=256</em>, <em>n_channels=64</em>, <em>px_size=&lt;Quantity 15. arcsec&gt;</em>, <em>channel_width=&lt;Quantity 4. km / s&gt;</em>, <em>velocity_centre=&lt;Quantity 0. km / s&gt;</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube" title="Permalink to this definition">¶</a></dt>
 <dd><p>Handles creation and management of the data cube itself.</p>
 <p>Basic usage simply involves initializing with the parameters listed below.
 More advanced usage might arise if designing custom classes for other sub-
 modules, especially beams.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>n_px_x</strong><span class="classifier">int</span></dt><dd><p>Pixel count along the x (RA) axis. Even integers strongly preferred.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>n_px_x</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int, optional</span></dt>
+<dd><p class="first last">Pixel count along the x (RA) axis. Even integers strongly preferred.
+(Default: 256.)</p>
 </dd>
-<dt><strong>n_px_y</strong><span class="classifier">int</span></dt><dd><p>Pixel count along the y (Dec) axis. Even integers strongly preferred.</p>
+<dt><strong>n_px_y</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int, optional</span></dt>
+<dd><p class="first last">Pixel count along the y (Dec) axis. Even integers strongly preferred.
+(Default: 256.)</p>
 </dd>
-<dt><strong>n_channels</strong><span class="classifier">int</span></dt><dd><p>Number of channels along the spectral axis.</p>
+<dt><strong>n_channels</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int, optional</span></dt>
+<dd><p class="first last">Number of channels along the spectral axis. (Default: 64.)</p>
 </dd>
-<dt><strong>px_size</strong><span class="classifier">astropy.units.Quantity, with dimensions of angle</span></dt><dd><p>Angular scale of one pixel.</p>
+<dt><strong>px_size</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Angular scale of one pixel. (Default: 15 arcsec.)</p>
 </dd>
-<dt><strong>channel_width</strong><span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt><dd><p>Step size along the spectral axis. Must be provided as a velocity.</p>
+<dt><strong>channel_width</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, optional</span></dt>
+<dd><p class="first last">Step size along the spectral axis. Must be provided as a velocity.
+(Default: 4 km/s.)</p>
 </dd>
-<dt><strong>velocity_centre</strong><span class="classifier">astropy.units.Quantity, with dimensions of velocity</span></dt><dd><p>Velocity of the central channel along the spectral axis.</p>
+<dt><strong>velocity_centre</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, optional</span></dt>
+<dd><p class="first last">Velocity of the central channel along the spectral axis.
+(Default: 0 km/s.)</p>
 </dd>
-<dt><strong>ra</strong><span class="classifier">astropy.units.Quantity, with dimensions of angle</span></dt><dd><p>Right ascension of the cube centroid.</p>
+<dt><strong>ra</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Right ascension of the cube centroid. (Default: 0 deg.)</p>
 </dd>
-<dt><strong>dec</strong><span class="classifier">astropy.units.Quantity, with dimensions of angle</span></dt><dd><p>Declination of the cube centroid.</p>
+<dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Declination of the cube centroid. (Default: 0 deg.)</p>
 </dd>
 </dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>out</strong><span class="classifier">DataCube</span></dt><dd><p>An appropriately configured DataCube object.</p>
-</dd>
-</dl>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<p>TODO</p>
+</td>
+</tr>
+</tbody>
+</table>
 <dl class="method">
 <dt id="martini._datacube.DataCube.add_pad">
-<code class="sig-name descname">add_pad</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">pad</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.add_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.add_pad" title="Permalink to this definition">¶</a></dt>
+<code class="descname">add_pad</code><span class="sig-paren">(</span><em>self</em>, <em>pad</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.add_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.add_pad" title="Permalink to this definition">¶</a></dt>
 <dd><p>Resize the cube to add a padding region in the spatial direction.</p>
 <p>Accurate convolution with a beam requires a cube padded according to
 the size of the beam kernel (its representation sampled on a grid with
 the same spacing). The beam class is required to handle defining the
 size of pad required.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>pad</strong><span class="classifier">tuple or other sequence of length 2</span></dt><dd><p>Number of pixels to add in the x (RA) and y (Dec) directions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>pad</strong> <span class="classifier-delimiter">:</span> <span class="classifier">2-tuple (or other sequence)</span></dt>
+<dd><p class="first last">Number of pixels to add in the x (RA) and y (Dec) directions.</p>
 </dd>
 </dl>
-</dd>
-</dl>
+</td>
+</tr>
+</tbody>
+</table>
 <div class="admonition seealso">
-<p class="admonition-title">See also</p>
-<dl class="simple">
-<dt><a class="reference internal" href="#martini._datacube.DataCube.drop_pad" title="martini._datacube.DataCube.drop_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">drop_pad</span></code></a></dt><dd></dd>
+<p class="first admonition-title">See also</p>
+<dl class="last docutils">
+<dt><a class="reference internal" href="#martini._datacube.DataCube.drop_pad" title="martini._datacube.DataCube.drop_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">drop_pad</span></code></a></dt>
+<dd></dd>
 </dl>
 </div>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._datacube.DataCube.copy">
-<code class="sig-name descname">copy</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.copy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.copy" title="Permalink to this definition">¶</a></dt>
+<code class="descname">copy</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.copy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.copy" title="Permalink to this definition">¶</a></dt>
 <dd><p>Produce a copy of the DataCube.</p>
 <p>May be especially useful to create multiple datacubes with differing
 intermediate steps.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>out</strong><span class="classifier">DataCube</span></dt><dd><p>Copy of the DataCube object.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">DataCube</span></dt>
+<dd><p class="first last">Copy of the DataCube object.</p>
 </dd>
 </dl>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<p>TODO</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._datacube.DataCube.drop_pad">
-<code class="sig-name descname">drop_pad</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.drop_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.drop_pad" title="Permalink to this definition">¶</a></dt>
+<code class="descname">drop_pad</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.drop_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.drop_pad" title="Permalink to this definition">¶</a></dt>
 <dd><p>Remove the padding added using add_pad.</p>
 <p>After convolution, the pad region contains meaningless information and
 can be discarded.</p>
 <div class="admonition seealso">
-<p class="admonition-title">See also</p>
-<dl class="simple">
-<dt><a class="reference internal" href="#martini._datacube.DataCube.add_pad" title="martini._datacube.DataCube.add_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_pad</span></code></a></dt><dd></dd>
+<p class="first admonition-title">See also</p>
+<dl class="last docutils">
+<dt><a class="reference internal" href="#martini._datacube.DataCube.add_pad" title="martini._datacube.DataCube.add_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_pad</span></code></a></dt>
+<dd></dd>
 </dl>
 </div>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._datacube.DataCube.freq_channels">
-<code class="sig-name descname">freq_channels</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.freq_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.freq_channels" title="Permalink to this definition">¶</a></dt>
+<code class="descname">freq_channels</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.freq_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.freq_channels" title="Permalink to this definition">¶</a></dt>
 <dd><p>Convert spectral axis to frequency units.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._datacube.DataCube.spatial_slices">
-<code class="sig-name descname">spatial_slices</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spatial_slices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spatial_slices" title="Permalink to this definition">¶</a></dt>
+<code class="descname">spatial_slices</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spatial_slices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spatial_slices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return an iterator over the spatial ‘slices’ of the cube.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>out</strong><span class="classifier">iterator</span></dt><dd><p>Iterator over the spatial ‘slices’ of the cube.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">iterator</span></dt>
+<dd><p class="first last">Iterator over the spatial ‘slices’ of the cube.</p>
 </dd>
 </dl>
-</dd>
-</dl>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._datacube.DataCube.spectra">
-<code class="sig-name descname">spectra</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spectra"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spectra" title="Permalink to this definition">¶</a></dt>
+<code class="descname">spectra</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spectra"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spectra" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return an iterator over the spectra (one in each spatial pixel).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>out</strong><span class="classifier">iterator</span></dt><dd><p>Iterator over the spectra (one in each spatial pixel).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">iterator</span></dt>
+<dd><p class="first last">Iterator over the spectra (one in each spatial pixel).</p>
 </dd>
 </dl>
-</dd>
-</dl>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._datacube.DataCube.velocity_channels">
-<code class="sig-name descname">velocity_channels</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.velocity_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.velocity_channels" title="Permalink to this definition">¶</a></dt>
+<code class="descname">velocity_channels</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.velocity_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.velocity_channels" title="Permalink to this definition">¶</a></dt>
 <dd><p>Convert spectral axis (back) to velocity units.</p>
 </dd></dl>
 

@@ -3,7 +3,7 @@ import astropy.units as U
 from ._sph_source import SPHSource
 
 
-class SingleParticleSource(SPHSource):
+class _SingleParticleSource(SPHSource):
     """
     Class illustrating inheritance from martini.sources.SPHSource, creates a
     single particle test source.
@@ -16,23 +16,19 @@ class SingleParticleSource(SPHSource):
 
     Parameters
     ----------
-    distance : astropy.units.Quantity, with units of length
-        Source distance, also used to place the source in the Hubble flow
-        assuming h = 0.7.
+    distance : Quantity, with dimensions of length, optional
+        Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: 3 Mpc.)
 
-    vpeculiar : astropy.units.Quantity, with dimensions of velocity
+    vpeculiar : Quantity, with dimensions of velocity, optional
         Source peculiar velocity, added to the velocity from Hubble's law.
+        (Default: 0 km/s.)
 
-    ra : astropy.units.Quantity, with dimensions of angle
-        Right ascension for the source centroid.
+    ra : Quantity, with dimensions of angle, optional
+        Right ascension for the source centroid. (Default: 0 deg.)
 
-    dec : astropy.units.Quantity, with dimensions of angle
-        Declination for the source centroid.
-
-    Returns
-    -------
-    out : SingleParticleSource
-        An appropriately initialized SingleParticleSource object.
+    dec : Quantity, with dimensions of angle, optional
+        Declination for the source centroid. (Default: 0 deg.)
     """
 
     def __init__(

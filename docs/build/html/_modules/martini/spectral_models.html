@@ -25,6 +25,7 @@
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
         <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="../../_static/js/theme.js"></script>
 
@@ -173,19 +174,19 @@
 <span class="sd">    Abstract base class for implementions of spectral models to inherit from.</span>
 
 <span class="sd">    Classes inheriting from _BaseSpectrum must implement three methods:</span>
-<span class="sd">    &#39;half_width&#39;, &#39;spectral_function&#39; and &#39;spectral_function_kwargs&#39;.</span>
+<span class="sd">    `half_width`, `spectral_function` and `spectral_function_kwargs`.</span>
 
-<span class="sd">    &#39;half_width&#39; should define a characteristic width for the model, measured</span>
+<span class="sd">    `half_width` should define a characteristic width for the model, measured</span>
 <span class="sd">    from the peak to the characteristic location. Note that particles whose</span>
 <span class="sd">    spectra within +/- 4 half-widths of the peak do not intersect the DataCube</span>
 <span class="sd">    bandpass will be discarded to speed computation.</span>
 
-<span class="sd">    &#39;spectral_function&#39; should define the model spectrum. Arguments which</span>
+<span class="sd">    `spectral_function` should define the model spectrum. Arguments which</span>
 <span class="sd">    depend on the martini.sources.SPHSource (or derived class) properties</span>
 <span class="sd">    should make use of the &#39;spectral_function_kwargs&#39; method. The spectrum</span>
 <span class="sd">    should integrate to 1, the amplitude is handled separately.</span>
 
-<span class="sd">    &#39;spectral_function_kwargs&#39; should provide a helper to pass properties from</span>
+<span class="sd">    `spectral_function_kwargs` should provide a helper to pass properties from</span>
 <span class="sd">    martini.source.SPHSource (or derived class) to the &#39;spectral_function&#39;.</span>
 <span class="sd">    This is required because the source object is not accessible at class</span>
 <span class="sd">    initialization.</span>
@@ -281,16 +282,16 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        a : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">        a : Quantity, with dimensions of velocity</span>
 <span class="sd">            Lower spectral channel edge(s).</span>
 
-<span class="sd">        b : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">        b : Quantity, with dimensions of velocity</span>
 <span class="sd">            Upper spectral channel edge(s).</span>
 
-<span class="sd">        vmids : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">        vmids : Quantity, with dimensions of velocity</span>
 <span class="sd">            Particle velocities along the line of sight.</span>
 
-<span class="sd">        **kwargs : various</span>
+<span class="sd">        **kwargs</span>
 <span class="sd">            See spectral_function_kwargs.</span>
 
 <span class="sd">        See Also</span>
@@ -333,17 +334,12 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    sigma : astropy.units.Quantity, with dimensions of velocity, or string: \</span>
-<span class="sd">    &#39;thermal&#39;</span>
+<span class="sd">    sigma : Quantity, with dimensions of velocity, or string {&#39;thermal&#39;}, \</span>
+<span class="sd">    optional</span>
 <span class="sd">        Width of the Gaussian modelling the line (constant for all particles),</span>
 <span class="sd">        or specify &#39;thermal&#39; for width equal to sqrt(k_B * T / m_p) where k_B</span>
 <span class="sd">        is Boltzmann&#39;s constant, T is the particle temperature and m_p is the</span>
-<span class="sd">        particle mass.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : GaussianSpectrum</span>
-<span class="sd">        An appropriately initialized GaussianSpectrum object.</span>
+<span class="sd">        particle mass. (Default is 7 km/s.)</span>
 
 <span class="sd">    See Also</span>
 <span class="sd">    --------</span>
@@ -364,23 +360,22 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        a : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">        a : Quantity, with dimensions of velocity</span>
 <span class="sd">            Lower spectral channel edge(s).</span>
 
-<span class="sd">        b : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">        b : Quantity, with dimensions of velocity</span>
 <span class="sd">            Upper spectral channel edge(s).</span>
 
-<span class="sd">        vmids : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">        vmids : Quantity, with dimensions of velocity</span>
 <span class="sd">            Particle velocities along the line of sight.</span>
 
-<span class="sd">        sigma : astropy.units.Quantity array, or astropy.units.Quantity, with \</span>
-<span class="sd">        dimensions of velocity</span>
+<span class="sd">        sigma : Quantity, with dimensions of velocity</span>
 <span class="sd">            Velocity dispersion for HI line width, either for each particle or</span>
 <span class="sd">            constant.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : astropy.units.Quantity, dimesionless</span>
+<span class="sd">        out : Quantity, dimensionless</span>
 <span class="sd">            The evaluated spectral model.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -420,7 +415,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : astropy.unit.Quantity, with dimensions of velocity</span>
+<span class="sd">        out : Quantity, with dimensions of velocity</span>
 <span class="sd">            Velocity dispersion (constant, or per particle).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -436,11 +431,6 @@
 
 <span class="sd">    The line is modelled as a Dirac-delta function, centered at the particle</span>
 <span class="sd">    velocity.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : DiracDeltaSpectrum</span>
-<span class="sd">        An appropriately initialized DiracDeltaSpectrum object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -453,18 +443,18 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        a : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">        a : Quantity, with dimensions of velocity</span>
 <span class="sd">            Lower spectral channel edge(s).</span>
 
-<span class="sd">        b : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">        b : Quantity, with dimensions of velocity</span>
 <span class="sd">            Upper spectral channel edge(s).</span>
 
-<span class="sd">        vmids : astropy.units.Quantity array, with dimensions of velocity</span>
+<span class="sd">        vmids : Quantity, with dimensions of velocity</span>
 <span class="sd">            Particle velocities along the line of sight.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : astropy.units.Quantity, dimesionless</span>
+<span class="sd">        out : Quantity, dimesionless</span>
 <span class="sd">            The evaluated spectral model.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -498,7 +488,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : astropy.units.Quantity</span>
+<span class="sd">        out : Quantity</span>
 <span class="sd">            Velocity dispersion of 0 km/s.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 

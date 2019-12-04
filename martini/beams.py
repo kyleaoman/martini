@@ -14,17 +14,17 @@ class _BaseBeam(object):
     """
     Abstract base class for classes implementing a radio telescope beam model.
 
-    Classes inheriting from _BaseBeam must implement three methods: 'f_kernel',
-    'kernel_size_px' and 'init_beam_header'.
+    Classes inheriting from _BaseBeam must implement three methods: `f_kernel`,
+    `kernel_size_px` and `init_beam_header`.
 
-    'f_kernel' should return a function accepting two arguments, the RA and Dec
+    `f_kernel` should return a function accepting two arguments, the RA and Dec
     offsets from the beam centroid (provided with units of arcsec), and
     returning the beam amplitude at that location.
 
-    'kernel_px_size' should return a 2-tuple containing the half-size (x, y) of
+    `kernel_px_size` should return a 2-tuple containing the half-size (x, y) of
     the beam image that will be initialized, in pixels.
 
-    'init_beam_header' should be defined if the major/minor axis FWHM of the
+    `init_beam_header` should be defined if the major/minor axis FWHM of the
     beam and its position angle are not defined when the beam object is
     initialized, for instance if modelling a particular telescope this function
     can be used to set the (constant) parameters of the beam of that particular
@@ -32,13 +32,13 @@ class _BaseBeam(object):
 
     Parameters
     ----------
-    bmaj : astropy.units.Quantity, with dimensions of angle
+    bmaj : Quantity, with dimensions of angle
         Beam major axis (FWHM) angular size.
 
-    bmin : astropy.units.Quantity, with dimensions of angle
+    bmin : Quantity, with dimensions of angle
         Beam minor axis (FWHM) angular size.
 
-    bpa : astropy.units.Quantity, with dimesions of angle
+    bpa : Quantity, with dimesions of angle
         Beam position angle (East from North).
 
     See Also
@@ -71,7 +71,7 @@ class _BaseBeam(object):
 
         Returns
         -------
-        2-tuple, each element an integer
+        out : 2-tuple, each element an integer
         """
 
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
@@ -82,7 +82,7 @@ class _BaseBeam(object):
 
         Parameters
         ----------
-        datacube : DataCube instance
+        datacube : martini.DataCube instance
             Datacube to use, cube size is required for pixel size, position &
             velocity centroids.
         """
@@ -150,13 +150,13 @@ class GaussianBeam(_BaseBeam):
 
     Parameters
     ----------
-    bmaj : astropy.units.Quantity, with dimensions of angle
+    bmaj : Quantity, with dimensions of angle
         Beam major axis (FWHM) angular size.
 
-    bmin : astropy.units.Quantity, with dimensions of angle
+    bmin : Quantity, with dimensions of angle
         Beam minor axis (FWHM) angular size.
 
-    bpa : astropy.units.Quantity, with dimensions of angle
+    bpa : Quantity, with dimensions of angle
         Beam position angle (East of North).
 
     truncate : float
@@ -182,8 +182,9 @@ class GaussianBeam(_BaseBeam):
 
         Returns
         -------
-        Callable accepting 2 arguments (both float or array) and returning a
-        float or array of corresponding size.
+        out : callable
+            Accepts 2 arguments (both array_like) and return an
+            array_like of corresponding size.
         """
 
         def fwhm_to_sigma(fwhm):
@@ -218,7 +219,7 @@ class GaussianBeam(_BaseBeam):
 
         Returns
         -------
-        2-tuple, each element an integer.
+        out : 2-tuple, each element an integer.
         """
 
         size = np.ceil(
@@ -253,8 +254,7 @@ class WSRTBeam(_BaseBeam):
 
         Returns
         -------
-        2-tuple containing an astropy.io.fits.Header and an
-        astropy.units.Quantity array.
+        out : 2-tuple containing an astropy.io.fits.Header and a Quantity.
         """
         with fits.open(self.beamfile) as f:
             return f[0].header, np.transpose(
@@ -266,7 +266,7 @@ class WSRTBeam(_BaseBeam):
 
         Returns
         -------
-        3-tuple containing: three astropy.units.Quantity objects with
+        out : 3-tuple containing: three astropy.units.Quantity objects with
         dimensions of angle, angle and frequency, respectively, corresponding
         to the RA, Dec and frequency centres.
         """
@@ -303,8 +303,9 @@ class WSRTBeam(_BaseBeam):
 
         Returns
         -------
-        Callable accepting 2 arguments (both float or array) and returning a
-        float or array of corresponding size.
+        out : callable
+            Accepts 2 arguments (both array_like) and return an
+            array_like of corresponding size.
         """
 
         if self.dec <= 0. * U.deg:
@@ -336,7 +337,7 @@ class WSRTBeam(_BaseBeam):
 
         Returns
         -------
-        2-tuple, each element an integer.
+        out : 2-tuple, each element an integer.
         """
 
         if self.px_size > 12. * U.arcsec:

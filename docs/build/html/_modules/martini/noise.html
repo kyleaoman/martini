@@ -25,6 +25,7 @@
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
         <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="../../_static/js/theme.js"></script>
 
@@ -193,17 +194,12 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of a simple Gaussian noise model.</span>
 
-<span class="sd">    Provides a &#39;generate&#39; method producing a cube of Gaussian Noise.</span>
+<span class="sd">    Provides a `generate` method producing a cube of Gaussian noise.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    rms : astropy.units.Quantity with dimensions of flux density (e.g. Jy)</span>
+<span class="sd">    rms : Quantity, with dimensions of flux density (e.g. Jy)</span>
 <span class="sd">        Root mean square amplitude of the noise field.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : GaussianNoise</span>
-<span class="sd">        An appropriately initialized GaussianNoise object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rms</span><span class="o">=</span><span class="mf">1.0</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Jy</span><span class="p">):</span>
@@ -230,7 +226,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : astropy.units.Quantity array, with dimensions of flux density</span>
+<span class="sd">        out : Quantity, with dimensions of flux density</span>
 <span class="sd">            Noise realization with size matching the DataCube._array.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
