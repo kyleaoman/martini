@@ -25,6 +25,7 @@
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
         <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="../../_static/js/theme.js"></script>
 
@@ -173,17 +174,17 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Abstract base class for classes implementing a radio telescope beam model.</span>
 
-<span class="sd">    Classes inheriting from _BaseBeam must implement three methods: &#39;f_kernel&#39;,</span>
-<span class="sd">    &#39;kernel_size_px&#39; and &#39;init_beam_header&#39;.</span>
+<span class="sd">    Classes inheriting from _BaseBeam must implement three methods: `f_kernel`,</span>
+<span class="sd">    `kernel_size_px` and `init_beam_header`.</span>
 
-<span class="sd">    &#39;f_kernel&#39; should return a function accepting two arguments, the RA and Dec</span>
+<span class="sd">    `f_kernel` should return a function accepting two arguments, the RA and Dec</span>
 <span class="sd">    offsets from the beam centroid (provided with units of arcsec), and</span>
 <span class="sd">    returning the beam amplitude at that location.</span>
 
-<span class="sd">    &#39;kernel_px_size&#39; should return a 2-tuple containing the half-size (x, y) of</span>
+<span class="sd">    `kernel_px_size` should return a 2-tuple containing the half-size (x, y) of</span>
 <span class="sd">    the beam image that will be initialized, in pixels.</span>
 
-<span class="sd">    &#39;init_beam_header&#39; should be defined if the major/minor axis FWHM of the</span>
+<span class="sd">    `init_beam_header` should be defined if the major/minor axis FWHM of the</span>
 <span class="sd">    beam and its position angle are not defined when the beam object is</span>
 <span class="sd">    initialized, for instance if modelling a particular telescope this function</span>
 <span class="sd">    can be used to set the (constant) parameters of the beam of that particular</span>
@@ -191,13 +192,13 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    bmaj : astropy.units.Quantity, with dimensions of angle</span>
+<span class="sd">    bmaj : Quantity, with dimensions of angle</span>
 <span class="sd">        Beam major axis (FWHM) angular size.</span>
 
-<span class="sd">    bmin : astropy.units.Quantity, with dimensions of angle</span>
+<span class="sd">    bmin : Quantity, with dimensions of angle</span>
 <span class="sd">        Beam minor axis (FWHM) angular size.</span>
 
-<span class="sd">    bpa : astropy.units.Quantity, with dimesions of angle</span>
+<span class="sd">    bpa : Quantity, with dimesions of angle</span>
 <span class="sd">        Beam position angle (East from North).</span>
 
 <span class="sd">    See Also</span>
@@ -230,7 +231,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        2-tuple, each element an integer</span>
+<span class="sd">        out : 2-tuple, each element an integer</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span>
@@ -241,7 +242,7 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        datacube : DataCube instance</span>
+<span class="sd">        datacube : martini.DataCube instance</span>
 <span class="sd">            Datacube to use, cube size is required for pixel size, position &amp;</span>
 <span class="sd">            velocity centroids.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -309,13 +310,13 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    bmaj : astropy.units.Quantity, with dimensions of angle</span>
+<span class="sd">    bmaj : Quantity, with dimensions of angle</span>
 <span class="sd">        Beam major axis (FWHM) angular size.</span>
 
-<span class="sd">    bmin : astropy.units.Quantity, with dimensions of angle</span>
+<span class="sd">    bmin : Quantity, with dimensions of angle</span>
 <span class="sd">        Beam minor axis (FWHM) angular size.</span>
 
-<span class="sd">    bpa : astropy.units.Quantity, with dimensions of angle</span>
+<span class="sd">    bpa : Quantity, with dimensions of angle</span>
 <span class="sd">        Beam position angle (East of North).</span>
 
 <span class="sd">    truncate : float</span>
@@ -341,8 +342,9 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        Callable accepting 2 arguments (both float or array) and returning a</span>
-<span class="sd">        float or array of corresponding size.</span>
+<span class="sd">        out : callable</span>
+<span class="sd">            Accepts 2 arguments (both array_like) and return an</span>
+<span class="sd">            array_like of corresponding size.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">def</span> <span class="nf">fwhm_to_sigma</span><span class="p">(</span><span class="n">fwhm</span><span class="p">):</span>
@@ -377,7 +379,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        2-tuple, each element an integer.</span>
+<span class="sd">        out : 2-tuple, each element an integer.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span>
@@ -412,8 +414,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        2-tuple containing an astropy.io.fits.Header and an</span>
-<span class="sd">        astropy.units.Quantity array.</span>
+<span class="sd">        out : 2-tuple containing an astropy.io.fits.Header and a Quantity.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">with</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">beamfile</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span>
@@ -425,7 +426,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        3-tuple containing: three astropy.units.Quantity objects with</span>
+<span class="sd">        out : 3-tuple containing: three astropy.units.Quantity objects with</span>
 <span class="sd">        dimensions of angle, angle and frequency, respectively, corresponding</span>
 <span class="sd">        to the RA, Dec and frequency centres.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -462,8 +463,9 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        Callable accepting 2 arguments (both float or array) and returning a</span>
-<span class="sd">        float or array of corresponding size.</span>
+<span class="sd">        out : callable</span>
+<span class="sd">            Accepts 2 arguments (both array_like) and return an</span>
+<span class="sd">            array_like of corresponding size.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec</span> <span class="o">&lt;=</span> <span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">:</span>
@@ -495,7 +497,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        2-tuple, each element an integer.</span>
+<span class="sd">        out : 2-tuple, each element an integer.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">px_size</span> <span class="o">&gt;</span> <span class="mf">12.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">arcsec</span><span class="p">:</span>

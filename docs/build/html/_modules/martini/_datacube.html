@@ -25,6 +25,7 @@
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
         <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="../../_static/js/theme.js"></script>
 
@@ -174,39 +175,33 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    n_px_x : int</span>
+<span class="sd">    n_px_x : int, optional</span>
 <span class="sd">        Pixel count along the x (RA) axis. Even integers strongly preferred.</span>
+<span class="sd">        (Default: 256.)</span>
 
-<span class="sd">    n_px_y : int</span>
+<span class="sd">    n_px_y : int, optional</span>
 <span class="sd">        Pixel count along the y (Dec) axis. Even integers strongly preferred.</span>
+<span class="sd">        (Default: 256.)</span>
 
-<span class="sd">    n_channels : int</span>
-<span class="sd">        Number of channels along the spectral axis.</span>
+<span class="sd">    n_channels : int, optional</span>
+<span class="sd">        Number of channels along the spectral axis. (Default: 64.)</span>
 
-<span class="sd">    px_size : astropy.units.Quantity, with dimensions of angle</span>
-<span class="sd">        Angular scale of one pixel.</span>
+<span class="sd">    px_size : Quantity, with dimensions of angle, optional</span>
+<span class="sd">        Angular scale of one pixel. (Default: 15 arcsec.)</span>
 
-<span class="sd">    channel_width : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">    channel_width : Quantity, with dimensions of velocity, optional</span>
 <span class="sd">        Step size along the spectral axis. Must be provided as a velocity.</span>
+<span class="sd">        (Default: 4 km/s.)</span>
 
-<span class="sd">    velocity_centre : astropy.units.Quantity, with dimensions of velocity</span>
+<span class="sd">    velocity_centre : Quantity, with dimensions of velocity, optional</span>
 <span class="sd">        Velocity of the central channel along the spectral axis.</span>
+<span class="sd">        (Default: 0 km/s.)</span>
 
-<span class="sd">    ra : astropy.units.Quantity, with dimensions of angle</span>
-<span class="sd">        Right ascension of the cube centroid.</span>
+<span class="sd">    ra : Quantity, with dimensions of angle, optional</span>
+<span class="sd">        Right ascension of the cube centroid. (Default: 0 deg.)</span>
 
-<span class="sd">    dec : astropy.units.Quantity, with dimensions of angle</span>
-<span class="sd">        Declination of the cube centroid.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : DataCube</span>
-<span class="sd">        An appropriately configured DataCube object.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-<span class="sd">    TODO</span>
-
+<span class="sd">    dec : Quantity, with dimensions of angle, optional</span>
+<span class="sd">        Declination of the cube centroid. (Default: 0 deg.)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
@@ -354,7 +349,7 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        pad : tuple or other sequence of length 2</span>
+<span class="sd">        pad : 2-tuple (or other sequence)</span>
 <span class="sd">            Number of pixels to add in the x (RA) and y (Dec) directions.</span>
 
 <span class="sd">        See Also</span>
@@ -402,10 +397,6 @@
 <span class="sd">        -------</span>
 <span class="sd">        out : DataCube</span>
 <span class="sd">            Copy of the DataCube object.</span>
-
-<span class="sd">        Examples</span>
-<span class="sd">        --------</span>
-<span class="sd">        TODO</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">copy</span> <span class="o">=</span> <span class="n">DataCube</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">,</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span><span class="p">,</span>
@@ -421,7 +412,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : string</span>
+<span class="sd">        out : str</span>
 <span class="sd">            Text representation of the DataCube._array contents.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span></div>

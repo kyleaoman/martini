@@ -24,7 +24,7 @@ Martini has (so far) been successfully run on the output of these simulations:
 - C-EAGLE/Hydrangea
 - Illustris
 - IllustrisTNG
-- Augiga
+- Auriga
 - MaGICC (and therefore in principle NIHAO)
 - Magneticum
 

@@ -13,49 +13,49 @@ class SOSource(SPHSource):
 
     Parameters
     ----------
-    distance : astropy.units.Quantity, with dimensions of length
+    distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: 3 Mpc.)
 
-    vpeculiar : astropy.units.Quantity, with dimensions of velocity
+    vpeculiar : Quantity, with dimensions of velocity, optional
         Source peculiar velocity, added to the velocity from Hubble's law.
+        (Default: 0 km/s.)
 
-    rotation : dict
-        Keys may be any combination of 'axis_angle', 'rotmat' and/or
-        'L_coords'. These will be applied in this order. Note that the 'y-z'
+    rotation : dict, optional
+        Keys may be any combination of `axis_angle`, `rotmat` and/or
+        `L_coords`. These will be applied in this order. Note that the 'y-z'
         plane will be the one eventually placed in the plane of the "sky". The
         corresponding values:
-        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element an astropy.units.Quantity with \
+
+        - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element a Quantity with \
         dimensions of angle, indicating the angle to rotate through.
-        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
-        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
-        angle (both astropy.units.Quantity instances with dimensions of \
+        - `rotmat` : A (3, 3) numpy.array specifying a rotation.
+        - `L_coords` : A 2-tuple containing an inclination and an azimuthal \
+        angle (both Quantity instances with dimensions of \
         angle). The routine will first attempt to identify a preferred plane \
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
         momentum pole (rotation about 'x'), and inclined (rotation about 'y').
 
-    ra : astropy.units.Quantity, with dimensions of angle
-        Right ascension for the source centroid.
+        (Default: rotmat with the identity rotation.)
 
-    dec : astropy.units.Quantity, with dimensions of angle
-        Declination for the source centroid.
+    ra : Quantity, with dimensions of angle, optional
+        Right ascension for the source centroid. (Default: 0 deg.)
+
+    dec : Quantity, with dimensions of angle, optional
+        Declination for the source centroid. (Default: 0 deg.)
 
     SO_args : dict
         Dictionary of keyword arguments to pass to a call to simobj.SimObj.
-        Arguments are: 'obj_id', 'snap_id', 'mask_type', 'mask_args',
-        'mask_kwargs', 'configfile', 'simfiles_configfile', 'ncpu'. See simobj
+        Arguments are: `obj_id`, `snap_id`, `mask_type`, `mask_args`,
+        `mask_kwargs`, `configfile`, `simfiles_configfile`, `ncpu`. See simobj
         package documentation for details. Provide SO_args or SO_instance, not
         both.
 
     SO_instance : SimObj instance
         An initialized SimObj object. Provide SO_instance or SO_args, not both.
-
-    Returns
-    -------
-    out : SOSource
-        An appropriately initialized SOSource object.
     """
 
     def __init__(

@@ -25,6 +25,7 @@
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
         <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="../../_static/js/theme.js"></script>
 
@@ -172,15 +173,19 @@
 <span class="k">class</span> <span class="nc">_BaseSPHKernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Abstract base class for classes implementing SPH kernels to inherit from.</span>
+
 <span class="sd">    Classes inheriting from _BaseSPHKernel must implement three methods:</span>
-<span class="sd">    &#39;kernel&#39;, &#39;kernel_integral&#39; and &#39;validate&#39;.</span>
-<span class="sd">    &#39;kernel&#39; should define the kernel function, normalized such that its volume</span>
+<span class="sd">    `kernel`, `kernel_integral` and `validate`.</span>
+
+<span class="sd">    `kernel` should define the kernel function, normalized such that its volume</span>
 <span class="sd">    integral is 1.</span>
-<span class="sd">    &#39;kernel_integral&#39; should define the integral of the kernel over a pixel</span>
+
+<span class="sd">    `kernel_integral` should define the integral of the kernel over a pixel</span>
 <span class="sd">    given the distance between the pixel centre and the particle centre, and</span>
 <span class="sd">    the smoothing length (both in units of pixels). The integral should be</span>
 <span class="sd">    normalized so that evaluated over the entire kernel it is equal to 1.</span>
-<span class="sd">    &#39;validate&#39; should check whether any approximations converge to sufficient</span>
+
+<span class="sd">    `validate` should check whether any approximations converge to sufficient</span>
 <span class="sd">    accuracy (for instance, depending on the ratio of the pixel size and</span>
 <span class="sd">    smoothing length), and raise an error if not.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -201,17 +206,20 @@
     <span class="k">def</span> <span class="nf">px_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate kernel integral using scaled smoothing lengths.</span>
+
 <span class="sd">        This is the method that should be called by other modules in</span>
 <span class="sd">        martini, rather than &#39;kernel_integral&#39;.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        dij : Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        h : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, defined as the kernel FWHM, in pixels.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : astropy.units.Quantity, with dimensions of pixels^-2</span>
+<span class="sd">        out : Quantity, with dimensions of pixels^-2</span>
 <span class="sd">            Integral of smoothing kernel over pixel, per unit pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -220,11 +228,13 @@
     <span class="k">def</span> <span class="nf">confirm_validation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Verify kernel accuracy using scaled smoothing lengths.</span>
+
 <span class="sd">        This is the method that should be called by other modules in</span>
 <span class="sd">        martini, rather than &#39;validate&#39;.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        sm_lengths : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -233,15 +243,17 @@
     <span class="k">def</span> <span class="nf">eval_kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel, handling array casting and rescaling.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        r : float or np.array or astropy.units.Quantity</span>
+<span class="sd">        r : array_like or Quantity</span>
 <span class="sd">            Distance parameter, same units as h.</span>
-<span class="sd">        h : float or np.array or astropy.units.Quantity</span>
+<span class="sd">        h : array_like or Quantity</span>
 <span class="sd">            Smoothing scale parameter (FWHM), same units as r.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : float or np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel value at position(s) r / h.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -260,13 +272,15 @@
     <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Abstract method; evaluate the kernel.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        q : np.array</span>
+<span class="sd">        q : array_like</span>
 <span class="sd">            Dimensionless distance parameter.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel value at positions q.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">pass</span>
@@ -275,15 +289,17 @@
     <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Abstract method; calculate the kernel integral over a pixel.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        dij : Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        h : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : astropy.units.Quantity, with dimensions of pixels^-2</span>
+<span class="sd">        out : Quantity, with dimensions of pixels^-2</span>
 <span class="sd">            Integral of smoothing kernel over pixel, per unit pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -294,14 +310,16 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Abstract method; check conditions for validity of kernel integral</span>
 <span class="sd">        calculation.</span>
+
 <span class="sd">        Some approximations may only converge if the ratio of the pixel size</span>
 <span class="sd">        and the smoothing length is sufficiently large, or sufficiently small.</span>
 <span class="sd">        This method should check these conditions and raise errors when</span>
 <span class="sd">        appropriate. The smoothing lengths are provided normalized to the pixel</span>
 <span class="sd">        size.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        sm_lengths : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -311,20 +329,22 @@
 <div class="viewcode-block" id="WendlandC2Kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel">[docs]</a><span class="k">class</span> <span class="nc">WendlandC2Kernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of the Wendland C2 kernel integral.</span>
+
 <span class="sd">    The Wendland C2 kernel is used in the EAGLE code and derivatives (not in</span>
 <span class="sd">    Gadget/Gadget2!). The exact integral is usually too slow to be practical;</span>
 <span class="sd">    the implementation here approximates the kernel amplitude as constant</span>
 <span class="sd">    across the pixel, which converges to within 1% of the exact integral</span>
 <span class="sd">    provided the SPH smoothing lengths are at least 2 pixels in size.</span>
+
 <span class="sd">    The WendlandC2 kernel is here defined as:</span>
-<span class="sd">        W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)</span>
-<span class="sd">        for 0 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= 1</span>
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : WendlandC2Kernel</span>
-<span class="sd">        An appropriately initialized WendlandC2Kernel object.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        W(q) = \\begin{cases}</span>
+<span class="sd">        \\frac{21}{2\\pi}(1-q)^4(4q+1)</span>
+<span class="sd">        &amp;{\\rm for}\\;0 \\leq q &lt; 1\\\\</span>
+<span class="sd">        0 &amp;{\\rm for}\\;q \\geq 1</span>
+<span class="sd">        \\end{cases}</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -338,18 +358,24 @@
 <div class="viewcode-block" id="WendlandC2Kernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
+
 <span class="sd">        The WendlandC2 kernel is here defined as:</span>
-<span class="sd">        W(q) = (21 / (2 * pi)) * (1 - q)^4 * (4 * q + 1)</span>
-<span class="sd">        for 0 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= 1</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            W(q) = \\begin{cases}</span>
+<span class="sd">            \\frac{21}{2\\pi}(1-q)^4(4q+1)</span>
+<span class="sd">            &amp;{\\rm for}\\;0 \\leq q &lt; 1\\\\</span>
+<span class="sd">            0 &amp;{\\rm for}\\;q \\geq 1</span>
+<span class="sd">            \\end{cases}</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        q : np.array</span>
+<span class="sd">        q : array_like</span>
 <span class="sd">            Dimensionless distance parameter.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel value at positions q.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -363,19 +389,22 @@
 
 <div class="viewcode-block" id="WendlandC2Kernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Calculate the kernel integral over a pixel. The formula used</span>
-<span class="sd">        approximates the kernel amplitude as constant across the pixel area and</span>
-<span class="sd">        converges to the true value within 1% for smoothing lengths &gt;= 2</span>
-<span class="sd">        pixels.</span>
+<span class="sd">        Calculate the kernel integral over a pixel.</span>
+
+<span class="sd">        The formula used approximates the kernel amplitude as constant</span>
+<span class="sd">        across the pixel area and converges to the true value within 1%</span>
+<span class="sd">        for smoothing lengths &gt;= 2 pixels.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        dij : Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        h : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Approximate kernel integral over the pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -395,9 +424,10 @@
 <div class="viewcode-block" id="WendlandC2Kernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC2Kernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        sm_lengths : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths (FWHM), in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -417,19 +447,22 @@
 <div class="viewcode-block" id="WendlandC6Kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel">[docs]</a><span class="k">class</span> <span class="nc">WendlandC6Kernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of the Wendland C6 kernel integral.</span>
+
 <span class="sd">    The Wendland C6 kernel is used in the Magneticum code (not in</span>
-<span class="sd">    Gadget/Gadget2!). The exact integral is usually too slow to be practical,</span>
-<span class="sd">    and I have not yet undertaken the painful process of deriving a useful</span>
-<span class="sd">    approximation. Instead, use the GaussianKernel.mimic functionality.</span>
+<span class="sd">    Gadget/Gadget2!). The exact integral is usually too slow to be practical;</span>
+<span class="sd">    the implementation here approximates the kernel amplitude as constant</span>
+<span class="sd">    across the pixel, which converges to within 1% of the exact integral</span>
+<span class="sd">    provided the SPH smoothing lengths are at least 1.29 pixels in size.</span>
+
 <span class="sd">    The WendlandC6 kernel is here defined as:</span>
-<span class="sd">        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * q + 25 * q^2 + 32 * q^3)</span>
-<span class="sd">        for 0 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= 1</span>
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : WendlandC6Kernel</span>
-<span class="sd">        An appropriately initialized WendlandC6Kernel object.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        W(q) = \\begin{cases}</span>
+<span class="sd">        \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)</span>
+<span class="sd">        &amp;{\\rm for}\\;0 \\leq q &lt; 1\\\\</span>
+<span class="sd">        0 &amp;{\\rm for}\\;q \\geq 1</span>
+<span class="sd">        \\end{cases}</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -442,18 +475,24 @@
 <div class="viewcode-block" id="WendlandC6Kernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
+
 <span class="sd">        The WendlandC6 kernel is here defined as:</span>
-<span class="sd">        W(q) = (1365 / 64 / pi) * (1 - q)^8 * (1 + 8 * q + 25 * q^2 + 32 * q^3)</span>
-<span class="sd">        for 0 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= 1</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            W(q) = \\begin{cases}</span>
+<span class="sd">            \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)</span>
+<span class="sd">            &amp;{\\rm for}\\;0 \\leq q &lt; 1\\\\</span>
+<span class="sd">            0 &amp;{\\rm for}\\;q \\geq 1</span>
+<span class="sd">            \\end{cases}</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        q : np.array</span>
+<span class="sd">        q : array_like</span>
 <span class="sd">            Dimensionless distance parameter.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel value at positions q.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -469,15 +508,17 @@
 <div class="viewcode-block" id="WendlandC6Kernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate the kernel integral over a pixel. Not currently implemented.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        dij : Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        h : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in pixels.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Approximate kernel integral over the pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -557,16 +598,17 @@
 <div class="viewcode-block" id="WendlandC6Kernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.WendlandC6Kernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        sm_lengths : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.29</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.WendlandC6Kernel.validate:&quot;</span>
                                <span class="s2">&quot; SPH smoothing lengths must be &gt;= 1.29 px in &quot;</span>
-                               <span class="s2">&quot;size for WendlandC2 kernel integral &quot;</span>
+                               <span class="s2">&quot;size for WendlandC6 kernel integral &quot;</span>
                                <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
                                <span class="s2">&quot;may be disabled by calling &quot;</span>
                                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
@@ -578,22 +620,25 @@
 <div class="viewcode-block" id="CubicSplineKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel">[docs]</a><span class="k">class</span> <span class="nc">CubicSplineKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of the cubic spline (M4) kernel integral.</span>
+
 <span class="sd">    The cubic spline is the &#39;classic&#39; SPH kernel. The exact integral is usually</span>
 <span class="sd">    too slow to be practical; the implementation here approximates the kernel</span>
 <span class="sd">    amplitude as constant across the pixel, which converges to within 1% of</span>
 <span class="sd">    the exact integral provided the SPH smoothing lengths are at least 2.5</span>
 <span class="sd">    pixels in size.</span>
+
 <span class="sd">    The cubic spline kernel is here defined as:</span>
-<span class="sd">        W(q) = (8 / pi) * (1 - 6 * q^2 * (1 - 0.5 * q))</span>
-<span class="sd">        for 0 &lt;= q &lt; 0.5</span>
-<span class="sd">        W(q) = (8 / pi) * 2 * (1 - q)^3</span>
-<span class="sd">        for 0.5 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= 1</span>
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : CubicSplineKernel</span>
-<span class="sd">        An appropriately initialized CubicSplineKernel object.</span>
+
+<span class="sd">    .. math ::</span>
+<span class="sd">        W(q) = \\frac{8}{\\pi}\\begin{cases}</span>
+<span class="sd">        (1 - 6q^2(1 - \\frac{q}{2}))</span>
+<span class="sd">        &amp;{\\rm for}\\;0 \\leq q &lt; \\frac{1}{2}\\\\</span>
+<span class="sd">        2(1 - q)^3</span>
+<span class="sd">        &amp;{\\rm for}\\;\\frac{1}{2} \\leq q &lt; 1\\\\</span>
+<span class="sd">        0</span>
+<span class="sd">        &amp;{\\rm for}\\;q \\geq 1</span>
+<span class="sd">        \\end{cases}</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -606,20 +651,27 @@
 <div class="viewcode-block" id="CubicSplineKernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
+
 <span class="sd">        The cubic spline kernel is here defined as:</span>
-<span class="sd">        W(q) = (8 / pi) * (1 - 6 * q^2 * (1 - 0.5 * q))</span>
-<span class="sd">        for 0 &lt;= q &lt; 0.5</span>
-<span class="sd">        W(q) = (8 / pi) * 2 * (1 - q)^3</span>
-<span class="sd">        for 0.5 &lt;= q &lt; 1</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= 1</span>
+
+<span class="sd">        .. math ::</span>
+<span class="sd">            W(q) = \\frac{8}{\\pi}\\begin{cases}</span>
+<span class="sd">            (1 - 6q^2(1 - \\frac{q}{2}))</span>
+<span class="sd">            &amp;{\\rm for}\\;0 \\leq q &lt; \\frac{1}{2}\\\\</span>
+<span class="sd">            2(1 - q)^3</span>
+<span class="sd">            &amp;{\\rm for}\\;\\frac{1}{2} \\leq q &lt; 1\\\\</span>
+<span class="sd">            0</span>
+<span class="sd">            &amp;{\\rm for}\\;q \\geq 1</span>
+<span class="sd">            \\end{cases}</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        q : np.array</span>
+<span class="sd">        q : array_like</span>
 <span class="sd">            Dimensionless distance parameter.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel value at positions q.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -634,19 +686,22 @@
 
 <div class="viewcode-block" id="CubicSplineKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Calculate the kernel integral over a pixel. The formula used</span>
-<span class="sd">        approximates the kernel amplitude as constant across the pixel area and</span>
-<span class="sd">        converges to the true value within 1% for smoothing lengths &gt;= 2.5</span>
-<span class="sd">        pixels.</span>
+<span class="sd">        Calculate the kernel integral over a pixel.</span>
+
+<span class="sd">        The formula used approximates the kernel amplitude as constant across</span>
+<span class="sd">        the pixel area and converges to the true value within 1% for smoothing</span>
+<span class="sd">        lengths &gt;= 2.5 pixels.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        dij : Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        h : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in pixels.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Approximate kernel integral over the pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -683,9 +738,10 @@
 <div class="viewcode-block" id="CubicSplineKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.CubicSplineKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        sm_lengths : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths, in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -704,25 +760,30 @@
 <div class="viewcode-block" id="GaussianKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel">[docs]</a><span class="k">class</span> <span class="nc">GaussianKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of a (truncated) Gaussian kernel integral.</span>
+
 <span class="sd">    Calculates the kernel integral over a pixel. The 3 integrals (along dx,</span>
 <span class="sd">    dy, dz) are evaluated exactly, however the truncation is implemented</span>
 <span class="sd">    approximately, erring on the side of integrating slightly further than</span>
 <span class="sd">    the truncation radius.</span>
+
 <span class="sd">    The Gaussian kernel is here defined as:</span>
-<span class="sd">    W(q) = (sqrt(2 * pi) * sigma)^-3 * np.exp(-(q / sigma)^2 / 2)</span>
-<span class="sd">    for 0 &lt;= q &lt; truncate</span>
-<span class="sd">    W(q) = 0</span>
-<span class="sd">    for q &gt;= truncate</span>
-<span class="sd">    with sigma=1/(2 * sqrt(2 * log(2))), s.t. FWHM = 1.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        W(q) = \\begin{cases}</span>
+<span class="sd">        (\\sqrt{2\\pi}\\sigma)^{-3}</span>
+<span class="sd">        \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)</span>
+<span class="sd">        &amp;{\\rm for}\\;0 \\leq q &lt; t\\\\</span>
+<span class="sd">        0 &amp;{\\rm for}\\;q &gt; t</span>
+<span class="sd">        \\end{cases}</span>
+
+<span class="sd">    with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and</span>
+<span class="sd">    :math:`t` being the truncation radius.</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    truncate : float</span>
+<span class="sd">    truncate : float, optional</span>
 <span class="sd">        Number of standard deviations at which to truncate kernel (default=3).</span>
 <span class="sd">        Truncation radii &lt;2 may lead to large errors and are not recommended.</span>
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : GaussianKernel</span>
-<span class="sd">        An appropriately initialized GaussianKernel object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">truncate</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
@@ -736,19 +797,28 @@
 <div class="viewcode-block" id="GaussianKernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
+
 <span class="sd">        The Gaussian kernel is here defined as:</span>
-<span class="sd">        W(q) = (sqrt(2 * pi) * sigma)^-3 * np.exp(-(q / sigma)^2 / 2)</span>
-<span class="sd">        for 0 &lt;= q &lt; truncate</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q &gt;= truncate</span>
-<span class="sd">        with sigma=1/(2 * sqrt(2 * log(2))), s.t. FWHM = 1.</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            W(q) = \\begin{cases}</span>
+<span class="sd">            (\\sqrt{2\\pi}\\sigma)^{-3}</span>
+<span class="sd">            \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)</span>
+<span class="sd">            &amp;{\\rm for}\\;0 \\leq q &lt; t\\\\</span>
+<span class="sd">            0 &amp;{\\rm for}\\;q &gt; t</span>
+<span class="sd">            \\end{cases}</span>
+
+<span class="sd">        with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and</span>
+<span class="sd">        :math:`t` being the truncation radius.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        q : np.array</span>
+<span class="sd">        q : array_like</span>
 <span class="sd">            Dimensionless distance parameter.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel value at positions q.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -762,19 +832,22 @@
 
 <div class="viewcode-block" id="GaussianKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Calculate the kernel integral over a pixel. The 3 integrals (along dx,</span>
-<span class="sd">        dy, dz) are evaluated exactly, however the truncation is implemented</span>
-<span class="sd">        approximately, erring on the side of integrating slightly further than</span>
-<span class="sd">        the truncation radius.</span>
+<span class="sd">        Calculate the kernel integral over a pixel.</span>
+
+<span class="sd">        The 3 integrals (along dx, dy, dz) are evaluated exactly, however the</span>
+<span class="sd">        truncation is implemented approximately, erring on the side of</span>
+<span class="sd">        integrating slightly further than the truncation radius.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        dij : Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        h : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel integral over the pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">sig</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)))</span>  <span class="c1"># s.t. FWHM = 1</span>
@@ -808,9 +881,10 @@
 <div class="viewcode-block" id="GaussianKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.GaussianKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        sm_lengths : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths (FWHM), in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -848,15 +922,15 @@
 <div class="viewcode-block" id="DiracDeltaKernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel">[docs]</a><span class="k">class</span> <span class="nc">DiracDeltaKernel</span><span class="p">(</span><span class="n">_BaseSPHKernel</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation of a Dirac-delta kernel integral.</span>
+
 <span class="sd">    The Dirac-delta kernel is here defined as:</span>
-<span class="sd">    W(q) = inf</span>
-<span class="sd">    for q == 0</span>
-<span class="sd">    W(q) = 0</span>
-<span class="sd">    for q != 0</span>
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : DiracDeltaKernel</span>
-<span class="sd">        An appropriately initialized DiracDeltaKernel object.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        W(q) = \\begin{cases}</span>
+<span class="sd">        \\infty &amp;{\\rm for}\\;q = 0\\\\</span>
+<span class="sd">        0 &amp;{\\rm for}\\;q &gt; 0</span>
+<span class="sd">        \\end{cases}</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -871,18 +945,23 @@
 <div class="viewcode-block" id="DiracDeltaKernel.kernel"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.kernel">[docs]</a>    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the kernel function.</span>
+
 <span class="sd">        The Dirac-delta kernel is here defined as:</span>
-<span class="sd">        W(q) = inf</span>
-<span class="sd">        for q == 0</span>
-<span class="sd">        W(q) = 0</span>
-<span class="sd">        for q != 0</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            W(q) = \\begin{cases}</span>
+<span class="sd">            \\infty &amp;{\\rm for}\\;q = 0\\\\</span>
+<span class="sd">            0 &amp;{\\rm for}\\;q &gt; 0</span>
+<span class="sd">            \\end{cases}</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        q : np.array</span>
+<span class="sd">        q : array_like</span>
 <span class="sd">            Dimensionless distance parameter.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel value at positions q.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -890,19 +969,22 @@
 
 <div class="viewcode-block" id="DiracDeltaKernel.kernel_integral"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.kernel_integral">[docs]</a>    <span class="k">def</span> <span class="nf">kernel_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dij</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Calculate the kernel integral over a pixel. The particles are</span>
-<span class="sd">        approximated as point-like, ignoring any finite-sized kernel.</span>
-<span class="sd">        This is a reasonable approximation provided the smoothing</span>
+<span class="sd">        Calculate the kernel integral over a pixel.</span>
+
+<span class="sd">        The particles are approximated as point-like, ignoring any finite-sized</span>
+<span class="sd">        kernel. This is a reasonable approximation provided the smoothing</span>
 <span class="sd">        length is &lt; 0.5 pixel in size, ideally &lt;&lt; 1 pixel in size.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dij : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        dij : Quantity, with dimensions of pixels</span>
 <span class="sd">            Distances from pixel centre to particle positions, in pixels.</span>
-<span class="sd">        h : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        h : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths (FWHM), in pixels.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        out : np.array</span>
+<span class="sd">        out : array_like</span>
 <span class="sd">            Kernel integral over the pixel area.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -912,12 +994,14 @@
 <div class="viewcode-block" id="DiracDeltaKernel.validate"><a class="viewcode-back" href="../../sph_kernel.html#martini.sph_kernels.DiracDeltaKernel.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check conditions for validity of kernel integral calculation.</span>
+
 <span class="sd">        The Dirac-delta model approaches the exact integral when the smoothing</span>
 <span class="sd">        length is &lt;&lt; 1 pixel in size; at a minimum the smoothing length should</span>
 <span class="sd">        be less than half the pixel size.</span>
+
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        sm_lengths : astropy.units.Quantity, with dimensions of pixels</span>
+<span class="sd">        sm_lengths : Quantity, with dimensions of pixels</span>
 <span class="sd">            Particle smoothing lengths (FWHM), in units of pixels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 

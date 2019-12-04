@@ -25,6 +25,7 @@
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -164,18 +165,21 @@
 <span id="martini-martini-martini"></span><h1>Martini (martini.Martini)<a class="headerlink" href="#module-martini._martini" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="martini._martini.Martini">
-<em class="property">class </em><code class="sig-prename descclassname">martini._martini.</code><code class="sig-name descname">Martini</code><span class="sig-paren">(</span><em class="sig-param">source=None</em>, <em class="sig-param">datacube=None</em>, <em class="sig-param">beam=None</em>, <em class="sig-param">noise=None</em>, <em class="sig-param">sph_kernel=None</em>, <em class="sig-param">spectral_model=None</em>, <em class="sig-param">logtag=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini" title="Permalink to this definition">¶</a></dt>
-<dd><p>Used for the creation of synthetic HI data cubes from simulation data.</p>
+<em class="property">class </em><code class="descclassname">martini._martini.</code><code class="descname">Martini</code><span class="sig-paren">(</span><em>source=None</em>, <em>datacube=None</em>, <em>beam=None</em>, <em>noise=None</em>, <em>sph_kernel=None</em>, <em>spectral_model=None</em>, <em>logtag=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates synthetic HI data cubes from simulation data.</p>
 <p>Usual use of martini involves first creating instances of classes from each
 of the required and optional sub-modules, then creating a Martini with
 these instances as arguments. The object can then be used to create
-synthetic observations, usually by calling ‘insert_source_in_cube’,
-(optionally) ‘add_noise’, (optionally) ‘convolve_beam’ and ‘write_fits’ in
+synthetic observations, usually by calling <cite>insert_source_in_cube</cite>,
+(optionally) <cite>add_noise</cite>, (optionally) <cite>convolve_beam</cite> and <cite>write_fits</cite> in
 order.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>source</strong><span class="classifier">an instance of a class derived from martini.source._BaseSource</span></dt><dd><p>A description of the HI emitting object, including position, geometry
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">an instance of a class derived from martini.source._BaseSource</span></dt>
+<dd><p class="first last">A description of the HI emitting object, including position, geometry
 and an interface to the simulation data (SPH particle masses,
 positions, etc.). Sources leveraging the simobj package for reading
 simulation data (github.com/kyleaoman/simobj) and a few test sources
@@ -183,47 +187,54 @@ simulation data (github.com/kyleaoman/simobj) and a few test sources
 for instance to leverage other interfaces to simulation data, is
 straightforward. See sub-module documentation.</p>
 </dd>
-<dt><strong>datacube</strong><span class="classifier">martini.DataCube instance</span></dt><dd><p>A description of the datacube to create, including pixels, channels,
+<dt><strong>datacube</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.DataCube instance</span></dt>
+<dd><p class="first last">A description of the datacube to create, including pixels, channels,
 sky position. See sub-module documentation.</p>
 </dd>
-<dt><strong>beam</strong><span class="classifier">(optional) an instance of a class derived from beams._BaseBeam</span></dt><dd><p>A description of the beam for the simulated telescope. Given a
+<dt><strong>beam</strong> <span class="classifier-delimiter">:</span> <span class="classifier">an instance of a class derived from beams._BaseBeam, optional</span></dt>
+<dd><p class="first last">A description of the beam for the simulated telescope. Given a
 description, either mathematical or as an image, the creation of a
 custom beam is straightforward. See sub-module documentation.</p>
 </dd>
-<dt><strong>noise</strong><span class="classifier">(optional) an instance of a class derived from noise._BaseNoise</span></dt><dd><p>A description of the simulated noise. A simple Gaussian noise model is
+<dt><strong>noise</strong> <span class="classifier-delimiter">:</span> <span class="classifier">an instance of a class derived from noise._BaseNoise, optional</span></dt>
+<dd><p class="first last">A description of the simulated noise. A simple Gaussian noise model is
 provided; implementation of other noise models is straightforward. See
 sub-module documentation.</p>
 </dd>
-<dt><strong>sph_kernel</strong><span class="classifier">an instance of a class derived from sph_kernels._BaseSPHKernel</span></dt><dd><p>A description of the SPH smoothing kernel. The Wendland C2 kernel (used
-in EAGLE), and a point-like Dirac-delta kernel are implemented,
-implementation of other kernels is straightforward. See sub-module
-documentation.</p>
+<dt><strong>sph_kernel</strong> <span class="classifier-delimiter">:</span> <span class="classifier">an instance of a class derived from sph_kernels._BaseSPHKernel</span></dt>
+<dd><p class="first last">A description of the SPH smoothing kernel. Check simulation
+documentation for the kernel used in a particular simulation, and
+SPH kernel submodule documentation for guidance.</p>
 </dd>
-<dt><strong>spectral_model</strong><span class="classifier">an instance of a class derived from     spectral_models._BaseSpectrum</span></dt><dd><p>A description of the HI line produced by a particle of given
+<dt><strong>spectral_model</strong> <span class="classifier-delimiter">:</span> <span class="classifier">an instance of a class derived from     spectral_models._BaseSpectrum</span></dt>
+<dd><p class="first last">A description of the HI line produced by a particle of given
 properties. A Dirac-delta spectrum, and both fixed-width and
 temperature-dependent Gaussian line models are provided; implementing
 other models is straightforward. See sub-module documentation.</p>
 </dd>
-<dt><strong>logtag</strong><span class="classifier">string</span></dt><dd><p>String to prepend to standard output messages.</p>
+<dt><strong>logtag</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd><p class="first last">String to prepend to standard output messages.</p>
 </dd>
 </dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>out</strong><span class="classifier">Martini</span></dt><dd><p>A Martini object configured with the specified sub-modules.</p>
-</dd>
-</dl>
-</dd>
-</dl>
+</td>
+</tr>
+</tbody>
+</table>
 <div class="admonition seealso">
-<p class="admonition-title">See also</p>
-<dl class="simple">
-<dt><a class="reference internal" href="source.html#module-martini.sources" title="martini.sources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.sources</span></code></a></dt><dd></dd>
-<dt><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.DataCube</span></code></dt><dd></dd>
-<dt><a class="reference internal" href="beam.html#module-martini.beams" title="martini.beams"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.beams</span></code></a></dt><dd></dd>
-<dt><a class="reference internal" href="noise.html#module-martini.noise" title="martini.noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.noise</span></code></a></dt><dd></dd>
-<dt><a class="reference internal" href="sph_kernel.html#module-martini.sph_kernels" title="martini.sph_kernels"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.sph_kernels</span></code></a></dt><dd></dd>
-<dt><a class="reference internal" href="spectral_model.html#module-martini.spectral_models" title="martini.spectral_models"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.spectral_models</span></code></a></dt><dd></dd>
+<p class="first admonition-title">See also</p>
+<dl class="last docutils">
+<dt><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.sources</span></code></dt>
+<dd></dd>
+<dt><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.DataCube</span></code></dt>
+<dd></dd>
+<dt><a class="reference internal" href="beam.html#module-martini.beams" title="martini.beams"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.beams</span></code></a></dt>
+<dd></dd>
+<dt><a class="reference internal" href="noise.html#module-martini.noise" title="martini.noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.noise</span></code></a></dt>
+<dd></dd>
+<dt><a class="reference internal" href="sph_kernel.html#module-martini.sph_kernels" title="martini.sph_kernels"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.sph_kernels</span></code></a></dt>
+<dd></dd>
+<dt><a class="reference internal" href="spectral_model.html#module-martini.spectral_models" title="martini.spectral_models"><code class="xref py py-obj docutils literal notranslate"><span class="pre">martini.spectral_models</span></code></a></dt>
+<dd></dd>
 </dl>
 </div>
 <p class="rubric">Examples</p>
@@ -480,118 +491,148 @@ local environment configured following the fiducial TNG setup
 </div>
 <dl class="method">
 <dt id="martini._martini.Martini.add_noise">
-<code class="sig-name descname">add_noise</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.add_noise"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.add_noise" title="Permalink to this definition">¶</a></dt>
+<code class="descname">add_noise</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.add_noise"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.add_noise" title="Permalink to this definition">¶</a></dt>
 <dd><p>Insert noise into the DataCube.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._martini.Martini.convolve_beam">
-<code class="sig-name descname">convolve_beam</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.convolve_beam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.convolve_beam" title="Permalink to this definition">¶</a></dt>
+<code class="descname">convolve_beam</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.convolve_beam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.convolve_beam" title="Permalink to this definition">¶</a></dt>
 <dd><p>Convolve the beam and DataCube.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._martini.Martini.insert_source_in_cube">
-<code class="sig-name descname">insert_source_in_cube</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">skip_validation=False</em>, <em class="sig-param">printfreq=100</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.insert_source_in_cube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.insert_source_in_cube" title="Permalink to this definition">¶</a></dt>
+<code class="descname">insert_source_in_cube</code><span class="sig-paren">(</span><em>self</em>, <em>skip_validation=False</em>, <em>printfreq=100</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.insert_source_in_cube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.insert_source_in_cube" title="Permalink to this definition">¶</a></dt>
 <dd><p>Populates the DataCube with flux from the particles in the source.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>skip_validation</strong><span class="classifier">bool</span></dt><dd><p>SPH kernel interpolation onto the DataCube is approximated for
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>skip_validation</strong> <span class="classifier-delimiter">:</span> <span class="classifier">bool, optional</span></dt>
+<dd><p class="first last">SPH kernel interpolation onto the DataCube is approximated for
 increased speed. For some combinations of pixel size, distance
 and SPH smoothing length, the approximation may break down. The
 kernel class will check whether this will occur and raise a
 RuntimeError if so. This validation can be skipped (at the cost
-of accuracy!) by setting this parameter True.</p>
+of accuracy!) by setting this parameter True. (Default: False.)</p>
 </dd>
-<dt><strong>printfreq</strong><span class="classifier">int or None</span></dt><dd><p>Every printfreq rows a message will be printed to track progress.
-Messages completely suppressed with printfreq=None.</p>
+<dt><strong>printfreq</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int or None, optional</span></dt>
+<dd><p class="first last">Every printfreq rows a message will be printed to track progress.
+Messages completely suppressed with printfreq=None. (Default: 100.)</p>
 </dd>
 </dl>
-</dd>
-</dl>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._martini.Martini.reset">
-<code class="sig-name descname">reset</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.reset" title="Permalink to this definition">¶</a></dt>
+<code class="descname">reset</code><span class="sig-paren">(</span><em>self</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.reset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Re-initializes the DataCube with zero-values.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._martini.Martini.write_beam_fits">
-<code class="sig-name descname">write_beam_fits</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">filename</em>, <em class="sig-param">channels='frequency'</em>, <em class="sig-param">overwrite=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.write_beam_fits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.write_beam_fits" title="Permalink to this definition">¶</a></dt>
+<code class="descname">write_beam_fits</code><span class="sig-paren">(</span><em>self</em>, <em>filename</em>, <em>channels='frequency'</em>, <em>overwrite=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.write_beam_fits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.write_beam_fits" title="Permalink to this definition">¶</a></dt>
 <dd><p>Output the beam to a FITS-format file.</p>
 <p>The beam is written to file, with pixel sizes, coordinate system, etc.
 similar to those used for the DataCube.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>filename</strong><span class="classifier">string</span></dt><dd><p>Name of the file to write. ‘.fits’ will be appended if not already
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>filename</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd><p class="first last">Name of the file to write. ‘.fits’ will be appended if not already
 present.</p>
 </dd>
-<dt><strong>channels</strong><span class="classifier">‘frequency’ (default), or ‘velocity’</span></dt><dd><p>Type of units used along the spectral axis in output file.</p>
+<dt><strong>channels</strong> <span class="classifier-delimiter">:</span> <span class="classifier">{‘frequency’, ‘velocity’}, optional</span></dt>
+<dd><p class="first last">Type of units used along the spectral axis in output file.
+(Default: ‘frequency’.)</p>
 </dd>
-<dt><strong>overwrite: bool</strong></dt><dd><p>Whether to allow overwriting existing files, note that the default
-is True.</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Raises</dt>
-<dd class="field-even"><dl class="simple">
-<dt>ValueError</dt><dd><p>If Martini was initialized without a beam.</p>
+<dt><strong>overwrite: bool, optional</strong></dt>
+<dd><p class="first last">Whether to allow overwriting existing files. (Default: True.)</p>
 </dd>
 </dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><dl class="first last docutils">
+<dt>ValueError</dt>
+<dd><p class="first last">If Martini was initialized without a beam.</p>
 </dd>
 </dl>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._martini.Martini.write_fits">
-<code class="sig-name descname">write_fits</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">filename</em>, <em class="sig-param">channels='frequency'</em>, <em class="sig-param">overwrite=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.write_fits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.write_fits" title="Permalink to this definition">¶</a></dt>
+<code class="descname">write_fits</code><span class="sig-paren">(</span><em>self</em>, <em>filename</em>, <em>channels='frequency'</em>, <em>overwrite=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.write_fits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.write_fits" title="Permalink to this definition">¶</a></dt>
 <dd><p>Output the DataCube to a FITS-format file.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>filename</strong><span class="classifier">string</span></dt><dd><p>Name of the file to write. ‘.fits’ will be appended if not already
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>filename</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd><p class="first last">Name of the file to write. ‘.fits’ will be appended if not already
 present.</p>
 </dd>
-<dt><strong>channels</strong><span class="classifier">‘frequency’ (default), or ‘velocity’</span></dt><dd><p>Type of units used along the spectral axis in output file.</p>
+<dt><strong>channels</strong> <span class="classifier-delimiter">:</span> <span class="classifier">{‘frequency’, ‘velocity’}, optional</span></dt>
+<dd><p class="first last">Type of units used along the spectral axis in output file.
+(Default: ‘frequency’.)</p>
 </dd>
-<dt><strong>overwrite: bool</strong></dt><dd><p>Whether to allow overwriting existing files, note that the default
-is True.</p>
+<dt><strong>overwrite: bool, optional</strong></dt>
+<dd><p class="first last">Whether to allow overwriting existing files. (Default: True.)</p>
 </dd>
 </dl>
-</dd>
-</dl>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="martini._martini.Martini.write_hdf5">
-<code class="sig-name descname">write_hdf5</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">filename</em>, <em class="sig-param">channels='frequency'</em>, <em class="sig-param">overwrite=True</em>, <em class="sig-param">memmap=False</em>, <em class="sig-param">compact=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.write_hdf5"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.write_hdf5" title="Permalink to this definition">¶</a></dt>
+<code class="descname">write_hdf5</code><span class="sig-paren">(</span><em>self</em>, <em>filename</em>, <em>channels='frequency'</em>, <em>overwrite=True</em>, <em>memmap=False</em>, <em>compact=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_martini.html#Martini.write_hdf5"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._martini.Martini.write_hdf5" title="Permalink to this definition">¶</a></dt>
 <dd><p>Output the DataCube and Beam to a HDF5-format file. Requires the h5py
 package.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>filename</strong><span class="classifier">string</span></dt><dd><p>Name of the file to write. ‘.hdf5’ will be appended if not already
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>filename</strong> <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd><p class="first last">Name of the file to write. ‘.hdf5’ will be appended if not already
 present.</p>
 </dd>
-<dt><strong>channels</strong><span class="classifier">‘frequency’ (default), or ‘velocity’</span></dt><dd><p>Type of units used along the spectral axis in output file.</p>
+<dt><strong>channels</strong> <span class="classifier-delimiter">:</span> <span class="classifier">{‘frequency’, ‘velocity’}, optional</span></dt>
+<dd><p class="first last">Type of units used along the spectral axis in output file.
+(Default: ‘frequency’.)</p>
 </dd>
-<dt><strong>overwrite: bool</strong></dt><dd><p>Whether to allow overwriting existing files, note that the default
-is True.</p>
+<dt><strong>overwrite: bool, optional</strong></dt>
+<dd><p class="first last">Whether to allow overwriting existing files. (Default: True.)</p>
 </dd>
-<dt><strong>memmap: bool</strong></dt><dd><p>If True, create a file-like object in memory and return it instead
-of writing file to disk.</p>
+<dt><strong>memmap: bool, optional</strong></dt>
+<dd><p class="first last">If True, create a file-like object in memory and return it instead
+of writing file to disk. (Default: False.)</p>
 </dd>
-<dt><strong>compact: bool</strong></dt><dd><p>If True, omit pixel coordinate arrays to save disk space. In this
+<dt><strong>compact: bool, optional</strong></dt>
+<dd><p class="first last">If True, omit pixel coordinate arrays to save disk space. In this
 case pixel coordinates can still be reconstructed from FITS-style
-keywords stored in the FluxCube attributes. Default is False.</p>
+keywords stored in the FluxCube attributes. (Default: False.)</p>
 </dd>
 </dl>
-</dd>
-</dl>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>

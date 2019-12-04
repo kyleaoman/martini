@@ -25,6 +25,7 @@
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -175,20 +176,20 @@
 </div>
 <p>Martini has (so far) been successfully run on the output of these simulations:</p>
 <ul class="simple">
-<li><p>EAGLE</p></li>
-<li><p>APOSTLE</p></li>
-<li><p>C-EAGLE/Hydrangea</p></li>
-<li><p>Illustris</p></li>
-<li><p>IllustrisTNG</p></li>
-<li><p>Augiga</p></li>
-<li><p>MaGICC (and therefore in principle NIHAO)</p></li>
-<li><p>Magneticum</p></li>
+<li>EAGLE</li>
+<li>APOSTLE</li>
+<li>C-EAGLE/Hydrangea</li>
+<li>Illustris</li>
+<li>IllustrisTNG</li>
+<li>Auriga</li>
+<li>MaGICC (and therefore in principle NIHAO)</li>
+<li>Magneticum</li>
 </ul>
 <p>I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please contact me at the address below. Currently custom source modules exist for:</p>
 <ul class="simple">
-<li><p>EAGLE (<a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource">martini.sources.EAGLESource</a>)</p></li>
-<li><p>IllustrisTNG (<a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource">martini.sources.TNGSource</a>; also works with Illustris)</p></li>
-<li><p>Magneticum (<a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.MagneticumSource">martini.sources.MagneticumSource</a>)</p></li>
+<li>EAGLE (<a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource">martini.sources.EAGLESource</a>)</li>
+<li>IllustrisTNG (<a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource">martini.sources.TNGSource</a>; also works with Illustris)</li>
+<li>Magneticum (<a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.MagneticumSource">martini.sources.MagneticumSource</a>)</li>
 </ul>
 <p>If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via <a class="reference external" href="mailto:koman&#37;&#52;&#48;astro&#46;rug&#46;nl">koman<span>&#64;</span>astro<span>&#46;</span>rug<span>&#46;</span>nl</a>.</p>
 </div>
@@ -200,10 +201,10 @@
 <h2>Installing from github<a class="headerlink" href="#installing-from-github" title="Permalink to this headline">¶</a></h2>
 <p>Choose a <a class="reference external" href="https://github.com/kyleaoman/martini/branches">branch</a>. The numbered branches (e.g. 1.0.X) are stable, while the master branch is actively developed. The latest numbered branch is usually the best choice. From the branch page (e.g. <code class="docutils literal notranslate"><span class="pre">https://github.com/kyleaoman/martini/tree/1.0.X</span></code>), click the green ‘Clone or download’ button and follow instructions to obtain the files. Unpack the zip file if necessary. You should then be able to do <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">martini/[optional]</span></code>, where <code class="docutils literal notranslate"><span class="pre">optional</span></code> should be replaced by a comma separated list of optional dependencies. If this fails check that <code class="docutils literal notranslate"><span class="pre">martini/</span></code> is a path pointing to the directory containing the <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> file for Martini. The currently available options are:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">hdf5_output</span></code>: Supports output to hdf5 files via the h5py package. Since h5py is hosted on PyPI, this option may be used when installing via PyPI.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">eaglesource</span></code>: Dependencies for the <a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource">EAGLESource</a> module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my <a class="reference external" href="https://github.com/kyleaoman/Hdecompose">Hdecompose</a> package, providing implementations of the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract">Rahmati et al. (2013)</a> method for computing netural hydrogen fractions and the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract">Blitz &amp; Rosolowsky (2006)</a> method for atomic/molecular fractions. Also installs John Helly’s <a class="reference external" href="https://github.com/jchelly/read_eagle">read_eagle</a> package for quick extraction of particles in a simulation sub-volume. Unfortunately this requires a C compiler which can find an installation of the <a class="reference external" href="https://www.hdfgroup.org/solutions/hdf5/">hdf5</a> libraries.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tngsource</span></code>: Dependencies for the <a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource">TNGSource</a> module, which greatly simplifies reading input from IllustrisTNG (and original Illustris) snapshots. Installs my <a class="reference external" href="https://github.com/kyleaoman/Hdecompose">Hdecompose</a> package, providing implementations of the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract">Rahmati et al. (2013)</a> method for computing netural hydrogen fractions and the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract">Blitz &amp; Rosolowsky (2006)</a> method for atomic/molecular fractions.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">sosource</span></code>: Dependencies for the <a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.SOSource">SOSource</a> module, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may <a class="reference external" href="mailto:koman&#37;&#52;&#48;astro&#46;rug&#46;nl">contact</a> me for further information.</p></li>
+<li><code class="docutils literal notranslate"><span class="pre">hdf5_output</span></code>: Supports output to hdf5 files via the h5py package. Since h5py is hosted on PyPI, this option may be used when installing via PyPI.</li>
+<li><code class="docutils literal notranslate"><span class="pre">eaglesource</span></code>: Dependencies for the <a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource">EAGLESource</a> module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my <a class="reference external" href="https://github.com/kyleaoman/Hdecompose">Hdecompose</a> package, providing implementations of the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract">Rahmati et al. (2013)</a> method for computing netural hydrogen fractions and the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract">Blitz &amp; Rosolowsky (2006)</a> method for atomic/molecular fractions. Also installs John Helly’s <a class="reference external" href="https://github.com/jchelly/read_eagle">read_eagle</a> package for quick extraction of particles in a simulation sub-volume. Unfortunately this requires a C compiler which can find an installation of the <a class="reference external" href="https://www.hdfgroup.org/solutions/hdf5/">hdf5</a> libraries.</li>
+<li><code class="docutils literal notranslate"><span class="pre">tngsource</span></code>: Dependencies for the <a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource">TNGSource</a> module, which greatly simplifies reading input from IllustrisTNG (and original Illustris) snapshots. Installs my <a class="reference external" href="https://github.com/kyleaoman/Hdecompose">Hdecompose</a> package, providing implementations of the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract">Rahmati et al. (2013)</a> method for computing netural hydrogen fractions and the <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract">Blitz &amp; Rosolowsky (2006)</a> method for atomic/molecular fractions.</li>
+<li><code class="docutils literal notranslate"><span class="pre">sosource</span></code>: Dependencies for the <a class="reference external" href="https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.SOSource">SOSource</a> module, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may <a class="reference external" href="mailto:koman&#37;&#52;&#48;astro&#46;rug&#46;nl">contact</a> me for further information.</li>
 </ul>
 </div>
 </div>

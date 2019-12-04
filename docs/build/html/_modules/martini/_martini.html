@@ -25,6 +25,7 @@
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
         <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="../../_static/js/theme.js"></script>
 
@@ -183,13 +184,13 @@
 
 <div class="viewcode-block" id="Martini"><a class="viewcode-back" href="../../martini.html#martini._martini.Martini">[docs]</a><span class="k">class</span> <span class="nc">Martini</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Used for the creation of synthetic HI data cubes from simulation data.</span>
+<span class="sd">    Creates synthetic HI data cubes from simulation data.</span>
 
 <span class="sd">    Usual use of martini involves first creating instances of classes from each</span>
 <span class="sd">    of the required and optional sub-modules, then creating a Martini with</span>
 <span class="sd">    these instances as arguments. The object can then be used to create</span>
-<span class="sd">    synthetic observations, usually by calling &#39;insert_source_in_cube&#39;,</span>
-<span class="sd">    (optionally) &#39;add_noise&#39;, (optionally) &#39;convolve_beam&#39; and &#39;write_fits&#39; in</span>
+<span class="sd">    synthetic observations, usually by calling `insert_source_in_cube`,</span>
+<span class="sd">    (optionally) `add_noise`, (optionally) `convolve_beam` and `write_fits` in</span>
 <span class="sd">    order.</span>
 
 <span class="sd">    Parameters</span>
@@ -207,21 +208,20 @@
 <span class="sd">        A description of the datacube to create, including pixels, channels,</span>
 <span class="sd">        sky position. See sub-module documentation.</span>
 
-<span class="sd">    beam : (optional) an instance of a class derived from beams._BaseBeam</span>
+<span class="sd">    beam : an instance of a class derived from beams._BaseBeam, optional</span>
 <span class="sd">        A description of the beam for the simulated telescope. Given a</span>
 <span class="sd">        description, either mathematical or as an image, the creation of a</span>
 <span class="sd">        custom beam is straightforward. See sub-module documentation.</span>
 
-<span class="sd">    noise : (optional) an instance of a class derived from noise._BaseNoise</span>
+<span class="sd">    noise : an instance of a class derived from noise._BaseNoise, optional</span>
 <span class="sd">        A description of the simulated noise. A simple Gaussian noise model is</span>
 <span class="sd">        provided; implementation of other noise models is straightforward. See</span>
 <span class="sd">        sub-module documentation.</span>
 
 <span class="sd">    sph_kernel : an instance of a class derived from sph_kernels._BaseSPHKernel</span>
-<span class="sd">        A description of the SPH smoothing kernel. The Wendland C2 kernel (used</span>
-<span class="sd">        in EAGLE), and a point-like Dirac-delta kernel are implemented,</span>
-<span class="sd">        implementation of other kernels is straightforward. See sub-module</span>
-<span class="sd">        documentation.</span>
+<span class="sd">        A description of the SPH smoothing kernel. Check simulation</span>
+<span class="sd">        documentation for the kernel used in a particular simulation, and</span>
+<span class="sd">        SPH kernel submodule documentation for guidance.</span>
 
 <span class="sd">    spectral_model : an instance of a class derived from \</span>
 <span class="sd">    spectral_models._BaseSpectrum</span>
@@ -232,11 +232,6 @@
 
 <span class="sd">    logtag : string</span>
 <span class="sd">        String to prepend to standard output messages.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    out : Martini</span>
-<span class="sd">        A Martini object configured with the specified sub-modules.</span>
 
 <span class="sd">    See Also</span>
 <span class="sd">    --------</span>
@@ -611,17 +606,17 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        skip_validation : bool</span>
+<span class="sd">        skip_validation : bool, optional</span>
 <span class="sd">            SPH kernel interpolation onto the DataCube is approximated for</span>
 <span class="sd">            increased speed. For some combinations of pixel size, distance</span>
 <span class="sd">            and SPH smoothing length, the approximation may break down. The</span>
 <span class="sd">            kernel class will check whether this will occur and raise a</span>
 <span class="sd">            RuntimeError if so. This validation can be skipped (at the cost</span>
-<span class="sd">            of accuracy!) by setting this parameter True.</span>
+<span class="sd">            of accuracy!) by setting this parameter True. (Default: False.)</span>
 
-<span class="sd">        printfreq : int or None</span>
+<span class="sd">        printfreq : int or None, optional</span>
 <span class="sd">            Every printfreq rows a message will be printed to track progress.</span>
-<span class="sd">            Messages completely suppressed with printfreq=None.</span>
+<span class="sd">            Messages completely suppressed with printfreq=None. (Default: 100.)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># pixels indexed from 0 (not like in FITS!) for better use with numpy</span>
@@ -684,12 +679,12 @@
 <span class="sd">            Name of the file to write. &#39;.fits&#39; will be appended if not already</span>
 <span class="sd">            present.</span>
 
-<span class="sd">        channels : &#39;frequency&#39; (default), or &#39;velocity&#39;</span>
+<span class="sd">        channels : {&#39;frequency&#39;, &#39;velocity&#39;}, optional</span>
 <span class="sd">            Type of units used along the spectral axis in output file.</span>
+<span class="sd">            (Default: &#39;frequency&#39;.)</span>
 
-<span class="sd">        overwrite: bool</span>
-<span class="sd">            Whether to allow overwriting existing files, note that the default</span>
-<span class="sd">            is True.</span>
+<span class="sd">        overwrite: bool, optional</span>
+<span class="sd">            Whether to allow overwriting existing files. (Default: True.)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">drop_pad</span><span class="p">()</span>
@@ -786,12 +781,12 @@
 <span class="sd">            Name of the file to write. &#39;.fits&#39; will be appended if not already</span>
 <span class="sd">            present.</span>
 
-<span class="sd">        channels : &#39;frequency&#39; (default), or &#39;velocity&#39;</span>
+<span class="sd">        channels : {&#39;frequency&#39;, &#39;velocity&#39;}, optional</span>
 <span class="sd">            Type of units used along the spectral axis in output file.</span>
+<span class="sd">            (Default: &#39;frequency&#39;.)</span>
 
-<span class="sd">        overwrite: bool</span>
-<span class="sd">            Whether to allow overwriting existing files, note that the default</span>
-<span class="sd">            is True.</span>
+<span class="sd">        overwrite: bool, optional</span>
+<span class="sd">            Whether to allow overwriting existing files. (Default: True.)</span>
 
 <span class="sd">        Raises</span>
 <span class="sd">        ------</span>
@@ -878,21 +873,21 @@
 <span class="sd">            Name of the file to write. &#39;.hdf5&#39; will be appended if not already</span>
 <span class="sd">            present.</span>
 
-<span class="sd">        channels : &#39;frequency&#39; (default), or &#39;velocity&#39;</span>
+<span class="sd">        channels : {&#39;frequency&#39;, &#39;velocity&#39;}, optional</span>
 <span class="sd">            Type of units used along the spectral axis in output file.</span>
+<span class="sd">            (Default: &#39;frequency&#39;.)</span>
 
-<span class="sd">        overwrite: bool</span>
-<span class="sd">            Whether to allow overwriting existing files, note that the default</span>
-<span class="sd">            is True.</span>
+<span class="sd">        overwrite: bool, optional</span>
+<span class="sd">            Whether to allow overwriting existing files. (Default: True.)</span>
 
-<span class="sd">        memmap: bool</span>
+<span class="sd">        memmap: bool, optional</span>
 <span class="sd">            If True, create a file-like object in memory and return it instead</span>
-<span class="sd">            of writing file to disk.</span>
+<span class="sd">            of writing file to disk. (Default: False.)</span>
 
-<span class="sd">        compact: bool</span>
+<span class="sd">        compact: bool, optional</span>
 <span class="sd">            If True, omit pixel coordinate arrays to save disk space. In this</span>
 <span class="sd">            case pixel coordinates can still be reconstructed from FITS-style</span>
-<span class="sd">            keywords stored in the FluxCube attributes. Default is False.</span>
+<span class="sd">            keywords stored in the FluxCube attributes. (Default: False.)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="kn">import</span> <span class="nn">h5py</span>

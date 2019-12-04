@@ -10,16 +10,16 @@ class MagneticumSource(SPHSource):
 
     Parameters
     ----------
-    snapBase : string
+    snapBase : str
         Path to snapshot file, omitting the portion numbering the snapshot
         pieces, e.g. /path/snap_136.0 becomes /path/snap_136
 
-    haloPosition : numpy.ndarray with shape (3, )
+    haloPosition : array_like, with shape (3, )
         Location of source centre in simulation units. Provide either
         arguments haloPosition, haloVelocity and haloRadius, or arguments
         groupFile, (haloID | subhaloID), not both.
 
-    haloVelocity : numpy.ndarray with shape (3, )
+    haloVelocity : array_like, with shape (3, )
         Velocity of halo in the simulation box frame, in simulation units.
         Provide either arguments haloPosition, haloVelocity and
         haloRadius, or arguments groupFile, (haloID | subhaloID), not
@@ -31,7 +31,7 @@ class MagneticumSource(SPHSource):
         haloPosition, haloVelocity and haloRadius, or arguments groupFile,
         (haloID | subhaloID), not both.
 
-    groupFile : string
+    groupFile : str
         Path to group file (e.g. /path/to/groups_136). Provide either
         arguments haloPosition, haloVelocity and haloRadius, or arguments
         groupFile, (haloID | subhaloID), not both.
@@ -55,8 +55,8 @@ class MagneticumSource(SPHSource):
     internal_units : dict
         Specify the system of units used in the snapshot file. The dict keys
         should be 'L' (length), 'M' (mass), 'V' (velocity), 'T' (temperature).
-        The values should use astropy.units.Quantity. (default:
-        dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K))
+        The values should use astropy.units.Quantity. (Default:
+        dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K).)
 
     rescaleRadius : float
         Factor by which to multiply the haloRadius to define the aperture
@@ -64,39 +64,39 @@ class MagneticumSource(SPHSource):
         arguments groupFile, (haloID | subhaloID): by default the aperture
         will be the halo virial radius, use this argument to adjust as needed.
 
-    distance : astropy.units.Quantity, with dimensions of length
+    distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: 3 Mpc.)
 
-    vpeculiar : astropy.units.Quantity, with dimensions of velocity
+    vpeculiar : Quantity, with dimensions of velocity, optional
         Source peculiar velocity, added to the velocity from Hubble's law.
+        (Default: 0 km/s.)
 
-    rotation : dict
-        Keys may be any combination of 'axis_angle', 'rotmat' and/or
-        'L_coords'. These will be applied in this order. Note that the 'y-z'
-        pane will be the one eventually placed in the plane of the "sky". The
+    rotation : dict, optional
+        Keys may be any combination of `axis_angle`, `rotmat` and/or
+        `L_coords`. These will be applied in this order. Note that the 'y-z'
+        plane will be the one eventually placed in the plane of the "sky". The
         corresponding values:
-        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element an astropy.units.Quantity with \
+
+        - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element a Quantity with \
         dimensions of angle, indicating the angle to rotate through.
-        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
-        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
-        angle (both astropy.units.Quantity instances with dimensions of \
+        - `rotmat` : A (3, 3) numpy.array specifying a rotation.
+        - `L_coords` : A 2-tuple containing an inclination and an azimuthal \
+        angle (both Quantity instances with dimensions of \
         angle). The routine will first attempt to identify a preferred plane \
         based on the angular momenta of the central 1/3 of particles in the \
-        source. This plane wil then be rotated to lie in the plane of the \
+        source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
         momentum pole (rotation about 'x'), and inclined (rotation about 'y').
 
-    ra : astropy.units.Quantity, with dimensions of angle
-        Right ascension for the source centroid.
+        (Default: rotmat with the identity rotation.)
 
-    dec : astropy.units.Quantity, with dimensions of angle
-        Declination for the source centroid.
+    ra : Quantity, with dimensions of angle, optional
+        Right ascension for the source centroid. (Default: 0 deg.)
 
-    Returns
-    -------
-    out : MagneticumSource
-        An appropriately initialized MagneticumSource object.
+    dec : Quantity, with dimensions of angle, optional
+        Declination for the source centroid. (Default: 0 deg.)
     """
     def __init__(
             self,

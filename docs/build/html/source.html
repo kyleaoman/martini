@@ -25,6 +25,7 @@
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -91,7 +92,14 @@
 <li class="toctree-l1"><a class="reference internal" href="includeme.html#installation-notes">Installation Notes</a></li>
 <li class="toctree-l1"><a class="reference internal" href="martini.html">Martini (martini.Martini)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="datacube.html">Data Cube (martini.DataCube)</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Sources (martini.sources)</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Sources (martini.sources)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#module-martini.sources._sph_source">SPHSource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-martini.sources._eagle_source">EAGLESource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-martini.sources._tng_source">TNGSource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-martini.sources._magneticum_source">MagneticumSource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-martini.sources._so_source">SOSource</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="beam.html">Beam Models (martini.beams)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="noise.html">Noise Models (martini.noise)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="spectral_model.html">Spectral Models (martini.spectral_models)</a></li>
@@ -160,8 +168,512 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="module-martini.sources">
-<span id="sources-martini-sources"></span><h1>Sources (martini.sources)<a class="headerlink" href="#module-martini.sources" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="sources-martini-sources">
+<h1>Sources (martini.sources)<a class="headerlink" href="#sources-martini-sources" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-martini.sources._sph_source">
+<span id="sphsource"></span><h2>SPHSource<a class="headerlink" href="#module-martini.sources._sph_source" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="martini.sources._sph_source.SPHSource">
+<em class="property">class </em><code class="descclassname">martini.sources._sph_source.</code><code class="descname">SPHSource</code><span class="sig-paren">(</span><em>distance=&lt;Quantity 3. Mpc&gt;, vpeculiar=&lt;Quantity 0. km / s&gt;, rotation={'rotmat': array([[1., 0., 0.],        [0., 1., 0.],        [0., 0., 1.]])}, ra=&lt;Quantity 0. deg&gt;, dec=&lt;Quantity 0. deg&gt;, h=0.7, T_g=None, mHI_g=None, xyz_g=None, vxyz_g=None, hsm_g=None, coordinate_axis=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_sph_source.html#SPHSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._sph_source.SPHSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class abstracting HI emission sources consisting of SPH simulation
+particles.</p>
+<p>This class constructs an HI emission source from arrays of SPH particle
+properties: mass, smoothing length, temperature, position, and velocity.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>distance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length, optional</span></dt>
+<dd><p class="first last">Source distance, also used to set the velocity offset via Hubble’s law.
+(Default: 3 Mpc.)</p>
+</dd>
+<dt><strong>vpeculiar</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, optional</span></dt>
+<dd><p class="first last">Source peculiar velocity, added to the velocity from Hubble’s law.
+(Default: 0 km/s.)</p>
+</dd>
+<dt><strong>rotation</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict, optional</span></dt>
+<dd><p class="first">Keys may be any combination of <cite>axis_angle</cite>, <cite>rotmat</cite> and/or
+<cite>L_coords</cite>. These will be applied in this order. Note that the ‘y-z’
+plane will be the one eventually placed in the plane of the “sky”. The
+corresponding values:</p>
+<ul class="simple">
+<li><cite>axis_angle</cite> : 2-tuple, first element one of ‘x’, ‘y’, ‘z’ for the         axis to rotate about, second element a Quantity with         dimensions of angle, indicating the angle to rotate through.</li>
+<li><cite>rotmat</cite> : A (3, 3) numpy.array specifying a rotation.</li>
+<li><cite>L_coords</cite> : A 2-tuple containing an inclination and an azimuthal         angle (both Quantity instances with dimensions of         angle). The routine will first attempt to identify a preferred plane         based on the angular momenta of the central 1/3 of particles in the         source. This plane will then be rotated to lie in the plane of the         “sky” (‘y-z’), rotated by the azimuthal angle about its angular         momentum pole (rotation about ‘x’), and inclined (rotation about ‘y’).</li>
+</ul>
+<p class="last">(Default: rotmat with the identity rotation.)</p>
+</dd>
+<dt><strong>ra</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Right ascension for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Declination for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>h</strong> <span class="classifier-delimiter">:</span> <span class="classifier">float, optional</span></dt>
+<dd><p class="first last">Dimensionless hubble constant, H0 = h * 100 km / s / Mpc.
+(Default: 0.7)</p>
+</dd>
+<dt><strong>T_g</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of temperature</span></dt>
+<dd><p class="first last">Particle temperature.</p>
+</dd>
+<dt><strong>mHI_g</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of mass</span></dt>
+<dd><p class="first last">Particle HI mass.</p>
+</dd>
+<dt><strong>xyz_g</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length</span></dt>
+<dd><p class="first last">Particle position offset from source centroid. Note that the ‘y-z’
+plane is that eventually placed in the plane of the “sky”; ‘x’ is
+the axis corresponding to the “line of sight”.</p>
+</dd>
+<dt><strong>vxyz_g</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
+<dd><p class="first last">Particle velocity offset from source centroid. Note that the ‘y-z’
+plane is that eventually placed in the plane of the “sky”; ‘x’ is
+the axis corresponding to the “line of sight”.</p>
+</dd>
+<dt><strong>hsm_g</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length</span></dt>
+<dd><p class="first last">Particle SPH smoothing lengths.</p>
+</dd>
+<dt><strong>coordinate_axis: int, optional</strong></dt>
+<dd><p class="first last">Rank of axis corresponding to position or velocity of a single
+particle. I.e. coordinate_axis=0 if shape is (3, N), or 1 if (N, 3).
+Usually prefer to omit this as it can be determined automatically.
+(Default: None.)</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="martini.sources._sph_source.SPHSource.apply_mask">
+<code class="descname">apply_mask</code><span class="sig-paren">(</span><em>self</em>, <em>mask</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_sph_source.html#SPHSource.apply_mask"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._sph_source.SPHSource.apply_mask" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove particles from source arrays according to a mask.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>mask</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like, with boolean-like dtype</span></dt>
+<dd><p class="first last">Remove particles with indices corresponding to False values from
+the source arrays.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.sources._sph_source.SPHSource.rotate">
+<code class="descname">rotate</code><span class="sig-paren">(</span><em>self</em>, <em>axis_angle=None</em>, <em>rotmat=None</em>, <em>L_coords=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_sph_source.html#SPHSource.rotate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._sph_source.SPHSource.rotate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rotate the source.</p>
+<p>The arguments correspond to different rotation types. If supplied
+together in one function call, they are applied in order: axis_angle,
+then rotmat, then L_coords.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>axis_angle</strong> <span class="classifier-delimiter">:</span> <span class="classifier">2-tuple</span></dt>
+<dd><p class="first last">First element one of {‘x’, ‘y’, ‘z’} for the axis to rotate about,
+second element a Quantity with dimensions of angle, indicating the
+angle to rotate through.</p>
+</dd>
+<dt><strong>rotmat</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like with shape (3, 3)</span></dt>
+<dd><p class="first last">Rotation matrix.</p>
+</dd>
+<dt><strong>L_coords</strong> <span class="classifier-delimiter">:</span> <span class="classifier">2-tuple</span></dt>
+<dd><p class="first last">First element containing an inclination and second element an
+azimuthal angle (both Quantity instances with
+dimensions of angle). The routine will first attempt to identify
+a preferred plane based on the angular momenta of the central 1/3
+of particles in the source. This plane will then be rotated to lie
+in the ‘y-z’ plane, followed by a rotation by the azimuthal angle
+about its angular momentum pole (rotation about ‘x’), and finally
+inclined (rotation about ‘y’).</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.sources._sph_source.SPHSource.save_current_rotation">
+<code class="descname">save_current_rotation</code><span class="sig-paren">(</span><em>self</em>, <em>fname</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_sph_source.html#SPHSource.save_current_rotation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._sph_source.SPHSource.save_current_rotation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Output current rotation matrix to file.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>fname</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str, or file handle</span></dt>
+<dd><p class="first last">File in which to save rotation matrix.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.sources._sph_source.SPHSource.translate_position">
+<code class="descname">translate_position</code><span class="sig-paren">(</span><em>self</em>, <em>translation_vector</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_sph_source.html#SPHSource.translate_position"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._sph_source.SPHSource.translate_position" title="Permalink to this definition">¶</a></dt>
+<dd><p>Translate the source.</p>
+<p>Note that the “line of sight” is along the ‘x’ axis.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>translation_vector</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity with shape (3, ), with dimensions of         length</span></dt>
+<dd><p class="first last">Vector by which to offset the source particle coordinates.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.sources._sph_source.SPHSource.translate_velocity">
+<code class="descname">translate_velocity</code><span class="sig-paren">(</span><em>self</em>, <em>translation_vector</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_sph_source.html#SPHSource.translate_velocity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._sph_source.SPHSource.translate_velocity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply an offset to the source velocity.</p>
+<p>Note that the “line of sight” is along the ‘x’ axis.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>translation_vector</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity with shape (3, ), with dimensions of         velocity</span></dt>
+<dd><p class="first last">Vector by which to offset the source particle velocities.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-martini.sources._eagle_source">
+<span id="eaglesource"></span><h2>EAGLESource<a class="headerlink" href="#module-martini.sources._eagle_source" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="martini.sources._eagle_source.EAGLESource">
+<em class="property">class </em><code class="descclassname">martini.sources._eagle_source.</code><code class="descname">EAGLESource</code><span class="sig-paren">(</span><em>snapPath=None</em>, <em>snapBase=None</em>, <em>fof=None</em>, <em>sub=None</em>, <em>db_user=None</em>, <em>db_key=None</em>, <em>subBoxSize=&lt;Quantity 50. kpc&gt;</em>, <em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>vpeculiar=&lt;Quantity 0. km / s&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em>, <em>print_query=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_eagle_source.html#EAGLESource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._eagle_source.EAGLESource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class abstracting HI sources designed to work with publicly available
+EAGLE snapshot + group data.</p>
+<p>For file access, see <a class="reference external" href="http://icc.dur.ac.uk/Eagle/database.php">http://icc.dur.ac.uk/Eagle/database.php</a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>snapPath</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd><p class="first last">Directory containing snapshot files. The directory structure unpacked
+from the publicly available tarballs is expected; removing/renaming
+files or directories below this will cause errors.</p>
+</dd>
+<dt><strong>snapBase</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd><p class="first last">Filename of snapshot files, omitting portion ‘.X.hdf5’.</p>
+</dd>
+<dt><strong>fof</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">FOF group number of the target object. Note that all particles in the
+FOF group to which the subhalo belongs are used to construct the data
+cube. This avoids strange “holes” at the locations of other subhaloes
+in the same group, and gives a more realistic treatment of foreground
+and background emission local to the source. In the EAGLE database,
+this is the ‘GroupNumber’.</p>
+</dd>
+<dt><strong>sub</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">Subfind subhalo number of the target object. For centrals the subhalo
+number is 0, for satellites &gt;0. In the EAGLE database, this is then
+‘SubGroupNumber’.</p>
+</dd>
+<dt><strong>db_user</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd><p class="first last">Database username.</p>
+</dd>
+<dt><strong>db_key</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str, optional</span></dt>
+<dd><p class="first last">Database password, or omit for a prompt at runtime. (Default: None.)</p>
+</dd>
+<dt><strong>subBoxSize</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length</span></dt>
+<dd><p class="first last">Box half-side length of a region to load around the object of interest,
+in physical (not comoving, no little h) units. Using larger values
+will include more foreground/background, which may be desirable, but
+will also slow down execution and impair the automatic routine used
+to find a disc plane.</p>
+</dd>
+<dt><strong>distance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length, optional</span></dt>
+<dd><p class="first last">Source distance, also used to set the velocity offset via Hubble’s law.
+(Default: 3 Mpc.)</p>
+</dd>
+<dt><strong>vpeculiar</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, optional</span></dt>
+<dd><p class="first last">Source peculiar velocity, added to the velocity from Hubble’s law.
+(Default: 0 km/s.)</p>
+</dd>
+<dt><strong>rotation</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict, optional</span></dt>
+<dd><p class="first">Keys may be any combination of <cite>axis_angle</cite>, <cite>rotmat</cite> and/or
+<cite>L_coords</cite>. These will be applied in this order. Note that the ‘y-z’
+plane will be the one eventually placed in the plane of the “sky”. The
+corresponding values:</p>
+<ul class="simple">
+<li><cite>axis_angle</cite> : 2-tuple, first element one of ‘x’, ‘y’, ‘z’ for the         axis to rotate about, second element a Quantity with         dimensions of angle, indicating the angle to rotate through.</li>
+<li><cite>rotmat</cite> : A (3, 3) numpy.array specifying a rotation.</li>
+<li><cite>L_coords</cite> : A 2-tuple containing an inclination and an azimuthal         angle (both Quantity instances with dimensions of         angle). The routine will first attempt to identify a preferred plane         based on the angular momenta of the central 1/3 of particles in the         source. This plane will then be rotated to lie in the plane of the         “sky” (‘y-z’), rotated by the azimuthal angle about its angular         momentum pole (rotation about ‘x’), and inclined (rotation about ‘y’).</li>
+</ul>
+<p class="last">(Default: rotmat with the identity rotation.)</p>
+</dd>
+<dt><strong>ra</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Right ascension for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Declination for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>print_query</strong> <span class="classifier-delimiter">:</span> <span class="classifier">bool, optional</span></dt>
+<dd><p class="first last">If True, the SQL query submitted to the EAGLE database is printed.
+(Default: False.)</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-martini.sources._tng_source">
+<span id="tngsource"></span><h2>TNGSource<a class="headerlink" href="#module-martini.sources._tng_source" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="martini.sources._tng_source.TNGSource">
+<em class="property">class </em><code class="descclassname">martini.sources._tng_source.</code><code class="descname">TNGSource</code><span class="sig-paren">(</span><em>basePath</em>, <em>snapNum</em>, <em>subID</em>, <em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>vpeculiar=&lt;Quantity 0. km / s&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_tng_source.html#TNGSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._tng_source.TNGSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class abstracting HI sources designed to run in the IllustrisTNG JupyterLab
+environment for access to simulation data.</p>
+<p>Can also be used in other environments, but requires that the
+<cite>illustris_python</cite> module be importable, and further that the data are laid
+out on disk in the fiducial way
+(see: <a class="reference external" href="http://www.tng-project.org/data/docs/scripts/">http://www.tng-project.org/data/docs/scripts/</a>).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>basePath</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd><p class="first last">Directory containing simulation data, for instance ‘TNG100-1/output/’,
+see also <a class="reference external" href="http://www.tng-project.org/data/docs/scripts/">http://www.tng-project.org/data/docs/scripts/</a></p>
+</dd>
+<dt><strong>snapNum</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">Snapshot number. In TNG, snapshot 99 is the final output. Note that
+a full snapshot (not a ‘mini’ snapshot, see
+<a class="reference external" href="http://www.tng-project.org/data/docs/specifications/#sec1a">http://www.tng-project.org/data/docs/specifications/#sec1a</a>) must be
+used.</p>
+</dd>
+<dt><strong>subID</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">Subhalo ID of the target object. Note that all particles in the FOF
+group to which the subhalo belongs are used to construct the data cube.
+This avoids strange ‘holes’ at the locations of other subhaloes in the
+same group, and gives a more realistic treatment of foreground and
+background emission local to the source.</p>
+</dd>
+<dt><strong>distance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length, optional</span></dt>
+<dd><p class="first last">Source distance, also used to set the velocity offset via Hubble’s law.
+(Default: 3 Mpc.)</p>
+</dd>
+<dt><strong>vpeculiar</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, optional</span></dt>
+<dd><p class="first last">Source peculiar velocity, added to the velocity from Hubble’s law.
+(Default: 0 km/s.)</p>
+</dd>
+<dt><strong>rotation</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict, optional</span></dt>
+<dd><p class="first">Keys may be any combination of <cite>axis_angle</cite>, <cite>rotmat</cite> and/or
+<cite>L_coords</cite>. These will be applied in this order. Note that the ‘y-z’
+plane will be the one eventually placed in the plane of the “sky”. The
+corresponding values:</p>
+<ul class="simple">
+<li><cite>axis_angle</cite> : 2-tuple, first element one of ‘x’, ‘y’, ‘z’ for the         axis to rotate about, second element a Quantity with         dimensions of angle, indicating the angle to rotate through.</li>
+<li><cite>rotmat</cite> : A (3, 3) numpy.array specifying a rotation.</li>
+<li><cite>L_coords</cite> : A 2-tuple containing an inclination and an azimuthal         angle (both Quantity instances with dimensions of         angle). The routine will first attempt to identify a preferred plane         based on the angular momenta of the central 1/3 of particles in the         source. This plane will then be rotated to lie in the plane of the         “sky” (‘y-z’), rotated by the azimuthal angle about its angular         momentum pole (rotation about ‘x’), and inclined (rotation about ‘y’).</li>
+</ul>
+<p class="last">(Default: rotmat with the identity rotation.)</p>
+</dd>
+<dt><strong>ra</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Right ascension for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Declination for the source centroid. (Default: 0 deg.)</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-martini.sources._magneticum_source">
+<span id="magneticumsource"></span><h2>MagneticumSource<a class="headerlink" href="#module-martini.sources._magneticum_source" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="martini.sources._magneticum_source.MagneticumSource">
+<em class="property">class </em><code class="descclassname">martini.sources._magneticum_source.</code><code class="descname">MagneticumSource</code><span class="sig-paren">(</span><em>snapBase=None</em>, <em>haloPosition=None</em>, <em>haloVelocity=None</em>, <em>haloRadius=None</em>, <em>groupFile=None</em>, <em>haloID=None</em>, <em>subhaloID=None</em>, <em>rescaleRadius=1.0</em>, <em>xH=0.76</em>, <em>Lbox=&lt;Quantity 100. Mpc&gt;</em>, <em>internal_units={'L': Unit(&quot;kpc&quot;)</em>, <em>'M': &lt;Quantity 1.e+10 solMass&gt;</em>, <em>'T': Unit(&quot;K&quot;)</em>, <em>'V': Unit(&quot;km / s&quot;)}</em>, <em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>vpeculiar=&lt;Quantity 0. km / s&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_magneticum_source.html#MagneticumSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._magneticum_source.MagneticumSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class abstracting HI sources designed to work with Magneticum snapshot
++ group fies.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>snapBase</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd><p class="first last">Path to snapshot file, omitting the portion numbering the snapshot
+pieces, e.g. /path/snap_136.0 becomes /path/snap_136</p>
+</dd>
+<dt><strong>haloPosition</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like, with shape (3, )</span></dt>
+<dd><p class="first last">Location of source centre in simulation units. Provide either
+arguments haloPosition, haloVelocity and haloRadius, or arguments
+groupFile, (haloID | subhaloID), not both.</p>
+</dd>
+<dt><strong>haloVelocity</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like, with shape (3, )</span></dt>
+<dd><p class="first last">Velocity of halo in the simulation box frame, in simulation units.
+Provide either arguments haloPosition, haloVelocity and
+haloRadius, or arguments groupFile, (haloID | subhaloID), not
+both.</p>
+</dd>
+<dt><strong>haloRadius</strong> <span class="classifier-delimiter">:</span> <span class="classifier">float</span></dt>
+<dd><p class="first last">Aperture within which to select particles around the source
+centre, in simulation units. Provide either arguments
+haloPosition, haloVelocity and haloRadius, or arguments groupFile,
+(haloID | subhaloID), not both.</p>
+</dd>
+<dt><strong>groupFile</strong> <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd><p class="first last">Path to group file (e.g. /path/to/groups_136). Provide either
+arguments haloPosition, haloVelocity and haloRadius, or arguments
+groupFile, (haloID | subhaloID), not both.</p>
+</dd>
+<dt><strong>haloID</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">ID of FOF group to use as source. Provice either arguments
+haloPosition, haloVelocity and haloRadius, or arguments groupFile,
+(haloID | subhaloID), not both.</p>
+</dd>
+<dt><strong>subhaloID</strong> <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd><p class="first last">ID of subhalo to use as source. Provide either arguments haloPostion,
+haloVelocity and haloRadius, or arguments groupFile, (haloID |
+subhaloID), not both.</p>
+</dd>
+<dt><strong>xH</strong> <span class="classifier-delimiter">:</span> <span class="classifier">float</span></dt>
+<dd><p class="first last">Primordial hydrogen fraction (default: 0.76).</p>
+</dd>
+<dt><strong>Lbox</strong> <span class="classifier-delimiter">:</span> <span class="classifier">astropy.units.Quantity, with dimensions of length</span></dt>
+<dd><p class="first last">Comoving box side length, without factor h.</p>
+</dd>
+<dt><strong>internal_units</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
+<dd><p class="first last">Specify the system of units used in the snapshot file. The dict keys
+should be ‘L’ (length), ‘M’ (mass), ‘V’ (velocity), ‘T’ (temperature).
+The values should use astropy.units.Quantity. (Default:
+dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K).)</p>
+</dd>
+<dt><strong>rescaleRadius</strong> <span class="classifier-delimiter">:</span> <span class="classifier">float</span></dt>
+<dd><p class="first last">Factor by which to multiply the haloRadius to define the aperture
+within which particles are selected. Useful in conjunction with
+arguments groupFile, (haloID | subhaloID): by default the aperture
+will be the halo virial radius, use this argument to adjust as needed.</p>
+</dd>
+<dt><strong>distance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length, optional</span></dt>
+<dd><p class="first last">Source distance, also used to set the velocity offset via Hubble’s law.
+(Default: 3 Mpc.)</p>
+</dd>
+<dt><strong>vpeculiar</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, optional</span></dt>
+<dd><p class="first last">Source peculiar velocity, added to the velocity from Hubble’s law.
+(Default: 0 km/s.)</p>
+</dd>
+<dt><strong>rotation</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict, optional</span></dt>
+<dd><p class="first">Keys may be any combination of <cite>axis_angle</cite>, <cite>rotmat</cite> and/or
+<cite>L_coords</cite>. These will be applied in this order. Note that the ‘y-z’
+plane will be the one eventually placed in the plane of the “sky”. The
+corresponding values:</p>
+<ul class="simple">
+<li><cite>axis_angle</cite> : 2-tuple, first element one of ‘x’, ‘y’, ‘z’ for the         axis to rotate about, second element a Quantity with         dimensions of angle, indicating the angle to rotate through.</li>
+<li><cite>rotmat</cite> : A (3, 3) numpy.array specifying a rotation.</li>
+<li><cite>L_coords</cite> : A 2-tuple containing an inclination and an azimuthal         angle (both Quantity instances with dimensions of         angle). The routine will first attempt to identify a preferred plane         based on the angular momenta of the central 1/3 of particles in the         source. This plane will then be rotated to lie in the plane of the         “sky” (‘y-z’), rotated by the azimuthal angle about its angular         momentum pole (rotation about ‘x’), and inclined (rotation about ‘y’).</li>
+</ul>
+<p class="last">(Default: rotmat with the identity rotation.)</p>
+</dd>
+<dt><strong>ra</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Right ascension for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Declination for the source centroid. (Default: 0 deg.)</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-martini.sources._so_source">
+<span id="sosource"></span><h2>SOSource<a class="headerlink" href="#module-martini.sources._so_source" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="martini.sources._so_source.SOSource">
+<em class="property">class </em><code class="descclassname">martini.sources._so_source.</code><code class="descname">SOSource</code><span class="sig-paren">(</span><em>distance=&lt;Quantity 3. Mpc&gt;</em>, <em>vpeculiar=&lt;Quantity 0. km / s&gt;</em>, <em>rotation={'L_coords': (&lt;Quantity 60. deg&gt;</em>, <em>&lt;Quantity 0. deg&gt;)}</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em>, <em>SO_args=None</em>, <em>SO_instance=None</em>, <em>rescale_hsm_g=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sources/_so_source.html#SOSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sources._so_source.SOSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class abstracting HI sources using the SimObj package for interface to
+simulation data.</p>
+<p>This class accesses simulation data via the SimObj package
+(<a class="reference external" href="https://github.com/kyleaoman/simobj">https://github.com/kyleaoman/simobj</a>); see the documentation of that
+package for further configuration instructions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>distance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of length, optional</span></dt>
+<dd><p class="first last">Source distance, also used to set the velocity offset via Hubble’s law.
+(Default: 3 Mpc.)</p>
+</dd>
+<dt><strong>vpeculiar</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, optional</span></dt>
+<dd><p class="first last">Source peculiar velocity, added to the velocity from Hubble’s law.
+(Default: 0 km/s.)</p>
+</dd>
+<dt><strong>rotation</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict, optional</span></dt>
+<dd><p class="first">Keys may be any combination of <cite>axis_angle</cite>, <cite>rotmat</cite> and/or
+<cite>L_coords</cite>. These will be applied in this order. Note that the ‘y-z’
+plane will be the one eventually placed in the plane of the “sky”. The
+corresponding values:</p>
+<ul class="simple">
+<li><cite>axis_angle</cite> : 2-tuple, first element one of ‘x’, ‘y’, ‘z’ for the         axis to rotate about, second element a Quantity with         dimensions of angle, indicating the angle to rotate through.</li>
+<li><cite>rotmat</cite> : A (3, 3) numpy.array specifying a rotation.</li>
+<li><cite>L_coords</cite> : A 2-tuple containing an inclination and an azimuthal         angle (both Quantity instances with dimensions of         angle). The routine will first attempt to identify a preferred plane         based on the angular momenta of the central 1/3 of particles in the         source. This plane will then be rotated to lie in the plane of the         “sky” (‘y-z’), rotated by the azimuthal angle about its angular         momentum pole (rotation about ‘x’), and inclined (rotation about ‘y’).</li>
+</ul>
+<p class="last">(Default: rotmat with the identity rotation.)</p>
+</dd>
+<dt><strong>ra</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Right ascension for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>dec</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of angle, optional</span></dt>
+<dd><p class="first last">Declination for the source centroid. (Default: 0 deg.)</p>
+</dd>
+<dt><strong>SO_args</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
+<dd><p class="first last">Dictionary of keyword arguments to pass to a call to simobj.SimObj.
+Arguments are: <cite>obj_id</cite>, <cite>snap_id</cite>, <cite>mask_type</cite>, <cite>mask_args</cite>,
+<cite>mask_kwargs</cite>, <cite>configfile</cite>, <cite>simfiles_configfile</cite>, <cite>ncpu</cite>. See simobj
+package documentation for details. Provide SO_args or SO_instance, not
+both.</p>
+</dd>
+<dt><strong>SO_instance</strong> <span class="classifier-delimiter">:</span> <span class="classifier">SimObj instance</span></dt>
+<dd><p class="first last">An initialized SimObj object. Provide SO_instance or SO_args, not both.</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
 </div>
 
 

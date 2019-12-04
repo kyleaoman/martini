@@ -8,17 +8,18 @@ import astropy.units as U
 class EAGLESource(SPHSource):
     """
     Class abstracting HI sources designed to work with publicly available
-    EAGLE snapshot + group files. For file access, see
-    http://icc.dur.ac.uk/Eagle/database.php.
+    EAGLE snapshot + group data.
+
+    For file access, see http://icc.dur.ac.uk/Eagle/database.php.
 
     Parameters
     ----------
-    snapPath : string
+    snapPath : str
         Directory containing snapshot files. The directory structure unpacked
         from the publicly available tarballs is expected; removing/renaming
         files or directories below this will cause errors.
 
-    snapBase : string
+    snapBase : str
         Filename of snapshot files, omitting portion '.X.hdf5'.
 
     fof : int
@@ -34,55 +35,56 @@ class EAGLESource(SPHSource):
         number is 0, for satellites >0. In the EAGLE database, this is then
         'SubGroupNumber'.
 
-    db_user : string
+    db_user : str
         Database username.
 
-    db_key : string
-        Database password.
+    db_key : str, optional
+        Database password, or omit for a prompt at runtime. (Default: None.)
 
-    subBoxSize : astropy.units.Quantity, with dimensions of length
+    subBoxSize : Quantity, with dimensions of length
         Box half-side length of a region to load around the object of interest,
         in physical (not comoving, no little h) units. Using larger values
         will include more foreground/background, which may be desirable, but
         will also slow down execution and impair the automatic routine used
         to find a disc plane.
 
-    distance : astropy.units.Quantity, with dimensions of length
+    distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: 3 Mpc.)
 
-    vpeculiar : astropy.units.Quantity, with dimensions of velocity
+    vpeculiar : Quantity, with dimensions of velocity, optional
         Source peculiar velocity, added to the velocity from Hubble's law.
+        (Default: 0 km/s.)
 
-    rotation : dict
-        Keys may be any combination of 'axis_angle', 'rotmat' and/or
-        'L_coords'. These will be applied in this order. Note that the 'y-z'
+    rotation : dict, optional
+        Keys may be any combination of `axis_angle`, `rotmat` and/or
+        `L_coords`. These will be applied in this order. Note that the 'y-z'
         plane will be the one eventually placed in the plane of the "sky". The
         corresponding values:
-        - 'axis_angle' : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element an astropy.units.Quantity with \
+
+        - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element a Quantity with \
         dimensions of angle, indicating the angle to rotate through.
-        - 'rotmat' : A (3, 3) numpy.array specifying a rotation.
-        - 'L_coords' : A 2-tuple containing an inclination and an azimuthal \
-        angle (both astropy.units.Quantity instances with dimensions of \
+        - `rotmat` : A (3, 3) numpy.array specifying a rotation.
+        - `L_coords` : A 2-tuple containing an inclination and an azimuthal \
+        angle (both Quantity instances with dimensions of \
         angle). The routine will first attempt to identify a preferred plane \
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
         momentum pole (rotation about 'x'), and inclined (rotation about 'y').
 
-    ra : astropy.units.Quantity, with dimensions of angle
-        Right ascension for the source centroid.
+        (Default: rotmat with the identity rotation.)
 
-    dec : astropy.units.Quantity, with dimensions of angle
-        Declination for the source centroid.
+    ra : Quantity, with dimensions of angle, optional
+        Right ascension for the source centroid. (Default: 0 deg.)
 
-    print_query : bool
+    dec : Quantity, with dimensions of angle, optional
+        Declination for the source centroid. (Default: 0 deg.)
+
+    print_query : bool, optional
         If True, the SQL query submitted to the EAGLE database is printed.
-
-    Returns
-    -------
-    out : EAGLESource
-        An appropriately initialized EAGLESource object.
+        (Default: False.)
     """
 
     def __init__(

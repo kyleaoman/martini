@@ -14,19 +14,19 @@ class _BaseSpectrum(object):
     Abstract base class for implementions of spectral models to inherit from.
 
     Classes inheriting from _BaseSpectrum must implement three methods:
-    'half_width', 'spectral_function' and 'spectral_function_kwargs'.
+    `half_width`, `spectral_function` and `spectral_function_kwargs`.
 
-    'half_width' should define a characteristic width for the model, measured
+    `half_width` should define a characteristic width for the model, measured
     from the peak to the characteristic location. Note that particles whose
     spectra within +/- 4 half-widths of the peak do not intersect the DataCube
     bandpass will be discarded to speed computation.
 
-    'spectral_function' should define the model spectrum. Arguments which
+    `spectral_function` should define the model spectrum. Arguments which
     depend on the martini.sources.SPHSource (or derived class) properties
     should make use of the 'spectral_function_kwargs' method. The spectrum
     should integrate to 1, the amplitude is handled separately.
 
-    'spectral_function_kwargs' should provide a helper to pass properties from
+    `spectral_function_kwargs` should provide a helper to pass properties from
     martini.source.SPHSource (or derived class) to the 'spectral_function'.
     This is required because the source object is not accessible at class
     initialization.
@@ -122,16 +122,16 @@ class _BaseSpectrum(object):
 
         Parameters
         ----------
-        a : astropy.units.Quantity array, with dimensions of velocity
+        a : Quantity, with dimensions of velocity
             Lower spectral channel edge(s).
 
-        b : astropy.units.Quantity array, with dimensions of velocity
+        b : Quantity, with dimensions of velocity
             Upper spectral channel edge(s).
 
-        vmids : astropy.units.Quantity array, with dimensions of velocity
+        vmids : Quantity, with dimensions of velocity
             Particle velocities along the line of sight.
 
-        **kwargs : various
+        **kwargs
             See spectral_function_kwargs.
 
         See Also
@@ -174,17 +174,12 @@ class GaussianSpectrum(_BaseSpectrum):
 
     Parameters
     ----------
-    sigma : astropy.units.Quantity, with dimensions of velocity, or string: \
-    'thermal'
+    sigma : Quantity, with dimensions of velocity, or string {'thermal'}, \
+    optional
         Width of the Gaussian modelling the line (constant for all particles),
         or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B
         is Boltzmann's constant, T is the particle temperature and m_p is the
-        particle mass.
-
-    Returns
-    -------
-    out : GaussianSpectrum
-        An appropriately initialized GaussianSpectrum object.
+        particle mass. (Default is 7 km/s.)
 
     See Also
     --------
@@ -205,23 +200,22 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        a : astropy.units.Quantity, with dimensions of velocity
+        a : Quantity, with dimensions of velocity
             Lower spectral channel edge(s).
 
-        b : astropy.units.Quantity, with dimensions of velocity
+        b : Quantity, with dimensions of velocity
             Upper spectral channel edge(s).
 
-        vmids : astropy.units.Quantity array, with dimensions of velocity
+        vmids : Quantity, with dimensions of velocity
             Particle velocities along the line of sight.
 
-        sigma : astropy.units.Quantity array, or astropy.units.Quantity, with \
-        dimensions of velocity
+        sigma : Quantity, with dimensions of velocity
             Velocity dispersion for HI line width, either for each particle or
             constant.
 
         Returns
         -------
-        out : astropy.units.Quantity, dimesionless
+        out : Quantity, dimensionless
             The evaluated spectral model.
         """
 
@@ -261,7 +255,7 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Returns
         -------
-        out : astropy.unit.Quantity, with dimensions of velocity
+        out : Quantity, with dimensions of velocity
             Velocity dispersion (constant, or per particle).
         """
 
@@ -277,11 +271,6 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
     The line is modelled as a Dirac-delta function, centered at the particle
     velocity.
-
-    Returns
-    -------
-    out : DiracDeltaSpectrum
-        An appropriately initialized DiracDeltaSpectrum object.
     """
 
     def __init__(self):
@@ -294,18 +283,18 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        a : astropy.units.Quantity, with dimensions of velocity
+        a : Quantity, with dimensions of velocity
             Lower spectral channel edge(s).
 
-        b : astropy.units.Quantity, with dimensions of velocity
+        b : Quantity, with dimensions of velocity
             Upper spectral channel edge(s).
 
-        vmids : astropy.units.Quantity array, with dimensions of velocity
+        vmids : Quantity, with dimensions of velocity
             Particle velocities along the line of sight.
 
         Returns
         -------
-        out : astropy.units.Quantity, dimesionless
+        out : Quantity, dimesionless
             The evaluated spectral model.
         """
 
@@ -339,7 +328,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Returns
         -------
-        out : astropy.units.Quantity
+        out : Quantity
             Velocity dispersion of 0 km/s.
         """
 

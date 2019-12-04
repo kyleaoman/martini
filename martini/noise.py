@@ -34,17 +34,12 @@ class GaussianNoise(_BaseNoise):
     """
     Implementation of a simple Gaussian noise model.
 
-    Provides a 'generate' method producing a cube of Gaussian Noise.
+    Provides a `generate` method producing a cube of Gaussian noise.
 
     Parameters
     ----------
-    rms : astropy.units.Quantity with dimensions of flux density (e.g. Jy)
+    rms : Quantity, with dimensions of flux density (e.g. Jy)
         Root mean square amplitude of the noise field.
-
-    Returns
-    -------
-    out : GaussianNoise
-        An appropriately initialized GaussianNoise object.
     """
 
     def __init__(self, rms=1.0 * U.Jy):
@@ -71,7 +66,7 @@ class GaussianNoise(_BaseNoise):
 
         Returns
         -------
-        out : astropy.units.Quantity array, with dimensions of flux density
+        out : Quantity, with dimensions of flux density
             Noise realization with size matching the DataCube._array.
         """
 
