@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>martini.sph_kernels &mdash; MARTINI 1.1 documentation</title>
+  <title>martini.sph_kernels &mdash; MARTINI 1.2 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                1.1
+                1.2
               </div>
             
           
@@ -334,7 +334,7 @@
 <span class="sd">    Gadget/Gadget2!). The exact integral is usually too slow to be practical;</span>
 <span class="sd">    the implementation here approximates the kernel amplitude as constant</span>
 <span class="sd">    across the pixel, which converges to within 1% of the exact integral</span>
-<span class="sd">    provided the SPH smoothing lengths are at least 2 pixels in size.</span>
+<span class="sd">    provided the SPH smoothing lengths are at least 1.51 pixels in size.</span>
 
 <span class="sd">    The WendlandC2 kernel is here defined as:</span>
 
@@ -438,7 +438,7 @@
                                <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
                                <span class="s2">&quot;may be disabled by calling &quot;</span>
                                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
+                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with &quot;</span>
                                <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
 
         <span class="k">return</span></div></div>
@@ -624,7 +624,7 @@
 <span class="sd">    The cubic spline is the &#39;classic&#39; SPH kernel. The exact integral is usually</span>
 <span class="sd">    too slow to be practical; the implementation here approximates the kernel</span>
 <span class="sd">    amplitude as constant across the pixel, which converges to within 1% of</span>
-<span class="sd">    the exact integral provided the SPH smoothing lengths are at least 2.5</span>
+<span class="sd">    the exact integral provided the SPH smoothing lengths are at least 1.16</span>
 <span class="sd">    pixels in size.</span>
 
 <span class="sd">    The cubic spline kernel is here defined as:</span>
@@ -748,7 +748,7 @@
         <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.16</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.CubicSplineKernel.validate&quot;</span>
                                <span class="s2">&quot;: SPH smoothing lengths must be &gt;= 1.16 px in &quot;</span>
-                               <span class="s2">&quot;size for WendlandC2 kernel integral &quot;</span>
+                               <span class="s2">&quot;size for CubicSplineKernel kernel integral &quot;</span>
                                <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
                                <span class="s2">&quot;may be disabled by calling &quot;</span>
                                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
@@ -906,7 +906,10 @@
             <span class="n">warn</span><span class="p">(</span><span class="s2">&quot;GaussianKernel with truncation &gt;=6sigma may unnecessarily &quot;</span>
                  <span class="s2">&quot;slow down computation.&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="p">(</span><span class="n">lims</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> \
-           <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+           <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span>
+               <span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span>
+               <span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
+           <span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.GaussianKernel.validate: &quot;</span>
                                <span class="s2">&quot;SPH smoothing lengths must not be in interval &quot;</span>
                                <span class="s2">&quot;[</span><span class="si">{0:.1f}</span><span class="s2">, </span><span class="si">{1:.1f}</span><span class="s2">] px &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">*</span><span class="n">lims</span><span class="p">)</span> <span class="o">+</span>
