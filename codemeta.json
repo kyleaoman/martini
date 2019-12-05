@@ -9,16 +9,16 @@
             "@type": "Person",
             "givenName": "Kyle A.",
             "familyName": "Oman",
-            "@id": "0000-0001-9857-7788"
-        }
+            "@id": "0000-0001-9857-7788",
+        },
     ],
     "citation": "https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O",
     "relatedLink": [
-        "https://pypi.org/project/astromartini"
+        "https://pypi.org/project/astromartini",
     ],
     "codeRepository": [
-        "https://github.com/kyleaoman/martini"
+        "https://github.com/kyleaoman/martini",
     ],
-    "version": "1.1",
-    "license": "https://spdx.org/licenses/GPL-3.0-only.html"
+    "version": "1.2",
+    "license": "https://spdx.org/licenses/GPL-3.0-only.html",
 }

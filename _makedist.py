@@ -6,6 +6,7 @@ from getpass import getpass
 import sys
 import subprocess
 from time import sleep
+from _gencodemeta import gencodemeta
 
 pkgname = 'astromartini'
 condash = '/opt/local/anaconda/anaconda3-2018.12/etc/profile.d/conda.sh'
@@ -25,6 +26,9 @@ os.chdir(pkgdir)
 version_file = os.path.join(pkgdir, 'martini', 'VERSION')
 with open(version_file) as vf:
     version = tuple(vf.read().strip().split('.'))
+
+print('Ensure codemeta.json reflects current version.')
+gencodemeta()
 
 print('Check that git master branch is ready and committed.')
 passwd = getpass('Preparing {:s}-{:s}.{:s}, enter PyPI password to'
