@@ -109,7 +109,7 @@ class SimbaSource(SPHSource):
         with h5py.File(snapFile, 'r') as f:
             a = f['Header'].attrs['Time']
             h = f['Header'].attrs['HubbleParam']
-            lbox = f['Header'].attrs['BoxSize'] * U.kpc / h
+            lbox = f['Header'].attrs['BoxSize'] / h * U.kpc
             gas = f['PartType0']
             fH = gas['Metallicity'][:, 0]
             fHe = gas['Metallicity'][:, 1]
@@ -127,21 +127,22 @@ class SimbaSource(SPHSource):
             del fH, fHe, xe
 
         with h5py.File(groupFile, 'r') as f:
-            groupIDs = f['galaxy_data/GroupID']
-            gmask = groupID == group_IDs
-            cop = f['galaxy_data/minpotpos'][gmask] * a / h * U.kpc
-            vcent = f['galaxy_data/vel'][gmask] * np.sqrt(a) * U.km / U.s
-            
+            groupIDs = np.array(f['galaxy_data/GroupID'])
+            gmask = groupID == groupIDs
+            # no h^-1 on minpotpos, not sure about comoving yet
+            cop = np.array(f['galaxy_data/minpotpos'])[gmask][0] * a * U.kpc
+            vcent = np.array(f['galaxy_data/vel'])[gmask][0] * np.sqrt(a) * U.km / U.s
+
         particles['xyz_g'] -= cop
-        particles['xyz_g'][particles['xyz_g'] > lbox / 2.] -= lbox.to(U.kpc)
-        particles['xyz_g'][particles['xyz_g'] < -lbox / 2.] += lbox.to(U.kpc)
+        particles['xyz_g'][particles['xyz_g'] > lbox / 2.] -= lbox
+        particles['xyz_g'][particles['xyz_g'] < -lbox / 2.] += lbox
         particles['vxyz_g'] -= vcent
 
-        mask = np.zeros(particles['xyz_g'].shape, dtype=np.bool)
-        outer_cube = np.abs(particles['xyz_g'] < subBoxSize).all(axis=1)
-        inner_cube = np.zeros(particles['xyz_g'].shape, dtype=np.bool)
+        mask = np.zeros(particles['xyz_g'].shape[0], dtype=np.bool)
+        outer_cube = (np.abs(particles['xyz_g']) < subBoxSize).all(axis=1)
+        inner_cube = np.zeros(particles['xyz_g'].shape[0], dtype=np.bool)
         inner_cube[outer_cube] = (
-            np.abs(particles['xyz_g'][outer_cube]) < aperture / np.sqrt(3)
+            np.abs(particles['xyz_g'][outer_cube]) < subBoxSize / np.sqrt(3)
         ).all(axis=1)
         need_distance = np.logical_and(outer_cube, np.logical_not(inner_cube))
         mask[inner_cube] = True
