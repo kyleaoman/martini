@@ -2,7 +2,7 @@ import numpy as np
 from ._sph_source import SPHSource
 from ..sph_kernels import CubicSplineKernel, find_fwhm
 from os.path import join, normpath, sep
-import astropy.units as U
+from astropy import units as U, constants as C
 
 
 class SimbaSource(SPHSource):
@@ -105,11 +105,6 @@ class SimbaSource(SPHSource):
         groupFile = join(groupPath, groupName)
 
         gamma = 5 / 3
-        k_B = 0
-
-        with h5py.File(groupFile, 'r') as f:
-            cop = 0
-            vcent = 0
 
         with h5py.File(snapFile, 'r') as f:
             a = f['Header'].attrs['Time']
@@ -119,23 +114,41 @@ class SimbaSource(SPHSource):
             fH = gas['Metallicity'][:, 0]
             fHe = gas['Metallicity'][:, 1]
             xe = gas['ElectronAbundance']
-            Y = fHe / 4 / (1 - fHE)
-            mu = (1 + 4 * Y) / (1 + Y + xe)
             particles = dict(
                 xyz_g=gas['Coordinates'] * a / h * U.kpc,
                 vxyz_g=gas['Velocities'] * np.sqrt(a) * U.km / U.s,
-                T_g=mu_g * (gamma - 1) * gas['InternalEnergy'] / k_B * U.K,
+                T_g=((1 + 4 * fHe / (1 - fHe)) / (1 + fHe / 4 / (1 - fHe) + xe) * C.m_p
+                     * (gamma - 1)
+                     * gas['InternalEnergy'] * (U.km / U.s) ** 2 / C.k_B).to(U.K),
                 hsm_g=gas['SmoothingLength'] * a / h * U.kpc
                 * find_fwhm(CubicSplineKernel().kernel),
                 mHI_g = gas['Masses'] * fH * gas['GrackleHI'] * 1E10 / h * U.Msun
             )
+            del fH, fHe, xe
 
+        with h5py.File(groupFile, 'r') as f:
+            groupIDs = f['galaxy_data/GroupID']
+            gmask = groupID == group_IDs
+            cop = f['galaxy_data/minpotpos'][gmask] * a / h * U.kpc
+            vcent = f['galaxy_data/vel'][gmask] * np.sqrt(a) * U.km / U.s
+            
         particles['xyz_g'] -= cop
         particles['xyz_g'][particles['xyz_g'] > lbox / 2.] -= lbox.to(U.kpc)
         particles['xyz_g'][particles['xyz_g'] < -lbox / 2.] += lbox.to(U.kpc)
         particles['vxyz_g'] -= vcent
 
-        mask = ng_g == fof
+        mask = np.zeros(particles['xyz_g'].shape, dtype=np.bool)
+        outer_cube = np.abs(particles['xyz_g'] < subBoxSize).all(axis=1)
+        inner_cube = np.zeros(particles['xyz_g'].shape, dtype=np.bool)
+        inner_cube[outer_cube] = (
+            np.abs(particles['xyz_g'][outer_cube]) < aperture / np.sqrt(3)
+        ).all(axis=1)
+        need_distance = np.logical_and(outer_cube, np.logical_not(inner_cube))
+        mask[inner_cube] = True
+        mask[need_distance] = np.sum(
+            np.power(particles['xyz_g'][need_distance], 2), axis=1
+        ) < np.power(subBoxSize, 2)
+        
         for k, v in particles.items():
             particles[k] = v[mask]
 
