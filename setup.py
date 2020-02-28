@@ -35,7 +35,8 @@ setup(
             'archive/master.zip#egg=simobj'
         ],
         'magneticumsource': 'g3t @ https://github.com/kyleaoman/'
-        'g3t/archive/master.zip#egg=g3t'
+        'g3t/archive/master.zip#egg=g3t',
+        'simbasource': 'h5py'
     },
     include_package_data=True,
     zip_safe=False
