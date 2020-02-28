@@ -97,9 +97,13 @@ class _BaseBeam(object):
         px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
         px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
         self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))
-        self.arcsec_to_beam = (U.Jy * U.arcsec**-2, U.Jy * U.beam**-1,
-                               lambda x: x * (np.pi * self.bmaj * self.bmin),
-                               lambda x: x / (np.pi * self.bmaj * self.bmin))
+        # since bmaj, bmin are FWHM, need to include conversion to
+        # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
+        # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
+        self.arcsec_to_beam = (
+            U.Jy * U.arcsec**-2, U.Jy * U.beam**-1,
+            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
+            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2))
 
         # can turn 2D beam into a 3D beam here; use above for central channel
         # then shift in frequency up and down for other channels
