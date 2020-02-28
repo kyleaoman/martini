@@ -183,7 +183,7 @@ pixels in size.</p>
 \end{cases}\end{split}\]</div>
 <dl class="method">
 <dt id="martini.sph_kernels.CubicSplineKernel.kernel">
-<code class="descname">kernel</code><span class="sig-paren">(</span><em>self</em>, <em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate the kernel function.</p>
 <p>The cubic spline kernel is here defined as:</p>
 <div class="math notranslate nohighlight">
@@ -199,18 +199,16 @@ pixels in size.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Dimensionless distance parameter.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>q</strong> : array_like</p>
+<blockquote>
+<div><p>Dimensionless distance parameter.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Kernel value at positions q.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel value at positions q.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -219,7 +217,7 @@ pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.CubicSplineKernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>self</em>, <em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The formula used approximates the kernel amplitude as constant across
 the pixel area and converges to the true value within 1% for smoothing
@@ -228,21 +226,20 @@ lengths &gt;= 2.5 pixels.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>dij</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Distances from pixel centre to particle positions, in pixels.</p>
-</dd>
-<dt><strong>h</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths, in pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>dij</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Distances from pixel centre to particle positions, in pixels.</p>
+</div></blockquote>
+<p><strong>h</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Particle smoothing lengths, in pixels.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Approximate kernel integral over the pixel area.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Approximate kernel integral over the pixel area.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -251,17 +248,16 @@ lengths &gt;= 2.5 pixels.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.CubicSplineKernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>self</em>, <em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>sm_lengths</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths, in units of pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>sm_lengths</strong> : Quantity, with dimensions of pixels</p>
+<blockquote class="last">
+<div><p>Particle smoothing lengths, in units of pixels.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -282,7 +278,7 @@ lengths &gt;= 2.5 pixels.</p>
 \end{cases}\end{split}\]</div>
 <dl class="method">
 <dt id="martini.sph_kernels.DiracDeltaKernel.kernel">
-<code class="descname">kernel</code><span class="sig-paren">(</span><em>self</em>, <em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate the kernel function.</p>
 <p>The Dirac-delta kernel is here defined as:</p>
 <div class="math notranslate nohighlight">
@@ -294,18 +290,16 @@ lengths &gt;= 2.5 pixels.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Dimensionless distance parameter.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>q</strong> : array_like</p>
+<blockquote>
+<div><p>Dimensionless distance parameter.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Kernel value at positions q.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel value at positions q.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -314,7 +308,7 @@ lengths &gt;= 2.5 pixels.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.DiracDeltaKernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>self</em>, <em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The particles are approximated as point-like, ignoring any finite-sized
 kernel. This is a reasonable approximation provided the smoothing
@@ -323,21 +317,20 @@ length is &lt; 0.5 pixel in size, ideally &lt;&lt; 1 pixel in size.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>dij</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Distances from pixel centre to particle positions, in pixels.</p>
-</dd>
-<dt><strong>h</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths (FWHM), in pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>dij</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Distances from pixel centre to particle positions, in pixels.</p>
+</div></blockquote>
+<p><strong>h</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Particle smoothing lengths (FWHM), in pixels.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Kernel integral over the pixel area.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel integral over the pixel area.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -346,7 +339,7 @@ length is &lt; 0.5 pixel in size, ideally &lt;&lt; 1 pixel in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.DiracDeltaKernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>self</em>, <em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <p>The Dirac-delta model approaches the exact integral when the smoothing
 length is &lt;&lt; 1 pixel in size; at a minimum the smoothing length should
@@ -355,11 +348,10 @@ be less than half the pixel size.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>sm_lengths</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths (FWHM), in units of pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>sm_lengths</strong> : Quantity, with dimensions of pixels</p>
+<blockquote class="last">
+<div><p>Particle smoothing lengths (FWHM), in units of pixels.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -390,19 +382,18 @@ the truncation radius.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>truncate</strong> <span class="classifier-delimiter">:</span> <span class="classifier">float, optional</span></dt>
-<dd><p class="first last">Number of standard deviations at which to truncate kernel (default=3).
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>truncate</strong> : float, optional</p>
+<blockquote class="last">
+<div><p>Number of standard deviations at which to truncate kernel (default=3).
 Truncation radii &lt;2 may lead to large errors and are not recommended.</p>
-</dd>
-</dl>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
 </table>
 <dl class="method">
 <dt id="martini.sph_kernels.GaussianKernel.kernel">
-<code class="descname">kernel</code><span class="sig-paren">(</span><em>self</em>, <em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate the kernel function.</p>
 <p>The Gaussian kernel is here defined as:</p>
 <div class="math notranslate nohighlight">
@@ -418,18 +409,16 @@ Truncation radii &lt;2 may lead to large errors and are not recommended.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Dimensionless distance parameter.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>q</strong> : array_like</p>
+<blockquote>
+<div><p>Dimensionless distance parameter.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Kernel value at positions q.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel value at positions q.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -438,7 +427,7 @@ Truncation radii &lt;2 may lead to large errors and are not recommended.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.GaussianKernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>self</em>, <em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The 3 integrals (along dx, dy, dz) are evaluated exactly, however the
 truncation is implemented approximately, erring on the side of
@@ -447,21 +436,20 @@ integrating slightly further than the truncation radius.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>dij</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Distances from pixel centre to particle positions, in pixels.</p>
-</dd>
-<dt><strong>h</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths (FWHM), in pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>dij</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Distances from pixel centre to particle positions, in pixels.</p>
+</div></blockquote>
+<p><strong>h</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Particle smoothing lengths (FWHM), in pixels.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Kernel integral over the pixel area.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel integral over the pixel area.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -470,17 +458,16 @@ integrating slightly further than the truncation radius.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.GaussianKernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>self</em>, <em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>sm_lengths</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths (FWHM), in units of pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>sm_lengths</strong> : Quantity, with dimensions of pixels</p>
+<blockquote class="last">
+<div><p>Particle smoothing lengths (FWHM), in units of pixels.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -507,7 +494,7 @@ provided the SPH smoothing lengths are at least 1.51 pixels in size.</p>
 \end{cases}\end{split}\]</div>
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC2Kernel.kernel">
-<code class="descname">kernel</code><span class="sig-paren">(</span><em>self</em>, <em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate the kernel function.</p>
 <p>The WendlandC2 kernel is here defined as:</p>
 <div class="math notranslate nohighlight">
@@ -520,18 +507,16 @@ provided the SPH smoothing lengths are at least 1.51 pixels in size.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Dimensionless distance parameter.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>q</strong> : array_like</p>
+<blockquote>
+<div><p>Dimensionless distance parameter.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Kernel value at positions q.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel value at positions q.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -540,7 +525,7 @@ provided the SPH smoothing lengths are at least 1.51 pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC2Kernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>self</em>, <em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The formula used approximates the kernel amplitude as constant
 across the pixel area and converges to the true value within 1%
@@ -549,21 +534,20 @@ for smoothing lengths &gt;= 2 pixels.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>dij</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Distances from pixel centre to particle positions, in pixels.</p>
-</dd>
-<dt><strong>h</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths (FWHM), in pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>dij</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Distances from pixel centre to particle positions, in pixels.</p>
+</div></blockquote>
+<p><strong>h</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Particle smoothing lengths (FWHM), in pixels.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Approximate kernel integral over the pixel area.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Approximate kernel integral over the pixel area.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -572,17 +556,16 @@ for smoothing lengths &gt;= 2 pixels.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC2Kernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>self</em>, <em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>sm_lengths</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths (FWHM), in units of pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>sm_lengths</strong> : Quantity, with dimensions of pixels</p>
+<blockquote class="last">
+<div><p>Particle smoothing lengths (FWHM), in units of pixels.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -609,7 +592,7 @@ provided the SPH smoothing lengths are at least 1.29 pixels in size.</p>
 \end{cases}\end{split}\]</div>
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC6Kernel.kernel">
-<code class="descname">kernel</code><span class="sig-paren">(</span><em>self</em>, <em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.kernel" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.kernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate the kernel function.</p>
 <p>The WendlandC6 kernel is here defined as:</p>
 <div class="math notranslate nohighlight">
@@ -622,18 +605,16 @@ provided the SPH smoothing lengths are at least 1.29 pixels in size.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>q</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Dimensionless distance parameter.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>q</strong> : array_like</p>
+<blockquote>
+<div><p>Dimensionless distance parameter.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Kernel value at positions q.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel value at positions q.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -642,27 +623,26 @@ provided the SPH smoothing lengths are at least 1.29 pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC6Kernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>self</em>, <em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel. Not currently implemented.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>dij</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Distances from pixel centre to particle positions, in pixels.</p>
-</dd>
-<dt><strong>h</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths, in pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>dij</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Distances from pixel centre to particle positions, in pixels.</p>
+</div></blockquote>
+<p><strong>h</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Particle smoothing lengths, in pixels.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">array_like</span></dt>
-<dd><p class="first last">Approximate kernel integral over the pixel area.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Approximate kernel integral over the pixel area.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -671,17 +651,16 @@ provided the SPH smoothing lengths are at least 1.29 pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC6Kernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>self</em>, <em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>sm_lengths</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of pixels</span></dt>
-<dd><p class="first last">Particle smoothing lengths, in units of pixels.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>sm_lengths</strong> : Quantity, with dimensions of pixels</p>
+<blockquote class="last">
+<div><p>Particle smoothing lengths, in units of pixels.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>

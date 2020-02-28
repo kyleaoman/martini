@@ -160,7 +160,7 @@
   <h1>Source code for martini.sources._magneticum_source</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
-<span class="kn">from</span> <span class="nn">._sph_source</span> <span class="k">import</span> <span class="n">SPHSource</span>
+<span class="kn">from</span> <span class="nn">._sph_source</span> <span class="kn">import</span> <span class="n">SPHSource</span>
 
 
 <div class="viewcode-block" id="MagneticumSource"><a class="viewcode-back" href="../../../source.html#martini.sources._magneticum_source.MagneticumSource">[docs]</a><span class="k">class</span> <span class="nc">MagneticumSource</span><span class="p">(</span><span class="n">SPHSource</span><span class="p">):</span>
@@ -258,7 +258,7 @@
 <span class="sd">    dec : Quantity, with dimensions of angle, optional</span>
 <span class="sd">        Declination for the source centroid. (Default: 0 deg.)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">snapBase</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">haloPosition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -283,7 +283,7 @@
             <span class="n">dec</span><span class="o">=</span><span class="mi">0</span><span class="o">*</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span>
     <span class="p">):</span>
 
-        <span class="kn">from</span> <span class="nn">g3t.stable.g3read</span> <span class="k">import</span> <span class="n">GadgetFile</span><span class="p">,</span> <span class="n">read_particles_in_box</span>
+        <span class="kn">from</span> <span class="nn">g3t.stable.g3read</span> <span class="kn">import</span> <span class="n">GadgetFile</span><span class="p">,</span> <span class="n">read_particles_in_box</span>
 
         <span class="c1"># I guess I should allow rescaling of radius to get fore/background</span>
 

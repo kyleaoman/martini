@@ -159,12 +159,12 @@
             
   <h1>Source code for martini.sources._sph_source</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="k">import</span> <span class="n">CartesianRepresentation</span><span class="p">,</span>\
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="kn">import</span> <span class="n">CartesianRepresentation</span><span class="p">,</span>\
     <span class="n">CartesianDifferential</span><span class="p">,</span> <span class="n">ICRS</span>
-<span class="kn">from</span> <span class="nn">astropy.coordinates.matrix_utilities</span> <span class="k">import</span> <span class="n">rotation_matrix</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates.matrix_utilities</span> <span class="kn">import</span> <span class="n">rotation_matrix</span>
 <span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
-<span class="kn">from</span> <span class="nn">._L_align</span> <span class="k">import</span> <span class="n">L_align</span>
-<span class="kn">from</span> <span class="nn">._cartesian_translation</span> <span class="k">import</span> <span class="n">translate</span><span class="p">,</span> <span class="n">translate_d</span>
+<span class="kn">from</span> <span class="nn">._L_align</span> <span class="kn">import</span> <span class="n">L_align</span>
+<span class="kn">from</span> <span class="nn">._cartesian_translation</span> <span class="kn">import</span> <span class="n">translate</span><span class="p">,</span> <span class="n">translate_d</span>
 
 <span class="c1"># Extend CartesianRepresentation to allow coordinate translation</span>
 <span class="nb">setattr</span><span class="p">(</span><span class="n">CartesianRepresentation</span><span class="p">,</span> <span class="s1">&#39;translate&#39;</span><span class="p">,</span> <span class="n">translate</span><span class="p">)</span>
@@ -248,7 +248,7 @@
 <span class="sd">        (Default: None.)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">distance</span><span class="o">=</span><span class="mf">3.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Mpc</span><span class="p">,</span>
             <span class="n">vpeculiar</span><span class="o">=</span><span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="p">,</span>

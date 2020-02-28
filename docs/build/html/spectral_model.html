@@ -171,24 +171,22 @@
 velocity.</p>
 <dl class="method">
 <dt id="martini.spectral_models.DiracDeltaSpectrum.half_width">
-<code class="descname">half_width</code><span class="sig-paren">(</span><em>self</em>, <em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.half_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.half_width" title="Permalink to this definition">¶</a></dt>
+<code class="descname">half_width</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.half_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.half_width" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dirac-delta function has 0 width.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
-<dd><p class="first last">Source object, making particle properties available.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>source</strong> : martini.sources.SPHSource (or derived class) instance</p>
+<blockquote>
+<div><p>Source object, making particle properties available.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity</span></dt>
-<dd><p class="first last">Velocity dispersion of 0 km/s.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : Quantity</p>
+<blockquote class="last">
+<div><p>Velocity dispersion of 0 km/s.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -197,30 +195,30 @@ velocity.</p>
 
 <dl class="method">
 <dt id="martini.spectral_models.DiracDeltaSpectrum.spectral_function">
-<code class="descname">spectral_function</code><span class="sig-paren">(</span><em>self</em>, <em>a</em>, <em>b</em>, <em>vmids</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.spectral_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.spectral_function" title="Permalink to this definition">¶</a></dt>
+<code class="descname">spectral_function</code><span class="sig-paren">(</span><em>a</em>, <em>b</em>, <em>vmids</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.spectral_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.spectral_function" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate a Dirac-delta function in a channel.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>a</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Lower spectral channel edge(s).</p>
-</dd>
-<dt><strong>b</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Upper spectral channel edge(s).</p>
-</dd>
-<dt><strong>vmids</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Particle velocities along the line of sight.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>a</strong> : Quantity, with dimensions of velocity</p>
+<blockquote>
+<div><p>Lower spectral channel edge(s).</p>
+</div></blockquote>
+<p><strong>b</strong> : Quantity, with dimensions of velocity</p>
+<blockquote>
+<div><p>Upper spectral channel edge(s).</p>
+</div></blockquote>
+<p><strong>vmids</strong> : Quantity, with dimensions of velocity</p>
+<blockquote>
+<div><p>Particle velocities along the line of sight.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, dimesionless</span></dt>
-<dd><p class="first last">The evaluated spectral model.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : Quantity, dimesionless</p>
+<blockquote class="last">
+<div><p>The evaluated spectral model.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -229,24 +227,22 @@ velocity.</p>
 
 <dl class="method">
 <dt id="martini.spectral_models.DiracDeltaSpectrum.spectral_function_kwargs">
-<code class="descname">spectral_function_kwargs</code><span class="sig-paren">(</span><em>self</em>, <em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.spectral_function_kwargs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.spectral_function_kwargs" title="Permalink to this definition">¶</a></dt>
+<code class="descname">spectral_function_kwargs</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#DiracDeltaSpectrum.spectral_function_kwargs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.DiracDeltaSpectrum.spectral_function_kwargs" title="Permalink to this definition">¶</a></dt>
 <dd><p>No additional kwargs.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
-<dd><p class="first last">Source object, making particle properties available.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>source</strong> : martini.sources.SPHSource (or derived class) instance</p>
+<blockquote>
+<div><p>Source object, making particle properties available.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
-<dd><p class="first last">Empty; no additional kwargs.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : dict</p>
+<blockquote class="last">
+<div><p>Empty; no additional kwargs.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -266,48 +262,40 @@ at the particle velocity.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>sigma</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity, or string {‘thermal’},     optional</span></dt>
-<dd><p class="first last">Width of the Gaussian modelling the line (constant for all particles),
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>sigma</strong> : Quantity, with dimensions of velocity, or string {‘thermal’},     optional</p>
+<blockquote class="last">
+<div><p>Width of the Gaussian modelling the line (constant for all particles),
 or specify ‘thermal’ for width equal to sqrt(k_B * T / m_p) where k_B
 is Boltzmann’s constant, T is the particle temperature and m_p is the
 particle mass. (Default is 7 km/s.)</p>
-</dd>
-</dl>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
 </table>
 <div class="admonition seealso">
 <p class="first admonition-title">See also</p>
-<dl class="last docutils">
-<dt><code class="xref py py-obj docutils literal notranslate"><span class="pre">_BaseSpectrum</span></code></dt>
-<dd></dd>
-<dt><a class="reference internal" href="#martini.spectral_models.DiracDeltaSpectrum" title="martini.spectral_models.DiracDeltaSpectrum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DiracDeltaSpectrum</span></code></a></dt>
-<dd></dd>
-</dl>
+<p class="last"><code class="xref py py-obj docutils literal notranslate"><span class="pre">_BaseSpectrum</span></code>, <a class="reference internal" href="#martini.spectral_models.DiracDeltaSpectrum" title="martini.spectral_models.DiracDeltaSpectrum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DiracDeltaSpectrum</span></code></a></p>
 </div>
 <dl class="method">
 <dt id="martini.spectral_models.GaussianSpectrum.half_width">
-<code class="descname">half_width</code><span class="sig-paren">(</span><em>self</em>, <em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.half_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.half_width" title="Permalink to this definition">¶</a></dt>
+<code class="descname">half_width</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.half_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.half_width" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate velocity dispersions from particle temperatures, or return
 constant.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
-<dd><p class="first last">Source object, making particle properties available.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>source</strong> : martini.sources.SPHSource (or derived class) instance</p>
+<blockquote>
+<div><p>Source object, making particle properties available.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Velocity dispersion (constant, or per particle).</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : Quantity, with dimensions of velocity</p>
+<blockquote class="last">
+<div><p>Velocity dispersion (constant, or per particle).</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -316,34 +304,35 @@ constant.</p>
 
 <dl class="method">
 <dt id="martini.spectral_models.GaussianSpectrum.spectral_function">
-<code class="descname">spectral_function</code><span class="sig-paren">(</span><em>self</em>, <em>a</em>, <em>b</em>, <em>vmids</em>, <em>sigma=&lt;Quantity 1. km / s&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.spectral_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.spectral_function" title="Permalink to this definition">¶</a></dt>
+<code class="descname">spectral_function</code><span class="sig-paren">(</span><em>a</em>, <em>b</em>, <em>vmids</em>, <em>sigma=&lt;Quantity 1. km / s&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.spectral_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.spectral_function" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate a Gaussian integral in a channel.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>a</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Lower spectral channel edge(s).</p>
-</dd>
-<dt><strong>b</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Upper spectral channel edge(s).</p>
-</dd>
-<dt><strong>vmids</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Particle velocities along the line of sight.</p>
-</dd>
-<dt><strong>sigma</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of velocity</span></dt>
-<dd><p class="first last">Velocity dispersion for HI line width, either for each particle or
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>a</strong> : Quantity, with dimensions of velocity</p>
+<blockquote>
+<div><p>Lower spectral channel edge(s).</p>
+</div></blockquote>
+<p><strong>b</strong> : Quantity, with dimensions of velocity</p>
+<blockquote>
+<div><p>Upper spectral channel edge(s).</p>
+</div></blockquote>
+<p><strong>vmids</strong> : Quantity, with dimensions of velocity</p>
+<blockquote>
+<div><p>Particle velocities along the line of sight.</p>
+</div></blockquote>
+<p><strong>sigma</strong> : Quantity, with dimensions of velocity</p>
+<blockquote>
+<div><p>Velocity dispersion for HI line width, either for each particle or
 constant.</p>
-</dd>
-</dl>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, dimensionless</span></dt>
-<dd><p class="first last">The evaluated spectral model.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : Quantity, dimensionless</p>
+<blockquote class="last">
+<div><p>The evaluated spectral model.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
@@ -352,25 +341,23 @@ constant.</p>
 
 <dl class="method">
 <dt id="martini.spectral_models.GaussianSpectrum.spectral_function_kwargs">
-<code class="descname">spectral_function_kwargs</code><span class="sig-paren">(</span><em>self</em>, <em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.spectral_function_kwargs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.spectral_function_kwargs" title="Permalink to this definition">¶</a></dt>
+<code class="descname">spectral_function_kwargs</code><span class="sig-paren">(</span><em>source</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/spectral_models.html#GaussianSpectrum.spectral_function_kwargs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.spectral_models.GaussianSpectrum.spectral_function_kwargs" title="Permalink to this definition">¶</a></dt>
 <dd><p>Helper function to pass particle velocity dispersions to the
 spectral_function.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>source</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.sources.SPHSource (or derived class) instance</span></dt>
-<dd><p class="first last">Source object.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>source</strong> : martini.sources.SPHSource (or derived class) instance</p>
+<blockquote>
+<div><p>Source object.</p>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
-<dd><p class="first last">Keyword arguments for the spectral_function.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : dict</p>
+<blockquote class="last">
+<div><p>Keyword arguments for the spectral_function.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>

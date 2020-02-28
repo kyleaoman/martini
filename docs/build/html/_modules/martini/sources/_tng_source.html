@@ -161,8 +161,8 @@
 <span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
 <span class="kn">import</span> <span class="nn">astropy.constants</span> <span class="k">as</span> <span class="nn">C</span>
-<span class="kn">from</span> <span class="nn">._sph_source</span> <span class="k">import</span> <span class="n">SPHSource</span>
-<span class="kn">from</span> <span class="nn">..sph_kernels</span> <span class="k">import</span> <span class="n">CubicSplineKernel</span><span class="p">,</span> <span class="n">find_fwhm</span>
+<span class="kn">from</span> <span class="nn">._sph_source</span> <span class="kn">import</span> <span class="n">SPHSource</span>
+<span class="kn">from</span> <span class="nn">..sph_kernels</span> <span class="kn">import</span> <span class="n">CubicSplineKernel</span><span class="p">,</span> <span class="n">find_fwhm</span>
 
 
 <div class="viewcode-block" id="TNGSource"><a class="viewcode-back" href="../../../source.html#martini.sources._tng_source.TNGSource">[docs]</a><span class="k">class</span> <span class="nc">TNGSource</span><span class="p">(</span><span class="n">SPHSource</span><span class="p">):</span>
@@ -229,7 +229,7 @@
 <span class="sd">        Declination for the source centroid. (Default: 0 deg.)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">basePath</span><span class="p">,</span>
             <span class="n">snapNum</span><span class="p">,</span>
@@ -242,9 +242,9 @@
     <span class="p">):</span>
 
         <span class="c1"># optional dependencies for this source class</span>
-        <span class="kn">from</span> <span class="nn">illustris_python.groupcat</span> <span class="k">import</span> <span class="n">loadSingle</span><span class="p">,</span> <span class="n">loadHeader</span>
-        <span class="kn">from</span> <span class="nn">illustris_python.snapshot</span> <span class="k">import</span> <span class="n">loadSubset</span><span class="p">,</span> <span class="n">getSnapOffsets</span>
-        <span class="kn">from</span> <span class="nn">Hdecompose.atomic_frac</span> <span class="k">import</span> <span class="n">atomic_frac</span>
+        <span class="kn">from</span> <span class="nn">illustris_python.groupcat</span> <span class="kn">import</span> <span class="n">loadSingle</span><span class="p">,</span> <span class="n">loadHeader</span>
+        <span class="kn">from</span> <span class="nn">illustris_python.snapshot</span> <span class="kn">import</span> <span class="n">loadSubset</span><span class="p">,</span> <span class="n">getSnapOffsets</span>
+        <span class="kn">from</span> <span class="nn">Hdecompose.atomic_frac</span> <span class="kn">import</span> <span class="n">atomic_frac</span>
 
         <span class="n">X_H</span> <span class="o">=</span> <span class="mf">0.76</span>
         <span class="n">data_header</span> <span class="o">=</span> <span class="n">loadHeader</span><span class="p">(</span><span class="n">basePath</span><span class="p">,</span> <span class="n">snapNum</span><span class="p">)</span>

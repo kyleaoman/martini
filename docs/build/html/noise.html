@@ -172,18 +172,17 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>rms</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of flux density (e.g. Jy)</span></dt>
-<dd><p class="first last">Root mean square amplitude of the noise field.</p>
-</dd>
-</dl>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>rms</strong> : Quantity, with dimensions of flux density (e.g. Jy)</p>
+<blockquote class="last">
+<div><p>Root mean square amplitude of the noise field.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
 </table>
 <dl class="method">
 <dt id="martini.noise.GaussianNoise.generate">
-<code class="descname">generate</code><span class="sig-paren">(</span><em>self</em>, <em>datacube</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/noise.html#GaussianNoise.generate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.noise.GaussianNoise.generate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">generate</code><span class="sig-paren">(</span><em>datacube</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/noise.html#GaussianNoise.generate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.noise.GaussianNoise.generate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Create a cube containing Gaussian noise.</p>
 <p>Some numpy functions such as np.random.normal strip units, so need to
 handle them explicitly.</p>
@@ -191,20 +190,18 @@ handle them explicitly.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
-<dt><strong>datacube</strong> <span class="classifier-delimiter">:</span> <span class="classifier">martini.DataCube instance</span></dt>
-<dd><p class="first last">This method will be called passing the martini.DataCube instance as
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>datacube</strong> : martini.DataCube instance</p>
+<blockquote>
+<div><p>This method will be called passing the martini.DataCube instance as
 an argument; its attributes can thus be accessed here.
 datacube._array.shape is particularly relevant.</p>
-</dd>
-</dl>
+</div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
-<dt><strong>out</strong> <span class="classifier-delimiter">:</span> <span class="classifier">Quantity, with dimensions of flux density</span></dt>
-<dd><p class="first last">Noise realization with size matching the DataCube._array.</p>
-</dd>
-</dl>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : Quantity, with dimensions of flux density</p>
+<blockquote class="last">
+<div><p>Noise realization with size matching the DataCube._array.</p>
+</div></blockquote>
 </td>
 </tr>
 </tbody>
