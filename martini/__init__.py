@@ -46,7 +46,7 @@ the address below. Currently custom source modules exist for:
 If your use of MARTINI leads to a publication, please acknowledge this and link
 to the github page, ideally specifying the version used (git commit ID or
 version number).
-Suport available via koman@astro.rug.nl.
+Suport available via kyle.a.oman@durham.ac.uk.
 Installation Notes available on https://github.com/kyleaoman/martini, or
 https://kyleaoman.github.io/martini/build/html/index.html
 """

@@ -27,20 +27,23 @@ Martini has (so far) been successfully run on the output of these simulations:
 - Auriga
 - MaGICC (and therefore in principle NIHAO)
 - Magneticum
+- Simba
 
 I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please contact me at the address below. Currently custom source modules exist for:
 
 - EAGLE (martini.sources.EAGLESource_)
 - IllustrisTNG (martini.sources.TNGSource_; also works with Illustris)
 - Magneticum (martini.sources.MagneticumSource_)
+- Simba (martini.sources.SimbaSource_)
 
 .. _martini.sources.EAGLESource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource
 .. _martini.sources.TNGSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource
 .. _martini.sources.MagneticumSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.MagneticumSource
+.. _martini.sources.SimbaSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.SimbaSource
    
-If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via koman@astro.rug.nl.
+If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via kyle.a.oman@durham.ac.uk.
 
-.. _koman@astro.rug.nl: mailto:koman@astro.rug.nl
+.. _kyle.a.oman@durham.ac.uk: mailto:kyle.a.oman@durham.ac.uk
 
 Installation Notes
 ==================
@@ -72,4 +75,4 @@ Choose a branch_. The numbered branches (e.g. 1.0.X) are stable, while the maste
 .. _`my fork`: https://github.com/kyleaoman/g3t
 .. _`g3t`: https://gitlab.lrz.de/di29bop/g3t
 .. _SOSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.SOSource
-.. _contact: mailto:koman@astro.rug.nl
+.. _contact: mailto:kyle.a.oman@durham.ac.uk
