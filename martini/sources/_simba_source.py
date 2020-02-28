@@ -29,8 +29,8 @@ class SimbaSource(SPHSource):
     groupID : int
         Identifier in the GroupID column of group catalogue.
 
-    subBoxSize : Quantity, with dimensions of length
-        Box half-side length of a region to load around the object of interest,
+    aperture : Quantity, with dimensions of length
+        Radial extent of a region to load around the object of interest,
         in physical (not comoving, no little h) units. Using larger values
         will include more foreground/background, which may be desirable, but
         will also slow down execution and impair the automatic routine used
@@ -79,7 +79,7 @@ class SimbaSource(SPHSource):
             groupPath=None,
             groupName=None,
             groupID=None,
-            subBoxSize=50.*U.kpc,
+            aperture=50.*U.kpc,
             distance=3.*U.Mpc,
             vpeculiar=0*U.km/U.s,
             rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
@@ -111,21 +111,22 @@ class SimbaSource(SPHSource):
             h = f['Header'].attrs['HubbleParam']
             lbox = f['Header'].attrs['BoxSize'] / h * U.kpc
             gas = f['PartType0']
-            fH = gas['Metallicity'][:, 0]
-            fHe = gas['Metallicity'][:, 1]
-            xe = gas['ElectronAbundance']
+            fH = gas['Metallicity'][()][:, 0]
+            fHe = gas['Metallicity'][()][:, 1]
+            xe = gas['ElectronAbundance'][()]
             particles = dict(
-                xyz_g=gas['Coordinates'] * a / h * U.kpc,
-                vxyz_g=gas['Velocities'] * np.sqrt(a) * U.km / U.s,
+                xyz_g=gas['Coordinates'][()] * a / h * U.kpc,
+                vxyz_g=gas['Velocities'][()] * np.sqrt(a) * U.km / U.s,
                 T_g=(
                     (1 + 4 * fHe / (1 - fHe))
                     / (1 + fHe / 4 / (1 - fHe) + xe) * C.m_p
                     * (gamma - 1)
-                    * gas['InternalEnergy'] * (U.km / U.s) ** 2 / C.k_B
+                    * gas['InternalEnergy'][()] * (U.km / U.s) ** 2 / C.k_B
                 ).to(U.K),
-                hsm_g=gas['SmoothingLength'] * a / h * U.kpc
+                hsm_g=gas['SmoothingLength'][()] * a / h * U.kpc
                 * find_fwhm(CubicSplineKernel().kernel),
-                mHI_g=gas['Masses'] * fH * gas['GrackleHI'] * 1E10 / h * U.Msun
+                mHI_g=gas['Masses'][()] * fH * gas['GrackleHI'][()]
+                * 1E10 / h * U.Msun
             )
             del fH, fHe, xe
 
@@ -143,16 +144,16 @@ class SimbaSource(SPHSource):
         particles['vxyz_g'] -= vcent
 
         mask = np.zeros(particles['xyz_g'].shape[0], dtype=np.bool)
-        outer_cube = (np.abs(particles['xyz_g']) < subBoxSize).all(axis=1)
+        outer_cube = (np.abs(particles['xyz_g']) < aperture).all(axis=1)
         inner_cube = np.zeros(particles['xyz_g'].shape[0], dtype=np.bool)
         inner_cube[outer_cube] = (
-            np.abs(particles['xyz_g'][outer_cube]) < subBoxSize / np.sqrt(3)
+            np.abs(particles['xyz_g'][outer_cube]) < aperture / np.sqrt(3)
         ).all(axis=1)
         need_distance = np.logical_and(outer_cube, np.logical_not(inner_cube))
         mask[inner_cube] = True
         mask[need_distance] = np.sum(
             np.power(particles['xyz_g'][need_distance], 2), axis=1
-        ) < np.power(subBoxSize, 2)
+        ) < np.power(aperture, 2)
 
         for k, v in particles.items():
             particles[k] = v[mask]
