@@ -9,7 +9,10 @@ from time import sleep
 from _gencodemeta import gencodemeta
 
 pkgname = 'astromartini'
-condash = '/opt/local/anaconda/anaconda3-2018.12/etc/profile.d/conda.sh'
+condash = '~/.miniconda3/etc/profile.d/conda.sh'
+
+if not os.path.isfile(os.path.expanduser(condash)):
+    raise IOError('conda.sh not found, check path in _makedist.py')
 
 
 def run_chk(s, allow_fail=False):
