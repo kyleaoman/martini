@@ -176,8 +176,7 @@ class EAGLESource(SPHSource):
                 dset = f['/PartType{:d}/{:s}'.format(ptype, att)]
                 aexp = dset.attrs.get('aexp-scale-exponent')
                 hexp = dset.attrs.get('h-scale-exponent')
-                return np.array(tmp, dtype='f8') * np.power(a, aexp) \
-                    * np.power(h, hexp)
+                return tmp[()] * np.power(a, aexp) * np.power(h, hexp)
 
             code_to_g = f['/Units'].attrs['UnitMass_in_g'] * U.g
             code_to_cm = f['/Units'].attrs['UnitLength_in_cm'] * U.cm
