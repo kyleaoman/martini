@@ -1,7 +1,7 @@
 import numpy as np
 from ._sph_source import SPHSource
 from ..sph_kernels import CubicSplineKernel, find_fwhm
-from os.path import join, normpath, sep
+from os.path import join
 from astropy import units as U, constants as C
 
 
@@ -100,7 +100,7 @@ class SimbaSource(SPHSource):
 
         # optional dependencies for this source class
         import h5py
-        
+
         snapFile = join(snapPath, snapName)
         groupFile = join(groupPath, groupName)
 
@@ -117,21 +117,25 @@ class SimbaSource(SPHSource):
             particles = dict(
                 xyz_g=gas['Coordinates'] * a / h * U.kpc,
                 vxyz_g=gas['Velocities'] * np.sqrt(a) * U.km / U.s,
-                T_g=((1 + 4 * fHe / (1 - fHe)) / (1 + fHe / 4 / (1 - fHe) + xe) * C.m_p
-                     * (gamma - 1)
-                     * gas['InternalEnergy'] * (U.km / U.s) ** 2 / C.k_B).to(U.K),
+                T_g=(
+                    (1 + 4 * fHe / (1 - fHe))
+                    / (1 + fHe / 4 / (1 - fHe) + xe) * C.m_p
+                    * (gamma - 1)
+                    * gas['InternalEnergy'] * (U.km / U.s) ** 2 / C.k_B
+                ).to(U.K),
                 hsm_g=gas['SmoothingLength'] * a / h * U.kpc
                 * find_fwhm(CubicSplineKernel().kernel),
-                mHI_g = gas['Masses'] * fH * gas['GrackleHI'] * 1E10 / h * U.Msun
+                mHI_g=gas['Masses'] * fH * gas['GrackleHI'] * 1E10 / h * U.Msun
             )
             del fH, fHe, xe
 
         with h5py.File(groupFile, 'r') as f:
-            groupIDs = np.array(f['galaxy_data/GroupID'])
+            groupIDs = f['galaxy_data/GroupID'][()]
             gmask = groupID == groupIDs
             # no h^-1 on minpotpos, not sure about comoving yet
-            cop = np.array(f['galaxy_data/minpotpos'])[gmask][0] * a * U.kpc
-            vcent = np.array(f['galaxy_data/vel'])[gmask][0] * np.sqrt(a) * U.km / U.s
+            cop = f['galaxy_data/minpotpos'][()][gmask][0] * a * U.kpc
+            vcent = f['galaxy_data/vel'][()][gmask][0] * np.sqrt(a) \
+                * U.km / U.s
 
         particles['xyz_g'] -= cop
         particles['xyz_g'][particles['xyz_g'] > lbox / 2.] -= lbox
@@ -149,7 +153,7 @@ class SimbaSource(SPHSource):
         mask[need_distance] = np.sum(
             np.power(particles['xyz_g'][need_distance], 2), axis=1
         ) < np.power(subBoxSize, 2)
-        
+
         for k, v in particles.items():
             particles[k] = v[mask]
 
