@@ -11,6 +11,7 @@ from _gencodemeta import gencodemeta
 pkgname = 'astromartini'
 condash = '~/.miniconda3/etc/profile.d/conda.sh'
 
+print('Ensure conda.sh is found.')
 if not os.path.isfile(os.path.expanduser(condash)):
     raise IOError('conda.sh not found, check path in _makedist.py')
 

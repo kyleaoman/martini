@@ -15,7 +15,7 @@ lines0 = [
 
 lines1 = [
     "    description='Synthetic datacube creation from simulations.',",
-    "    url='',",
+    "    url='https://github.com/kyleaoman/martini',",
     "    author='Kyle Oman',",
     "    author_email='kyle.a.oman@durham.ac.uk',",
     "    license='GNU GPL v3',",

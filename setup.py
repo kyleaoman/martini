@@ -12,7 +12,7 @@ setup(
     name='astromartini',
     version=version,
     description='Synthetic datacube creation from simulations.',
-    url='',
+    url='https://github.com/kyleaoman/martini',
     author='Kyle Oman',
     author_email='kyle.a.oman@durham.ac.uk',
     license='GNU GPL v3',
