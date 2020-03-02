@@ -81,7 +81,7 @@ try:
     assert np.isclose(
         MHI.to(U.Msun).value,
         source.mHI_g.sum().to(U.Msun).value,
-        rtol=1E-10
+        rtol=1E-2
     )
 except AssertionError:
     print('Mass in cube is {:.10f} of input value.'.format(
