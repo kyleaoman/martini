@@ -200,4 +200,7 @@ except RuntimeError as e:
     if e.args[0] == 256:  # nothing to commit
         pass
 run_chk('git push')
+run_chk('git checkout docs')
+run_chk('git push')
 run_chk('git checkout master')
+run_chk('git push')
