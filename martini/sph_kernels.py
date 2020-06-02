@@ -79,6 +79,22 @@ class _BaseSPHKernel(object):
         """
 
         return self.validate(sm_lengths * self._rescale)
+    
+    def _validate_error(self, msg, sm_lengths, cond):
+        print('Median smoothing length: ', np.median(sm_lengths), 'px')          
+        print('Minimum smoothing length: ', np.min(sm_lengths), 'px')
+        print('Maximum smoothing length: ', np.max(sm_lengths), 'px')
+        print(
+            'Smoothing length histogram (np.histogram):', 
+            np.histogram(sm_lengths)
+        )
+        print(
+            np.sum(cond(sm_lengths)),
+            '/',
+            sm_lengths.size,
+            'smoothing lengths fail validation.'
+        )
+        raise RuntimeError(msg)
 
     def eval_kernel(self, r, h):
         """
@@ -272,14 +288,18 @@ class WendlandC2Kernel(_BaseSPHKernel):
         """
 
         if (sm_lengths < 1.51 * U.pix).any():
-            raise RuntimeError("Martini.sph_kernels.WendlandC2Kernel.validate:"
-                               " SPH smoothing lengths must be >= 1.51 px in "
-                               "size for WendlandC2 kernel integral "
-                               "approximation accuracy within 1%. This check "
-                               "may be disabled by calling "
-                               "Martini.Martini.insert_source_in_cube with "
-                               "'skip_validation=True', but use this with "
-                               "care.")
+            self._validate_error(
+                "Martini.sph_kernels.WendlandC2Kernel.validate:\n"
+                "SPH smoothing lengths must be >= 1.51 px in "
+                "size for WendlandC2 kernel integral "
+                "approximation accuracy within 1%.\nThis check "
+                "may be disabled by calling "
+                "Martini.Martini.insert_source_in_cube with "
+                "'skip_validation=True', but use this with "
+                "care.\n",
+                sm_lengths,
+                lambda x: x < 1.51 * U.pix
+            )
 
         return
 
@@ -446,14 +466,18 @@ class WendlandC6Kernel(_BaseSPHKernel):
         """
 
         if (sm_lengths < 1.29 * U.pix).any():
-            raise RuntimeError("Martini.sph_kernels.WendlandC6Kernel.validate:"
-                               " SPH smoothing lengths must be >= 1.29 px in "
-                               "size for WendlandC6 kernel integral "
-                               "approximation accuracy within 1%. This check "
-                               "may be disabled by calling "
-                               "Martini.Martini.insert_source_in_cube with "
-                               "'skip_validation=True', but use this with"
-                               "care.")
+            self._validate_error(
+                "Martini.sph_kernels.WendlandC6Kernel.validate:\n"
+                " SPH smoothing lengths must be >= 1.29 px in "
+                "size for WendlandC6 kernel integral "
+                "approximation accuracy within 1%.\nThis check "
+                "may be disabled by calling "
+                "Martini.Martini.insert_source_in_cube with "
+                "'skip_validation=True', but use this with"
+                "care.",
+                sm_lengths,
+                lambda x: x < 1.29 * U.pix
+            )
         return
 
 
@@ -586,14 +610,18 @@ class CubicSplineKernel(_BaseSPHKernel):
         """
 
         if (sm_lengths < 1.16 * U.pix).any():
-            raise RuntimeError("Martini.sph_kernels.CubicSplineKernel.validate"
-                               ": SPH smoothing lengths must be >= 1.16 px in "
-                               "size for CubicSplineKernel kernel integral "
-                               "approximation accuracy within 1%. This check "
-                               "may be disabled by calling "
-                               "Martini.Martini.insert_source_in_cube with "
-                               "'skip_validation=True', but use this with"
-                               "care.")
+            self._validate_error(
+                "Martini.sph_kernels.CubicSplineKernel.validate:\n"
+                "SPH smoothing lengths must be >= 1.16 px in "
+                "size for CubicSplineKernel kernel integral "
+                "approximation accuracy within 1%.\nThis check "
+                "may be disabled by calling "
+                "Martini.Martini.insert_source_in_cube with "
+                "'skip_validation=True', but use this with "
+                "care.",
+                sm_lengths,
+                lambda x: x < 1.16 * U.pix
+            )
         return
 
 
@@ -750,15 +778,22 @@ class GaussianKernel(_BaseSPHKernel):
                sm_lengths > lims[0] * U.pix,
                sm_lengths < lims[1] * U.pix
            ).any()):
-            raise RuntimeError("Martini.sph_kernels.GaussianKernel.validate: "
-                               "SPH smoothing lengths must not be in interval "
-                               "[{0:.1f}, {1:.1f}] px ".format(*lims) +
-                               "for Gaussian kernel integral approximation "
-                               "accuracy within 1%. "
-                               "This check may be disabled by calling "
-                               "Martini.Martini.insert_source_in_cube with "
-                               "'skip_validation=True', but use this with"
-                               "care.")
+            self._validate_error(
+                "Martini.sph_kernels.GaussianKernel.validate:\n"
+                "SPH smoothing lengths must not be in interval "
+                "[{0:.1f}, {1:.1f}] px ".format(*lims) +
+                "for Gaussian kernel integral approximation "
+                "accuracy within 1%.\n"
+                "This check may be disabled by calling "
+                "Martini.Martini.insert_source_in_cube with "
+                "'skip_validation=True', but use this with"
+                "care.",
+                sm_lengths,
+                lambda x: np.logical_and(
+                    sm_lengths > lims[0] * U.pix,
+                    sm_lengths < lims[1] * U.pix
+                )
+            )
         return
 
 
@@ -849,11 +884,15 @@ class DiracDeltaKernel(_BaseSPHKernel):
         """
 
         if (sm_lengths > .5 * U.pix).any():
-            raise RuntimeError("Martini.sph_kernels.DiracDeltaKernel.validate:"
-                               " provided smoothing scale (FWHM) must be <= 1 "
-                               "px in size for DiracDelta kernel to be a "
-                               "reasonable approximation. Call "
-                               "Martini.Martini.insert_source_in_cube with "
-                               "'skip_validation=True' to override, at the "
-                               "cost of accuracy.")
+            self._validate_error(
+                "Martini.sph_kernels.DiracDeltaKernel.validate:\n"
+                "provided smoothing scale (FWHM) must be <= 1 "
+                "px in size for DiracDelta kernel to be a "
+                "reasonable approximation. Call "
+                "Martini.Martini.insert_source_in_cube with "
+                "'skip_validation=True' to override, at the "
+                "cost of accuracy.",
+                sm_lengths,
+                lambda x: x > .5 * U.pix
+            )
         return
