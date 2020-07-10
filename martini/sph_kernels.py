@@ -886,7 +886,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         if (sm_lengths > .5 * U.pix).any():
             self._validate_error(
                 "Martini.sph_kernels.DiracDeltaKernel.validate:\n"
-                "provided smoothing scale (FWHM) must be <= 1 "
+                "provided smoothing scale (FWHM) must be <= .5 "
                 "px in size for DiracDelta kernel to be a "
                 "reasonable approximation. Call "
                 "Martini.Martini.insert_source_in_cube with "
