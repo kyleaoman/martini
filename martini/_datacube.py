@@ -11,7 +11,8 @@ class DataCube():
 
     Basic usage simply involves initializing with the parameters listed below.
     More advanced usage might arise if designing custom classes for other sub-
-    modules, especially beams.
+    modules, especially beams. To initialize a DataCube from a saved state, see
+    DataCube.load_state.
 
     Parameters
     ----------
@@ -245,6 +246,96 @@ class DataCube():
         copy.wcs = self.wcs
         copy._array = self._array.copy()
         return copy
+
+    def save_state(self, filename, overwrite=False):
+        """
+        Write a file from which the current DataCube state can be
+        re-initialized (see DataCube.load_state). Note that h5py must be
+        installed for use. NOT for outputting mock observations, for this
+        see Martini.write_fits and Martini.write_hdf5.
+
+        Parameters
+        ----------
+        filename : str
+            File to write.
+
+        overwrite : bool
+            Whether to allow overwriting existing files (default: False).
+        """
+        import h5py
+        mode = 'w' if overwrite else 'w-'
+        with h5py.File(filename, mode=mode) as f:
+            f['_array'] = self._array.value
+            f['_array'].attrs['datacube_unit'] = str(self._array.unit)
+            f['_array'].attrs['n_px_x'] = self.n_px_x
+            f['_array'].attrs['n_px_y'] = self.n_px_y
+            f['_array'].attrs['n_channels'] = self.n_channels
+            f['_array'].attrs['px_size'] = self.px_size.value
+            f['_array'].attrs['px_size_unit'] = str(self.px_size.unit)
+            f['_array'].attrs['channel_width'] = self.channel_width.value
+            f['_array'].attrs['channel_width_unit'] = \
+                str(self.channel_width.unit)
+            f['_array'].attrs['velocity_centre'] = self.velocity_centre.value
+            f['_array'].attrs['velocity_centre_unit'] = \
+                str(self.velocity_centre.unit)
+            f['_array'].attrs['ra'] = self.ra.value
+            f['_array'].attrs['ra_unit'] = str(self.ra.unit)
+            f['_array'].attrs['dec'] = self.dec.value
+            f['_array'].attrs['dec_unit'] = str(self.dec.unit)
+            f['_array'].attrs['padx'] = self.padx
+            f['_array'].attrs['pady'] = self.pady
+            f['_array'].attrs['_freq_channel_mode'] = \
+                int(self._freq_channel_mode)
+        return
+
+    @classmethod
+    def load_state(cls, filename):
+        """
+        Initialize a DataCube from a state saved using DataCube.save_state.
+        Note that h5py must be installed for use. Note that ONLY the DataCube
+        state is restored, other modules and their configurations are not
+        affected.
+
+        Parameters
+        ----------
+        filename : str
+            File to open.
+
+        Returns
+        -------
+        out : martini.DataCube
+            A suitably initialized DataCube object.
+        """
+        import h5py
+        with h5py.File(filename, mode='r') as f:
+            n_px_x = f['_array'].attrs['n_px_x']
+            n_px_y = f['_array'].attrs['n_px_y']
+            n_channels = f['_array'].attrs['n_channels']
+            px_size = f['_array'].attrs['px_size'] \
+                * U.Unit(f['_array'].attrs['px_size_unit'])
+            channel_width = f['_array'].attrs['channel_width'] \
+                * U.Unit(f['_array'].attrs['channel_width_unit'])
+            velocity_centre = f['_array'].attrs['velocity_centre'] \
+                * U.Unit(f['_array'].attrs['velocity_centre_unit'])
+            ra = f['_array'].attrs['ra'] \
+                * U.Unit(f['_array'].attrs['ra_unit'])
+            dec = f['_array'].attrs['dec'] \
+                * U.Unit(f['_array'].attrs['dec_unit'])
+            D = cls(
+                n_px_x=n_px_x,
+                n_px_y=n_px_y,
+                n_channels=n_channels,
+                px_size=px_size,
+                channel_width=channel_width,
+                velocity_centre=velocity_centre,
+                ra=ra,
+                dec=dec
+            )
+            D.add_pad((f['_array'].attrs['padx'], f['_array'].attrs['pady']))
+            if bool(f['_array'].attrs['_freq_channel_mode']):
+                D.freq_channels()
+            D._array = f['_array'] * U.Unit(f['_array'].attrs['datacube_unit'])
+        return D
 
     def __repr__(self):
         """
