@@ -239,6 +239,22 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">sm_lengths</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rescale</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">_validate_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">sm_lengths</span><span class="p">,</span> <span class="n">cond</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Median smoothing length: &#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">sm_lengths</span><span class="p">),</span> <span class="s1">&#39;px&#39;</span><span class="p">)</span>          
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Minimum smoothing length: &#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">sm_lengths</span><span class="p">),</span> <span class="s1">&#39;px&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Maximum smoothing length: &#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">sm_lengths</span><span class="p">),</span> <span class="s1">&#39;px&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="s1">&#39;Smoothing length histogram (np.histogram):&#39;</span><span class="p">,</span> 
+            <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">sm_lengths</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cond</span><span class="p">(</span><span class="n">sm_lengths</span><span class="p">)),</span>
+            <span class="s1">&#39;/&#39;</span><span class="p">,</span>
+            <span class="n">sm_lengths</span><span class="o">.</span><span class="n">size</span><span class="p">,</span>
+            <span class="s1">&#39;smoothing lengths fail validation.&#39;</span>
+        <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">eval_kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -432,14 +448,18 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.51</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.WendlandC2Kernel.validate:&quot;</span>
-                               <span class="s2">&quot; SPH smoothing lengths must be &gt;= 1.51 px in &quot;</span>
-                               <span class="s2">&quot;size for WendlandC2 kernel integral &quot;</span>
-                               <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
-                               <span class="s2">&quot;may be disabled by calling &quot;</span>
-                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with &quot;</span>
-                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_error</span><span class="p">(</span>
+                <span class="s2">&quot;Martini.sph_kernels.WendlandC2Kernel.validate:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;SPH smoothing lengths must be &gt;= 1.51 px in &quot;</span>
+                <span class="s2">&quot;size for WendlandC2 kernel integral &quot;</span>
+                <span class="s2">&quot;approximation accuracy within 1%.</span><span class="se">\n</span><span class="s2">This check &quot;</span>
+                <span class="s2">&quot;may be disabled by calling &quot;</span>
+                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with &quot;</span>
+                <span class="s2">&quot;care.</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">sm_lengths</span><span class="p">,</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mf">1.51</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
+            <span class="p">)</span>
 
         <span class="k">return</span></div></div>
 
@@ -606,14 +626,18 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.29</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.WendlandC6Kernel.validate:&quot;</span>
-                               <span class="s2">&quot; SPH smoothing lengths must be &gt;= 1.29 px in &quot;</span>
-                               <span class="s2">&quot;size for WendlandC6 kernel integral &quot;</span>
-                               <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
-                               <span class="s2">&quot;may be disabled by calling &quot;</span>
-                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
-                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_error</span><span class="p">(</span>
+                <span class="s2">&quot;Martini.sph_kernels.WendlandC6Kernel.validate:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; SPH smoothing lengths must be &gt;= 1.29 px in &quot;</span>
+                <span class="s2">&quot;size for WendlandC6 kernel integral &quot;</span>
+                <span class="s2">&quot;approximation accuracy within 1%.</span><span class="se">\n</span><span class="s2">This check &quot;</span>
+                <span class="s2">&quot;may be disabled by calling &quot;</span>
+                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
+                <span class="s2">&quot;care.&quot;</span><span class="p">,</span>
+                <span class="n">sm_lengths</span><span class="p">,</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mf">1.29</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
+            <span class="p">)</span>
         <span class="k">return</span></div></div>
 
 
@@ -746,14 +770,18 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="mf">1.16</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.CubicSplineKernel.validate&quot;</span>
-                               <span class="s2">&quot;: SPH smoothing lengths must be &gt;= 1.16 px in &quot;</span>
-                               <span class="s2">&quot;size for CubicSplineKernel kernel integral &quot;</span>
-                               <span class="s2">&quot;approximation accuracy within 1%. This check &quot;</span>
-                               <span class="s2">&quot;may be disabled by calling &quot;</span>
-                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
-                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_error</span><span class="p">(</span>
+                <span class="s2">&quot;Martini.sph_kernels.CubicSplineKernel.validate:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;SPH smoothing lengths must be &gt;= 1.16 px in &quot;</span>
+                <span class="s2">&quot;size for CubicSplineKernel kernel integral &quot;</span>
+                <span class="s2">&quot;approximation accuracy within 1%.</span><span class="se">\n</span><span class="s2">This check &quot;</span>
+                <span class="s2">&quot;may be disabled by calling &quot;</span>
+                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with &quot;</span>
+                <span class="s2">&quot;care.&quot;</span><span class="p">,</span>
+                <span class="n">sm_lengths</span><span class="p">,</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mf">1.16</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
+            <span class="p">)</span>
         <span class="k">return</span></div></div>
 
 
@@ -910,15 +938,22 @@
                <span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span>
                <span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
            <span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.GaussianKernel.validate: &quot;</span>
-                               <span class="s2">&quot;SPH smoothing lengths must not be in interval &quot;</span>
-                               <span class="s2">&quot;[</span><span class="si">{0:.1f}</span><span class="s2">, </span><span class="si">{1:.1f}</span><span class="s2">] px &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">*</span><span class="n">lims</span><span class="p">)</span> <span class="o">+</span>
-                               <span class="s2">&quot;for Gaussian kernel integral approximation &quot;</span>
-                               <span class="s2">&quot;accuracy within 1%. &quot;</span>
-                               <span class="s2">&quot;This check may be disabled by calling &quot;</span>
-                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
-                               <span class="s2">&quot;care.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_error</span><span class="p">(</span>
+                <span class="s2">&quot;Martini.sph_kernels.GaussianKernel.validate:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;SPH smoothing lengths must not be in interval &quot;</span>
+                <span class="s2">&quot;[</span><span class="si">{0:.1f}</span><span class="s2">, </span><span class="si">{1:.1f}</span><span class="s2">] px &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">*</span><span class="n">lims</span><span class="p">)</span> <span class="o">+</span>
+                <span class="s2">&quot;for Gaussian kernel integral approximation &quot;</span>
+                <span class="s2">&quot;accuracy within 1%.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;This check may be disabled by calling &quot;</span>
+                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                <span class="s2">&quot;&#39;skip_validation=True&#39;, but use this with&quot;</span>
+                <span class="s2">&quot;care.&quot;</span><span class="p">,</span>
+                <span class="n">sm_lengths</span><span class="p">,</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span>
+                    <span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span>
+                    <span class="n">sm_lengths</span> <span class="o">&lt;</span> <span class="n">lims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
         <span class="k">return</span></div></div>
 
 
@@ -1009,13 +1044,17 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">sm_lengths</span> <span class="o">&gt;</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Martini.sph_kernels.DiracDeltaKernel.validate:&quot;</span>
-                               <span class="s2">&quot; provided smoothing scale (FWHM) must be &lt;= 1 &quot;</span>
-                               <span class="s2">&quot;px in size for DiracDelta kernel to be a &quot;</span>
-                               <span class="s2">&quot;reasonable approximation. Call &quot;</span>
-                               <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
-                               <span class="s2">&quot;&#39;skip_validation=True&#39; to override, at the &quot;</span>
-                               <span class="s2">&quot;cost of accuracy.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_error</span><span class="p">(</span>
+                <span class="s2">&quot;Martini.sph_kernels.DiracDeltaKernel.validate:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;provided smoothing scale (FWHM) must be &lt;= .5 &quot;</span>
+                <span class="s2">&quot;px in size for DiracDelta kernel to be a &quot;</span>
+                <span class="s2">&quot;reasonable approximation. Call &quot;</span>
+                <span class="s2">&quot;Martini.Martini.insert_source_in_cube with &quot;</span>
+                <span class="s2">&quot;&#39;skip_validation=True&#39; to override, at the &quot;</span>
+                <span class="s2">&quot;cost of accuracy.&quot;</span><span class="p">,</span>
+                <span class="n">sm_lengths</span><span class="p">,</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
+            <span class="p">)</span>
         <span class="k">return</span></div></div>
 </pre></div>
 

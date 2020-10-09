@@ -169,7 +169,8 @@
 <dd><p>Handles creation and management of the data cube itself.</p>
 <p>Basic usage simply involves initializing with the parameters listed below.
 More advanced usage might arise if designing custom classes for other sub-
-modules, especially beams.</p>
+modules, especially beams. To initialize a DataCube from a saved state, see
+DataCube.load_state.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -276,6 +277,58 @@ can be discarded.</p>
 <dt id="martini._datacube.DataCube.freq_channels">
 <code class="descname">freq_channels</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.freq_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.freq_channels" title="Permalink to this definition">¶</a></dt>
 <dd><p>Convert spectral axis to frequency units.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="martini._datacube.DataCube.load_state">
+<em class="property">classmethod </em><code class="descname">load_state</code><span class="sig-paren">(</span><em>filename</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.load_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.load_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize a DataCube from a state saved using DataCube.save_state.
+Note that h5py must be installed for use. Note that ONLY the DataCube
+state is restored, other modules and their configurations are not
+affected.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>filename</strong> : str</p>
+<blockquote>
+<div><p>File to open.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : martini.DataCube</p>
+<blockquote class="last">
+<div><p>A suitably initialized DataCube object.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.save_state">
+<code class="descname">save_state</code><span class="sig-paren">(</span><em>filename</em>, <em>overwrite=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.save_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.save_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write a file from which the current DataCube state can be
+re-initialized (see DataCube.load_state). Note that h5py must be
+installed for use. NOT for outputting mock observations, for this
+see Martini.write_fits and Martini.write_hdf5.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>filename</strong> : str</p>
+<blockquote>
+<div><p>File to write.</p>
+</div></blockquote>
+<p><strong>overwrite</strong> : bool</p>
+<blockquote class="last">
+<div><p>Whether to allow overwriting existing files (default: False).</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">

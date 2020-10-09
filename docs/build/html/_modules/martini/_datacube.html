@@ -171,7 +171,8 @@
 
 <span class="sd">    Basic usage simply involves initializing with the parameters listed below.</span>
 <span class="sd">    More advanced usage might arise if designing custom classes for other sub-</span>
-<span class="sd">    modules, especially beams.</span>
+<span class="sd">    modules, especially beams. To initialize a DataCube from a saved state, see</span>
+<span class="sd">    DataCube.load_state.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -405,6 +406,96 @@
         <span class="n">copy</span><span class="o">.</span><span class="n">wcs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span>
         <span class="n">copy</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">copy</span></div>
+
+<div class="viewcode-block" id="DataCube.save_state"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.save_state">[docs]</a>    <span class="k">def</span> <span class="nf">save_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Write a file from which the current DataCube state can be</span>
+<span class="sd">        re-initialized (see DataCube.load_state). Note that h5py must be</span>
+<span class="sd">        installed for use. NOT for outputting mock observations, for this</span>
+<span class="sd">        see Martini.write_fits and Martini.write_hdf5.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            File to write.</span>
+
+<span class="sd">        overwrite : bool</span>
+<span class="sd">            Whether to allow overwriting existing files (default: False).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">h5py</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;w&#39;</span> <span class="k">if</span> <span class="n">overwrite</span> <span class="k">else</span> <span class="s1">&#39;w-&#39;</span>
+        <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datacube_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_x&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_y&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_channels&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width_unit&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre_unit&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;padx&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">padx</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;pady&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pady</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;_freq_channel_mode&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_freq_channel_mode</span><span class="p">)</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="DataCube.load_state"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.load_state">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_state</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a DataCube from a state saved using DataCube.save_state.</span>
+<span class="sd">        Note that h5py must be installed for use. Note that ONLY the DataCube</span>
+<span class="sd">        state is restored, other modules and their configurations are not</span>
+<span class="sd">        affected.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            File to open.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : martini.DataCube</span>
+<span class="sd">            A suitably initialized DataCube object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">h5py</span>
+        <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">n_px_x</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_x&#39;</span><span class="p">]</span>
+            <span class="n">n_px_y</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_y&#39;</span><span class="p">]</span>
+            <span class="n">n_channels</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_channels&#39;</span><span class="p">]</span>
+            <span class="n">px_size</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size_unit&#39;</span><span class="p">])</span>
+            <span class="n">channel_width</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width_unit&#39;</span><span class="p">])</span>
+            <span class="n">velocity_centre</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre_unit&#39;</span><span class="p">])</span>
+            <span class="n">ra</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra_unit&#39;</span><span class="p">])</span>
+            <span class="n">dec</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec_unit&#39;</span><span class="p">])</span>
+            <span class="n">D</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
+                <span class="n">n_px_x</span><span class="o">=</span><span class="n">n_px_x</span><span class="p">,</span>
+                <span class="n">n_px_y</span><span class="o">=</span><span class="n">n_px_y</span><span class="p">,</span>
+                <span class="n">n_channels</span><span class="o">=</span><span class="n">n_channels</span><span class="p">,</span>
+                <span class="n">px_size</span><span class="o">=</span><span class="n">px_size</span><span class="p">,</span>
+                <span class="n">channel_width</span><span class="o">=</span><span class="n">channel_width</span><span class="p">,</span>
+                <span class="n">velocity_centre</span><span class="o">=</span><span class="n">velocity_centre</span><span class="p">,</span>
+                <span class="n">ra</span><span class="o">=</span><span class="n">ra</span><span class="p">,</span>
+                <span class="n">dec</span><span class="o">=</span><span class="n">dec</span>
+            <span class="p">)</span>
+            <span class="n">D</span><span class="o">.</span><span class="n">add_pad</span><span class="p">((</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;padx&#39;</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;pady&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;_freq_channel_mode&#39;</span><span class="p">]):</span>
+                <span class="n">D</span><span class="o">.</span><span class="n">freq_channels</span><span class="p">()</span>
+            <span class="n">D</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datacube_unit&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">D</span></div>
 
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
