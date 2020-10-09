@@ -43,6 +43,10 @@ class DataCube():
 
     dec : Quantity, with dimensions of angle, optional
         Declination of the cube centroid. (Default: 0 deg.)
+
+    See Also
+    --------
+    load_state
     """
 
     def __init__(self,
@@ -261,6 +265,10 @@ class DataCube():
 
         overwrite : bool
             Whether to allow overwriting existing files (default: False).
+
+        See Also
+        --------
+        load_state
         """
         import h5py
         mode = 'w' if overwrite else 'w-'
@@ -305,6 +313,10 @@ class DataCube():
         -------
         out : martini.DataCube
             A suitably initialized DataCube object.
+
+        See Also
+        --------
+        save_state
         """
         import h5py
         with h5py.File(filename, mode='r') as f:
