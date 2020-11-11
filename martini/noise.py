@@ -45,6 +45,8 @@ class GaussianNoise(_BaseNoise):
     def __init__(self, rms=1.0 * U.Jy):
 
         self.rms = rms
+        self.history = []
+        self.history.append("GaussianNoise")
 
         super().__init__()
 

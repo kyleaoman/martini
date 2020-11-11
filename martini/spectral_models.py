@@ -190,6 +190,8 @@ class GaussianSpectrum(_BaseSpectrum):
     def __init__(self, sigma=7. * U.km * U.s ** -1):
 
         self.sigma_mode = sigma
+        self.history = []
+        self.history.append("GaussianSpectrum")
         super().__init__()
 
         return
@@ -275,6 +277,8 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
     def __init__(self):
         super().__init__()
+        self.history = []
+        self.history.append("DiracDeltaSpectrum")
         return
 
     def spectral_function(self, a, b, vmids):

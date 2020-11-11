@@ -61,6 +61,8 @@ class _BaseBeam(object):
         self.bpa = bpa
         self.px_size = None
         self.kernel = None
+        self.history = []
+        self.history.append("BaseBeam")
 
         return
 
