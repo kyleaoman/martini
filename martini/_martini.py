@@ -287,6 +287,8 @@ class Martini():
         for condition in reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
+        # most kernels ignore this line, but required by AdaptiveKernel
+        self.sph_kernel.apply_mask(np.logical_not(reject_mask))
         return
 
     def insert_source_in_cube(self, skip_validation=False, printfreq=100):
@@ -317,6 +319,7 @@ class Martini():
                 skycoords.dec.to(self.datacube.units[1]),
                 skycoords.radial_velocity.to(self.datacube.units[2]),
                 origin)) * U.pix
+        # note that source hsm_g values are required to be FWHM values
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance).to(
                 U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
@@ -348,7 +351,8 @@ class Martini():
             mask = (np.abs(ij - particle_coords[:2]) <= sm_range).all(axis=0)
             weights = self.sph_kernel.px_weight(
                 particle_coords[:2, mask] - ij,
-                sm_length[mask]
+                sm_length[mask],
+                mask=mask  # most kernels ignore, required by AdaptiveKernel
             )
             self.datacube._array[ij_px[0], ij_px[1], :, 0] = \
                 (self.spectral_model.spectra[mask] *
