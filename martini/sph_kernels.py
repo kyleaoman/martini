@@ -7,7 +7,7 @@ from warnings import warn
 
 
 def find_fwhm(f):
-    return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, .5)
+    return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, .5)[0]
 
 
 class _BaseSPHKernel(object):
@@ -63,10 +63,17 @@ class _BaseSPHKernel(object):
         out : Quantity, with dimensions of pixels^-2
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
+        try:
+            rescaled_h = h * self._rescale[mask]
+        except TypeError:
+            rescaled_h = h * self._rescale
+        return self.kernel_integral(
+            dij,
+            rescaled_h,
+            mask=mask
+        )
 
-        return self.kernel_integral(dij, h * self._rescale, mask=mask)
-
-    def confirm_validation(self, sm_lengths):
+    def confirm_validation(self, sm_lengths, noraise=False):
         """
         Verify kernel accuracy using scaled smoothing lengths.
 
@@ -79,9 +86,9 @@ class _BaseSPHKernel(object):
             Particle smoothing lengths, in units of pixels.
         """
 
-        return self.validate(sm_lengths * self._rescale)
+        return self.validate(sm_lengths * self._rescale, noraise=noraise)
 
-    def _validate_error(self, msg, sm_lengths, valid):
+    def _validate_error(self, msg, sm_lengths, valid, noraise=False):
         print('Median smoothing length: ', np.median(sm_lengths), 'px')
         print('Minimum smoothing length: ', np.min(sm_lengths), 'px')
         print('Maximum smoothing length: ', np.max(sm_lengths), 'px')
@@ -95,7 +102,9 @@ class _BaseSPHKernel(object):
             sm_lengths.size,
             'smoothing lengths fail validation.'
         )
-        raise RuntimeError(msg)
+        if not noraise:
+            raise RuntimeError(msg)
+        return
 
     def eval_kernel(self, r, h):
         """
@@ -178,7 +187,7 @@ class _BaseSPHKernel(object):
         pass
 
     @abstractmethod
-    def validate(self, sm_lengths):
+    def validate(self, sm_lengths, noraise=False):
         """
         Abstract method; check conditions for validity of kernel integral
         calculation.
@@ -187,7 +196,8 @@ class _BaseSPHKernel(object):
         and the smoothing length is sufficiently large, or sufficiently small.
         This method should check these conditions and raise errors when
         appropriate. The smoothing lengths are provided normalized to the pixel
-        size.
+        size. AdaptiveKernel needs to force errors not to raise, other classes
+        should just provide **kwargs.
 
         Parameters
         ----------
@@ -293,7 +303,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         norm = 21 / 2 / np.pi
         return retval * norm / np.power(h, 2)
 
-    def validate(self, sm_lengths):
+    def validate(self, sm_lengths, noraise=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -315,7 +325,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
                 "'skip_validation=True', but use this with "
                 "care.\n",
                 sm_lengths,
-                valid
+                valid,
+                noraise=noraise
             )
 
         return valid
@@ -472,7 +483,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         retval = retval / np.power(h, 2)
         return retval
 
-    def validate(self, sm_lengths):
+    def validate(self, sm_lengths, noraise=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -494,7 +505,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
                 "'skip_validation=True', but use this with"
                 "care.",
                 sm_lengths,
-                valid
+                valid,
+                noraise=noraise
             )
         return valid
 
@@ -617,7 +629,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         # rescaling from interval [0, 2) to [0, 1) requires mult. by 4
         return retval / 1.59689476201133 / np.power(h, 2) * 4
 
-    def validate(self, sm_lengths):
+    def validate(self, sm_lengths, noraise=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -639,7 +651,8 @@ class CubicSplineKernel(_BaseSPHKernel):
                 "'skip_validation=True', but use this with "
                 "care.",
                 sm_lengths,
-                valid
+                valid,
+                noraise=noraise
             )
         return valid
 
@@ -765,7 +778,7 @@ class GaussianKernel(_BaseSPHKernel):
         retval /= self.norm
         return retval * h.unit ** -2
 
-    def validate(self, sm_lengths):
+    def validate(self, sm_lengths, noraise=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -811,7 +824,8 @@ class GaussianKernel(_BaseSPHKernel):
                 "'skip_validation=True', but use this with"
                 "care.",
                 sm_lengths,
-                valid
+                valid,
+                noraise=noraise
             )
         return valid
 
@@ -888,7 +902,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) \
             * U.pix ** -2
 
-    def validate(self, sm_lengths):
+    def validate(self, sm_lengths, noraise=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -913,7 +927,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
                 "'skip_validation=True' to override, at the "
                 "cost of accuracy.",
                 sm_lengths,
-                valid
+                valid,
+                noraise=noraise
             )
         return valid
 
@@ -946,24 +961,22 @@ class AdaptiveKernel(_BaseSPHKernel):
         The datacube instance to be used with this adaptive kernel.
     """
 
-    def __init__(self, kernels, source, datacube, default=None):
+    def __init__(self, kernels, source, datacube):
         super().__init__()
         # source.hsm_g is already required to be FWHM values
-        self.sm_length = np.arctan(
+        sm_length = np.arctan(
             source.hsm_g / source.sky_coordinates.distance).to(
                 U.pix, U.pixel_scale(datacube.px_size / U.pix))
         self.kernels = kernels
         self.kernel_indices = -1 * np.ones(source.hsm_g.shape, dtype=np.int)
         for ik, K in enumerate(kernels):
             # if valid and not already assigned an earlier kernel, assign
-            self.kernel_indices = np.where(
+            self.kernel_indices[
                 np.logical_and(
                     self.kernel_indices == -1,
-                    K.validate(self.sm_length)
-                ),
-                ik,
-                self.kernel_indices
-            )
+                    K.validate(sm_length * K._rescale, noraise=True)
+                )
+            ] = ik
         _sizes_in_fwhm = np.array([K.size_in_fwhm for K in self.kernels])
         self.size_in_fwhm = _sizes_in_fwhm[self.kernel_indices]
         # ensure default is 0th entry
@@ -1014,14 +1027,17 @@ class AdaptiveKernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
 
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape) * h.unit ** -2
         for ik in np.unique(self.kernel_indices[mask]):
-            K = self.kernel_indices[0] if ik == -1 else self.kernel_indices[ik]
-            retval[self.kernel_indices[mask] == ik] = K.kernel_integral(dij, h)
+            K = self.kernels[0] if ik == -1 else self.kernels[ik]
+            kmask = self.kernel_indices[mask] == ik
+            retval[kmask] = K.kernel_integral(
+                dij[:, kmask],
+                h[kmask]
+            )
         return retval
 
-    def validate(self, sm_lengths):
-        # call looks like: return self.validate(sm_lengths * self._rescale)
+    def validate(self, sm_lengths, noraise=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -1042,7 +1058,8 @@ class AdaptiveKernel(_BaseSPHKernel):
                 "'skip_validation=True', but use this with "
                 "care.\n",
                 sm_lengths,
-                valid
+                valid,
+                noraise=noraise
             )
 
         return

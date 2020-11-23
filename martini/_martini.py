@@ -323,8 +323,7 @@ class Martini():
         sm_length = np.arctan(
             self.source.hsm_g / self.source.sky_coordinates.distance).to(
                 U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
-        if not skip_validation:
-            self.sph_kernel.confirm_validation(sm_length)
+        self.sph_kernel.confirm_validation(sm_length, noraise=skip_validation)
         sm_range = np.ceil(
             sm_length * self.sph_kernel.size_in_fwhm
         ).astype(int)
