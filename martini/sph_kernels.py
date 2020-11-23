@@ -79,13 +79,13 @@ class _BaseSPHKernel(object):
         """
 
         return self.validate(sm_lengths * self._rescale)
-    
+
     def _validate_error(self, msg, sm_lengths, cond):
-        print('Median smoothing length: ', np.median(sm_lengths), 'px')          
+        print('Median smoothing length: ', np.median(sm_lengths), 'px')
         print('Minimum smoothing length: ', np.min(sm_lengths), 'px')
         print('Maximum smoothing length: ', np.max(sm_lengths), 'px')
         print(
-            'Smoothing length histogram (np.histogram):', 
+            'Smoothing length histogram (np.histogram):',
             np.histogram(sm_lengths)
         )
         print(
