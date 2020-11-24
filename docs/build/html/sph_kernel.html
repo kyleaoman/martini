@@ -163,6 +163,133 @@
   <div class="section" id="module-martini.sph_kernels">
 <span id="sph-kernels-martini-sph-kernels"></span><h1>SPH Kernels (martini.sph_kernels)<a class="headerlink" href="#module-martini.sph_kernels" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
+<dt id="martini.sph_kernels.AdaptiveKernel">
+<em class="property">class </em><code class="descclassname">martini.sph_kernels.</code><code class="descname">AdaptiveKernel</code><span class="sig-paren">(</span><em>kernels</em>, <em>source</em>, <em>datacube</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#AdaptiveKernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.AdaptiveKernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Allows use of multiple kernels to adapt to sph kernel-to-pixel size ratio.</p>
+<p>Other provided kernels generally use approximations which break down if
+the ratio of the pixel size and the sph smoothing length are above or below
+some threshold. This (meta-)kernel accepts a list of other kernels in order
+of decreasing priority. The validity of the approximations used in each
+will be checked in turn and the first usable kernel for a given particle
+will be used to smooth the particle onto the pixel grid. Note that the
+initialized source and datacube instances are required as the smoothing
+lengths and pixel sizes must be known at initialization of the
+AdaptiveKernel module. Note that if <cite>skip_validation</cite> is used, any
+particles with no valid kernel will default to the first kernel in the
+list.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>kernels</strong> : iterable, containing classes inheriting from _BaseSPHKernel</p>
+<blockquote>
+<div><p>Kernels to use, ordered by decreasing priority.</p>
+</div></blockquote>
+<p><strong>source</strong> : a martini.sources.SPHSource (or inheriting class) instance</p>
+<blockquote>
+<div><p>The source to be used with this adaptive kernel.</p>
+</div></blockquote>
+<p><strong>datacube</strong> : a martini.DataCube instance</p>
+<blockquote class="last">
+<div><p>The datacube instance to be used with this adaptive kernel.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="martini.sph_kernels.AdaptiveKernel.apply_mask">
+<code class="descname">apply_mask</code><span class="sig-paren">(</span><em>mask</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#AdaptiveKernel.apply_mask"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.AdaptiveKernel.apply_mask" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply mask to maskable attributes.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>mask</strong> : array_like containing booleans</p>
+<blockquote class="last">
+<div><p>Mask to apply to any maskable attributes.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.sph_kernels.AdaptiveKernel.kernel">
+<code class="descname">kernel</code><span class="sig-paren">(</span><em>q</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#AdaptiveKernel.kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.AdaptiveKernel.kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Abstract method; evaluate the kernel.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>q</strong> : array_like</p>
+<blockquote>
+<div><p>Dimensionless distance parameter.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Kernel value at positions q.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.sph_kernels.AdaptiveKernel.kernel_integral">
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em>, <em>mask=Ellipsis</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#AdaptiveKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.AdaptiveKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate the kernel integral over a pixel.</p>
+<p>Adaptively determines which kernel to use.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>dij</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Distances from pixel centre to particle positions, in pixels.</p>
+</div></blockquote>
+<p><strong>h</strong> : Quantity, with dimensions of pixels</p>
+<blockquote>
+<div><p>Particle smoothing lengths (FWHM), in pixels.</p>
+</div></blockquote>
+<p><strong>mask</strong> : array_like, containing boolean array or slice</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : array_like</p>
+<blockquote class="last">
+<div><p>Approximate kernel integral over the pixel area.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.sph_kernels.AdaptiveKernel.validate">
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em>, <em>noraise=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#AdaptiveKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.AdaptiveKernel.validate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check conditions for validity of kernel integral calculation.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>sm_lengths</strong> : Quantity, with dimensions of pixels</p>
+<blockquote class="last">
+<div><p>Particle smoothing lengths (FWHM), in units of pixels.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="martini.sph_kernels.CubicSplineKernel">
 <em class="property">class </em><code class="descclassname">martini.sph_kernels.</code><code class="descname">CubicSplineKernel</code><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Implementation of the cubic spline (M4) kernel integral.</p>
@@ -217,7 +344,7 @@ pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.CubicSplineKernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The formula used approximates the kernel amplitude as constant across
 the pixel area and converges to the true value within 1% for smoothing
@@ -248,7 +375,7 @@ lengths &gt;= 2.5 pixels.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.CubicSplineKernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em>, <em>noraise=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#CubicSplineKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.CubicSplineKernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -308,7 +435,7 @@ lengths &gt;= 2.5 pixels.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.DiracDeltaKernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The particles are approximated as point-like, ignoring any finite-sized
 kernel. This is a reasonable approximation provided the smoothing
@@ -339,7 +466,7 @@ length is &lt; 0.5 pixel in size, ideally &lt;&lt; 1 pixel in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.DiracDeltaKernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em>, <em>noraise=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#DiracDeltaKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.DiracDeltaKernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <p>The Dirac-delta model approaches the exact integral when the smoothing
 length is &lt;&lt; 1 pixel in size; at a minimum the smoothing length should
@@ -427,7 +554,7 @@ Truncation radii &lt;2 may lead to large errors and are not recommended.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.GaussianKernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The 3 integrals (along dx, dy, dz) are evaluated exactly, however the
 truncation is implemented approximately, erring on the side of
@@ -458,7 +585,7 @@ integrating slightly further than the truncation radius.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.GaussianKernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em>, <em>noraise=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#GaussianKernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.GaussianKernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -525,7 +652,7 @@ provided the SPH smoothing lengths are at least 1.51 pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC2Kernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel.</p>
 <p>The formula used approximates the kernel amplitude as constant
 across the pixel area and converges to the true value within 1%
@@ -556,7 +683,7 @@ for smoothing lengths &gt;= 2 pixels.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC2Kernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em>, <em>noraise=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC2Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC2Kernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -623,7 +750,7 @@ provided the SPH smoothing lengths are at least 1.29 pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC6Kernel.kernel_integral">
-<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
+<code class="descname">kernel_integral</code><span class="sig-paren">(</span><em>dij</em>, <em>h</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.kernel_integral"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.kernel_integral" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the kernel integral over a pixel. Not currently implemented.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -651,7 +778,7 @@ provided the SPH smoothing lengths are at least 1.29 pixels in size.</p>
 
 <dl class="method">
 <dt id="martini.sph_kernels.WendlandC6Kernel.validate">
-<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.validate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">validate</code><span class="sig-paren">(</span><em>sm_lengths</em>, <em>noraise=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/sph_kernels.html#WendlandC6Kernel.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.sph_kernels.WendlandC6Kernel.validate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check conditions for validity of kernel integral calculation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
