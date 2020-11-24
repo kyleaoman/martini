@@ -25,6 +25,7 @@
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -160,8 +161,55 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="noise-models-martini-noise">
-<h1>Noise Models (martini.noise)<a class="headerlink" href="#noise-models-martini-noise" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-martini.noise">
+<span id="noise-models-martini-noise"></span><h1>Noise Models (martini.noise)<a class="headerlink" href="#module-martini.noise" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="martini.noise.GaussianNoise">
+<em class="property">class </em><code class="descclassname">martini.noise.</code><code class="descname">GaussianNoise</code><span class="sig-paren">(</span><em>rms=&lt;Quantity 1. Jy&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/noise.html#GaussianNoise"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.noise.GaussianNoise" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implementation of a simple Gaussian noise model.</p>
+<p>Provides a <cite>generate</cite> method producing a cube of Gaussian noise.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>rms</strong> : Quantity, with dimensions of flux density (e.g. Jy)</p>
+<blockquote class="last">
+<div><p>Root mean square amplitude of the noise field.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="martini.noise.GaussianNoise.generate">
+<code class="descname">generate</code><span class="sig-paren">(</span><em>datacube</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/noise.html#GaussianNoise.generate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.noise.GaussianNoise.generate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a cube containing Gaussian noise.</p>
+<p>Some numpy functions such as np.random.normal strip units, so need to
+handle them explicitly.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>datacube</strong> : martini.DataCube instance</p>
+<blockquote>
+<div><p>This method will be called passing the martini.DataCube instance as
+an argument; its attributes can thus be accessed here.
+datacube._array.shape is particularly relevant.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : Quantity, with dimensions of flux density</p>
+<blockquote class="last">
+<div><p>Noise realization with size matching the DataCube._array.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
 </div>
 
 

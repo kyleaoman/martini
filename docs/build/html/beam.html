@@ -25,6 +25,7 @@
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -160,8 +161,132 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="beam-models-martini-beams">
-<h1>Beam Models (martini.beams)<a class="headerlink" href="#beam-models-martini-beams" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-martini.beams">
+<span id="beam-models-martini-beams"></span><h1>Beam Models (martini.beams)<a class="headerlink" href="#module-martini.beams" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="martini.beams.GaussianBeam">
+<em class="property">class </em><code class="descclassname">martini.beams.</code><code class="descname">GaussianBeam</code><span class="sig-paren">(</span><em>bmaj=&lt;Quantity 15. arcsec&gt;</em>, <em>bmin=&lt;Quantity 15. arcsec&gt;</em>, <em>bpa=&lt;Quantity 0. deg&gt;</em>, <em>truncate=4.0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/beams.html#GaussianBeam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.beams.GaussianBeam" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class implementing a Gaussiam beam model.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>bmaj</strong> : Quantity, with dimensions of angle</p>
+<blockquote>
+<div><p>Beam major axis (FWHM) angular size.</p>
+</div></blockquote>
+<p><strong>bmin</strong> : Quantity, with dimensions of angle</p>
+<blockquote>
+<div><p>Beam minor axis (FWHM) angular size.</p>
+</div></blockquote>
+<p><strong>bpa</strong> : Quantity, with dimensions of angle</p>
+<blockquote>
+<div><p>Beam position angle (East of North).</p>
+</div></blockquote>
+<p><strong>truncate</strong> : float</p>
+<blockquote class="last">
+<div><p>Number of FWHM at which to truncate the beam image.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="martini.beams.GaussianBeam.f_kernel">
+<code class="descname">f_kernel</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/beams.html#GaussianBeam.f_kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.beams.GaussianBeam.f_kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a function defining the beam amplitude as a function of
+position.</p>
+<p>The model implemented is a 2D Gaussian with FWHM’s specified by bmaj
+and bmin and orientation by bpa.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : callable</p>
+<blockquote class="last">
+<div><p>Accepts 2 arguments (both array_like) and return an
+array_like of corresponding size.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.beams.GaussianBeam.kernel_size_px">
+<code class="descname">kernel_size_px</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/beams.html#GaussianBeam.kernel_size_px"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.beams.GaussianBeam.kernel_size_px" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a 2-tuple specifying the half-size of the beam image to be
+initialized, in pixels.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><strong>out</strong> : 2-tuple, each element an integer.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="martini.beams.WSRTBeam">
+<em class="property">class </em><code class="descclassname">martini.beams.</code><code class="descname">WSRTBeam</code><a class="reference internal" href="_modules/martini/beams.html#WSRTBeam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.beams.WSRTBeam" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class implementing a beam model for the Westerbork Synthesis Radio
+Telescope.</p>
+<p>The beam is adapted from an actual image from the telescope. The image is
+scaled for frequency and declination then interpolated to the required
+resolution. Note that the image is for the “classic” WSRT, not APERTIF.</p>
+<p>The input image is located at:
+‘&lt;martini directory&gt;/data/beam00_freq02.fits’</p>
+<dl class="method">
+<dt id="martini.beams.WSRTBeam.f_kernel">
+<code class="descname">f_kernel</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/beams.html#WSRTBeam.f_kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.beams.WSRTBeam.f_kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a function defining the beam amplitude as a function of
+position.</p>
+<p>The model implemented is based on an interpolation of an image of the
+WSRT beam, re-scaled according to declination and frequency.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : callable</p>
+<blockquote class="last">
+<div><p>Accepts 2 arguments (both array_like) and return an
+array_like of corresponding size.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.beams.WSRTBeam.init_beam_header">
+<code class="descname">init_beam_header</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/beams.html#WSRTBeam.init_beam_header"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.beams.WSRTBeam.init_beam_header" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set beam major/minor axis lengths and position angle to WSRT values.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini.beams.WSRTBeam.kernel_size_px">
+<code class="descname">kernel_size_px</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/beams.html#WSRTBeam.kernel_size_px"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini.beams.WSRTBeam.kernel_size_px" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a 2-tuple specifying the half-size of the beam image to be
+initialized, in pixels.</p>
+<p>The interpolation may become unstable if the image is severely
+undersampled, pixel sizes of more than 8 arcsec are not recommended.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><strong>out</strong> : 2-tuple, each element an integer.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
 </div>
 
 

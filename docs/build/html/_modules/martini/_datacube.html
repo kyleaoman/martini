@@ -1,0 +1,563 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>martini._datacube &mdash; MARTINI 1.4 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MARTINI
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../includeme.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../includeme.html#installation-notes">Installation Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../martini.html">Martini (martini.Martini)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../datacube.html">Data Cube (martini.DataCube)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source.html">Sources (martini.sources)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../beam.html">Beam Models (martini.beams)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../noise.html">Noise Models (martini.noise)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../spectral_model.html">Spectral Models (martini.spectral_models)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sph_kernel.html">SPH Kernels (martini.sph_kernels)</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MARTINI</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>martini._datacube</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for martini._datacube</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">U</span>
+<span class="kn">from</span> <span class="nn">astropy</span> <span class="kn">import</span> <span class="n">wcs</span>
+
+<span class="n">HIfreq</span> <span class="o">=</span> <span class="mf">1.420405751E9</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Hz</span>
+
+
+<div class="viewcode-block" id="DataCube"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube">[docs]</a><span class="k">class</span> <span class="nc">DataCube</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handles creation and management of the data cube itself.</span>
+
+<span class="sd">    Basic usage simply involves initializing with the parameters listed below.</span>
+<span class="sd">    More advanced usage might arise if designing custom classes for other sub-</span>
+<span class="sd">    modules, especially beams. To initialize a DataCube from a saved state, see</span>
+<span class="sd">    DataCube.load_state.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n_px_x : int, optional</span>
+<span class="sd">        Pixel count along the x (RA) axis. Even integers strongly preferred.</span>
+<span class="sd">        (Default: 256.)</span>
+
+<span class="sd">    n_px_y : int, optional</span>
+<span class="sd">        Pixel count along the y (Dec) axis. Even integers strongly preferred.</span>
+<span class="sd">        (Default: 256.)</span>
+
+<span class="sd">    n_channels : int, optional</span>
+<span class="sd">        Number of channels along the spectral axis. (Default: 64.)</span>
+
+<span class="sd">    px_size : Quantity, with dimensions of angle, optional</span>
+<span class="sd">        Angular scale of one pixel. (Default: 15 arcsec.)</span>
+
+<span class="sd">    channel_width : Quantity, with dimensions of velocity, optional</span>
+<span class="sd">        Step size along the spectral axis. Must be provided as a velocity.</span>
+<span class="sd">        (Default: 4 km/s.)</span>
+
+<span class="sd">    velocity_centre : Quantity, with dimensions of velocity, optional</span>
+<span class="sd">        Velocity of the central channel along the spectral axis.</span>
+<span class="sd">        (Default: 0 km/s.)</span>
+
+<span class="sd">    ra : Quantity, with dimensions of angle, optional</span>
+<span class="sd">        Right ascension of the cube centroid. (Default: 0 deg.)</span>
+
+<span class="sd">    dec : Quantity, with dimensions of angle, optional</span>
+<span class="sd">        Declination of the cube centroid. (Default: 0 deg.)</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    load_state</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">n_px_x</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+                 <span class="n">n_px_y</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+                 <span class="n">n_channels</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+                 <span class="n">px_size</span><span class="o">=</span><span class="mf">15.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">arcsec</span><span class="p">,</span>
+                 <span class="n">channel_width</span><span class="o">=</span><span class="mf">4.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="o">**-</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">velocity_centre</span><span class="o">=</span><span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">km</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="o">**-</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">ra</span><span class="o">=</span><span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+                 <span class="n">dec</span><span class="o">=</span><span class="mf">0.</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">):</span>
+
+        <span class="n">datacube_unit</span> <span class="o">=</span> <span class="n">U</span><span class="o">.</span><span class="n">Jy</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="o">**-</span><span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_px_x</span><span class="p">,</span> <span class="n">n_px_y</span><span class="p">,</span> <span class="n">n_channels</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">*</span> <span class="n">datacube_unit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span> <span class="o">=</span> <span class="n">n_px_x</span><span class="p">,</span> <span class="n">n_px_y</span><span class="p">,</span> <span class="n">n_channels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">px_size</span> <span class="o">=</span> <span class="n">px_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span> <span class="o">=</span> <span class="n">channel_width</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span> <span class="o">=</span> <span class="n">velocity_centre</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ra</span> <span class="o">=</span> <span class="n">ra</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dec</span> <span class="o">=</span> <span class="n">dec</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">padx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pady</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">WCS</span><span class="p">(</span><span class="n">naxis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crpix</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">units</span> <span class="o">=</span> <span class="p">[</span><span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">U</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">U</span><span class="o">.</span><span class="n">m</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="o">**-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span> <span class="o">=</span> <span class="p">[</span><span class="n">unit</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="s1">&#39;fits&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cdelt</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">value</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">value</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;RA---TAN&#39;</span><span class="p">,</span> <span class="s1">&#39;DEC--TAN&#39;</span><span class="p">,</span> <span class="s1">&#39;VELO-OBS&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">add_stokes_axis_to_wcs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="p">,</span>
+                                                    <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">naxis</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_channel_mids</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_channel_edges</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_freq_channel_mode</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">_channel_mids</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the centres of the channels from the coordinate system.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">channel_mids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs_pix2world</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">),</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">),</span>
+            <span class="mi">0</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">_channel_edges</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the edges of the channels from the coordinate system.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">channel_edges</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs_pix2world</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+            <span class="mi">0</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="DataCube.spatial_slices"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.spatial_slices">[docs]</a>    <span class="k">def</span> <span class="nf">spatial_slices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an iterator over the spatial &#39;slices&#39; of the cube.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : iterator</span>
+<span class="sd">            Iterator over the spatial &#39;slices&#39; of the cube.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="DataCube.spectra"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.spectra">[docs]</a>    <span class="k">def</span> <span class="nf">spectra</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an iterator over the spectra (one in each spatial pixel).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : iterator</span>
+<span class="sd">            Iterator over the spectra (one in each spatial pixel).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span><span class="p">,</span>
+                                                <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="DataCube.freq_channels"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.freq_channels">[docs]</a>    <span class="k">def</span> <span class="nf">freq_channels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert spectral axis to frequency units.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_freq_channel_mode</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+
+            <span class="k">def</span> <span class="nf">convert_to_Hz</span><span class="p">(</span><span class="n">q</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">q</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">Hz</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="n">U</span><span class="o">.</span><span class="n">doppler_radio</span><span class="p">(</span><span class="n">HIfreq</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cdelt</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">convert_to_Hz</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cdelt</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                       <span class="o">-</span> <span class="n">convert_to_Hz</span><span class="p">(</span><span class="mf">0.</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span><span class="o">.</span><span class="n">value</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">convert_to_Hz</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">value</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;FREQ-OBS&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">U</span><span class="o">.</span><span class="n">Hz</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="s1">&#39;fits&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_channel_mids</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_channel_edges</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_freq_channel_mode</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span></div>
+
+<div class="viewcode-block" id="DataCube.velocity_channels"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.velocity_channels">[docs]</a>    <span class="k">def</span> <span class="nf">velocity_channels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert spectral axis (back) to velocity units.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_freq_channel_mode</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+
+            <span class="k">def</span> <span class="nf">convert_to_ms</span><span class="p">(</span><span class="n">q</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">q</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">U</span><span class="o">.</span><span class="n">m</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="n">U</span><span class="o">.</span><span class="n">doppler_radio</span><span class="p">(</span><span class="n">HIfreq</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cdelt</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">convert_to_ms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cdelt</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                       <span class="o">-</span> <span class="n">convert_to_ms</span><span class="p">(</span><span class="mf">0.</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span><span class="o">.</span><span class="n">value</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">convert_to_ms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">value</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;VELO-OBS&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">U</span><span class="o">.</span><span class="n">m</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">s</span><span class="o">**-</span><span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="s1">&#39;fits&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_channel_mids</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_channel_edges</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_freq_channel_mode</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">return</span></div>
+
+<div class="viewcode-block" id="DataCube.add_pad"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.add_pad">[docs]</a>    <span class="k">def</span> <span class="nf">add_pad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pad</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Resize the cube to add a padding region in the spatial direction.</span>
+
+<span class="sd">        Accurate convolution with a beam requires a cube padded according to</span>
+<span class="sd">        the size of the beam kernel (its representation sampled on a grid with</span>
+<span class="sd">        the same spacing). The beam class is required to handle defining the</span>
+<span class="sd">        size of pad required.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        pad : 2-tuple (or other sequence)</span>
+<span class="sd">            Number of pixels to add in the x (RA) and y (Dec) directions.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ----------</span>
+<span class="sd">        drop_pad</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tmp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span> <span class="o">+</span> <span class="n">pad</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span> <span class="o">+</span> <span class="n">pad</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span> <span class="o">*</span> <span class="n">tmp</span><span class="o">.</span><span class="n">unit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="p">[</span><span class="n">pad</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="o">-</span><span class="n">pad</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pad</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span><span class="o">-</span><span class="n">pad</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">tmp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crpix</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">pad</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pad</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">padx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pady</span> <span class="o">=</span> <span class="n">pad</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="DataCube.drop_pad"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.drop_pad">[docs]</a>    <span class="k">def</span> <span class="nf">drop_pad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Remove the padding added using add_pad.</span>
+
+<span class="sd">        After convolution, the pad region contains meaningless information and</span>
+<span class="sd">        can be discarded.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        add_pad</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">padx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pady</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">padx</span><span class="p">:</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">padx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pady</span><span class="p">:</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">pady</span><span class="p">,</span>
+                                  <span class="o">...</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crpix</span> <span class="o">-=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">padx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pady</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">padx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pady</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="DataCube.copy"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Produce a copy of the DataCube.</span>
+
+<span class="sd">        May be especially useful to create multiple datacubes with differing</span>
+<span class="sd">        intermediate steps.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : DataCube</span>
+<span class="sd">            Copy of the DataCube object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">copy</span> <span class="o">=</span> <span class="n">DataCube</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="p">)</span>
+        <span class="n">copy</span><span class="o">.</span><span class="n">padx</span><span class="p">,</span> <span class="n">copy</span><span class="o">.</span><span class="n">pady</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">padx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pady</span>
+        <span class="n">copy</span><span class="o">.</span><span class="n">wcs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span>
+        <span class="n">copy</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">copy</span></div>
+
+<div class="viewcode-block" id="DataCube.save_state"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.save_state">[docs]</a>    <span class="k">def</span> <span class="nf">save_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Write a file from which the current DataCube state can be</span>
+<span class="sd">        re-initialized (see DataCube.load_state). Note that h5py must be</span>
+<span class="sd">        installed for use. NOT for outputting mock observations, for this</span>
+<span class="sd">        see Martini.write_fits and Martini.write_hdf5.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            File to write.</span>
+
+<span class="sd">        overwrite : bool</span>
+<span class="sd">            Whether to allow overwriting existing files (default: False).</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        load_state</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">h5py</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;w&#39;</span> <span class="k">if</span> <span class="n">overwrite</span> <span class="k">else</span> <span class="s1">&#39;w-&#39;</span>
+        <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datacube_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_x&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_x</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_y&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_px_y</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_channels&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_channels</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">px_size</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width_unit&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_width</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre_unit&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">velocity_centre</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec_unit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;padx&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">padx</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;pady&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pady</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;_freq_channel_mode&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_freq_channel_mode</span><span class="p">)</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="DataCube.load_state"><a class="viewcode-back" href="../../datacube.html#martini._datacube.DataCube.load_state">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_state</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a DataCube from a state saved using DataCube.save_state.</span>
+<span class="sd">        Note that h5py must be installed for use. Note that ONLY the DataCube</span>
+<span class="sd">        state is restored, other modules and their configurations are not</span>
+<span class="sd">        affected.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            File to open.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : martini.DataCube</span>
+<span class="sd">            A suitably initialized DataCube object.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        save_state</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">h5py</span>
+        <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">n_px_x</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_x&#39;</span><span class="p">]</span>
+            <span class="n">n_px_y</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_px_y&#39;</span><span class="p">]</span>
+            <span class="n">n_channels</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;n_channels&#39;</span><span class="p">]</span>
+            <span class="n">px_size</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;px_size_unit&#39;</span><span class="p">])</span>
+            <span class="n">channel_width</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;channel_width_unit&#39;</span><span class="p">])</span>
+            <span class="n">velocity_centre</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;velocity_centre_unit&#39;</span><span class="p">])</span>
+            <span class="n">ra</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;ra_unit&#39;</span><span class="p">])</span>
+            <span class="n">dec</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec&#39;</span><span class="p">]</span> \
+                <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;dec_unit&#39;</span><span class="p">])</span>
+            <span class="n">D</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
+                <span class="n">n_px_x</span><span class="o">=</span><span class="n">n_px_x</span><span class="p">,</span>
+                <span class="n">n_px_y</span><span class="o">=</span><span class="n">n_px_y</span><span class="p">,</span>
+                <span class="n">n_channels</span><span class="o">=</span><span class="n">n_channels</span><span class="p">,</span>
+                <span class="n">px_size</span><span class="o">=</span><span class="n">px_size</span><span class="p">,</span>
+                <span class="n">channel_width</span><span class="o">=</span><span class="n">channel_width</span><span class="p">,</span>
+                <span class="n">velocity_centre</span><span class="o">=</span><span class="n">velocity_centre</span><span class="p">,</span>
+                <span class="n">ra</span><span class="o">=</span><span class="n">ra</span><span class="p">,</span>
+                <span class="n">dec</span><span class="o">=</span><span class="n">dec</span>
+            <span class="p">)</span>
+            <span class="n">D</span><span class="o">.</span><span class="n">add_pad</span><span class="p">((</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;padx&#39;</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;pady&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;_freq_channel_mode&#39;</span><span class="p">]):</span>
+                <span class="n">D</span><span class="o">.</span><span class="n">freq_channels</span><span class="p">()</span>
+            <span class="n">D</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;_array&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datacube_unit&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">D</span></div>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Print the contents of the data cube array itself.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : str</span>
+<span class="sd">            Text representation of the DataCube._array contents.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Kyle Oman
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

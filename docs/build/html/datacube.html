@@ -25,6 +25,7 @@
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -160,8 +161,232 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="data-cube-martini-datacube">
-<h1>Data Cube (martini.DataCube)<a class="headerlink" href="#data-cube-martini-datacube" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-martini._datacube">
+<span id="data-cube-martini-datacube"></span><h1>Data Cube (martini.DataCube)<a class="headerlink" href="#module-martini._datacube" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="martini._datacube.DataCube">
+<em class="property">class </em><code class="descclassname">martini._datacube.</code><code class="descname">DataCube</code><span class="sig-paren">(</span><em>n_px_x=256</em>, <em>n_px_y=256</em>, <em>n_channels=64</em>, <em>px_size=&lt;Quantity 15. arcsec&gt;</em>, <em>channel_width=&lt;Quantity 4. km / s&gt;</em>, <em>velocity_centre=&lt;Quantity 0. km / s&gt;</em>, <em>ra=&lt;Quantity 0. deg&gt;</em>, <em>dec=&lt;Quantity 0. deg&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube" title="Permalink to this definition">¶</a></dt>
+<dd><p>Handles creation and management of the data cube itself.</p>
+<p>Basic usage simply involves initializing with the parameters listed below.
+More advanced usage might arise if designing custom classes for other sub-
+modules, especially beams. To initialize a DataCube from a saved state, see
+DataCube.load_state.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>n_px_x</strong> : int, optional</p>
+<blockquote>
+<div><p>Pixel count along the x (RA) axis. Even integers strongly preferred.
+(Default: 256.)</p>
+</div></blockquote>
+<p><strong>n_px_y</strong> : int, optional</p>
+<blockquote>
+<div><p>Pixel count along the y (Dec) axis. Even integers strongly preferred.
+(Default: 256.)</p>
+</div></blockquote>
+<p><strong>n_channels</strong> : int, optional</p>
+<blockquote>
+<div><p>Number of channels along the spectral axis. (Default: 64.)</p>
+</div></blockquote>
+<p><strong>px_size</strong> : Quantity, with dimensions of angle, optional</p>
+<blockquote>
+<div><p>Angular scale of one pixel. (Default: 15 arcsec.)</p>
+</div></blockquote>
+<p><strong>channel_width</strong> : Quantity, with dimensions of velocity, optional</p>
+<blockquote>
+<div><p>Step size along the spectral axis. Must be provided as a velocity.
+(Default: 4 km/s.)</p>
+</div></blockquote>
+<p><strong>velocity_centre</strong> : Quantity, with dimensions of velocity, optional</p>
+<blockquote>
+<div><p>Velocity of the central channel along the spectral axis.
+(Default: 0 km/s.)</p>
+</div></blockquote>
+<p><strong>ra</strong> : Quantity, with dimensions of angle, optional</p>
+<blockquote>
+<div><p>Right ascension of the cube centroid. (Default: 0 deg.)</p>
+</div></blockquote>
+<p><strong>dec</strong> : Quantity, with dimensions of angle, optional</p>
+<blockquote class="last">
+<div><p>Declination of the cube centroid. (Default: 0 deg.)</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="#martini._datacube.DataCube.load_state" title="martini._datacube.DataCube.load_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_state</span></code></a></p>
+</div>
+<dl class="method">
+<dt id="martini._datacube.DataCube.add_pad">
+<code class="descname">add_pad</code><span class="sig-paren">(</span><em>pad</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.add_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.add_pad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Resize the cube to add a padding region in the spatial direction.</p>
+<p>Accurate convolution with a beam requires a cube padded according to
+the size of the beam kernel (its representation sampled on a grid with
+the same spacing). The beam class is required to handle defining the
+size of pad required.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>pad</strong> : 2-tuple (or other sequence)</p>
+<blockquote class="last">
+<div><p>Number of pixels to add in the x (RA) and y (Dec) directions.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="#martini._datacube.DataCube.drop_pad" title="martini._datacube.DataCube.drop_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">drop_pad</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.copy">
+<code class="descname">copy</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.copy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.copy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Produce a copy of the DataCube.</p>
+<p>May be especially useful to create multiple datacubes with differing
+intermediate steps.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : DataCube</p>
+<blockquote class="last">
+<div><p>Copy of the DataCube object.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.drop_pad">
+<code class="descname">drop_pad</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.drop_pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.drop_pad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove the padding added using add_pad.</p>
+<p>After convolution, the pad region contains meaningless information and
+can be discarded.</p>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="#martini._datacube.DataCube.add_pad" title="martini._datacube.DataCube.add_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_pad</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.freq_channels">
+<code class="descname">freq_channels</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.freq_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.freq_channels" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert spectral axis to frequency units.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="martini._datacube.DataCube.load_state">
+<em class="property">classmethod </em><code class="descname">load_state</code><span class="sig-paren">(</span><em>filename</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.load_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.load_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize a DataCube from a state saved using DataCube.save_state.
+Note that h5py must be installed for use. Note that ONLY the DataCube
+state is restored, other modules and their configurations are not
+affected.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>filename</strong> : str</p>
+<blockquote>
+<div><p>File to open.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : martini.DataCube</p>
+<blockquote class="last">
+<div><p>A suitably initialized DataCube object.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="#martini._datacube.DataCube.save_state" title="martini._datacube.DataCube.save_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_state</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.save_state">
+<code class="descname">save_state</code><span class="sig-paren">(</span><em>filename</em>, <em>overwrite=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.save_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.save_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write a file from which the current DataCube state can be
+re-initialized (see DataCube.load_state). Note that h5py must be
+installed for use. NOT for outputting mock observations, for this
+see Martini.write_fits and Martini.write_hdf5.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>filename</strong> : str</p>
+<blockquote>
+<div><p>File to write.</p>
+</div></blockquote>
+<p><strong>overwrite</strong> : bool</p>
+<blockquote class="last">
+<div><p>Whether to allow overwriting existing files (default: False).</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="#martini._datacube.DataCube.load_state" title="martini._datacube.DataCube.load_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_state</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.spatial_slices">
+<code class="descname">spatial_slices</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spatial_slices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spatial_slices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterator over the spatial ‘slices’ of the cube.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : iterator</p>
+<blockquote class="last">
+<div><p>Iterator over the spatial ‘slices’ of the cube.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.spectra">
+<code class="descname">spectra</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.spectra"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.spectra" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterator over the spectra (one in each spatial pixel).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>out</strong> : iterator</p>
+<blockquote class="last">
+<div><p>Iterator over the spectra (one in each spatial pixel).</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="martini._datacube.DataCube.velocity_channels">
+<code class="descname">velocity_channels</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/martini/_datacube.html#DataCube.velocity_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#martini._datacube.DataCube.velocity_channels" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert spectral axis (back) to velocity units.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
 
 
