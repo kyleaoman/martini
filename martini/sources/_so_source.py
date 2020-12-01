@@ -77,7 +77,7 @@ class SOSource(SPHSource):
         if (SO_args is not None) and (SO_instance is not None):
             raise ValueError('martini.source.SOSource: Provide SO_args or '
                              'SO_instance, not both.')
-        if SO_args is not None:
+        elif SO_args is not None:
             with SimObj(**self._SO_args) as SO:
                 super().__init__(
                     distance=distance,
