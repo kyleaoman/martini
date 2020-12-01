@@ -31,17 +31,24 @@ version_file = os.path.join(pkgdir, 'martini', 'VERSION')
 with open(version_file) as vf:
     version = tuple(vf.read().strip().split('.'))
 
-print('Ensure codemeta.json reflects current version.')
-gencodemeta()
-
-print('Check that git master branch is ready and committed.')
 passwd = getpass('Preparing {:s}-{:s}.{:s}, enter PyPI password to'
                  ' continue: '.format(pkgname, *version))
 
 run_chk('pip install --upgrade setuptools wheel twine')
 
-# new branch, or get in sync
 run_chk('git checkout master')
+print('Ensure codemeta.json reflects current version.')
+gencodemeta()
+print('Check that git master branch is ready and committed.')
+run_chk('git add .')
+try:
+    run_chk('git commit -m "Autocommit by _makedist."')
+except RuntimeError as e:
+    if e.args[0] == 256:  # nothing to commit
+        pass
+print('Autocommitted changes, check these are desired:')
+run_chk('git diff HEAD^ HEAD')
+
 try:
     run_chk('git branch {:s}.{:s}'.format(*version))
 except RuntimeError as e:
