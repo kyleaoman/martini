@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>martini._martini &mdash; MARTINI 1.4 documentation</title>
+  <title>martini._martini &mdash; MARTINI 1.5 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                1.4
+                1.5
               </div>
             
           
@@ -180,6 +180,18 @@
     <span class="k">pass</span>
 <span class="k">else</span><span class="p">:</span>
     <span class="n">martini_version</span> <span class="o">=</span> <span class="n">martini_version</span> <span class="o">+</span> <span class="s1">&#39;_commit_&#39;</span> <span class="o">+</span> <span class="n">gc</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">_gen_particle_coords</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">datacube</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="c1"># pixels indexed from 0 (not like in FITS!) for better use with numpy</span>
+    <span class="n">origin</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">skycoords</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
+        <span class="n">datacube</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span>
+            <span class="n">skycoords</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+            <span class="n">skycoords</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+            <span class="n">skycoords</span><span class="o">.</span><span class="n">radial_velocity</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+            <span class="n">origin</span><span class="p">))</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
 
 
 <div class="viewcode-block" id="Martini"><a class="viewcode-back" href="../../martini.html#martini._martini.Martini">[docs]</a><span class="k">class</span> <span class="nc">Martini</span><span class="p">():</span>
@@ -366,7 +378,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">beam</span><span class="o">.</span><span class="n">init_kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">add_pad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">beam</span><span class="o">.</span><span class="n">needs_pad</span><span class="p">())</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">_prune_source</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">_init_sm_lengths</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span> <span class="n">datacube</span><span class="o">=</span><span class="n">datacube</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">_init_sm_ranges</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prune_particles</span><span class="p">()</span>  <span class="c1"># prunes both source, and kernel if applicable</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">spectral_model</span><span class="o">.</span><span class="n">init_spectra</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="p">)</span>
 
@@ -404,7 +418,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">_array</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="p">)</span>
         <span class="k">return</span></div>
 
-    <span class="k">def</span> <span class="nf">_prune_source</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_prune_particles</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Determines which particles cannot contribute to the DataCube and</span>
 <span class="sd">        removes them to speed up calculation. Assumes the kernel is 0 at</span>
@@ -412,32 +426,18 @@
 <span class="sd">        SPH smoothing length).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="c1"># pixels indexed from 0 (not like in FITS!) for better use with numpy</span>
-        <span class="n">origin</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">skycoords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span>
-        <span class="n">particle_coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span>
-                <span class="n">skycoords</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-                <span class="n">skycoords</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
-                <span class="n">skycoords</span><span class="o">.</span><span class="n">radial_velocity</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
-                <span class="n">origin</span><span class="p">))</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
-        <span class="c1"># could use a function bound to source which returns the size of the</span>
-        <span class="c1"># kernel, in case this isn&#39;t equal to the smoothing length for some</span>
-        <span class="c1"># kernel</span>
-        <span class="n">sm_length</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">hsm_g</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span><span class="o">.</span><span class="n">distance</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
-                <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">U</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">px_size</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">))</span>
-        <span class="n">sm_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span>
-            <span class="n">sm_length</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">size_in_fwhm</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">particle_coords</span> <span class="o">=</span> <span class="n">_gen_particle_coords</span><span class="p">(</span>
+            <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+            <span class="n">datacube</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span>
+        <span class="p">)</span>
         <span class="n">spectrum_half_width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spectral_model</span><span class="o">.</span><span class="n">half_width</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">)</span> <span class="o">/</span> \
             <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">channel_width</span>
         <span class="n">reject_conditions</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="p">(</span><span class="n">particle_coords</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">sm_range</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">&lt;</span>
+            <span class="p">(</span><span class="n">particle_coords</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">sm_ranges</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">&lt;</span>
              <span class="mi">0</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
-            <span class="n">particle_coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">sm_range</span> <span class="o">&gt;</span>
+            <span class="n">particle_coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">sm_ranges</span> <span class="o">&gt;</span>
             <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">n_px_x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">padx</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span>
-            <span class="n">particle_coords</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">sm_range</span> <span class="o">&gt;</span>
+            <span class="n">particle_coords</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">sm_ranges</span> <span class="o">&gt;</span>
             <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">n_px_y</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">pady</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span>
             <span class="n">particle_coords</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">spectrum_half_width</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span>
             <span class="n">particle_coords</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">spectrum_half_width</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span> <span class="o">&gt;</span>
@@ -470,23 +470,11 @@
 <span class="sd">            Messages completely suppressed with printfreq=None. (Default: 100.)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="c1"># pixels indexed from 0 (not like in FITS!) for better use with numpy</span>
-        <span class="n">origin</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">skycoords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span>
-        <span class="n">particle_coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span>
-                <span class="n">skycoords</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-                <span class="n">skycoords</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
-                <span class="n">skycoords</span><span class="o">.</span><span class="n">radial_velocity</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">units</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
-                <span class="n">origin</span><span class="p">))</span> <span class="o">*</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span>
-        <span class="c1"># note that source hsm_g values are required to be FWHM values</span>
-        <span class="n">sm_length</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">hsm_g</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">sky_coordinates</span><span class="o">.</span><span class="n">distance</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
-                <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">U</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">px_size</span> <span class="o">/</span> <span class="n">U</span><span class="o">.</span><span class="n">pix</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">confirm_validation</span><span class="p">(</span><span class="n">sm_length</span><span class="p">,</span> <span class="n">noraise</span><span class="o">=</span><span class="n">skip_validation</span><span class="p">)</span>
-        <span class="n">sm_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span>
-            <span class="n">sm_length</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">size_in_fwhm</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">particle_coords</span> <span class="o">=</span> <span class="n">_gen_particle_coords</span><span class="p">(</span>
+            <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+            <span class="n">datacube</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">datacube</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">confirm_validation</span><span class="p">(</span><span class="n">noraise</span><span class="o">=</span><span class="n">skip_validation</span><span class="p">)</span>
 
         <span class="c1"># pixel iteration</span>
         <span class="n">ij_pxs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
@@ -507,11 +495,11 @@
                 <span class="k">if</span> <span class="p">(</span><span class="n">ij</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">ij</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span> <span class="o">%</span> <span class="n">printfreq</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
                     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;  &#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">logtag</span> <span class="o">+</span>
                           <span class="s1">&#39;  [row </span><span class="si">{:.0f}</span><span class="s1">]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ij</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
-            <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">ij</span> <span class="o">-</span> <span class="n">particle_coords</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;=</span> <span class="n">sm_range</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">ij</span> <span class="o">-</span> <span class="n">particle_coords</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+                    <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">sm_ranges</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
             <span class="n">weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sph_kernel</span><span class="o">.</span><span class="n">px_weight</span><span class="p">(</span>
                 <span class="n">particle_coords</span><span class="p">[:</span><span class="mi">2</span><span class="p">,</span> <span class="n">mask</span><span class="p">]</span> <span class="o">-</span> <span class="n">ij</span><span class="p">,</span>
-                <span class="n">sm_length</span><span class="p">[</span><span class="n">mask</span><span class="p">],</span>
-                <span class="n">mask</span><span class="o">=</span><span class="n">mask</span>  <span class="c1"># most kernels ignore, required by AdaptiveKernel</span>
+                <span class="n">mask</span><span class="o">=</span><span class="n">mask</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">datacube</span><span class="o">.</span><span class="n">_array</span><span class="p">[</span><span class="n">ij_px</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ij_px</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> \
                 <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spectral_model</span><span class="o">.</span><span class="n">spectra</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span> <span class="o">*</span>
