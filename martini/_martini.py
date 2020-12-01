@@ -218,9 +218,9 @@ class Martini():
             self.beam.init_kernel(self.datacube)
             self.datacube.add_pad(self.beam.needs_pad())
 
-        self._prune_source()
         self.sph_kernel._init_sm_lengths(source=source, datacube=datacube)
         self.sph_kernel._init_sm_ranges()
+        self._prune_particles()  # prunes both source, and kernel if applicable
 
         self.spectral_model.init_spectra(self.source, self.datacube)
 
@@ -258,7 +258,7 @@ class Martini():
             self.datacube._array + self.noise.generate(self.datacube)
         return
 
-    def _prune_source(self):
+    def _prune_particles(self):
         """
         Determines which particles cannot contribute to the DataCube and
         removes them to speed up calculation. Assumes the kernel is 0 at

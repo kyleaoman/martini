@@ -135,14 +135,17 @@ class _BaseSPHKernel(object):
 
     def apply_mask(self, mask):
         """
-        If kernel contains maskable attributes, apply a mask.
+        Apply a mask to particle properties.
 
         Parameters
         ----------
         mask : array_like containing booleans
             Mask to apply to any maskable attributes.
         """
-        pass
+        self.sm_lengths = self.sm_lengths[mask]
+        self.sm_ranges = self.sm_ranges[mask]
+
+        return
 
     def _init_sm_lengths(self, source=None, datacube=None):
         """
@@ -1041,6 +1044,7 @@ class AdaptiveKernel(_BaseSPHKernel):
         self.size_in_fwhm = self.size_in_fwhm[mask]
         self._rescale = self._rescale[mask]
         self.kernel_indices = self.kernel_indices[mask]
+        super().apply_mask(mask)
 
         return
 
