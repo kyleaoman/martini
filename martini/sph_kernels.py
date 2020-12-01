@@ -44,7 +44,7 @@ class _BaseSPHKernel(object):
              ' updated accordingly.')
         return
 
-    def px_weight(self, dij, h, mask=None):
+    def px_weight(self, dij, mask=None):
         """
         Calculate kernel integral using scaled smoothing lengths.
 
@@ -55,8 +55,6 @@ class _BaseSPHKernel(object):
         ----------
         dij : Quantity, with dimensions of pixels
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
-            Particle smoothing lengths, defined as the kernel FWHM, in pixels.
 
         Returns
         -------
@@ -64,16 +62,17 @@ class _BaseSPHKernel(object):
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
         try:
-            rescaled_h = h * self._rescale[mask]
+            rescale = self._rescale[mask]
         except TypeError:
-            rescaled_h = h * self._rescale
+            rescale = self._rescale
+        rescaled_h = self.sm_lengths[mask] * rescale
         return self.kernel_integral(
             dij,
             rescaled_h,
             mask=mask
         )
 
-    def confirm_validation(self, sm_lengths, noraise=False):
+    def confirm_validation(self, noraise=False):
         """
         Verify kernel accuracy using scaled smoothing lengths.
 
@@ -82,11 +81,11 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
-            Particle smoothing lengths, in units of pixels.
+        noraise : bool
+            If True, don't raise error if validation fails (default: False).
         """
 
-        return self.validate(sm_lengths * self._rescale, noraise=noraise)
+        return self.validate(self.sm_lengths * self._rescale, noraise=noraise)
 
     def _validate_error(self, msg, sm_lengths, valid, noraise=False):
         print('Median smoothing length: ', np.median(sm_lengths), 'px')
@@ -144,6 +143,34 @@ class _BaseSPHKernel(object):
             Mask to apply to any maskable attributes.
         """
         pass
+
+    def _init_sm_lengths(self, source=None, datacube=None):
+        """
+        Determine kernel sizes in pixel units.
+
+        Parameters
+        ----------
+        source : martini.sources.SPHSource (or inheriting class) instance
+            The source providing the kernel sizes.
+
+        datacube : martini.DataCube instance
+            The datacube providing the pixel scale.
+        """
+        self.sm_lengths = np.arctan(
+            source.hsm_g / source.sky_coordinates.distance).to(
+                U.pix, U.pixel_scale(datacube.px_size / U.pix))
+
+        return
+
+    def _init_sm_ranges(self):
+        """
+        Determine maximum number of pixels reached by kernel.
+        """
+        self.sm_ranges = np.ceil(
+            self.sm_lengths * self.size_in_fwhm
+        ).astype(int)
+
+        return
 
     @abstractmethod
     def kernel(self, q):
@@ -961,20 +988,34 @@ class AdaptiveKernel(_BaseSPHKernel):
         The datacube instance to be used with this adaptive kernel.
     """
 
-    def __init__(self, kernels, source, datacube):
-        super().__init__()
-        # source.hsm_g is already required to be FWHM values
-        sm_length = np.arctan(
-            source.hsm_g / source.sky_coordinates.distance).to(
-                U.pix, U.pixel_scale(datacube.px_size / U.pix))
+    def __init__(self, kernels):
         self.kernels = kernels
+        super().__init__()
+        self.size_in_fwhm = None  # initialized during Martini.__init__
+        self._rescale = None  # initialized during Martini.__init__
+        return
+
+    def _init_sm_lengths(self, source=None, datacube=None):
+        """
+        Determine kernel sizes in pixel units.
+
+        Parameters
+        ----------
+        source : martini.sources.SPHSource (or inheriting class) instance
+            The source providing the kernel sizes.
+
+        datacube : martini.DataCube instance
+            The datacube providing the pixel scale.
+        """
+
+        super()._init_sm_lengths(source=source, datacube=datacube)
         self.kernel_indices = -1 * np.ones(source.hsm_g.shape, dtype=np.int)
-        for ik, K in enumerate(kernels):
+        for ik, K in enumerate(self.kernels):
             # if valid and not already assigned an earlier kernel, assign
             self.kernel_indices[
                 np.logical_and(
                     self.kernel_indices == -1,
-                    K.validate(sm_length * K._rescale, noraise=True)
+                    K.validate(self.sm_lengths * K._rescale, noraise=True)
                 )
             ] = ik
         _sizes_in_fwhm = np.array([K.size_in_fwhm for K in self.kernels])

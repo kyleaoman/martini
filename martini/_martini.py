@@ -22,6 +22,18 @@ else:
     martini_version = martini_version + '_commit_' + gc.strip().decode()
 
 
+def _gen_particle_coords(source=None, datacube=None):
+    # pixels indexed from 0 (not like in FITS!) for better use with numpy
+    origin = 0
+    skycoords = source.sky_coordinates
+    return np.vstack(
+        datacube.wcs.sub(3).wcs_world2pix(
+            skycoords.ra.to(datacube.units[0]),
+            skycoords.dec.to(datacube.units[1]),
+            skycoords.radial_velocity.to(datacube.units[2]),
+            origin)) * U.pix
+
+
 class Martini():
     """
     Creates synthetic HI data cubes from simulation data.
@@ -207,6 +219,8 @@ class Martini():
             self.datacube.add_pad(self.beam.needs_pad())
 
         self._prune_source()
+        self.sph_kernel._init_sm_lengths(source=source, datacube=datacube)
+        self.sph_kernel._init_sm_ranges()
 
         self.spectral_model.init_spectra(self.source, self.datacube)
 
@@ -252,32 +266,18 @@ class Martini():
         SPH smoothing length).
         """
 
-        # pixels indexed from 0 (not like in FITS!) for better use with numpy
-        origin = 0
-        skycoords = self.source.sky_coordinates
-        particle_coords = np.vstack(
-            self.datacube.wcs.sub(3).wcs_world2pix(
-                skycoords.ra.to(self.datacube.units[0]),
-                skycoords.dec.to(self.datacube.units[1]),
-                skycoords.radial_velocity.to(self.datacube.units[2]),
-                origin)) * U.pix
-        # could use a function bound to source which returns the size of the
-        # kernel, in case this isn't equal to the smoothing length for some
-        # kernel
-        sm_length = np.arctan(
-            self.source.hsm_g / self.source.sky_coordinates.distance).to(
-                U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
-        sm_range = np.ceil(
-            sm_length * self.sph_kernel.size_in_fwhm
-        ).astype(int)
+        particle_coords = _gen_particle_coords(
+            source=self.source,
+            datacube=self.datacube
+        )
         spectrum_half_width = self.spectral_model.half_width(self.source) / \
             self.datacube.channel_width
         reject_conditions = (
-            (particle_coords[:2] + sm_range[np.newaxis] <
+            (particle_coords[:2] + self.sph_kernel.sm_ranges[np.newaxis] <
              0 * U.pix).any(axis=0),
-            particle_coords[0] - sm_range >
+            particle_coords[0] - self.sph_kernel.sm_ranges >
             (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
-            particle_coords[1] - sm_range >
+            particle_coords[1] - self.sph_kernel.sm_ranges >
             (self.datacube.n_px_y + self.datacube.pady * 2) * U.pix,
             particle_coords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
             particle_coords[2] - 4 * spectrum_half_width * U.pix >
@@ -310,23 +310,11 @@ class Martini():
             Messages completely suppressed with printfreq=None. (Default: 100.)
         """
 
-        # pixels indexed from 0 (not like in FITS!) for better use with numpy
-        origin = 0
-        skycoords = self.source.sky_coordinates
-        particle_coords = np.vstack(
-            self.datacube.wcs.sub(3).wcs_world2pix(
-                skycoords.ra.to(self.datacube.units[0]),
-                skycoords.dec.to(self.datacube.units[1]),
-                skycoords.radial_velocity.to(self.datacube.units[2]),
-                origin)) * U.pix
-        # note that source hsm_g values are required to be FWHM values
-        sm_length = np.arctan(
-            self.source.hsm_g / self.source.sky_coordinates.distance).to(
-                U.pix, U.pixel_scale(self.datacube.px_size / U.pix))
-        self.sph_kernel.confirm_validation(sm_length, noraise=skip_validation)
-        sm_range = np.ceil(
-            sm_length * self.sph_kernel.size_in_fwhm
-        ).astype(int)
+        particle_coords = _gen_particle_coords(
+            source=self.source,
+            datacube=self.datacube
+        )
+        self.sph_kernel.confirm_validation(noraise=skip_validation)
 
         # pixel iteration
         ij_pxs = list(
@@ -347,11 +335,11 @@ class Martini():
                 if (ij[1, 0].value == 0) and (ij[0, 0].value % printfreq == 0):
                     print('  ' + self.logtag +
                           '  [row {:.0f}]'.format(ij[0, 0].value))
-            mask = (np.abs(ij - particle_coords[:2]) <= sm_range).all(axis=0)
+            mask = (np.abs(ij - particle_coords[:2])
+                    <= self.sph_kernel.sm_ranges).all(axis=0)
             weights = self.sph_kernel.px_weight(
                 particle_coords[:2, mask] - ij,
-                sm_length[mask],
-                mask=mask  # most kernels ignore, required by AdaptiveKernel
+                mask=mask
             )
             self.datacube._array[ij_px[0], ij_px[1], :, 0] = \
                 (self.spectral_model.spectra[mask] *
