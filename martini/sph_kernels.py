@@ -32,16 +32,21 @@ class _BaseSPHKernel(object):
     """
 
     __metaclass__ = ABCMeta
+    noFWHMwarn = False
 
     def __init__(self):
         self._rescale = 1
-        warn('The definition of the smoothing length has changed since earlier'
-             ' versions. Now all kernel modules expect the smoothing lengths'
-             ' provided (via the source module) to be the FWHM of the kernel.'
-             ' This is to avoid ambiguity in the definition. Users of'
-             ' simulation-specific sources (TNGSource, EAGLESource, ...) do'
-             ' not need to worry about this change: the sources have been'
-             ' updated accordingly.')
+        if not self.noFWHMwarn:
+            warn('The definition of the smoothing length has changed since'
+                 ' earlier versions. Now all kernel modules expect the'
+                 ' smoothing lengths provided (via the source module) to be'
+                 ' the FWHM of the kernel. This is to avoid ambiguity in the'
+                 ' definition. Users of simulation-specific sources'
+                 ' (TNGSource, EAGLESource, ...) do not need to worry about'
+                 ' this change: the sources have been updated accordingly.'
+                 ' (This warning can be disabled by setting'
+                 ' `K.noFWHMwarn = True`, where K is the kernel class, before'
+                 ' initialization.)')
         return
 
     def px_weight(self, dij, mask=None):
@@ -72,7 +77,7 @@ class _BaseSPHKernel(object):
             mask=mask
         )
 
-    def confirm_validation(self, noraise=False):
+    def confirm_validation(self, noraise=False, quiet=False):
         """
         Verify kernel accuracy using scaled smoothing lengths.
 
@@ -83,24 +88,35 @@ class _BaseSPHKernel(object):
         ----------
         noraise : bool
             If True, don't raise error if validation fails (default: False).
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
-        return self.validate(self.sm_lengths * self._rescale, noraise=noraise)
+        return self.validate(self.sm_lengths * self._rescale, noraise=noraise,
+                             quiet=quiet)
 
-    def _validate_error(self, msg, sm_lengths, valid, noraise=False):
-        print('Median smoothing length: ', np.median(sm_lengths), 'px')
-        print('Minimum smoothing length: ', np.min(sm_lengths), 'px')
-        print('Maximum smoothing length: ', np.max(sm_lengths), 'px')
-        print(
-            'Smoothing length histogram (np.histogram):',
-            np.histogram(sm_lengths)
-        )
-        print(
-            np.sum(np.logical_not(valid)),
-            '/',
-            sm_lengths.size,
-            'smoothing lengths fail validation.'
-        )
+    def _validate_error(self, msg, sm_lengths, valid, noraise=False,
+                        quiet=False):
+        if not quiet:
+            print('    ---------{:s} VALIDATION---------'.format(
+                self.__class__.__name__))
+            print('    Median smoothing length: ', np.median(sm_lengths), 'px')
+            print('    Minimum smoothing length: ', np.min(sm_lengths), 'px')
+            print('    Maximum smoothing length: ', np.max(sm_lengths), 'px')
+            print(
+                '    Smoothing length histogram (np.histogram):',
+                np.histogram(sm_lengths)
+            )
+            print(
+                '    ',
+                np.sum(np.logical_not(valid)),
+                '/',
+                sm_lengths.size,
+                'smoothing lengths fail validation.'
+            )
+            print('    -----------------------------'
+                  + '-' * len(self.__class__.__name__))
         if not noraise:
             raise RuntimeError(msg)
         return
@@ -217,7 +233,7 @@ class _BaseSPHKernel(object):
         pass
 
     @abstractmethod
-    def validate(self, sm_lengths, noraise=False):
+    def validate(self, sm_lengths, noraise=False, quiet=False):
         """
         Abstract method; check conditions for validity of kernel integral
         calculation.
@@ -233,6 +249,9 @@ class _BaseSPHKernel(object):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
         pass
@@ -333,7 +352,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         norm = 21 / 2 / np.pi
         return retval * norm / np.power(h, 2)
 
-    def validate(self, sm_lengths, noraise=False):
+    def validate(self, sm_lengths, noraise=False, quiet=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -341,6 +360,9 @@ class WendlandC2Kernel(_BaseSPHKernel):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
         valid = sm_lengths >= 1.51 * U.pix
@@ -356,7 +378,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
                 "care.\n",
                 sm_lengths,
                 valid,
-                noraise=noraise
+                noraise=noraise,
+                quiet=quiet
             )
 
         return valid
@@ -513,7 +536,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         retval = retval / np.power(h, 2)
         return retval
 
-    def validate(self, sm_lengths, noraise=False):
+    def validate(self, sm_lengths, noraise=False, quiet=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -521,6 +544,9 @@ class WendlandC6Kernel(_BaseSPHKernel):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
         valid = sm_lengths >= 1.29 * U.pix
@@ -536,7 +562,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
                 "care.",
                 sm_lengths,
                 valid,
-                noraise=noraise
+                noraise=noraise,
+                quiet=quiet
             )
         return valid
 
@@ -659,7 +686,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         # rescaling from interval [0, 2) to [0, 1) requires mult. by 4
         return retval / 1.59689476201133 / np.power(h, 2) * 4
 
-    def validate(self, sm_lengths, noraise=False):
+    def validate(self, sm_lengths, noraise=False, quiet=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -667,6 +694,9 @@ class CubicSplineKernel(_BaseSPHKernel):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
         valid = sm_lengths >= 1.16 * U.pix
@@ -682,7 +712,8 @@ class CubicSplineKernel(_BaseSPHKernel):
                 "care.",
                 sm_lengths,
                 valid,
-                noraise=noraise
+                noraise=noraise,
+                quiet=quiet
             )
         return valid
 
@@ -715,6 +746,8 @@ class GaussianKernel(_BaseSPHKernel):
         Number of standard deviations at which to truncate kernel (default=3).
         Truncation radii <2 may lead to large errors and are not recommended.
     """
+
+    no6sigwarn = False
 
     def __init__(self, truncate=3):
         self.truncate = truncate
@@ -808,7 +841,7 @@ class GaussianKernel(_BaseSPHKernel):
         retval /= self.norm
         return retval * h.unit ** -2
 
-    def validate(self, sm_lengths, noraise=False):
+    def validate(self, sm_lengths, noraise=False, quiet=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -816,6 +849,9 @@ class GaussianKernel(_BaseSPHKernel):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
         if self.truncate < 1:
@@ -833,8 +869,11 @@ class GaussianKernel(_BaseSPHKernel):
             lims = (.4, .5)
         elif (self.truncate >= 6):
             lims = None
-            warn("GaussianKernel with truncation >=6sigma may unnecessarily "
-                 "slow down computation.")
+            if not self.no6sigwarn:
+                warn("GaussianKernel with truncation >=6sigma may "
+                     "unnecessarily slow down computation. (This warning can "
+                     "be disabled by setting GaussianKernel.no6sigwarn=True "
+                     "before initialization.)")
         if lims is None:
             valid = np.ones(sm_lengths.shape, dtype=np.bool)
         else:
@@ -855,7 +894,8 @@ class GaussianKernel(_BaseSPHKernel):
                 "care.",
                 sm_lengths,
                 valid,
-                noraise=noraise
+                noraise=noraise,
+                quiet=quiet
             )
         return valid
 
@@ -932,7 +972,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) \
             * U.pix ** -2
 
-    def validate(self, sm_lengths, noraise=False):
+    def validate(self, sm_lengths, noraise=False, quiet=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -944,6 +984,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
         valid = sm_lengths <= .5 * U.pix
@@ -958,7 +1001,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
                 "cost of accuracy.",
                 sm_lengths,
                 valid,
-                noraise=noraise
+                noraise=noraise,
+                quiet=quiet
             )
         return valid
 
@@ -989,6 +1033,10 @@ class AdaptiveKernel(_BaseSPHKernel):
 
     datacube : a martini.DataCube instance
         The datacube instance to be used with this adaptive kernel.
+
+    verbose : bool
+        Whether to print kernel validation reports for all kernels
+        (default: False).
     """
 
     def __init__(self, kernels):
@@ -1018,7 +1066,8 @@ class AdaptiveKernel(_BaseSPHKernel):
             self.kernel_indices[
                 np.logical_and(
                     self.kernel_indices == -1,
-                    K.validate(self.sm_lengths * K._rescale, noraise=True)
+                    K.validate(self.sm_lengths * K._rescale, noraise=True,
+                               quiet=True)
                 )
             ] = ik
         _sizes_in_fwhm = np.array([K.size_in_fwhm for K in self.kernels])
@@ -1082,7 +1131,7 @@ class AdaptiveKernel(_BaseSPHKernel):
             )
         return retval
 
-    def validate(self, sm_lengths, noraise=False):
+    def validate(self, sm_lengths, noraise=False, quiet=False):
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -1090,6 +1139,9 @@ class AdaptiveKernel(_BaseSPHKernel):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
         """
 
         valid = self.kernel_indices >= 0
@@ -1104,7 +1156,8 @@ class AdaptiveKernel(_BaseSPHKernel):
                 "care.\n",
                 sm_lengths,
                 valid,
-                noraise=noraise
+                noraise=noraise,
+                quiet=quiet
             )
 
         return
