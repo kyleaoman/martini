@@ -1,4 +1,5 @@
 import numpy as np
+import astropy.units as U
 
 # copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
 # commit-id 63dc535c5de1a0dc3caf09f98a33c9d09aa0eddc
@@ -44,7 +45,7 @@ def L_align(xyz, vxyz, m, frac=.3, saverot=None, Laxis='z'):
     xhat = xhat / np.sqrt(np.sum(np.power(xhat, 2)))  # normalized
     yhat = np.cross(zhat, xhat)  # guarantees right-handedness
 
-    rotmat = np.vstack((xhat, yhat, zhat))  # units will be dropped (desired)
+    rotmat = np.vstack((xhat, yhat, zhat)).to(U.dimensionless_unscaled).value
     if Laxis == 'z':
         pass
     elif Laxis == 'y':
