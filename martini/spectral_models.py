@@ -245,7 +245,7 @@ class GaussianSpectrum(_BaseSpectrum):
 
     def half_width(self, source):
         """
-        Calculate velocity dispersions from particle temperatures, or return
+        Calculate 1D velocity dispersions from particle temperatures, or return
         constant.
 
         Parameters
@@ -260,7 +260,9 @@ class GaussianSpectrum(_BaseSpectrum):
         """
 
         if self.sigma_mode == 'thermal':
-            return np.sqrt(C.k_B * source.T_g / C.m_p / 3).to(U.km * U.s ** -1)
+            # 3D velocity dispersion of an ideal gas is sqrt(3 * kB * T / mp)
+            # So 1D velocity dispersion is sqrt(kB * T / mp)
+            return np.sqrt(C.k_B * source.T_g / C.m_p).to(U.km * U.s ** -1)
         else:
             return self.sigma_mode
 
