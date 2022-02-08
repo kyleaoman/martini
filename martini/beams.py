@@ -103,7 +103,8 @@ class _BaseBeam(object):
         self.arcsec_to_beam = (
             U.Jy * U.arcsec**-2, U.Jy * U.beam**-1,
             lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
-            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2))
+            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2)
+        )
 
         # can turn 2D beam into a 3D beam here; use above for central channel
         # then shift in frequency up and down for other channels
