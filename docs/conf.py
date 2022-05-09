@@ -1,4 +1,6 @@
 import os
+sys.path.insert(0, os.path.abspath(".."))
+import martini
 
 with open(
         os.path.join(os.path.dirname(__file__), '../martini/VERSION')
