@@ -1,0 +1,8 @@
+sphinx
+sphinx-rtd-theme
+recommonmark
+numpydoc
+numpy
+scipy
+astropy
+
