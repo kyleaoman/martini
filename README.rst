@@ -15,7 +15,7 @@ See the help for martini.Martini_ for an example script to configure MARTINI and
   
   python -c "from martini import demo; demo()"
 
-.. _martini.Martini: https://kyleaoman.github.io/martini/build/html/martini.html
+.. _martini.Martini: https://martini.readthedocs.io/en/latest/martini.html
 
 Martini has (so far) been successfully run on the output of these simulations:
 
@@ -36,10 +36,10 @@ I attempt to support publicly available simulations with a customized source mod
 - Magneticum (martini.sources.MagneticumSource_)
 - Simba (martini.sources.SimbaSource_)
 
-.. _martini.sources.EAGLESource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource
-.. _martini.sources.TNGSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource
-.. _martini.sources.MagneticumSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.MagneticumSource
-.. _martini.sources.SimbaSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.SimbaSource
+.. _martini.sources.EAGLESource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.EAGLESource
+.. _martini.sources.TNGSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.TNGSource
+.. _martini.sources.MagneticumSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.MagneticumSource
+.. _martini.sources.SimbaSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.SimbaSource
    
 If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via kyle.a.oman@durham.ac.uk.
 
@@ -64,15 +64,15 @@ Choose a branch_. The numbered branches (e.g. 1.0.X) are stable, while the maste
 - ``sosource``: Dependencies for the SOSource_ module, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may contact_ me for further information.
 
 .. _branch: https://github.com/kyleaoman/martini/branches
-.. _EAGLESource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.EAGLESource
+.. _EAGLESource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.EAGLESource
 .. _Hdecompose: https://github.com/kyleaoman/Hdecompose
 .. _`Rahmati et al. (2013)`: https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract
 .. _`Blitz & Rosolowsky (2006)`: https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract
 .. _`my python-only version`: https://github.com/kyleaoman/pyread_eagle
 .. _`read_eagle`: https://github.com/jchelly/read_eagle
-.. _TNGSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.TNGSource
-.. _MagneticumSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.MagneticumSource
+.. _TNGSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.TNGSource
+.. _MagneticumSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.MagneticumSource
 .. _`my fork`: https://github.com/kyleaoman/g3t
 .. _`g3t`: https://gitlab.lrz.de/di29bop/g3t
-.. _SOSource: https://kyleaoman.github.io/martini/build/html/source.html#martini.sources.SOSource
+.. _SOSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.SOSource
 .. _contact: mailto:kyle.a.oman@durham.ac.uk
