@@ -14,8 +14,8 @@ The first publication using Martini (before it was named) is this paper_. Stable
 
 MARTINI does not support use with python2.
 
-See the help for martini.Martini_ for an example script to configure MARTINI and create a datacube. This example can be run by doing::
-  
+See the help for martini.Martini_ for an example script to configure MARTINI and create a datacube. This example can be run by doing:
+
   python -c "from martini import demo; demo()"
 
 .. _martini.Martini: https://martini.readthedocs.io/en/latest/martini.html
