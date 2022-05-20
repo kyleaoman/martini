@@ -1,6 +1,6 @@
 import numpy as np
 import astropy.units as U
-from ._sph_source import SPHSource
+from .sph_source import SPHSource
 
 
 class MagneticumSource(SPHSource):

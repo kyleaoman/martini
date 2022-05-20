@@ -1,5 +1,5 @@
 import numpy as np
-from ._sph_source import SPHSource
+from .sph_source import SPHSource
 from ..sph_kernels import WendlandC2Kernel, find_fwhm
 from os.path import join, normpath, sep
 import astropy.units as U

@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.units as U
 import astropy.constants as C
-from ._sph_source import SPHSource
+from .sph_source import SPHSource
 from ..sph_kernels import CubicSplineKernel, find_fwhm
 
 

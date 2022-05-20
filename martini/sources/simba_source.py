@@ -1,5 +1,5 @@
 import numpy as np
-from ._sph_source import SPHSource
+from .sph_source import SPHSource
 from ..sph_kernels import CubicSplineKernel, find_fwhm
 from os.path import join
 from astropy import units as U, constants as C
