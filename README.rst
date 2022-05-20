@@ -3,11 +3,14 @@
 Overview
 ========
 
+.. INTRO_START_LABEL
+
 MARTINI is a modular package for the creation of synthetic resolved HI line observations (data cubes) of smoothed-particle hydrodynamics simulations of galaxies. The various aspects of the mock-observing process are divided logically into sub-modules handling the data cube, source, beam, noise, spectral model and SPH kernel. MARTINI is object-oriented: each sub-module provides a class (or classes) which can be configured as desired. For most sub-modules, base classes are provided to allow for straightforward customization. Instances of each sub-module class are given as parameters to the Martini class; a mock observation is then constructed by calling a handful of functions to execute the desired steps in the mock-observing process.
 
-The package is fully functional and (an old version) has been used in this paper_. Stable releases are available via PyPI (``pip install astromartini``) and the numbered branches on github. The github master branch is under active development: things will change, bugs will happen. Any feedback is greatly appreciated.
+The first publication using Martini (before it was named) is this paper_. Stable releases are available via PyPI (``pip install astromartini``) and the numbered branches on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github or kyle.a.oman@durham.ac.uk.
 
 .. _paper: https://ui.adsabs.harvard.edu/#abs/2019MNRAS.482..821O/abstract
+.. _kyle.a.oman@durham.ac.uk: mailto:kyle.a.oman@durham.ac.uk
 
 MARTINI does not support use with python2.
 
@@ -29,7 +32,9 @@ Martini has (so far) been successfully run on the output of these simulations:
 - Magneticum
 - Simba
 
-I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please contact me at the address below. Currently custom source modules exist for:
+I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please `contact me`_. Currently custom source modules exist for:
+
+.. _contact me: mailto:kyle.a.oman@durham.ac.uk
 
 - EAGLE (martini.sources.EAGLESource_)
 - IllustrisTNG (martini.sources.TNGSource_; also works with Illustris)
@@ -40,20 +45,74 @@ I attempt to support publicly available simulations with a customized source mod
 .. _martini.sources.TNGSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.TNGSource
 .. _martini.sources.MagneticumSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.MagneticumSource
 .. _martini.sources.SimbaSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.SimbaSource
-   
-If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Suport available via kyle.a.oman@durham.ac.uk.
 
-.. _kyle.a.oman@durham.ac.uk: mailto:kyle.a.oman@durham.ac.uk
+.. INTRO_END_LABEL
+
+Citing Martini
+--------------
+
+.. CITING_START_LABEL
+   
+If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Please cite the `Martini entry`_ in the ASCL_ (`indexed on ADS`_), and the `original paper`_:
+
+.. code-block:: bibtex
+
+   @MISC{2019ascl.soft11005O,
+       author = {{Oman}, Kyle A.},
+        title = "{MARTINI: Mock spatially resolved spectral line observations of simulated galaxies}",
+     keywords = {Software},
+ howpublished = {Astrophysics Source Code Library, record ascl:1911.005},
+         year = 2019,
+        month = nov,
+          eid = {ascl:1911.005},
+        pages = {ascl:1911.005},
+archivePrefix = {ascl},
+       eprint = {1911.005},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+   }
+		
+   @ARTICLE{2019MNRAS.482..821O,
+       author = {{Oman}, Kyle A. and {Marasco}, Antonino and {Navarro}, Julio F. and {Frenk}, Carlos S. and {Schaye}, Joop and {Ben{\'\i}tez-Llambay}, Alejandro},
+        title = "{Non-circular motions and the diversity of dwarf galaxy rotation curves}",
+      journal = {\mnras},
+     keywords = {ISM: kinematics and dynamics, galaxies: haloes, galaxies: structure, dark matter, Astrophysics - Astrophysics of Galaxies, Astrophysics - Cosmology and Nongalactic Astrophysics},
+         year = 2019,
+        month = jan,
+       volume = {482},
+       number = {1},
+        pages = {821-847},
+          doi = {10.1093/mnras/sty2687},
+archivePrefix = {arXiv},
+       eprint = {1706.07478},
+ primaryClass = {astro-ph.GA},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+   }
+
+
+.. _Martini entry: https://ascl.net/1911.005
+.. _ASCL: https://ascl.net
+.. _indexed on ADS: https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O/abstract
+.. _original paper: https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O/abstract
+
+.. CITING_END_LABEL
 
 Installation Notes
 ==================
+
+.. INSTALLATION_NOTES_START_LABEL
 
 The easiest way to install martini is from PyPI by doing ``python3 -m pip install astromartini``; python2 is not supported. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. However, some optional features require additional dependencies hosted on github, and PyPI does not allow installing these automatically. In particular, EAGLE and Illustris/TNG users who wish to use the custom source modules for those simulations in Martini must install from github (see below) to automatically install the optional dependencies. Or, it is also possible to install from PyPI and then manually install the optional dependencies.
 
 Installation by doing ``python setup.py install`` is not recommended.
 
+.. INSTALLATION_NOTES_END_LABEL
+
 Installing from github
 ----------------------
+
+.. GITHUB_INSTALLATION_NOTES_START_LABEL
 
 Choose a branch_. The numbered branches (e.g. 1.0.X) are stable, while the master branch is actively developed. The latest numbered branch is usually the best choice. From the branch page (e.g. ``https://github.com/kyleaoman/martini/tree/1.0.X``), click the green 'Clone or download' button and follow instructions to obtain the files. Unpack the zip file if necessary. You should then be able to do ``python3 -m pip install martini/[optional]``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``setup.py`` file for Martini. The currently available options are:
 
@@ -76,3 +135,5 @@ Choose a branch_. The numbered branches (e.g. 1.0.X) are stable, while the maste
 .. _`g3t`: https://gitlab.lrz.de/di29bop/g3t
 .. _SOSource: https://martini.readthedocs.io/en/latest/source.html#martini.sources.SOSource
 .. _contact: mailto:kyle.a.oman@durham.ac.uk
+
+.. GITHUB_INSTALLATION_NOTES_END_LABEL
