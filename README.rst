@@ -139,19 +139,19 @@ Example notebooks_ are available for supported simulations.
 .. QUICKSTART_END_LABEL
 
 .. |martini.Martini| replace:: martini.Martini_
-.. _martini.Martini: https://x.txt
+.. _martini.Martini: https://martini.readthedocs.io/en/latest/modules/martini.martini.html#martini.martini.Martini
 
 .. |martini.sources.EAGLESource| replace:: martini.sources.EAGLESource_
-.. _martini.sources.EAGLESource: https://x.txt
+.. _martini.sources.EAGLESource: https://martini.readthedocs.io/en/latest/modules/martini.sources.eagle_source.html#martini.sources.eagle_source.EAGLESource
 
 .. |martini.sources.TNGSource| replace:: martini.sources.TNGSource_
-.. _martini.sources.TNGSource: https://x.txt
+.. _martini.sources.TNGSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.tng_source.html#martini.sources.tng_source.TNGSource
 
 .. |martini.sources.MagneticumSource| replace:: martini.sources.MagneticumSource_
-.. _martini.sources.MagneticumSource: https://x.txt
+.. _martini.sources.MagneticumSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.magneticum_source.html#martini.sources.magneticum_source.MagneticumSource
 
 .. |martini.sources.SimbaSource| replace:: martini.sources.SimbaSource_
-.. _martini.sources.SimbaSource: https://x.txt
+.. _martini.sources.SimbaSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource
 
 .. |martini.sources.SOSource| replace:: martini.sources.SOSource_
-.. _martini.sources.SOSource: https://x.txt
+.. _martini.sources.SOSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource
