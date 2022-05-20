@@ -58,37 +58,37 @@ If your use of MARTINI leads to a publication, please acknowledge this and link 
 .. code-block:: bibtex
 
    @MISC{2019ascl.soft11005O,
-       author = {{Oman}, Kyle A.},
-        title = "{MARTINI: Mock spatially resolved spectral line observations of simulated galaxies}",
-     keywords = {Software},
- howpublished = {Astrophysics Source Code Library, record ascl:1911.005},
-         year = 2019,
-        month = nov,
-          eid = {ascl:1911.005},
-        pages = {ascl:1911.005},
-archivePrefix = {ascl},
-       eprint = {1911.005},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O},
-      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
-   }
-		
+        author = {{Oman}, Kyle A.},
+         title = "{MARTINI: Mock spatially resolved spectral line observations of simulated galaxies}",
+      keywords = {Software},
+  howpublished = {Astrophysics Source Code Library, record ascl:1911.005},
+          year = 2019,
+         month = nov,
+           eid = {ascl:1911.005},
+         pages = {ascl:1911.005},
+ archivePrefix = {ascl},
+        eprint = {1911.005},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O},
+       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+    }
+   
    @ARTICLE{2019MNRAS.482..821O,
-       author = {{Oman}, Kyle A. and {Marasco}, Antonino and {Navarro}, Julio F. and {Frenk}, Carlos S. and {Schaye}, Joop and {Ben{\'\i}tez-Llambay}, Alejandro},
-        title = "{Non-circular motions and the diversity of dwarf galaxy rotation curves}",
-      journal = {\mnras},
-     keywords = {ISM: kinematics and dynamics, galaxies: haloes, galaxies: structure, dark matter, Astrophysics - Astrophysics of Galaxies, Astrophysics - Cosmology and Nongalactic Astrophysics},
-         year = 2019,
-        month = jan,
-       volume = {482},
-       number = {1},
-        pages = {821-847},
-          doi = {10.1093/mnras/sty2687},
-archivePrefix = {arXiv},
-       eprint = {1706.07478},
- primaryClass = {astro-ph.GA},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O},
-      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
-   }
+        author = {{Oman}, Kyle A. and {Marasco}, Antonino and {Navarro}, Julio F. and {Frenk}, Carlos S. and {Schaye}, Joop and {Ben{\'\i}tez-Llambay}, Alejandro},
+         title = "{Non-circular motions and the diversity of dwarf galaxy rotation curves}",
+       journal = {\mnras},
+      keywords = {ISM: kinematics and dynamics, galaxies: haloes, galaxies: structure, dark matter, Astrophysics - Astrophysics of Galaxies, Astrophysics - Cosmology and Nongalactic Astrophysics},
+          year = 2019,
+         month = jan,
+        volume = {482},
+        number = {1},
+         pages = {821-847},
+           doi = {10.1093/mnras/sty2687},
+ archivePrefix = {arXiv},
+        eprint = {1706.07478},
+  primaryClass = {astro-ph.GA},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O},
+       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+    }
 
 
 .. _Martini entry: https://ascl.net/1911.005
