@@ -1,24 +1,28 @@
-.. MARTINI documentation master file, created by
-   sphinx-quickstart on Fri Dec 14 14:35:29 2018.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+.. image:: images/martini_banner.png
 
-.. image:: martini_banner.png
+In a hurry? :doc:`Quick-start <getting_started/index>`.
+
+.. include:: ../../README.rst
+   :start-after: INTRO_START_LABEL
+   :end-before: INTRO_END_LABEL
+
+Documentation contents
+----------------------
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   includeme
-   martini
-   datacube
-   source
-   beam
-   noise
-   spectral_model
-   sph_kernel
+   getting_started/index
+   modules/index
 
+Citing Martini
+--------------
 
+.. include:: ../../README.rst
+   :start-after: CITING_START_LABEL
+   :end-before: CITING_END_LABEL
+   
 Indices and tables
 ==================
 
