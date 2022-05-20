@@ -2,16 +2,16 @@
 
 In a hurry? :doc:`Quick-start <getting_started/index>`.
 
+Overview
+========
+
 .. include:: ../../README.rst
    :start-after: INTRO_START_LABEL
    :end-before: INTRO_END_LABEL
 
-Documentation contents
-----------------------
-
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Documentation contents
 
    getting_started/index
    modules/index
@@ -24,7 +24,7 @@ Citing Martini
    :end-before: CITING_END_LABEL
    
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
