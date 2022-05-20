@@ -85,7 +85,7 @@ class _CrossSource(SPHSource):
         super().__init__(
             distance=distance,
             vpeculiar=vpeculiar,
-            rotation={'rotmat': np.eye(3)},
+            rotation=rotation,
             ra=ra,
             dec=dec,
             h=.7,
