@@ -38,11 +38,11 @@ class GaussianNoise(_BaseNoise):
 
     Parameters
     ----------
-    rms : Quantity, with dimensions of flux density (e.g. Jy)
+    rms : Quantity, with dimensions of flux density per solid angle
         Root mean square amplitude of the noise field.
     """
 
-    def __init__(self, rms=1.0 * U.Jy):
+    def __init__(self, rms=1.0 * U.Jy * U.arcsec ** -2):
 
         self.rms = rms
 
