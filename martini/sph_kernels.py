@@ -815,12 +815,14 @@ class GaussianKernel(_BaseSPHKernel):
         """
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
-        zmax = np.where(
-            self.truncate > dr / h / sig,
-            np.sqrt(
+        with np.errstate(invalid="ignore"):
+            zmax = np.sqrt(
                 np.power(self.truncate, 2)
                 - np.power(dr / h / sig, 2)
-            ),
+            )
+        zmax = np.where(
+            self.truncate > dr / h / sig,
+            zmax,
             0
         )
         x0 = (dij[0] - .5 * U.pix) / h / np.sqrt(2) / sig
