@@ -38,3 +38,31 @@ def m():
     M.add_noise()
     M.convolve_beam()
     yield M
+
+
+@pytest.fixture(scope="function")
+def m_nn():
+
+    source = _SingleParticleSource()
+    datacube = DataCube(
+        n_px_x=16,
+        n_px_y=16,
+        n_channels=16,
+        velocity_centre=source.distance * 70 * U.km / U.s / U.Mpc
+    )
+    beam = GaussianBeam()
+    noise = None
+    sph_kernel = GaussianKernel()
+    spectral_model = GaussianSpectrum()
+
+    M = Martini(
+        source=source,
+        datacube=datacube,
+        beam=beam,
+        noise=noise,
+        sph_kernel=sph_kernel,
+        spectral_model=spectral_model,
+    )
+    M.insert_source_in_cube()
+    M.convolve_beam()
+    yield M
