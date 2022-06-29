@@ -22,7 +22,7 @@ def m():
         velocity_centre=source.distance * 70 * U.km / U.s / U.Mpc
     )
     beam = GaussianBeam()
-    noise = GaussianNoise()
+    noise = GaussianNoise(rms=1.e-9 * U.Jy * U.arcsec ** -2)
     sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
