@@ -16,9 +16,7 @@ from astropy import units as U
 # SingleParticleSource has a mass of 1E4Msun,
 # smoothing length of 1kpc, temperature of 1E4K
 
-source = SingleParticleSource(
-    distance=3 * U.Mpc
-)
+source = SingleParticleSource(distance=3 * U.Mpc)
 
 datacube = DataCube(
     n_px_x=64,
@@ -28,13 +26,10 @@ datacube = DataCube(
     channel_width=10 * U.km / U.s,
     velocity_centre=source.vsys,
     ra=source.ra,
-    dec=source.dec
+    dec=source.dec,
 )
 
-beam = GaussianBeam(
-    bmaj=30 * U.arcsec,
-    bmin=30 * U.arcsec
-)
+beam = GaussianBeam(bmaj=30 * U.arcsec, bmin=30 * U.arcsec)
 
 noise = None
 
@@ -49,7 +44,7 @@ M = Martini(
     beam=beam,
     noise=noise,
     spectral_model=spectral_model,
-    sph_kernel=sph_kernel
+    sph_kernel=sph_kernel,
 )
 
 M.insert_source_in_cube(printfreq=None)
@@ -68,27 +63,30 @@ D = source.distance
 dv = datacube.channel_width
 
 # flux
-F = (Irad / A).to(U.Jy / U.arcsec ** 2) * datacube.px_size ** 2
+F = (Irad / A).to(U.Jy / U.arcsec**2) * datacube.px_size**2
 
 # HI mass
-MHI = 2.36E5 * U.Msun \
-    * D.to(U.Mpc).value ** 2 \
-    * F.to(U.Jy).value \
+MHI = (
+    2.36e5
+    * U.Msun
+    * D.to(U.Mpc).value ** 2
+    * F.to(U.Jy).value
     * dv.to(U.km / U.s).value
+)
 
 # demand accuracy within 1%
 try:
     assert np.isclose(
-        MHI.to(U.Msun).value,
-        source.mHI_g.sum().to(U.Msun).value,
-        rtol=1E-2
+        MHI.to(U.Msun).value, source.mHI_g.sum().to(U.Msun).value, rtol=1e-2
     )
 except AssertionError:
-    print('Mass in cube is {:.10f} of input value.'.format(
-        MHI.to(U.Msun).value / source.mHI_g.sum().to(U.Msun).value
-    ))
+    print(
+        "Mass in cube is {:.10f} of input value.".format(
+            MHI.to(U.Msun).value / source.mHI_g.sum().to(U.Msun).value
+        )
+    )
 else:
-    print('Mass is OK within 1%.')
+    print("Mass is OK within 1%.")
 
 # This should probably be a separate test:
 # M.write_fits('m.fits')

@@ -2,10 +2,10 @@ import numpy as np
 import astropy.units as U
 from astropy import wcs
 
-HIfreq = 1.420405751E9 * U.Hz
+HIfreq = 1.420405751e9 * U.Hz
 
 
-class DataCube():
+class DataCube:
     """
     Handles creation and management of the data cube itself.
 
@@ -49,15 +49,17 @@ class DataCube():
     load_state
     """
 
-    def __init__(self,
-                 n_px_x=256,
-                 n_px_y=256,
-                 n_channels=64,
-                 px_size=15. * U.arcsec,
-                 channel_width=4. * U.km * U.s**-1,
-                 velocity_centre=0. * U.km * U.s**-1,
-                 ra=0. * U.deg,
-                 dec=0. * U.deg):
+    def __init__(
+        self,
+        n_px_x=256,
+        n_px_y=256,
+        n_channels=64,
+        px_size=15.0 * U.arcsec,
+        channel_width=4.0 * U.km * U.s**-1,
+        velocity_centre=0.0 * U.km * U.s**-1,
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
+    ):
 
         datacube_unit = U.Jy * U.pix**-2
         self._array = np.zeros((n_px_x, n_px_y, n_channels, 1)) * datacube_unit
@@ -71,23 +73,24 @@ class DataCube():
         self.pady = 0
         self.wcs = wcs.WCS(naxis=3)
         self.wcs.wcs.crpix = [
-            self.n_px_x / 2. + .5, self.n_px_y / 2. + .5, self.n_channels // 2
+            self.n_px_x / 2.0 + 0.5,
+            self.n_px_y / 2.0 + 0.5,
+            self.n_channels // 2,
         ]
         self.units = [U.deg, U.deg, U.m * U.s**-1]
-        self.wcs.wcs.cunit = [unit.to_string('fits') for unit in self.units]
+        self.wcs.wcs.cunit = [unit.to_string("fits") for unit in self.units]
         self.wcs.wcs.cdelt = [
             -self.px_size.to(self.units[0]).value,
             self.px_size.to(self.units[1]).value,
-            self.channel_width.to(self.units[2]).value
+            self.channel_width.to(self.units[2]).value,
         ]
         self.wcs.wcs.crval = [
             self.ra.to(self.units[0]).value,
             self.dec.to(self.units[1]).value,
-            self.velocity_centre.to(self.units[2]).value
+            self.velocity_centre.to(self.units[2]).value,
         ]
-        self.wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN', 'VELO-OBS']
-        self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs,
-                                                    self.wcs.wcs.naxis)
+        self.wcs.wcs.ctype = ["RA---TAN", "DEC--TAN", "VELO-OBS"]
+        self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         self._channel_mids()
         self._channel_edges()
         self._freq_channel_mode = False
@@ -98,20 +101,32 @@ class DataCube():
         """
         Calculate the centres of the channels from the coordinate system.
         """
-        self.channel_mids = self.wcs.wcs_pix2world(
-            np.zeros(self.n_channels), np.zeros(self.n_channels),
-            np.arange(self.n_channels), np.zeros(self.n_channels),
-            0)[2] * self.units[2]
+        self.channel_mids = (
+            self.wcs.wcs_pix2world(
+                np.zeros(self.n_channels),
+                np.zeros(self.n_channels),
+                np.arange(self.n_channels),
+                np.zeros(self.n_channels),
+                0,
+            )[2]
+            * self.units[2]
+        )
         return
 
     def _channel_edges(self):
         """
         Calculate the edges of the channels from the coordinate system.
         """
-        self.channel_edges = self.wcs.wcs_pix2world(
-            np.zeros(self.n_channels + 1), np.zeros(self.n_channels + 1),
-            np.arange(self.n_channels + 1) - .5, np.zeros(self.n_channels + 1),
-            0)[2] * self.units[2]
+        self.channel_edges = (
+            self.wcs.wcs_pix2world(
+                np.zeros(self.n_channels + 1),
+                np.zeros(self.n_channels + 1),
+                np.arange(self.n_channels + 1) - 0.5,
+                np.zeros(self.n_channels + 1),
+                0,
+            )[2]
+            * self.units[2]
+        )
         return
 
     def spatial_slices(self):
@@ -134,8 +149,9 @@ class DataCube():
         out : iterator
             Iterator over the spectra (one in each spatial pixel).
         """
-        return iter(self._array[..., 0].reshape(self.n_px_x * self.n_px_y,
-                                                self.n_channels))
+        return iter(
+            self._array[..., 0].reshape(self.n_px_x * self.n_px_y, self.n_channels)
+        )
 
     def freq_channels(self):
         """
@@ -147,14 +163,17 @@ class DataCube():
 
             def convert_to_Hz(q):
                 return q.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
-            self.wcs.wcs.cdelt[2] = \
-                np.abs(convert_to_Hz(self.wcs.wcs.cdelt[2] * self.units[2])
-                       - convert_to_Hz(0. * self.units[2])).value
-            self.wcs.wcs.crval[2] = \
-                convert_to_Hz(self.wcs.wcs.crval[2] * self.units[2]).value
-            self.wcs.wcs.ctype[2] = 'FREQ-OBS'
+
+            self.wcs.wcs.cdelt[2] = np.abs(
+                convert_to_Hz(self.wcs.wcs.cdelt[2] * self.units[2])
+                - convert_to_Hz(0.0 * self.units[2])
+            ).value
+            self.wcs.wcs.crval[2] = convert_to_Hz(
+                self.wcs.wcs.crval[2] * self.units[2]
+            ).value
+            self.wcs.wcs.ctype[2] = "FREQ-OBS"
             self.units[2] = U.Hz
-            self.wcs.wcs.cunit[2] = self.units[2].to_string('fits')
+            self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
             self._channel_mids()
             self._channel_edges()
             self._freq_channel_mode = True
@@ -170,14 +189,17 @@ class DataCube():
 
             def convert_to_ms(q):
                 return q.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
-            self.wcs.wcs.cdelt[2] = \
-                np.abs(convert_to_ms(self.wcs.wcs.cdelt[2] * self.units[2])
-                       - convert_to_ms(0. * self.units[2])).value
-            self.wcs.wcs.crval[2] = \
-                convert_to_ms(self.wcs.wcs.crval[2] * self.units[2]).value
-            self.wcs.wcs.ctype[2] = 'VELO-OBS'
+
+            self.wcs.wcs.cdelt[2] = np.abs(
+                convert_to_ms(self.wcs.wcs.cdelt[2] * self.units[2])
+                - convert_to_ms(0.0 * self.units[2])
+            ).value
+            self.wcs.wcs.crval[2] = convert_to_ms(
+                self.wcs.wcs.crval[2] * self.units[2]
+            ).value
+            self.wcs.wcs.ctype[2] = "VELO-OBS"
             self.units[2] = U.m * U.s**-1
-            self.wcs.wcs.cunit[2] = self.units[2].to_string('fits')
+            self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
             self._channel_mids()
             self._channel_edges()
             self._freq_channel_mode = False
@@ -203,10 +225,11 @@ class DataCube():
         """
 
         tmp = self._array
-        self._array = np.zeros((self.n_px_x + pad[0] * 2,
-                                self.n_px_y + pad[1] * 2, self.n_channels, 1))
+        self._array = np.zeros(
+            (self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels, 1)
+        )
         self._array = self._array * tmp.unit
-        self._array[pad[0]:-pad[0], pad[1]:-pad[1], ...] = tmp
+        self._array[pad[0] : -pad[0], pad[1] : -pad[1], ...] = tmp
         self.wcs.wcs.crpix += np.array([pad[0], pad[1], 0, 0])
         self.padx, self.pady = pad
         return
@@ -225,8 +248,7 @@ class DataCube():
 
         if (self.padx == 0) and (self.pady == 0):
             return
-        self._array = self._array[self.padx:-self.padx, self.pady:-self.pady,
-                                  ...]
+        self._array = self._array[self.padx : -self.padx, self.pady : -self.pady, ...]
         self.wcs.wcs.crpix -= np.array([self.padx, self.pady, 0, 0])
         self.padx, self.pady = 0, 0
         return
@@ -243,9 +265,16 @@ class DataCube():
         out : DataCube
             Copy of the DataCube object.
         """
-        copy = DataCube(self.n_px_x, self.n_px_y, self.n_channels,
-                        self.px_size, self.channel_width, self.velocity_centre,
-                        self.ra, self.dec)
+        copy = DataCube(
+            self.n_px_x,
+            self.n_px_y,
+            self.n_channels,
+            self.px_size,
+            self.channel_width,
+            self.velocity_centre,
+            self.ra,
+            self.dec,
+        )
         copy.padx, copy.pady = self.padx, self.pady
         copy.wcs = self.wcs
         copy._array = self._array.copy()
@@ -271,29 +300,27 @@ class DataCube():
         load_state
         """
         import h5py
-        mode = 'w' if overwrite else 'w-'
+
+        mode = "w" if overwrite else "w-"
         with h5py.File(filename, mode=mode) as f:
-            f['_array'] = self._array.value
-            f['_array'].attrs['datacube_unit'] = str(self._array.unit)
-            f['_array'].attrs['n_px_x'] = self.n_px_x
-            f['_array'].attrs['n_px_y'] = self.n_px_y
-            f['_array'].attrs['n_channels'] = self.n_channels
-            f['_array'].attrs['px_size'] = self.px_size.value
-            f['_array'].attrs['px_size_unit'] = str(self.px_size.unit)
-            f['_array'].attrs['channel_width'] = self.channel_width.value
-            f['_array'].attrs['channel_width_unit'] = \
-                str(self.channel_width.unit)
-            f['_array'].attrs['velocity_centre'] = self.velocity_centre.value
-            f['_array'].attrs['velocity_centre_unit'] = \
-                str(self.velocity_centre.unit)
-            f['_array'].attrs['ra'] = self.ra.value
-            f['_array'].attrs['ra_unit'] = str(self.ra.unit)
-            f['_array'].attrs['dec'] = self.dec.value
-            f['_array'].attrs['dec_unit'] = str(self.dec.unit)
-            f['_array'].attrs['padx'] = self.padx
-            f['_array'].attrs['pady'] = self.pady
-            f['_array'].attrs['_freq_channel_mode'] = \
-                int(self._freq_channel_mode)
+            f["_array"] = self._array.value
+            f["_array"].attrs["datacube_unit"] = str(self._array.unit)
+            f["_array"].attrs["n_px_x"] = self.n_px_x
+            f["_array"].attrs["n_px_y"] = self.n_px_y
+            f["_array"].attrs["n_channels"] = self.n_channels
+            f["_array"].attrs["px_size"] = self.px_size.value
+            f["_array"].attrs["px_size_unit"] = str(self.px_size.unit)
+            f["_array"].attrs["channel_width"] = self.channel_width.value
+            f["_array"].attrs["channel_width_unit"] = str(self.channel_width.unit)
+            f["_array"].attrs["velocity_centre"] = self.velocity_centre.value
+            f["_array"].attrs["velocity_centre_unit"] = str(self.velocity_centre.unit)
+            f["_array"].attrs["ra"] = self.ra.value
+            f["_array"].attrs["ra_unit"] = str(self.ra.unit)
+            f["_array"].attrs["dec"] = self.dec.value
+            f["_array"].attrs["dec_unit"] = str(self.dec.unit)
+            f["_array"].attrs["padx"] = self.padx
+            f["_array"].attrs["pady"] = self.pady
+            f["_array"].attrs["_freq_channel_mode"] = int(self._freq_channel_mode)
         return
 
     @classmethod
@@ -319,20 +346,22 @@ class DataCube():
         save_state
         """
         import h5py
-        with h5py.File(filename, mode='r') as f:
-            n_px_x = f['_array'].attrs['n_px_x']
-            n_px_y = f['_array'].attrs['n_px_y']
-            n_channels = f['_array'].attrs['n_channels']
-            px_size = f['_array'].attrs['px_size'] \
-                * U.Unit(f['_array'].attrs['px_size_unit'])
-            channel_width = f['_array'].attrs['channel_width'] \
-                * U.Unit(f['_array'].attrs['channel_width_unit'])
-            velocity_centre = f['_array'].attrs['velocity_centre'] \
-                * U.Unit(f['_array'].attrs['velocity_centre_unit'])
-            ra = f['_array'].attrs['ra'] \
-                * U.Unit(f['_array'].attrs['ra_unit'])
-            dec = f['_array'].attrs['dec'] \
-                * U.Unit(f['_array'].attrs['dec_unit'])
+
+        with h5py.File(filename, mode="r") as f:
+            n_px_x = f["_array"].attrs["n_px_x"]
+            n_px_y = f["_array"].attrs["n_px_y"]
+            n_channels = f["_array"].attrs["n_channels"]
+            px_size = f["_array"].attrs["px_size"] * U.Unit(
+                f["_array"].attrs["px_size_unit"]
+            )
+            channel_width = f["_array"].attrs["channel_width"] * U.Unit(
+                f["_array"].attrs["channel_width_unit"]
+            )
+            velocity_centre = f["_array"].attrs["velocity_centre"] * U.Unit(
+                f["_array"].attrs["velocity_centre_unit"]
+            )
+            ra = f["_array"].attrs["ra"] * U.Unit(f["_array"].attrs["ra_unit"])
+            dec = f["_array"].attrs["dec"] * U.Unit(f["_array"].attrs["dec_unit"])
             D = cls(
                 n_px_x=n_px_x,
                 n_px_y=n_px_y,
@@ -341,12 +370,12 @@ class DataCube():
                 channel_width=channel_width,
                 velocity_centre=velocity_centre,
                 ra=ra,
-                dec=dec
+                dec=dec,
             )
-            D.add_pad((f['_array'].attrs['padx'], f['_array'].attrs['pady']))
-            if bool(f['_array'].attrs['_freq_channel_mode']):
+            D.add_pad((f["_array"].attrs["padx"], f["_array"].attrs["pady"]))
+            if bool(f["_array"].attrs["_freq_channel_mode"]):
                 D.freq_channels()
-            D._array = f['_array'] * U.Unit(f['_array'].attrs['datacube_unit'])
+            D._array = f["_array"] * U.Unit(f["_array"].attrs["datacube_unit"])
         return D
 
     def __repr__(self):

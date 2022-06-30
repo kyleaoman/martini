@@ -2,7 +2,7 @@ import os
 
 
 class Lines(list):
-    ind = '    '
+    ind = "    "
 
     def __init__(self, *args, **kwargs):
         self.nind = 0
@@ -18,13 +18,13 @@ class Lines(list):
         return
 
     def append(self, l):
-        super().append(self.nind * self.ind + l + '\n')
+        super().append(self.nind * self.ind + l + "\n")
         return
 
 
 def gencodemeta():
     with open(
-            os.path.join(os.path.dirname(__file__), 'martini', 'VERSION')
+        os.path.join(os.path.dirname(__file__), "martini", "VERSION")
     ) as version_file:
         version = version_file.read().strip()
 
@@ -51,23 +51,19 @@ def gencodemeta():
                 "@type": "Person",
                 "givenName": "Kyle A.",
                 "familyName": "Oman",
-                "@id": "0000-0001-9857-7788"
+                "@id": "0000-0001-9857-7788",
             }
         ],
         "citation": "https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O",
-        "relatedLink": [
-            "https://pypi.org/project/astromartini"
-        ],
-        "codeRepository": [
-            "https://github.com/kyleaoman/martini"
-        ],
+        "relatedLink": ["https://pypi.org/project/astromartini"],
+        "codeRepository": ["https://github.com/kyleaoman/martini"],
         "version": version,
-        "license": "https://spdx.org/licenses/GPL-3.0-only.html"
+        "license": "https://spdx.org/licenses/GPL-3.0-only.html",
     }
 
     L = Lines()
 
-    L.append('{')
+    L.append("{")
     L.indent()
     for k, v in fields.items():
         if isinstance(v, str):
@@ -79,20 +75,20 @@ def gencodemeta():
                 if isinstance(l, str):
                     L.append('"{:s}",'.format(l))
                 elif isinstance(l, dict):
-                    L.append('{')
+                    L.append("{")
                     L.indent()
                     for kk, vv in l.items():
                         L.append('"{:s}": "{:s}",'.format(kk, vv))
                     L.unindent()
-                    L.append('},')
+                    L.append("},")
                 else:
-                    raise RuntimeError('Unhandled!')
+                    raise RuntimeError("Unhandled!")
             L.unindent()
-            L.append('],')
+            L.append("],")
         else:
-            raise RuntimeError('Unhandled!')
+            raise RuntimeError("Unhandled!")
     L.unindent()
-    L.append('}')
+    L.append("}")
 
-    with open('codemeta.json', 'w') as f:
+    with open("codemeta.json", "w") as f:
         f.writelines(L)

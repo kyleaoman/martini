@@ -48,10 +48,7 @@ class _BaseBeam(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self,
-                 bmaj=15. * U.arcsec,
-                 bmin=15. * U.arcsec,
-                 bpa=0. * U.deg):
+    def __init__(self, bmaj=15.0 * U.arcsec, bmin=15.0 * U.arcsec, bpa=0.0 * U.deg):
         # some beams need information from the datacube; in this case make
         # their call to _BaseBeam.__init__ with bmaj == bmin == bpa == None
         # and define a init_beam_header, to be called after the ra, dec,
@@ -101,9 +98,10 @@ class _BaseBeam(object):
         # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
         # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
         self.arcsec_to_beam = (
-            U.Jy * U.arcsec**-2, U.Jy * U.beam**-1,
+            U.Jy * U.arcsec**-2,
+            U.Jy * U.beam**-1,
             lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
-            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2)
+            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
         )
 
         # can turn 2D beam into a 3D beam here; use above for central channel
@@ -168,11 +166,9 @@ class GaussianBeam(_BaseBeam):
         Number of FWHM at which to truncate the beam image.
     """
 
-    def __init__(self,
-                 bmaj=15. * U.arcsec,
-                 bmin=15. * U.arcsec,
-                 bpa=0. * U.deg,
-                 truncate=4.):
+    def __init__(
+        self, bmaj=15.0 * U.arcsec, bmin=15.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
+    ):
         self.truncate = truncate
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return
@@ -193,28 +189,29 @@ class GaussianBeam(_BaseBeam):
         """
 
         def fwhm_to_sigma(fwhm):
-            return fwhm / (2. * np.sqrt(2. * np.log(2.)))
+            return fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
 
         sigmamaj = fwhm_to_sigma(self.bmaj)
         sigmamin = fwhm_to_sigma(self.bmin)
 
-        a = np.power(np.cos(self.bpa), 2) / (2. * np.power(sigmamin, 2)) \
-            + np.power(np.sin(self.bpa), 2) / (2. * np.power(sigmamaj, 2))
+        a = np.power(np.cos(self.bpa), 2) / (2.0 * np.power(sigmamin, 2)) + np.power(
+            np.sin(self.bpa), 2
+        ) / (2.0 * np.power(sigmamaj, 2))
         # signs set for CCW rotation (PA)
-        b = -np.sin(2. * self.bpa) / (4 * np.power(sigmamin, 2)) \
-            + np.sin(2. * self.bpa) / (4 * np.power(sigmamaj, 2))
-        c = np.power(np.sin(self.bpa), 2) / (2. * np.power(sigmamin, 2)) \
-            + np.power(np.cos(self.bpa), 2) / (2. * np.power(sigmamaj, 2))
-        A = np.power(2. * np.pi * sigmamin * sigmamaj, -1)
-        A *= np.power(
-            self.px_size, 2
-        ).value
+        b = -np.sin(2.0 * self.bpa) / (4 * np.power(sigmamin, 2)) + np.sin(
+            2.0 * self.bpa
+        ) / (4 * np.power(sigmamaj, 2))
+        c = np.power(np.sin(self.bpa), 2) / (2.0 * np.power(sigmamin, 2)) + np.power(
+            np.cos(self.bpa), 2
+        ) / (2.0 * np.power(sigmamaj, 2))
+        A = np.power(2.0 * np.pi * sigmamin * sigmamaj, -1)
+        A *= np.power(self.px_size, 2).value
         # above causes an extra factor of pixel area, need to track this down
         # properly an see whether correction should apply to all beams, or
         # somewhere else?
 
         return lambda x, y: A * np.exp(
-            -a * np.power(x, 2) - 2. * b * x * y - c * np.power(y, 2)
+            -a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2)
         )
 
     def kernel_size_px(self):
@@ -227,10 +224,14 @@ class GaussianBeam(_BaseBeam):
         out : 2-tuple, each element an integer.
         """
 
-        size = np.ceil(
-            (self.bmaj * self.truncate)
-            .to(U.pix, U.pixel_scale(self.px_size / U.pix))
-        ).value + 1
+        size = (
+            np.ceil(
+                (self.bmaj * self.truncate).to(
+                    U.pix, U.pixel_scale(self.px_size / U.pix)
+                )
+            ).value
+            + 1
+        )
         return size, size
 
 
@@ -247,8 +248,7 @@ class WSRTBeam(_BaseBeam):
     '<martini directory>/data/beam00_freq02.fits'
     """
 
-    beamfile = os.path.join(
-        os.path.dirname(__file__), 'data/beam00_freq02.fits')
+    beamfile = os.path.join(os.path.dirname(__file__), "data/beam00_freq02.fits")
 
     def __init__(self):
         super().__init__(bmaj=None, bmin=None, bpa=None)
@@ -262,8 +262,7 @@ class WSRTBeam(_BaseBeam):
         out : 2-tuple containing an astropy.io.fits.Header and a Quantity.
         """
         with fits.open(self.beamfile) as f:
-            return f[0].header, np.transpose(
-                f[0].data, axes=(1, 2, 0)) * U.Jy / U.beam
+            return f[0].header, np.transpose(f[0].data, axes=(1, 2, 0)) * U.Jy / U.beam
 
     def _centroid(self):
         """
@@ -279,23 +278,23 @@ class WSRTBeam(_BaseBeam):
         bheader, bdata = self._load_beamfile()
         c = wcs.WCS(header=bheader)
         RAgrid, Decgrid, freqgrid = c.wcs_pix2world(
-            *np.meshgrid(*tuple([np.arange(N) for N in bdata.shape])), 0)
+            *np.meshgrid(*tuple([np.arange(N) for N in bdata.shape])), 0
+        )
         RAgrid *= U.deg
         Decgrid *= U.deg
         freqgrid *= U.Hz
-        return tuple([
-            A[tuple(np.array(bdata.shape) // 2)]
-            for A in (RAgrid, Decgrid, freqgrid)
-        ])
+        return tuple(
+            [A[tuple(np.array(bdata.shape) // 2)] for A in (RAgrid, Decgrid, freqgrid)]
+        )
 
     def init_beam_header(self):
         """
         Set beam major/minor axis lengths and position angle to WSRT values.
         """
 
-        self.bmaj = 15. * U.arcsec / np.sin(self.dec)
-        self.bmin = 15. * U.arcsec
-        self.bpa = 90. * U.deg
+        self.bmaj = 15.0 * U.arcsec / np.sin(self.dec)
+        self.bmin = 15.0 * U.arcsec
+        self.bpa = 90.0 * U.deg
         return
 
     def f_kernel(self):
@@ -313,21 +312,26 @@ class WSRTBeam(_BaseBeam):
             array_like of corresponding size.
         """
 
-        if self.dec <= 0. * U.deg:
-            raise ValueError('WSRT beam requires positive declination.')
+        if self.dec <= 0.0 * U.deg:
+            raise ValueError("WSRT beam requires positive declination.")
         freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
-        bpx_ra = np.abs(bheader['CDELT1'] * U.deg).to(U.arcsec)
-        bpx_dec = np.abs(bheader['CDELT2'] * U.deg).to(U.arcsec)
-        dRAs = np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1) \
-            * bpx_ra * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        dDecs = np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1) \
-            * bpx_dec * np.sin(self.dec) / np.sin(centroid[1]) \
-            * (centroid[2] / freq)\
-            .to(U.dimensionless_unscaled)
-        interpolator = RectBivariateSpline(
-            dRAs, dDecs, bdata[..., 0], kx=1, ky=1, s=0)
+        bpx_ra = np.abs(bheader["CDELT1"] * U.deg).to(U.arcsec)
+        bpx_dec = np.abs(bheader["CDELT2"] * U.deg).to(U.arcsec)
+        dRAs = (
+            np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1)
+            * bpx_ra
+            * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        )
+        dDecs = (
+            np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1)
+            * bpx_dec
+            * np.sin(self.dec)
+            / np.sin(centroid[1])
+            * (centroid[2] / freq).to(U.dimensionless_unscaled)
+        )
+        interpolator = RectBivariateSpline(dRAs, dDecs, bdata[..., 0], kx=1, ky=1, s=0)
         # RectBivariateSpline is a wrapper around Fortran code and causes a
         # transpose
         return lambda x, y: interpolator(y, x, grid=False).T
@@ -345,20 +349,31 @@ class WSRTBeam(_BaseBeam):
         out : 2-tuple, each element an integer.
         """
 
-        if self.px_size > 12. * U.arcsec:
+        if self.px_size > 12.0 * U.arcsec:
             warnings.warn(
                 "Using WSRT beam with datacube pixel size >> 8 arcsec,"
-                " beam interpolation may fail.")
+                " beam interpolation may fail."
+            )
         freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
         bheader, bdata = self._load_beamfile()
         centroid = self._centroid()
-        aspect_x, aspect_y = np.floor(
-            bdata.shape[0] // 2 * np.sin(self.dec)), bdata.shape[1] // 2
-        aspect_x = aspect_x * np.abs((bheader['CDELT1'] * U.deg)).to(U.arcsec)\
+        aspect_x, aspect_y = (
+            np.floor(bdata.shape[0] // 2 * np.sin(self.dec)),
+            bdata.shape[1] // 2,
+        )
+        aspect_x = (
+            aspect_x
+            * np.abs((bheader["CDELT1"] * U.deg)).to(U.arcsec)
             * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        aspect_y = aspect_y * (bheader['CDELT2'] * U.deg).to(U.arcsec) \
+        )
+        aspect_y = (
+            aspect_y
+            * (bheader["CDELT2"] * U.deg).to(U.arcsec)
             * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        return tuple([
-            (a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1
-            for a in (aspect_x, aspect_y)
-        ])
+        )
+        return tuple(
+            [
+                (a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1
+                for a in (aspect_x, aspect_y)
+            ]
+        )

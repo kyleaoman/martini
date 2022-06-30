@@ -42,7 +42,7 @@ class GaussianNoise(_BaseNoise):
         Root mean square amplitude of the noise field.
     """
 
-    def __init__(self, rms=1.0 * U.Jy * U.arcsec ** -2):
+    def __init__(self, rms=1.0 * U.Jy * U.arcsec**-2):
 
         self.rms = rms
 
@@ -70,7 +70,7 @@ class GaussianNoise(_BaseNoise):
             Noise realization with size matching the DataCube._array.
         """
 
-        return np.random.normal(
-            scale=self.rms.value,
-            size=datacube._array.shape
-        ) * self.rms.unit
+        return (
+            np.random.normal(scale=self.rms.value, size=datacube._array.shape)
+            * self.rms.unit
+        )

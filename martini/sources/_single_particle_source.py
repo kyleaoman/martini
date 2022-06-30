@@ -32,24 +32,24 @@ class _SingleParticleSource(SPHSource):
     """
 
     def __init__(
-            self,
-            distance=3 * U.Mpc,
-            vpeculiar=0 * U.km / U.s,
-            ra=0. * U.deg,
-            dec=0. * U.deg
+        self,
+        distance=3 * U.Mpc,
+        vpeculiar=0 * U.km / U.s,
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
     ):
 
         super().__init__(
             distance=distance,
             vpeculiar=vpeculiar,
-            rotation={'rotmat': np.eye(3)},
+            rotation={"rotmat": np.eye(3)},
             ra=ra,
             dec=dec,
-            h=.7,
-            T_g=np.ones(1) * 1.E4 * U.K,
-            mHI_g=np.ones(1) * 1.E4 * U.solMass,
-            xyz_g=np.ones((1, 3)) * 1.E-3 * U.kpc,
-            vxyz_g=np.zeros((1, 3)) * U.km * U.s ** -1,
-            hsm_g=np.ones(1) * U.kpc
-            )
+            h=0.7,
+            T_g=np.ones(1) * 1.0e4 * U.K,
+            mHI_g=np.ones(1) * 1.0e4 * U.solMass,
+            xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,
+            vxyz_g=np.zeros((1, 3)) * U.km * U.s**-1,
+            hsm_g=np.ones(1) * U.kpc,
+        )
         return

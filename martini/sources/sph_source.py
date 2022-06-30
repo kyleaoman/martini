@@ -1,17 +1,16 @@
 import numpy as np
-from astropy.coordinates import CartesianRepresentation,\
-    CartesianDifferential, ICRS
+from astropy.coordinates import CartesianRepresentation, CartesianDifferential, ICRS
 from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
 
 # Extend CartesianRepresentation to allow coordinate translation
-setattr(CartesianRepresentation, 'translate', translate)
+setattr(CartesianRepresentation, "translate", translate)
 
 # Extend CartesianDifferential to allow velocity (or other differential)
 # translation
-setattr(CartesianDifferential, 'translate', translate_d)
+setattr(CartesianDifferential, "translate", translate_d)
 
 
 class SPHSource(object):
@@ -89,19 +88,19 @@ class SPHSource(object):
     """
 
     def __init__(
-            self,
-            distance=3. * U.Mpc,
-            vpeculiar=0. * U.km / U.s,
-            rotation={'rotmat': np.eye(3)},
-            ra=0.*U.deg,
-            dec=0.*U.deg,
-            h=.7,
-            T_g=None,
-            mHI_g=None,
-            xyz_g=None,
-            vxyz_g=None,
-            hsm_g=None,
-            coordinate_axis=None
+        self,
+        distance=3.0 * U.Mpc,
+        vpeculiar=0.0 * U.km / U.s,
+        rotation={"rotmat": np.eye(3)},
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
+        h=0.7,
+        T_g=None,
+        mHI_g=None,
+        xyz_g=None,
+        vxyz_g=None,
+        hsm_g=None,
+        coordinate_axis=None,
     ):
 
         if coordinate_axis is None:
@@ -110,26 +109,31 @@ class SPHSource(object):
             elif (xyz_g.shape[0] != 3) and (xyz_g.shape[1] == 3):
                 coordinate_axis = 1
             elif xyz_g.shape == (3, 3):
-                raise RuntimeError("martini.sources.SPHSource: cannot guess "
-                                   "coordinate_axis with shape (3, 3), provide"
-                                   " explicitly.")
+                raise RuntimeError(
+                    "martini.sources.SPHSource: cannot guess "
+                    "coordinate_axis with shape (3, 3), provide"
+                    " explicitly."
+                )
             else:
-                raise RuntimeError("martini.sources.SPHSource: incorrect "
-                                   "coordinate shape (not (3, N) or (N, 3)).")
+                raise RuntimeError(
+                    "martini.sources.SPHSource: incorrect "
+                    "coordinate shape (not (3, N) or (N, 3))."
+                )
 
         if xyz_g.shape != vxyz_g.shape:
-            raise ValueError("martini.sources.SPHSource: xyz_g and vxyz_g must"
-                             " have matching shapes.")
+            raise ValueError(
+                "martini.sources.SPHSource: xyz_g and vxyz_g must"
+                " have matching shapes."
+            )
         self.h = h
         self.T_g = T_g
         self.mHI_g = mHI_g
         self.coordinates_g = CartesianRepresentation(
             xyz_g,
             xyz_axis=coordinate_axis,
-            differentials={'s': CartesianDifferential(
-                vxyz_g,
-                xyz_axis=coordinate_axis
-            )}
+            differentials={
+                "s": CartesianDifferential(vxyz_g, xyz_axis=coordinate_axis)
+            },
         )
         self.hsm_g = hsm_g
 
@@ -142,17 +146,18 @@ class SPHSource(object):
         self.rotation = rotation
         self.current_rotation = np.eye(3)
         self.rotate(**self.rotation)
-        self.rotate(axis_angle=('y', self.dec))
-        self.rotate(axis_angle=('z', -self.ra))
-        direction_vector = np.array([
-            np.cos(self.ra) * np.cos(self.dec),
-            np.sin(self.ra) * np.cos(self.dec),
-            np.sin(self.dec)
-        ])
+        self.rotate(axis_angle=("y", self.dec))
+        self.rotate(axis_angle=("z", -self.ra))
+        direction_vector = np.array(
+            [
+                np.cos(self.ra) * np.cos(self.dec),
+                np.sin(self.ra) * np.cos(self.dec),
+                np.sin(self.dec),
+            ]
+        )
         distance_vector = direction_vector * self.distance
         self.translate_position(distance_vector)
-        self.vsys = \
-            (self.h * 100.0 * U.km * U.s ** -1 * U.Mpc ** - 1) * self.distance
+        self.vsys = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
         hubble_flow_vector = direction_vector * self.vsys
         vpeculiar_vector = direction_vector * self.vpeculiar
         self.translate_velocity(hubble_flow_vector + vpeculiar_vector)
@@ -177,7 +182,7 @@ class SPHSource(object):
         self.hsm_g = self.hsm_g[mask]
         self.npart = np.sum(mask)
         if self.npart == 0:
-            raise RuntimeError('No source particles in target region.')
+            raise RuntimeError("No source particles in target region.")
         return
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
@@ -210,21 +215,22 @@ class SPHSource(object):
         do_rot = np.eye(3)
 
         if axis_angle is not None:
-            do_rot = rotation_matrix(
-                axis_angle[1],
-                axis=axis_angle[0]
-            ).dot(do_rot)
+            do_rot = rotation_matrix(axis_angle[1], axis=axis_angle[0]).dot(do_rot)
 
         if rotmat is not None:
             do_rot = rotmat.dot(do_rot)
 
         if L_coords is not None:
             incl, az_rot = L_coords
-            do_rot = L_align(self.coordinates_g.get_xyz(),
-                             self.coordinates_g.differentials['s'].get_d_xyz(),
-                             self.mHI_g, frac=.3, Laxis='x').dot(do_rot)
-            do_rot = rotation_matrix(az_rot, axis='x').dot(do_rot)
-            do_rot = rotation_matrix(incl, axis='y').dot(do_rot)
+            do_rot = L_align(
+                self.coordinates_g.get_xyz(),
+                self.coordinates_g.differentials["s"].get_d_xyz(),
+                self.mHI_g,
+                frac=0.3,
+                Laxis="x",
+            ).dot(do_rot)
+            do_rot = rotation_matrix(az_rot, axis="x").dot(do_rot)
+            do_rot = rotation_matrix(incl, axis="y").dot(do_rot)
 
         self.current_rotation = do_rot.dot(self.current_rotation)
         self.coordinates_g = self.coordinates_g.transform(do_rot)
@@ -259,8 +265,9 @@ class SPHSource(object):
             Vector by which to offset the source particle velocities.
         """
 
-        self.coordinates_g.differentials['s'] = \
-            self.coordinates_g.differentials['s'].translate(translation_vector)
+        self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
+            "s"
+        ].translate(translation_vector)
         return
 
     def save_current_rotation(self, fname):

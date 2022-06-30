@@ -8,166 +8,168 @@ import subprocess
 from time import sleep
 from _gencodemeta import gencodemeta
 
-pkgname = 'astromartini'
-condash = '~/.miniconda3/etc/profile.d/conda.sh'
+pkgname = "astromartini"
+condash = "~/.miniconda3/etc/profile.d/conda.sh"
 
-print('Ensure conda.sh is found.')
+print("Ensure conda.sh is found.")
 if not os.path.isfile(os.path.expanduser(condash)):
-    raise IOError('conda.sh not found, check path in _makedist.py')
+    raise IOError("conda.sh not found, check path in _makedist.py")
 
 
 def run_chk(s, allow_fail=False):
-    print('system> ', s)
+    print("system> ", s)
     ec = os.system(s)
     if not allow_fail and (ec != 0):
         raise RuntimeError(ec)
     return
 
 
-pyversion = sys.version.split(' ')[0]
+pyversion = sys.version.split(" ")[0]
 pkgdir = os.path.dirname(os.path.realpath(__file__))
 os.chdir(pkgdir)
-version_file = os.path.join(pkgdir, 'martini', 'VERSION')
+version_file = os.path.join(pkgdir, "martini", "VERSION")
 with open(version_file) as vf:
-    version = tuple(vf.read().strip().split('.'))
+    version = tuple(vf.read().strip().split("."))
 
-passwd = getpass('Preparing {:s}-{:s}.{:s}, enter PyPI password to'
-                 ' continue: '.format(pkgname, *version))
+passwd = getpass(
+    "Preparing {:s}-{:s}.{:s}, enter PyPI password to"
+    " continue: ".format(pkgname, *version)
+)
 
-run_chk('pip install --upgrade setuptools wheel twine')
+run_chk("pip install --upgrade setuptools wheel twine")
 
-run_chk('git checkout master')
-print('Ensure codemeta.json reflects current version.')
+run_chk("git checkout master")
+print("Ensure codemeta.json reflects current version.")
 gencodemeta()
-print('Check that git master branch is ready and committed.')
-run_chk('git add .')
+print("Check that git master branch is ready and committed.")
+run_chk("git add .")
 try:
     run_chk('git commit -m "Autocommit by _makedist."')
 except RuntimeError as e:
     if e.args[0] == 256:  # nothing to commit
         pass
-print('Autocommitted changes, check these are desired:')
-run_chk('git diff HEAD^ HEAD')
+print("Autocommitted changes, check these are desired:")
+run_chk("git diff HEAD^ HEAD")
 
 try:
-    run_chk('git branch {:s}.{:s}'.format(*version))
+    run_chk("git branch {:s}.{:s}".format(*version))
 except RuntimeError as e:
     if e.args[0] != 32768:
         raise
     # branch exists, make sure it's up to date
-    run_chk('git checkout {:s}.{:s}'.format(*version))
-    run_chk('git merge master')
+    run_chk("git checkout {:s}.{:s}".format(*version))
+    run_chk("git merge master")
 else:
-    run_chk('git push --set-upstream origin {:s}.{:s}'.format(*version))
+    run_chk("git push --set-upstream origin {:s}.{:s}".format(*version))
 
 # rebuild docs
-run_chk('git checkout docs')
-run_chk('git merge {:s}.{:s}'.format(*version))
-run_chk('rm -r {:s}'.format(os.path.join(pkgdir, 'docs', 'build')))
-os.chdir(os.path.join(pkgdir, 'docs'))
-run_chk('make html')
+run_chk("git checkout docs")
+run_chk("git merge {:s}.{:s}".format(*version))
+run_chk("rm -r {:s}".format(os.path.join(pkgdir, "docs", "build")))
+os.chdir(os.path.join(pkgdir, "docs"))
+run_chk("make html")
 os.chdir(pkgdir)
-run_chk('git add docs')
+run_chk("git add docs")
 try:
     run_chk('git commit -m "Rebuilt docs."')
 except RuntimeError as e:
     if e.args[0] == 256:  # nothing to commit
         pass
-run_chk('git checkout master')
-run_chk('git merge docs')
-run_chk('git checkout {:s}.{:s}'.format(*version))
-run_chk('git merge docs')
+run_chk("git checkout master")
+run_chk("git merge docs")
+run_chk("git checkout {:s}.{:s}".format(*version))
+run_chk("git merge docs")
 
 
 def distprefix(rc=None):
     if rc is None:
-        return '{:s}-{:s}.{:s}'.format(pkgname, *version)
+        return "{:s}-{:s}.{:s}".format(pkgname, *version)
     else:
-        return '{:s}-{:s}.{:s}.{:d}'.format(pkgname, *version, rc)
+        return "{:s}-{:s}.{:s}.{:d}".format(pkgname, *version, rc)
 
 
 def whlname(rc=None):
-    return distprefix(rc=rc) + '-py3-none-any.whl'
+    return distprefix(rc=rc) + "-py3-none-any.whl"
 
 
 def tarname(rc=None):
-    return distprefix(rc=rc) + '.tar.gz'
+    return distprefix(rc=rc) + ".tar.gz"
 
 
 rcc = 0
 
 errtxt = subprocess.run(
-    'pip install --index-url https://test.pypi.org/simple/ --no-deps'
-    ' {:s}==NULL'.format(pkgname),
+    "pip install --index-url https://test.pypi.org/simple/ --no-deps"
+    " {:s}==NULL".format(pkgname),
     shell=True,
     universal_newlines=True,
     stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE
+    stderr=subprocess.PIPE,
 ).stderr
 compatible_test_versions = [
-    v for v in errtxt.split('from versions: ')[1].split(')')[0].split(', ')
-    if v.startswith('.'.join(version))
+    v
+    for v in errtxt.split("from versions: ")[1].split(")")[0].split(", ")
+    if v.startswith(".".join(version))
 ]
 if len(compatible_test_versions) == 0:
     rcc = 0
 else:
     previous = compatible_test_versions[-1]
-    rcc = int(previous.split('.')[-1]) + 1
+    rcc = int(previous.split(".")[-1]) + 1
 
 # generate setup.py for test-pypi
 gensetup(for_pypi=True, test_subversion=rcc)
 try:
     # generate distribution archives
-    run_chk('python setup.py sdist bdist_wheel')
+    run_chk("python setup.py sdist bdist_wheel")
 finally:
     # revert setup.py no matter what
     gensetup(for_pypi=False)
 # upload to test.pypi
 twine_settings = TwineSettings(
-    username='kyleaoman',
+    username="kyleaoman",
     password=passwd,
-    repository_url='https://test.pypi.org/legacy/'
+    repository_url="https://test.pypi.org/legacy/",
 )
 try:
     twine_upload(
-        twine_settings,
-        (os.path.join('dist', '{:s}*'.format(distprefix(rc=rcc))), )
+        twine_settings, (os.path.join("dist", "{:s}*".format(distprefix(rc=rcc))),)
     )
 finally:
-    run_chk('rm {:s}.*'.format(os.path.join('dist', distprefix())))
+    run_chk("rm {:s}.*".format(os.path.join("dist", distprefix())))
 
 # check that the uploaded package is visible on test pypi
 while True:
     errtxt = subprocess.run(
-        'pip install --index-url https://test.pypi.org/simple/ --no-deps'
-        ' {:s}==NULL'.format(pkgname),
+        "pip install --index-url https://test.pypi.org/simple/ --no-deps"
+        " {:s}==NULL".format(pkgname),
         shell=True,
         universal_newlines=True,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
     ).stderr
-    if '{:s}.{:s}.{:d}'.format(*version, rcc) in \
-       errtxt.split('from versions: ')[1].split(')')[0].split(', '):
+    if "{:s}.{:s}.{:d}".format(*version, rcc) in errtxt.split("from versions: ")[
+        1
+    ].split(")")[0].split(", "):
         break
-    print('Test pypi index slow to sync, waiting 10s...')
+    print("Test pypi index slow to sync, waiting 10s...")
     sleep(10)
 
 # check that the uploaded package works
-run_chk('conda create -y --name={:s}-test python={:s}'.format(
-    pkgname, pyversion))
+run_chk("conda create -y --name={:s}-test python={:s}".format(pkgname, pyversion))
 try:
     CP = subprocess.run(
-        ". {:s} && ".format(condash) +
-        "conda activate {:s}-test && ".format(pkgname) +
-        "cd && " +
-        "mkdir {:s}-test-scratch && ".format(pkgname) +
-        "cd {:s}-test-scratch && ".format(pkgname) +
-        "pip install numpy astropy scipy && " +
-        "pip install --index-url https://test.pypi.org/simple/ --no-deps"
-        " {:s}=={:s}.{:s}.{:d} && ".format(pkgname, *version, rcc) +
-        "python -c 'from martini import demo;demo()'",
+        ". {:s} && ".format(condash)
+        + "conda activate {:s}-test && ".format(pkgname)
+        + "cd && "
+        + "mkdir {:s}-test-scratch && ".format(pkgname)
+        + "cd {:s}-test-scratch && ".format(pkgname)
+        + "pip install numpy astropy scipy && "
+        + "pip install --index-url https://test.pypi.org/simple/ --no-deps"
+        " {:s}=={:s}.{:s}.{:d} && ".format(pkgname, *version, rcc)
+        + "python -c 'from martini import demo;demo()'",
         shell=True,
-        executable='/bin/bash'
+        executable="/bin/bash",
     )
     if CP.returncode != 0:
         raise RuntimeError
@@ -175,39 +177,34 @@ try:
     # e.g. use actual python tests interface
 finally:
     # this directory may not exist, allow failure
-    run_chk('rm -r $HOME/{:s}-test-scratch'.format(pkgname), allow_fail=True)
-    run_chk('conda env remove -y --name {:s}-test'.format(pkgname))
+    run_chk("rm -r $HOME/{:s}-test-scratch".format(pkgname), allow_fail=True)
+    run_chk("conda env remove -y --name {:s}-test".format(pkgname))
 
 # tests passed, so let's prepare final upload
 # generate setup.py for pypi
 gensetup(for_pypi=True)
 try:
     # generate distribution archives
-    run_chk('python setup.py sdist bdist_wheel')
+    run_chk("python setup.py sdist bdist_wheel")
 finally:
     # revert setup.py no matter what
     gensetup(for_pypi=False)
 
-twine_settings = TwineSettings(
-    username='kyleaoman',
-    password=passwd
+twine_settings = TwineSettings(username="kyleaoman", password=passwd)
+conf = input(
+    "Ready to upload {:s}-{:s}.{:s} to PyPI. Confirm?".format(pkgname, *version)
 )
-conf = input('Ready to upload {:s}-{:s}.{:s} to PyPI. Confirm?'.format(
-    pkgname, *version))
-if conf in ('y', 'Y', 'yes', 'YES', 'Yes'):
-    twine_upload(
-        twine_settings,
-        (os.path.join('dist', '{:s}*'.format(distprefix())), )
-    )
+if conf in ("y", "Y", "yes", "YES", "Yes"):
+    twine_upload(twine_settings, (os.path.join("dist", "{:s}*".format(distprefix())),))
 # still on version branch
-run_chk('git add .')
+run_chk("git add .")
 try:
     run_chk('git commit -m "Ensure git branch matches pypi."')
 except RuntimeError as e:
     if e.args[0] == 256:  # nothing to commit
         pass
-run_chk('git push')
-run_chk('git checkout docs')
-run_chk('git push')
-run_chk('git checkout master')
-run_chk('git push')
+run_chk("git push")
+run_chk("git checkout docs")
+run_chk("git push")
+run_chk("git checkout master")
+run_chk("git push")
