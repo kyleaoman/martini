@@ -191,8 +191,8 @@ class GaussianBeam(_BaseBeam):
         def fwhm_to_sigma(fwhm):
             return fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
 
-        sigmamaj = fwhm_to_sigma(self.bmaj)
-        sigmamin = fwhm_to_sigma(self.bmin)
+        sigmamaj = fwhm_to_sigma(self.bmaj)  # arcsec
+        sigmamin = fwhm_to_sigma(self.bmin)  # arcsec
 
         a = np.power(np.cos(self.bpa), 2) / (2.0 * np.power(sigmamin, 2)) + np.power(
             np.sin(self.bpa), 2
@@ -204,7 +204,7 @@ class GaussianBeam(_BaseBeam):
         c = np.power(np.sin(self.bpa), 2) / (2.0 * np.power(sigmamin, 2)) + np.power(
             np.cos(self.bpa), 2
         ) / (2.0 * np.power(sigmamaj, 2))
-        A = np.power(2.0 * np.pi * sigmamin * sigmamaj, -1)
+        A = np.power(2.0 * np.pi * sigmamin * sigmamaj, -1)  # arcsec^-2
         A *= np.power(self.px_size, 2).value
         # above causes an extra factor of pixel area, need to track this down
         # properly an see whether correction should apply to all beams, or
@@ -334,7 +334,7 @@ class WSRTBeam(_BaseBeam):
         interpolator = RectBivariateSpline(dRAs, dDecs, bdata[..., 0], kx=1, ky=1, s=0)
         # RectBivariateSpline is a wrapper around Fortran code and causes a
         # transpose
-        return lambda x, y: interpolator(y, x, grid=False).T
+        return lambda x, y: interpolator(y, x, grid=False).T * U.arcsec**-2
 
     def kernel_size_px(self):
         """
