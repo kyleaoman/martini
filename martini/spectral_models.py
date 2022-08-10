@@ -1,12 +1,8 @@
 import numpy as np
 import astropy.units as U
 from astropy import constants as C
-from scipy.special import erf as _erf
+from scipy.special import erf
 from abc import ABCMeta, abstractmethod
-
-
-def erf(z):
-    return _erf(z.to(U.dimensionless_unscaled).value)
 
 
 class _BaseSpectrum(object):
@@ -218,14 +214,12 @@ class GaussianSpectrum(_BaseSpectrum):
             The evaluated spectral model.
         """
 
-        # erf strips units
         return (
             0.5
             * (
                 erf((b - vmids) / (np.sqrt(2.0) * sigma))
                 - erf((a - vmids) / (np.sqrt(2.0) * sigma))
             )
-            * U.dimensionless_unscaled
         )
 
     def spectral_function_kwargs(self, source):
