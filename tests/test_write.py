@@ -48,7 +48,6 @@ class TestWrite:
         with fits.open(filename) as f:
             hdr = f[0].header
         try:
-            print(hdr)
             assert "FREQ" in hdr["CTYPE3"]
         finally:
             os.remove(filename)
@@ -59,7 +58,6 @@ class TestWrite:
         with fits.open(filename) as f:
             hdr = f[0].header
         try:
-            print(hdr)
             assert "VOPT" in hdr["CTYPE3"]
         finally:
             os.remove(filename)
