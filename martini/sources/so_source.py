@@ -37,7 +37,10 @@ class SOSource(SPHSource):
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about 'y').
+        momentum pole (rotation about 'x'), and inclined (rotation about \
+        'y'). A 3-tuple may be provided instead, in which case the third \
+        value specifies the position angle on the sky (rotation about 'x'). \
+        The default position angle is 270 degrees.
 
         (Default: rotmat with the identity rotation.)
 

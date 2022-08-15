@@ -48,7 +48,10 @@ class SPHSource(object):
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about 'y').
+        momentum pole (rotation about 'x'), and inclined (rotation about \
+        'y'). A 3-tuple may be provided instead, in which case the third \
+        value specifies the position angle on the sky (rotation about 'x'). \
+        The default position angle is 270 degrees.
 
         (Default: rotmat with the identity rotation.)
 
@@ -196,15 +199,17 @@ class SPHSource(object):
             angle to rotate through.
         rotmat : array_like with shape (3, 3)
             Rotation matrix.
-        L_coords : 2-tuple
-            First element containing an inclination and second element an
+        L_coords : 2-tuple or 3-tuple
+            First element containing an inclination, second element an
             azimuthal angle (both Quantity instances with
             dimensions of angle). The routine will first attempt to identify
             a preferred plane based on the angular momenta of the central 1/3
             of particles in the source. This plane will then be rotated to lie
             in the 'y-z' plane, followed by a rotation by the azimuthal angle
-            about its angular momentum pole (rotation about 'x'), and finally
-            inclined (rotation about 'y').
+            about its angular momentum pole (rotation about 'x'), and then
+            inclined (rotation about 'y'). By default the position angle on the
+            sky is 270 degrees, but if a third element is provided it sets the
+            position angle (rotation about 'z').
         """
 
         do_rot = np.eye(3)
@@ -219,12 +224,17 @@ class SPHSource(object):
             do_rot = rotmat.dot(do_rot)
 
         if L_coords is not None:
-            incl, az_rot = L_coords
+            if len(L_coords) == 2:
+                incl, az_rot = L_coords
+                pa = 270 * U.deg
+            elif len(L_coords) == 3:
+                incl, az_rot, pa = L_coords
             do_rot = L_align(self.coordinates_g.get_xyz(),
                              self.coordinates_g.differentials['s'].get_d_xyz(),
                              self.mHI_g, frac=.3, Laxis='x').dot(do_rot)
             do_rot = rotation_matrix(az_rot, axis='x').dot(do_rot)
             do_rot = rotation_matrix(incl, axis='y').dot(do_rot)
+            do_rot = rotation_matrix(pa - 270 * U.deg, axis='x').dot(do_rot)
 
         self.current_rotation = do_rot.dot(self.current_rotation)
         self.coordinates_g = self.coordinates_g.transform(do_rot)
