@@ -36,8 +36,9 @@ class _BaseSpectrum(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self):
+    def __init__(self, spec_dtype=np.float64):
         self.spectra = None
+        self.spec_dtype = spec_dtype
         return
 
     def init_spectra(self, source, datacube):
@@ -71,23 +72,23 @@ class _BaseSpectrum(object):
             lambda x: 2.36e5 * x,
         )
         spectral_function_kwargs = {
-            k: np.tile(v, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim).T
+            k: np.tile(v, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim).astype(self.spec_dtype).T
             for k, v in self.spectral_function_kwargs(source).items()
         }
         raw_spectra = (
             self.spectral_function(
-                np.tile(channel_edges.value[:-1], vmids.shape + (1,))
-                * channel_edges.unit,
-                np.tile(channel_edges.value[1:], vmids.shape + (1,))
-                * channel_edges.unit,
-                np.tile(vmids.value, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim).T
-                * vmids.unit,
+                (np.tile(channel_edges.value[:-1], vmids.shape + (1,))
+                 * channel_edges.unit).astype(self.spec_dtype),
+                (np.tile(channel_edges.value[1:], vmids.shape + (1,))
+                 * channel_edges.unit).astype(self.spec_dtype),
+                (np.tile(vmids.value, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim).T
+                 * vmids.unit).astype(self.spec_dtype),
                 **spectral_function_kwargs
             )
             .to(U.dimensionless_unscaled)
             .value
         )
-        self.spectra = (A[..., np.newaxis] * raw_spectra / channel_widths).to(
+        self.spectra = (A.astype(self.spec_dtype)[..., np.newaxis] * raw_spectra / channel_widths.astype(self.spec_dtype)).to(
             U.Jy, equivalencies=[MHI_Jy]
         )
 
@@ -182,10 +183,10 @@ class GaussianSpectrum(_BaseSpectrum):
     DiracDeltaSpectrum
     """
 
-    def __init__(self, sigma=7.0 * U.km * U.s**-1):
+    def __init__(self, sigma=7.0 * U.km * U.s**-1, spec_dtype=np.float64):
 
         self.sigma_mode = sigma
-        super().__init__()
+        super().__init__(spec_dtype=spec_dtype)
 
         return
 
@@ -272,8 +273,8 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     velocity.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, spec_dtype=np.float64):
+        super().__init__(spec_dtype=spec_dtype)
         return
 
     def spectral_function(self, a, b, vmids):
