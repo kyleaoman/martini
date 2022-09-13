@@ -1,9 +1,12 @@
 import pytest
+import numpy as np
 from math import isclose
 from martini import DataCube
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from martini.sources import _SingleParticleSource
 from astropy import units as U
+
+spectral_models = GaussianSpectrum, DiracDeltaSpectrum
 
 
 class TestGaussianSpectrum:
@@ -106,3 +109,14 @@ class TestDiracDeltaSpectrum:
         spectral_model = DiracDeltaSpectrum()
         kwargs = spectral_model.spectral_function_kwargs(source)
         assert len(kwargs) == 0
+
+
+class TestSpectrumPrecision:
+    @pytest.mark.parametrize("SpectralModel", spectral_models)
+    @pytest.mark.parametrize("dtype", (np.float64, np.float32))
+    def test_spectrum_precision(self, SpectralModel, dtype):
+        source = _SingleParticleSource()
+        spectral_model = SpectralModel(spec_dtype=dtype)
+        datacube = DataCube()
+        spectral_model.init_spectra(source, datacube)
+        assert spectral_model.spectra.dtype == dtype
