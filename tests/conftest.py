@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 from astropy import units as U
 from martini.martini import Martini
 from martini.datacube import DataCube
@@ -66,3 +67,19 @@ def m_nn():
     M.insert_source_in_cube()
     M.convolve_beam()
     yield M
+
+
+@pytest.fixture(scope="function")
+def dc():
+
+    dc = DataCube(
+        n_px_x=16,
+        n_px_y=16,
+        n_channels=32,
+    )
+
+    dc._array[...] = (
+        np.random.rand(dc._array.size).reshape(dc._array.shape) * dc._array.unit
+    )
+
+    yield dc
