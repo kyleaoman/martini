@@ -111,15 +111,15 @@ class SimbaSource(SPHSource):
             h = f["Header"].attrs["HubbleParam"]
             lbox = f["Header"].attrs["BoxSize"] / h * U.kpc
             gas = f["PartType0"]
-            fH = gas["Metallicity"][()][:, 0]
+            fZ = gas["Metallicity"][()][:, 0]
             fHe = gas["Metallicity"][()][:, 1]
+            fH = 1 - fHe - fZ
             xe = gas["ElectronAbundance"][()]
             particles = dict(
                 xyz_g=gas["Coordinates"][()] * a / h * U.kpc,
                 vxyz_g=gas["Velocities"][()] * np.sqrt(a) * U.km / U.s,
                 T_g=(
-                    (1 + 4 * fHe / (1 - fHe))
-                    / (1 + fHe / 4 / (1 - fHe) + xe)
+                    (4 / (1 + 3 * fH + 4 * fH * xe))
                     * C.m_p
                     * (gamma - 1)
                     * gas["InternalEnergy"][()]
