@@ -9,8 +9,11 @@ import numpy as np
 from scipy.optimize import fsolve
 
 
-def demo(cubefile='testcube.fits', beamfile='testbeam.fits',
-         hdf5file='testcube.hdf5'):
+def demo(
+    cubefile="testcube.fits",
+    beamfile="testbeam.fits",
+    hdf5file="testcube.hdf5",
+):
     """
     Demonstrates basic usage of MARTINI.
 
@@ -33,67 +36,65 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits',
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
+
         def f(r):
-            return L - .5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
-        r.append(fsolve(f, 1.)[0])
+            return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
+
+        r.append(fsolve(f, 1.0)[0])
     r = np.array(r)
     # exponential disk
     r *= 3 / np.sort(r)[N // 2]
     z = -np.log(np.random.rand(N))
     # exponential scale height
-    z *= .5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - .5)
+    z *= 0.5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - 0.5)
     x = r * np.cos(phi)
     y = r * np.sin(phi)
     xyz_g = np.vstack((x, y, z)) * U.kpc
     # linear rotation curve
-    vphi = 100 * r / 6.
+    vphi = 100 * r / 6.0
     vx = -vphi * np.sin(phi)
     vy = vphi * np.cos(phi)
     # small pure random z velocities
-    vz = (np.random.rand(N) * 2. - 1.) * 5
-    vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s ** -1
-    T_g = np.ones(N) * 8E3 * U.K
-    mHI_g = np.ones(N) / N * 5.E9 * U.Msun
+    vz = (np.random.rand(N) * 2.0 - 1.0) * 5
+    vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
+    T_g = np.ones(N) * 8e3 * U.K
+    mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
     # ~mean interparticle spacing smoothing
     hsm_g = np.ones(N) * 2 / np.sqrt(N) * U.kpc
     # ---------------------------------
 
     source = SPHSource(
-        distance=5. * U.Mpc,
-        rotation={'L_coords': (60. * U.deg, 0. * U.deg)},
-        ra=0. * U.deg,
-        dec=0. * U.deg,
-        h=.7,
+        distance=5.0 * U.Mpc,
+        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
+        h=0.7,
         T_g=T_g,
         mHI_g=mHI_g,
         xyz_g=xyz_g,
         vxyz_g=vxyz_g,
-        hsm_g=hsm_g
+        hsm_g=hsm_g,
     )
 
     datacube = DataCube(
         n_px_x=128,
         n_px_y=128,
         n_channels=32,
-        px_size=10. * U.arcsec,
-        channel_width=10. * U.km * U.s ** -1,
-        velocity_centre=source.vsys
+        px_size=10.0 * U.arcsec,
+        channel_width=10.0 * U.km * U.s**-1,
+        velocity_centre=source.vsys,
     )
 
     beam = GaussianBeam(
-        bmaj=30. * U.arcsec,
-        bmin=30. * U.arcsec,
-        bpa=0. * U.deg,
-        truncate=4.
+        bmaj=30.0 * U.arcsec,
+        bmin=30.0 * U.arcsec,
+        bpa=0.0 * U.deg,
+        truncate=4.0,
     )
 
-    noise = GaussianNoise(
-        rms=3.E-4 * U.Jy * U.arcsec ** -2
-    )
+    noise = GaussianNoise(rms=3.0e-4 * U.Jy * U.arcsec**-2)
 
-    spectral_model = GaussianSpectrum(
-        sigma=7 * U.km * U.s ** -1
-    )
+    spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
     sph_kernel = DiracDeltaKernel()
 
@@ -103,17 +104,17 @@ def demo(cubefile='testcube.fits', beamfile='testbeam.fits',
         beam=beam,
         noise=noise,
         spectral_model=spectral_model,
-        sph_kernel=sph_kernel
+        sph_kernel=sph_kernel,
     )
 
     M.insert_source_in_cube()
     M.add_noise()
     M.convolve_beam()
-    M.write_beam_fits(beamfile, channels='velocity')
-    M.write_fits(cubefile, channels='velocity')
+    M.write_beam_fits(beamfile, channels="velocity")
+    M.write_fits(cubefile, channels="velocity")
     try:
-        M.write_hdf5(hdf5file, channels='velocity')
+        M.write_hdf5(hdf5file, channels="velocity")
     except ModuleNotFoundError:
-        print('h5py package not present, skipping hdf5 output demo.')
+        print("h5py package not present, skipping hdf5 output demo.")
 
     return

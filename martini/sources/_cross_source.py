@@ -67,23 +67,23 @@ class _CrossSource(SPHSource):
     """
 
     def __init__(
-            self,
-            distance=3. * U.Mpc,
-            vpeculiar=0 * U.km / U.s,
-            rotation={'rotmat': np.eye(3)},
-            ra=0. * U.deg,
-            dec=0. * U.deg
+        self,
+        distance=3.0 * U.Mpc,
+        vpeculiar=0 * U.km / U.s,
+        rotation={"rotmat": np.eye(3)},
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
     ):
 
-        xyz_g = np.array([[0, 1, 0],
-                          [0, 0, 2],
-                          [0, -3, 0],
-                          [0, 0, -4]]) * U.kpc
+        xyz_g = (
+            np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]]) * U.kpc
+        )
 
-        vxyz_g = np.array([[0, 0, 1],
-                           [0, -1, 0],
-                           [0, 0, -1],
-                           [0, 1, 0]]) * U.km * U.s ** -1
+        vxyz_g = (
+            np.array([[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]])
+            * U.km
+            * U.s**-1
+        )
 
         super().__init__(
             distance=distance,
@@ -91,11 +91,11 @@ class _CrossSource(SPHSource):
             rotation=rotation,
             ra=ra,
             dec=dec,
-            h=.7,
-            T_g=np.ones(4) * 1.E4 * U.K,
-            mHI_g=np.ones(4) * 1.E4 * U.solMass,
+            h=0.7,
+            T_g=np.ones(4) * 1.0e4 * U.K,
+            mHI_g=np.ones(4) * 1.0e4 * U.solMass,
             xyz_g=xyz_g,
             vxyz_g=vxyz_g,
-            hsm_g=np.ones(4) * U.kpc
+            hsm_g=np.ones(4) * U.kpc,
         )
         return

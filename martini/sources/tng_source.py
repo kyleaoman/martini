@@ -73,15 +73,15 @@ class TNGSource(SPHSource):
     """
 
     def __init__(
-            self,
-            basePath,
-            snapNum,
-            subID,
-            distance=3.*U.Mpc,
-            vpeculiar=0*U.km/U.s,
-            rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
-            ra=0.*U.deg,
-            dec=0.*U.deg
+        self,
+        basePath,
+        snapNum,
+        subID,
+        distance=3.0 * U.Mpc,
+        vpeculiar=0 * U.km / U.s,
+        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
     ):
 
         # optional dependencies for this source class
@@ -92,77 +92,104 @@ class TNGSource(SPHSource):
         X_H = 0.76
         data_header = loadHeader(basePath, snapNum)
         data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
-        haloID = data_sub['SubhaloGrNr']
-        fields_g = ('Masses', 'Velocities', 'InternalEnergy',
-                    'ElectronAbundance', 'Density')
+        haloID = data_sub["SubhaloGrNr"]
+        fields_g = (
+            "Masses",
+            "Velocities",
+            "InternalEnergy",
+            "ElectronAbundance",
+            "Density",
+        )
         subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
-        data_g = loadSubset(basePath, snapNum, 'gas', fields=fields_g,
-                            subset=subset_g)
+        data_g = loadSubset(
+            basePath, snapNum, "gas", fields=fields_g, subset=subset_g
+        )
         try:
-            data_g.update(loadSubset(basePath, snapNum, 'gas',
-                                     fields=('CenterOfMass', ),
-                                     subset=subset_g, sq=False))
+            data_g.update(
+                loadSubset(
+                    basePath,
+                    snapNum,
+                    "gas",
+                    fields=("CenterOfMass",),
+                    subset=subset_g,
+                    sq=False,
+                )
+            )
         except Exception as exc:
-            if ('Particle type' in exc.args[0]) and \
-               ('does not have field' in exc.args[0]):
-                data_g.update(loadSubset(basePath, snapNum, 'gas',
-                                         fields=('Coordinates', ),
-                                         subset=subset_g, sq=False))
+            if ("Particle type" in exc.args[0]) and (
+                "does not have field" in exc.args[0]
+            ):
+                data_g.update(
+                    loadSubset(
+                        basePath,
+                        snapNum,
+                        "gas",
+                        fields=("Coordinates",),
+                        subset=subset_g,
+                        sq=False,
+                    )
+                )
             else:
                 raise
         try:
-            data_g.update(loadSubset(basePath, snapNum, 'gas',
-                                     fields=('GFM_Metals', ), subset=subset_g,
-                                     mdi=(0, ), sq=False))
+            data_g.update(
+                loadSubset(
+                    basePath,
+                    snapNum,
+                    "gas",
+                    fields=("GFM_Metals",),
+                    subset=subset_g,
+                    mdi=(0,),
+                    sq=False,
+                )
+            )
         except Exception as exc:
-            if ('Particle type' in exc.args[0]) and \
-               ('does not have field' in exc.args[0]):
+            if ("Particle type" in exc.args[0]) and (
+                "does not have field" in exc.args[0]
+            ):
                 X_H_g = X_H
             else:
                 raise
         else:
-            X_H_g = data_g['GFM_Metals']  # only loaded column 0: Hydrogen
+            X_H_g = data_g["GFM_Metals"]  # only loaded column 0: Hydrogen
 
-        a = data_header['Time']
-        z = data_header['Redshift']
-        h = data_header['HubbleParam']
-        xe_g = data_g['ElectronAbundance']
-        rho_g = data_g['Density'] * 1E10 / h * U.Msun \
-            * np.power(a / h * U.kpc, -3)
-        u_g = data_g['InternalEnergy']  # unit conversion handled in T_g
+        a = data_header["Time"]
+        z = data_header["Redshift"]
+        h = data_header["HubbleParam"]
+        xe_g = data_g["ElectronAbundance"]
+        rho_g = (
+            data_g["Density"] * 1e10 / h * U.Msun * np.power(a / h * U.kpc, -3)
+        )
+        u_g = data_g["InternalEnergy"]  # unit conversion handled in T_g
         mu_g = 4 * C.m_p.to(U.g).value / (1 + 3 * X_H_g + 4 * X_H_g * xe_g)
-        gamma = 5. / 3.  # see http://www.tng-project.org/data/docs/faq/#gen4
-        T_g = (gamma - 1) * u_g / C.k_B.to(U.erg / U.K).value * 1E10 * mu_g \
-            * U.K
-        m_g = data_g['Masses'] * 1E10 / h * U.Msun
+        gamma = 5.0 / 3.0  # see http://www.tng-project.org/data/docs/faq/#gen4
+        T_g = (
+            (gamma - 1) * u_g / C.k_B.to(U.erg / U.K).value * 1e10 * mu_g * U.K
+        )
+        m_g = data_g["Masses"] * 1e10 / h * U.Msun
         # cast to float64 to avoid underflow error
         nH_g = U.Quantity(rho_g * X_H_g / mu_g, dtype=np.float64) / C.m_p
         # In TNG_corrections I set f_neutral = 1 for particles with density
         # > .1cm^-3. Might be possible to do a bit better here, but HI & H2
         # tables for TNG will be available soon anyway.
         fatomic_g = atomic_frac(
-            z,
-            nH_g,
-            T_g,
-            rho_g,
-            X_H_g,
-            onlyA1=True,
-            TNG_corrections=True
+            z, nH_g, T_g, rho_g, X_H_g, onlyA1=True, TNG_corrections=True
         )
         mHI_g = m_g * X_H_g * fatomic_g
         try:
-            xyz_g = data_g['CenterOfMass'] * a / h * U.kpc
+            xyz_g = data_g["CenterOfMass"] * a / h * U.kpc
         except KeyError:
-            xyz_g = data_g['Coordinates'] * a / h * U.kpc
-        vxyz_g = data_g['Velocities'] * np.sqrt(a) * U.km / U.s
-        V_cell = data_g['Masses'] / data_g['Density'] \
-            * np.power(a / h * U.kpc, 3)  # Voronoi cell volume
-        r_cell = np.power(3. * V_cell / 4. / np.pi, 1. / 3.).to(U.kpc)
+            xyz_g = data_g["Coordinates"] * a / h * U.kpc
+        vxyz_g = data_g["Velocities"] * np.sqrt(a) * U.km / U.s
+        V_cell = (
+            data_g["Masses"] / data_g["Density"] * np.power(a / h * U.kpc, 3)
+        )  # Voronoi cell volume
+        r_cell = np.power(3.0 * V_cell / 4.0 / np.pi, 1.0 / 3.0).to(U.kpc)
         # hsm_g has in mind a cubic spline that =0 at h, I think
         hsm_g = 2.5 * r_cell * find_fwhm(CubicSplineKernel().kernel)
-        xyz_centre = data_sub['SubhaloPos'] * a / h * U.kpc
+        xyz_centre = data_sub["SubhaloPos"] * a / h * U.kpc
         xyz_g -= xyz_centre
-        vxyz_centre = data_sub['SubhaloVel'] * np.sqrt(a) * U.km / U.s
+        vxyz_centre = data_sub["SubhaloVel"] * np.sqrt(a) * U.km / U.s
         vxyz_g -= vxyz_centre
 
         super().__init__(
@@ -176,6 +203,6 @@ class TNGSource(SPHSource):
             mHI_g=mHI_g,
             xyz_g=xyz_g,
             vxyz_g=vxyz_g,
-            hsm_g=hsm_g
+            hsm_g=hsm_g,
         )
         return

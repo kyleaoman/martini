@@ -91,32 +91,32 @@ class EAGLESource(SPHSource):
     """
 
     def __init__(
-            self,
-            snapPath=None,
-            snapBase=None,
-            fof=None,
-            sub=None,
-            db_user=None,
-            db_key=None,
-            subBoxSize=50.*U.kpc,
-            distance=3.*U.Mpc,
-            vpeculiar=0*U.km/U.s,
-            rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
-            ra=0.*U.deg,
-            dec=0.*U.deg,
-            print_query=False
+        self,
+        snapPath=None,
+        snapBase=None,
+        fof=None,
+        sub=None,
+        db_user=None,
+        db_key=None,
+        subBoxSize=50.0 * U.kpc,
+        distance=3.0 * U.Mpc,
+        vpeculiar=0 * U.km / U.s,
+        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
+        print_query=False,
     ):
 
         if snapPath is None:
-            raise ValueError('Provide snapPath argument to EAGLESource.')
+            raise ValueError("Provide snapPath argument to EAGLESource.")
         if snapBase is None:
-            raise ValueError('Provide snapBase argument to EAGLESource.')
+            raise ValueError("Provide snapBase argument to EAGLESource.")
         if fof is None:
-            raise ValueError('Provide fof argument to EAGLESource.')
+            raise ValueError("Provide fof argument to EAGLESource.")
         if sub is None:
-            raise ValueError('Provide sub argument to EAGLESource.')
+            raise ValueError("Provide sub argument to EAGLESource.")
         if db_user is None:
-            raise ValueError('Provide EAGLE database username.')
+            raise ValueError("Provide EAGLE database username.")
 
         # optional dependencies for this source class
         from eagleSqlTools import connect, execute_query
@@ -124,102 +124,105 @@ class EAGLESource(SPHSource):
         from Hdecompose.atomic_frac import atomic_frac
         import h5py
 
-        snapNum = int(snapBase.split('_')[1])
+        snapNum = int(snapBase.split("_")[1])
         volCode = normpath(snapPath).split(sep)[-2]
-        query = \
-            'SELECT '\
-            '  sh.redshift as redshift, '\
-            '  sh.CentreOfPotential_x as x, '\
-            '  sh.CentreOfPotential_y as y, '\
-            '  sh.CentreOfPotential_z as z, '\
-            '  sh.Velocity_x as vx, '\
-            '  sh.Velocity_y as vy, '\
-            '  sh.Velocity_z as vz '\
-            'FROM '\
-            '  {:s}_SubHalo as sh '.format(volCode) + \
-            'WHERE '\
-            '  sh.Snapnum = {:d} '.format(snapNum) + \
-            '  and sh.GroupNumber = {:d} '.format(fof) + \
-            '  and sh.SubGroupNumber = {:d}'.format(sub)
+        query = (
+            "SELECT "
+            "  sh.redshift as redshift, "
+            "  sh.CentreOfPotential_x as x, "
+            "  sh.CentreOfPotential_y as y, "
+            "  sh.CentreOfPotential_z as z, "
+            "  sh.Velocity_x as vx, "
+            "  sh.Velocity_y as vy, "
+            "  sh.Velocity_z as vz "
+            "FROM "
+            "  {:s}_SubHalo as sh ".format(volCode) + "WHERE "
+            "  sh.Snapnum = {:d} ".format(snapNum)
+            + "  and sh.GroupNumber = {:d} ".format(fof)
+            + "  and sh.SubGroupNumber = {:d}".format(sub)
+        )
         if print_query:
-            print('-----EAGLE-DB-QUERY-----')
+            print("-----EAGLE-DB-QUERY-----")
             print(query)
-            print('-------QUERY-ENDS-------')
+            print("-------QUERY-ENDS-------")
         if db_key is None:
-            print('EAGLE database')
+            print("EAGLE database")
         q = execute_query(connect(db_user, db_key), query)
-        redshift = q['redshift']
+        redshift = q["redshift"]
         a = np.power(1 + redshift, -1)
-        cop = np.array([q[coord] for coord in 'xyz']) * a * U.Mpc
-        vcent = np.array([q['v'+coord] for coord in 'xyz']) * U.km / U.s
+        cop = np.array([q[coord] for coord in "xyz"]) * a * U.Mpc
+        vcent = np.array([q["v" + coord] for coord in "xyz"]) * U.km / U.s
 
-        snapFile = join(snapPath, snapBase+'.0.hdf5')
+        snapFile = join(snapPath, snapBase + ".0.hdf5")
 
-        with h5py.File(snapFile, 'r') as f:
-            h = f['RuntimePars'].attrs['HubbleParam']
+        with h5py.File(snapFile, "r") as f:
+            h = f["RuntimePars"].attrs["HubbleParam"]
             subBoxSize = (subBoxSize * h / a).to(U.Mpc).value
             centre = (cop * h / a).to(U.Mpc).value
             eagle_data = EagleSnapshot(snapFile)
-            region = np.vstack((
-                centre - subBoxSize,
-                centre + subBoxSize
-            )).T.flatten()
+            region = np.vstack(
+                (centre - subBoxSize, centre + subBoxSize)
+            ).T.flatten()
             eagle_data.select_region(*region)
-            lbox = f['/Header'].attrs['BoxSize'] * U.Mpc / h
-            fH = f['/RuntimePars'].attrs['InitAbundance_Hydrogen']
-            fHe = f['/RuntimePars'].attrs['InitAbundance_Helium']
-            proton_mass = f['/Constants'].attrs['PROTONMASS'] * U.g
-            mu = 1 / (fH + .25 * fHe)
-            gamma = f['/RuntimePars'].attrs['EOS_Jeans_GammaEffective']
-            T0 = f['/RuntimePars'].attrs['EOS_Jeans_TempNorm_K'] * U.K
+            lbox = f["/Header"].attrs["BoxSize"] * U.Mpc / h
+            fH = f["/RuntimePars"].attrs["InitAbundance_Hydrogen"]
+            fHe = f["/RuntimePars"].attrs["InitAbundance_Helium"]
+            proton_mass = f["/Constants"].attrs["PROTONMASS"] * U.g
+            mu = 1 / (fH + 0.25 * fHe)
+            gamma = f["/RuntimePars"].attrs["EOS_Jeans_GammaEffective"]
+            T0 = f["/RuntimePars"].attrs["EOS_Jeans_TempNorm_K"] * U.K
 
             def fetch(att, ptype=0):
                 # gas is type 0, only need gas properties
                 tmp = eagle_data.read_dataset(ptype, att)
-                dset = f['/PartType{:d}/{:s}'.format(ptype, att)]
-                aexp = dset.attrs.get('aexp-scale-exponent')
-                hexp = dset.attrs.get('h-scale-exponent')
+                dset = f["/PartType{:d}/{:s}".format(ptype, att)]
+                aexp = dset.attrs.get("aexp-scale-exponent")
+                hexp = dset.attrs.get("h-scale-exponent")
                 return tmp[()] * np.power(a, aexp) * np.power(h, hexp)
 
-            code_to_g = f['/Units'].attrs['UnitMass_in_g'] * U.g
-            code_to_cm = f['/Units'].attrs['UnitLength_in_cm'] * U.cm
-            code_to_cm_s = f['/Units'].attrs['UnitVelocity_in_cm_per_s'] \
-                * U.cm / U.s
-            ng_g = fetch('GroupNumber')
-            particles = dict(
-                xyz_g=(fetch('Coordinates') * code_to_cm).to(U.kpc),
-                vxyz_g=(fetch('Velocity') * code_to_cm_s).to(U.km / U.s),
-                T_g=fetch('Temperature') * U.K,
-                hsm_g=(fetch('SmoothingLength') * code_to_cm).to(U.kpc)
-                * find_fwhm(WendlandC2Kernel().kernel)
+            code_to_g = f["/Units"].attrs["UnitMass_in_g"] * U.g
+            code_to_cm = f["/Units"].attrs["UnitLength_in_cm"] * U.cm
+            code_to_cm_s = (
+                f["/Units"].attrs["UnitVelocity_in_cm_per_s"] * U.cm / U.s
             )
-            rho_g = fetch('Density') * U.g * U.cm ** -3
-            SFR_g = fetch('StarFormationRate')
-            Habundance_g = fetch('ElementAbundance/Hydrogen')
+            ng_g = fetch("GroupNumber")
+            particles = dict(
+                xyz_g=(fetch("Coordinates") * code_to_cm).to(U.kpc),
+                vxyz_g=(fetch("Velocity") * code_to_cm_s).to(U.km / U.s),
+                T_g=fetch("Temperature") * U.K,
+                hsm_g=(fetch("SmoothingLength") * code_to_cm).to(U.kpc)
+                * find_fwhm(WendlandC2Kernel().kernel),
+            )
+            rho_g = fetch("Density") * U.g * U.cm**-3
+            SFR_g = fetch("StarFormationRate")
+            Habundance_g = fetch("ElementAbundance/Hydrogen")
 
-        particles['mHI_g'] = (atomic_frac(
-            redshift,
-            rho_g * Habundance_g / (mu * proton_mass),
-            particles['T_g'],
-            rho_g,
-            Habundance_g,
-            onlyA1=True,
-            EAGLE_corrections=True,
-            SFR=SFR_g,
-            mu=mu,
-            gamma=gamma,
-            fH=fH,
-            T0=T0
-        ) * code_to_g).to(U.solMass)
+        particles["mHI_g"] = (
+            atomic_frac(
+                redshift,
+                rho_g * Habundance_g / (mu * proton_mass),
+                particles["T_g"],
+                rho_g,
+                Habundance_g,
+                onlyA1=True,
+                EAGLE_corrections=True,
+                SFR=SFR_g,
+                mu=mu,
+                gamma=gamma,
+                fH=fH,
+                T0=T0,
+            )
+            * code_to_g
+        ).to(U.solMass)
 
         mask = ng_g == fof
         for k, v in particles.items():
             particles[k] = v[mask]
 
-        particles['xyz_g'] -= cop
-        particles['xyz_g'][particles['xyz_g'] > lbox / 2.] -= lbox.to(U.kpc)
-        particles['xyz_g'][particles['xyz_g'] < -lbox / 2.] += lbox.to(U.kpc)
-        particles['vxyz_g'] -= vcent
+        particles["xyz_g"] -= cop
+        particles["xyz_g"][particles["xyz_g"] > lbox / 2.0] -= lbox.to(U.kpc)
+        particles["xyz_g"][particles["xyz_g"] < -lbox / 2.0] += lbox.to(U.kpc)
+        particles["vxyz_g"] -= vcent
 
         super().__init__(
             distance=distance,

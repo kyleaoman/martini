@@ -62,15 +62,15 @@ class SOSource(SPHSource):
     """
 
     def __init__(
-            self,
-            distance=3.*U.Mpc,
-            vpeculiar=0*U.km/U.s,
-            rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
-            ra=0.*U.deg,
-            dec=0.*U.deg,
-            SO_args=None,
-            SO_instance=None,
-            rescale_hsm_g=1
+        self,
+        distance=3.0 * U.Mpc,
+        vpeculiar=0 * U.km / U.s,
+        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        ra=0.0 * U.deg,
+        dec=0.0 * U.deg,
+        SO_args=None,
+        SO_instance=None,
+        rescale_hsm_g=1,
     ):
 
         from simobj import SimObj  # optional dependency for this source class
@@ -78,8 +78,10 @@ class SOSource(SPHSource):
         self._SO_args = SO_args
         self.rescale_hsm_g = rescale_hsm_g
         if (SO_args is not None) and (SO_instance is not None):
-            raise ValueError('martini.source.SOSource: Provide SO_args or '
-                             'SO_instance, not both.')
+            raise ValueError(
+                "martini.source.SOSource: Provide SO_args or "
+                "SO_instance, not both."
+            )
         elif SO_args is not None:
             with SimObj(**self._SO_args) as SO:
                 super().__init__(
@@ -92,7 +94,7 @@ class SOSource(SPHSource):
                     mHI_g=SO.mHI_g,
                     xyz_g=SO.xyz_g,
                     vxyz_g=SO.vxyz_g,
-                    hsm_g=SO.hsm_g * self.rescale_hsm_g
+                    hsm_g=SO.hsm_g * self.rescale_hsm_g,
                 )
         elif SO_instance is not None:
             super().__init__(
@@ -106,9 +108,11 @@ class SOSource(SPHSource):
                 mHI_g=SO_instance.mHI_g,
                 xyz_g=SO_instance.xyz_g,
                 vxyz_g=SO_instance.vxyz_g,
-                hsm_g=SO_instance.hsm_g
+                hsm_g=SO_instance.hsm_g,
             )
         else:
-            raise ValueError('martini.sources.SOSource: Provide one of SO_args'
-                             ' or SO_instance.')
+            raise ValueError(
+                "martini.sources.SOSource: Provide one of SO_args"
+                " or SO_instance."
+            )
         return

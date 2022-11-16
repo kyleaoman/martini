@@ -10,7 +10,7 @@ lines0 = [
     "    version = version_file.read().strip()",
     "",
     "setup(",
-    "    name='astromartini',"
+    "    name='astromartini',",
 ]
 
 lines1 = [
@@ -20,7 +20,7 @@ lines1 = [
     "    author_email='kyle.a.oman@durham.ac.uk',",
     "    license='GNU GPL v3',",
     "    packages=['martini', 'martini.sources'],",
-    "    install_requires=['numpy >= 1.15.3', 'astropy >= 3.0', 'scipy'],"
+    "    install_requires=['numpy >= 1.15.3', 'astropy >= 3.0', 'scipy'],",
 ]
 
 er_lines = [
@@ -45,14 +45,10 @@ er_lines = [
     "        'magneticumsource': 'g3t @ https://github.com/kyleaoman/'",
     "        'g3t/archive/master.zip#egg=g3t',",
     "        'simbasource': 'h5py'",
-    "    },"
+    "    },",
 ]
 
-lines2 = [
-    "    include_package_data=True,",
-    "    zip_safe=False",
-    ")"
-]
+lines2 = ["    include_package_data=True,", "    zip_safe=False", ")"]
 
 
 def gensetup(for_pypi=False, test_subversion=None):
@@ -66,8 +62,10 @@ def gensetup(for_pypi=False, test_subversion=None):
     if not for_pypi:
         lines += er_lines
     else:
-        lines += ["    extras_require=dict(),", ]
+        lines += [
+            "    extras_require=dict(),",
+        ]
     lines += lines2
-    with open('setup.py', 'w') as f:
-        f.writelines([line + '\n' for line in lines])
+    with open("setup.py", "w") as f:
+        f.writelines([line + "\n" for line in lines])
     return

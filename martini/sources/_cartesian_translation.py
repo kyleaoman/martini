@@ -40,7 +40,7 @@ def translate(cls, translation_vector):
 
     return CartesianRepresentation(
         cls.__class__.get_xyz(cls) + translation_vector.reshape(3, 1),
-        differentials=cls.differentials
+        differentials=cls.differentials,
     )
 
 

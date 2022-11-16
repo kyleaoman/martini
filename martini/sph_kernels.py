@@ -7,7 +7,7 @@ from warnings import warn
 
 
 def find_fwhm(f):
-    return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, .5)[0]
+    return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, 0.5)[0]
 
 
 class _BaseSPHKernel(object):
@@ -37,16 +37,18 @@ class _BaseSPHKernel(object):
     def __init__(self):
         self._rescale = 1
         if not self.noFWHMwarn:
-            warn('The definition of the smoothing length has changed since'
-                 ' earlier versions. Now all kernel modules expect the'
-                 ' smoothing lengths provided (via the source module) to be'
-                 ' the FWHM of the kernel. This is to avoid ambiguity in the'
-                 ' definition. Users of simulation-specific sources'
-                 ' (TNGSource, EAGLESource, ...) do not need to worry about'
-                 ' this change: the sources have been updated accordingly.'
-                 ' (This warning can be disabled by setting'
-                 ' `K.noFWHMwarn = True`, where K is the kernel class, before'
-                 ' initialization.)')
+            warn(
+                "The definition of the smoothing length has changed since"
+                " earlier versions. Now all kernel modules expect the"
+                " smoothing lengths provided (via the source module) to be"
+                " the FWHM of the kernel. This is to avoid ambiguity in the"
+                " definition. Users of simulation-specific sources"
+                " (TNGSource, EAGLESource, ...) do not need to worry about"
+                " this change: the sources have been updated accordingly."
+                " (This warning can be disabled by setting"
+                " `K.noFWHMwarn = True`, where K is the kernel class, before"
+                " initialization.)"
+            )
         return
 
     def px_weight(self, dij, mask=None):
@@ -71,11 +73,7 @@ class _BaseSPHKernel(object):
         except TypeError:
             rescale = self._rescale
         rescaled_h = self.sm_lengths[mask] * rescale
-        return self.kernel_integral(
-            dij,
-            rescaled_h,
-            mask=mask
-        )
+        return self.kernel_integral(dij, rescaled_h, mask=mask)
 
     def confirm_validation(self, noraise=False, quiet=False):
         """
@@ -93,30 +91,37 @@ class _BaseSPHKernel(object):
             If True, suppress reports on smoothing lengths (default: False).
         """
 
-        return self.validate(self.sm_lengths * self._rescale, noraise=noraise,
-                             quiet=quiet)
+        return self.validate(
+            self.sm_lengths * self._rescale, noraise=noraise, quiet=quiet
+        )
 
-    def _validate_error(self, msg, sm_lengths, valid, noraise=False,
-                        quiet=False):
+    def _validate_error(
+        self, msg, sm_lengths, valid, noraise=False, quiet=False
+    ):
         if not quiet:
-            print('    ---------{:s} VALIDATION---------'.format(
-                self.__class__.__name__))
-            print('    Median smoothing length: ', np.median(sm_lengths), 'px')
-            print('    Minimum smoothing length: ', np.min(sm_lengths), 'px')
-            print('    Maximum smoothing length: ', np.max(sm_lengths), 'px')
             print(
-                '    Smoothing length histogram (np.histogram):',
-                np.histogram(sm_lengths)
+                "    ---------{:s} VALIDATION---------".format(
+                    self.__class__.__name__
+                )
+            )
+            print("    Median smoothing length: ", np.median(sm_lengths), "px")
+            print("    Minimum smoothing length: ", np.min(sm_lengths), "px")
+            print("    Maximum smoothing length: ", np.max(sm_lengths), "px")
+            print(
+                "    Smoothing length histogram (np.histogram):",
+                np.histogram(sm_lengths),
             )
             print(
-                '    ',
+                "    ",
                 np.sum(np.logical_not(valid)),
-                '/',
+                "/",
                 sm_lengths.size,
-                'smoothing lengths fail validation.'
+                "smoothing lengths fail validation.",
             )
-            print('    -----------------------------'
-                  + '-' * len(self.__class__.__name__))
+            print(
+                "    -----------------------------"
+                + "-" * len(self.__class__.__name__)
+            )
         if not noraise:
             raise RuntimeError(msg)
         return
@@ -176,8 +181,8 @@ class _BaseSPHKernel(object):
             The datacube providing the pixel scale.
         """
         self.sm_lengths = np.arctan(
-            source.hsm_g / source.sky_coordinates.distance).to(
-                U.pix, U.pixel_scale(datacube.px_size / U.pix))
+            source.hsm_g / source.sky_coordinates.distance
+        ).to(U.pix, U.pixel_scale(datacube.px_size / U.pix))
 
         return
 
@@ -185,9 +190,9 @@ class _BaseSPHKernel(object):
         """
         Determine maximum number of pixels reached by kernel.
         """
-        self.sm_ranges = np.ceil(
-            self.sm_lengths * self.size_in_fwhm
-        ).astype(int)
+        self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm).astype(
+            int
+        )
 
         return
 
@@ -311,11 +316,9 @@ class WendlandC2Kernel(_BaseSPHKernel):
         """
 
         W = np.where(
-            q < 1,
-            np.power(1 - q, 4) * (4 * q + 1),
-            np.zeros(q.shape)
+            q < 1, np.power(1 - q, 4) * (4 * q + 1), np.zeros(q.shape)
         )
-        W *= (21 / 2 / np.pi)
+        W *= 21 / 2 / np.pi
         return W
 
     def kernel_integral(self, dij, h, **kwargs):
@@ -342,13 +345,13 @@ class WendlandC2Kernel(_BaseSPHKernel):
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
         R2 = dr2 / (h * h)
-        retval[R2 == 0] = 2. / 3.
+        retval[R2 == 0] = 2.0 / 3.0
         use = np.logical_and(R2 < 1, R2 != 0)
         R2 = R2[use]
         A = np.sqrt(1 - R2)
-        retval[use] = 5 * R2 * R2 * (.5 * R2 + 3) * \
-            np.log((1 + A) / np.sqrt(R2)) + \
-            A * (-27. / 2. * R2 * R2 - 14. / 3. * R2 + 2. / 3.)
+        retval[use] = 5 * R2 * R2 * (0.5 * R2 + 3) * np.log(
+            (1 + A) / np.sqrt(R2)
+        ) + A * (-27.0 / 2.0 * R2 * R2 - 14.0 / 3.0 * R2 + 2.0 / 3.0)
         norm = 21 / 2 / np.pi
         return retval * norm / np.power(h, 2)
 
@@ -379,7 +382,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
                 sm_lengths,
                 valid,
                 noraise=noraise,
-                quiet=quiet
+                quiet=quiet,
             )
 
         return valid
@@ -441,9 +444,9 @@ class WendlandC6Kernel(_BaseSPHKernel):
             q < 1,
             np.power(1 - q, 8)
             * (1 + 8 * q + 25 * np.power(q, 2) + 32 * np.power(q, 3)),
-            np.zeros(q.shape)
+            np.zeros(q.shape),
         )
-        W *= (1365 / 64 / np.pi)
+        W *= 1365 / 64 / np.pi
         return W
 
     def kernel_integral(self, dij, h, **kwargs):
@@ -467,63 +470,96 @@ class WendlandC6Kernel(_BaseSPHKernel):
             # integral(1 - sqrt(R^2 + z^2))^8 \
             # (1 + 8 sqrt(R^2 + z^2) + 25 (R^2 + z^2) \
             # + 32 (R^2 + z^2)^1.5) dz =
-            return -231 * np.power(R, 10) * z \
-                - 385 * np.power(R, 8) * np.power(z, 3) \
-                - 1155 * np.power(R, 8) * z \
-                - 462 * np.power(R, 6) * np.power(z, 5) \
-                - 1540 * np.power(R, 6) * np.power(z, 3) \
-                - 462 * np.power(R, 6) * z \
-                - 330 * np.power(R, 4) * np.power(z, 7) \
-                - 1386 * np.power(R, 4) * np.power(z, 5) \
-                - 462 * np.power(R, 4) * np.power(z, 3) \
-                + 66 * np.power(R, 4) * z \
-                - (128 + 1 / 3) * np.power(R, 2) * np.power(z, 9) \
-                - 660 * np.power(R, 2) * np.power(z, 7) \
-                - 277.2 * np.power(R, 2) * np.power(z, 5) \
-                + 44 * np.power(R, 2) * np.power(z, 3) \
-                + 8 / 3 * np.power(z, 11) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + (16 + 4 / 15) * np.power(R, 2) * np.power(z, 9) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 70.4 * np.power(z, 9) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 360.8 * np.power(R, 2) * np.power(z, 7) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 132 * np.power(z, 7) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 550 * np.power(R, 2) * np.power(z, 5) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                - 11 * np.power(R, 2) * z \
-                + 7.21875 * np.power(R, 12) * (
-                    np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z)) \
-                + 24.7813 * np.power(R, 10) * z * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 173.25 * np.power(R, 10) * (
-                    np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z)) \
-                + 530.75 * np.power(R, 8) * z * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 288.75 * np.power(R, 8) * (
-                    np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z)) \
-                + 47.4792 * np.power(R, 8) * np.power(z, 3) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 767.25 * np.power(R, 6) * z * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 58.0167 * np.power(R, 6) * np.power(z, 5) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 819.5 * np.power(R, 6) * np.power(z, 3) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 41.7 * np.power(R, 4) * np.power(z, 7) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 752.4 * np.power(R, 4) * np.power(z, 5) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                + 896.5 * np.power(R, 4) * np.power(z, 3) * (
-                    np.sqrt(np.power(R, 2) + np.power(z, 2))) \
-                - 21 * np.power(z, 11) \
-                - (128 + 1 / 3) * np.power(z, 9) \
-                - 66 * np.power(z, 7) \
-                + 13.2 * np.power(z, 5) \
-                - 11 / 3 * np.power(z, 3) \
+            return (
+                -231 * np.power(R, 10) * z
+                - 385 * np.power(R, 8) * np.power(z, 3)
+                - 1155 * np.power(R, 8) * z
+                - 462 * np.power(R, 6) * np.power(z, 5)
+                - 1540 * np.power(R, 6) * np.power(z, 3)
+                - 462 * np.power(R, 6) * z
+                - 330 * np.power(R, 4) * np.power(z, 7)
+                - 1386 * np.power(R, 4) * np.power(z, 5)
+                - 462 * np.power(R, 4) * np.power(z, 3)
+                + 66 * np.power(R, 4) * z
+                - (128 + 1 / 3) * np.power(R, 2) * np.power(z, 9)
+                - 660 * np.power(R, 2) * np.power(z, 7)
+                - 277.2 * np.power(R, 2) * np.power(z, 5)
+                + 44 * np.power(R, 2) * np.power(z, 3)
+                + 8
+                / 3
+                * np.power(z, 11)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + (16 + 4 / 15)
+                * np.power(R, 2)
+                * np.power(z, 9)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 70.4
+                * np.power(z, 9)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 360.8
+                * np.power(R, 2)
+                * np.power(z, 7)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 132
+                * np.power(z, 7)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 550
+                * np.power(R, 2)
+                * np.power(z, 5)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                - 11 * np.power(R, 2) * z
+                + 7.21875
+                * np.power(R, 12)
+                * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
+                + 24.7813
+                * np.power(R, 10)
+                * z
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 173.25
+                * np.power(R, 10)
+                * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
+                + 530.75
+                * np.power(R, 8)
+                * z
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 288.75
+                * np.power(R, 8)
+                * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
+                + 47.4792
+                * np.power(R, 8)
+                * np.power(z, 3)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 767.25
+                * np.power(R, 6)
+                * z
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 58.0167
+                * np.power(R, 6)
+                * np.power(z, 5)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 819.5
+                * np.power(R, 6)
+                * np.power(z, 3)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 41.7
+                * np.power(R, 4)
+                * np.power(z, 7)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 752.4
+                * np.power(R, 4)
+                * np.power(z, 5)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 896.5
+                * np.power(R, 4)
+                * np.power(z, 3)
+                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                - 21 * np.power(z, 11)
+                - (128 + 1 / 3) * np.power(z, 9)
+                - 66 * np.power(z, 7)
+                + 13.2 * np.power(z, 5)
+                - 11 / 3 * np.power(z, 3)
                 + z
+            )
 
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
@@ -563,7 +599,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
                 sm_lengths,
                 valid,
                 noraise=noraise,
-                quiet=quiet
+                quiet=quiet,
             )
         return valid
 
@@ -627,9 +663,9 @@ class CubicSplineKernel(_BaseSPHKernel):
         """
 
         W = np.where(
-            q < .5,
+            q < 0.5,
             1 - 6 * np.power(q, 2) + 6 * np.power(q, 3),
-            2 * np.power(1 - q, 3)
+            2 * np.power(1 - q, 3),
         )
         W[q > 1] = 0
         W *= 8 / np.pi
@@ -660,7 +696,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
         R2 = dr2 / (h * h)
-        retval[R2 == 0] = 11. / 16. + .25 * .25
+        retval[R2 == 0] = 11.0 / 16.0 + 0.25 * 0.25
         case1 = np.logical_and(R2 > 0, R2 <= 1)
         case2 = np.logical_and(R2 > 1, R2 <= 4)
 
@@ -669,19 +705,36 @@ class CubicSplineKernel(_BaseSPHKernel):
         A_1 = np.sqrt(1 - R2_1)
         B_1 = np.sqrt(4 - R2_1)
         B_2 = np.sqrt(4 - R2_2)
-        I1 = A_1 - .5 * np.power(A_1, 3) - 1.5 * R2_1 * A_1 + 3. / 32. * A_1 \
-            * (3 * R2_1 + 2) + 9. / 32. * R2_1 * R2_1 \
+        I1 = (
+            A_1
+            - 0.5 * np.power(A_1, 3)
+            - 1.5 * R2_1 * A_1
+            + 3.0 / 32.0 * A_1 * (3 * R2_1 + 2)
+            + 9.0
+            / 32.0
+            * R2_1
+            * R2_1
             * (np.log(1 + A_1) - np.log(np.sqrt(R2_1)))
-        I2 = -B_2 * (3 * R2_2 + 56) / 4. \
-            - 3. / 8. * R2_2 * (R2_2 + 16) \
-            * np.log((2 + B_2) / np.sqrt(R2_2)) \
-            + 2 * (3 * R2_2 + 4) * B_2 + 2 * np.power(B_2, 3)
-        I3 = -B_1 * (3 * R2_1 + 56) / 4. + A_1 * (4 * R2_1 + 50) / 8. \
-            - 3. / 8. * R2_1 * (R2_1 + 16) * np.log((2 + B_1) / (1 + A_1)) \
-            + 2 * (3 * R2_1 + 4) * (B_1 - A_1) \
+        )
+        I2 = (
+            -B_2 * (3 * R2_2 + 56) / 4.0
+            - 3.0
+            / 8.0
+            * R2_2
+            * (R2_2 + 16)
+            * np.log((2 + B_2) / np.sqrt(R2_2))
+            + 2 * (3 * R2_2 + 4) * B_2
+            + 2 * np.power(B_2, 3)
+        )
+        I3 = (
+            -B_1 * (3 * R2_1 + 56) / 4.0
+            + A_1 * (4 * R2_1 + 50) / 8.0
+            - 3.0 / 8.0 * R2_1 * (R2_1 + 16) * np.log((2 + B_1) / (1 + A_1))
+            + 2 * (3 * R2_1 + 4) * (B_1 - A_1)
             + 2 * (np.power(B_1, 3) - np.power(A_1, 3))
-        retval[case1] = I1 + .25 * I3
-        retval[case2] = .25 * I2
+        )
+        retval[case1] = I1 + 0.25 * I3
+        retval[case2] = 0.25 * I2
         # 1.597 is normalization s.t. kernel integral = 1 for particle mass = 1
         # rescaling from interval [0, 2) to [0, 1) requires mult. by 4
         return retval / 1.59689476201133 / np.power(h, 2) * 4
@@ -713,7 +766,7 @@ class CubicSplineKernel(_BaseSPHKernel):
                 sm_lengths,
                 valid,
                 noraise=noraise,
-                quiet=quiet
+                quiet=quiet,
             )
         return valid
 
@@ -751,8 +804,11 @@ class GaussianKernel(_BaseSPHKernel):
 
     def __init__(self, truncate=3):
         self.truncate = truncate
-        self.norm = erf(self.truncate / np.sqrt(2)) - 2 * self.truncate \
-            / np.sqrt(2 * np.pi) * np.exp(-np.power(self.truncate, 2) / 2)
+        self.norm = erf(
+            self.truncate / np.sqrt(2)
+        ) - 2 * self.truncate / np.sqrt(2 * np.pi) * np.exp(
+            -np.power(self.truncate, 2) / 2
+        )
         super().__init__()
         self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
         return
@@ -786,12 +842,15 @@ class GaussianKernel(_BaseSPHKernel):
         """
 
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
-        return np.where(
-            q < self.truncate * sig,
-            np.power(sig * np.sqrt(2 * np.pi), -3)
-            * np.exp(-np.power(q / sig, 2) / 2),
-            np.zeros(q.shape)
-        ) / self.norm
+        return (
+            np.where(
+                q < self.truncate * sig,
+                np.power(sig * np.sqrt(2 * np.pi), -3)
+                * np.exp(-np.power(q / sig, 2) / 2),
+                np.zeros(q.shape),
+            )
+            / self.norm
+        )
 
     def kernel_integral(self, dij, h, **kwargs):
         """
@@ -817,29 +876,28 @@ class GaussianKernel(_BaseSPHKernel):
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
         zmax = np.where(
             self.truncate > dr / h / sig,
-            np.sqrt(
-                np.power(self.truncate, 2)
-                - np.power(dr / h / sig, 2)
-            ),
-            0
+            np.sqrt(np.power(self.truncate, 2) - np.power(dr / h / sig, 2)),
+            0,
         )
-        x0 = (dij[0] - .5 * U.pix) / h / np.sqrt(2) / sig
-        x1 = (dij[0] + .5 * U.pix) / h / np.sqrt(2) / sig
-        y0 = (dij[1] - .5 * U.pix) / h / np.sqrt(2) / sig
-        y1 = (dij[1] + .5 * U.pix) / h / np.sqrt(2) / sig
+        x0 = (dij[0] - 0.5 * U.pix) / h / np.sqrt(2) / sig
+        x1 = (dij[0] + 0.5 * U.pix) / h / np.sqrt(2) / sig
+        y0 = (dij[1] - 0.5 * U.pix) / h / np.sqrt(2) / sig
+        y1 = (dij[1] + 0.5 * U.pix) / h / np.sqrt(2) / sig
 
-        retval = .25 \
-            * erf(zmax / np.sqrt(2)) \
-            * (erf(x1) - erf(x0)) \
+        retval = (
+            0.25
+            * erf(zmax / np.sqrt(2))
+            * (erf(x1) - erf(x0))
             * (erf(y1) - erf(y0))
+        )
 
         # explicit truncation not required as only pixels inside
         # truncation radius should be passed, next line useful for
         # testing, however
-        retval[(dr - np.sqrt(.5) * U.pix) / h / sig > self.truncate] = 0
+        retval[(dr - np.sqrt(0.5) * U.pix) / h / sig > self.truncate] = 0
 
         retval /= self.norm
-        return retval * h.unit ** -2
+        return retval * h.unit**-2
 
     def validate(self, sm_lengths, noraise=False, quiet=False):
         """
@@ -855,8 +913,10 @@ class GaussianKernel(_BaseSPHKernel):
         """
 
         if self.truncate < 1:
-            raise RuntimeError("GaussianKernel with truncation <1sigma will "
-                               "cause large errors in total mass.")
+            raise RuntimeError(
+                "GaussianKernel with truncation <1sigma will "
+                "cause large errors in total mass."
+            )
         elif (self.truncate >= 1) and (self.truncate < 2):
             lims = (0, 20)
         elif (self.truncate >= 2) and (self.truncate < 3):
@@ -864,29 +924,30 @@ class GaussianKernel(_BaseSPHKernel):
         elif (self.truncate >= 3) and (self.truncate < 4):
             lims = (0, 3)
         elif (self.truncate >= 4) and (self.truncate < 5):
-            lims = (.4, 1)
+            lims = (0.4, 1)
         elif (self.truncate >= 5) and (self.truncate < 6):
-            lims = (.4, .5)
-        elif (self.truncate >= 6):
+            lims = (0.4, 0.5)
+        elif self.truncate >= 6:
             lims = None
             if not self.no6sigwarn:
-                warn("GaussianKernel with truncation >=6sigma may "
-                     "unnecessarily slow down computation. (This warning can "
-                     "be disabled by setting GaussianKernel.no6sigwarn=True "
-                     "before initialization.)")
+                warn(
+                    "GaussianKernel with truncation >=6sigma may "
+                    "unnecessarily slow down computation. (This warning can "
+                    "be disabled by setting GaussianKernel.no6sigwarn=True "
+                    "before initialization.)"
+                )
         if lims is None:
             valid = np.ones(sm_lengths.shape, dtype=np.bool)
         else:
             valid = np.logical_or(
-                sm_lengths <= lims[0] * U.pix,
-                sm_lengths >= lims[1] * U.pix
+                sm_lengths <= lims[0] * U.pix, sm_lengths >= lims[1] * U.pix
             )
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.GaussianKernel.validate:\n"
                 "SPH smoothing lengths must not be in interval "
-                "[{0:.1f}, {1:.1f}] px ".format(*lims) +
-                "for Gaussian kernel integral approximation "
+                "[{0:.1f}, {1:.1f}] px ".format(*lims)
+                + "for Gaussian kernel integral approximation "
                 "accuracy within 1%.\n"
                 "This check may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
@@ -895,7 +956,7 @@ class GaussianKernel(_BaseSPHKernel):
                 sm_lengths,
                 valid,
                 noraise=noraise,
-                quiet=quiet
+                quiet=quiet,
             )
         return valid
 
@@ -969,8 +1030,10 @@ class DiracDeltaKernel(_BaseSPHKernel):
             Kernel integral over the pixel area.
         """
 
-        return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) \
-            * U.pix ** -2
+        return (
+            np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0)
+            * U.pix**-2
+        )
 
     def validate(self, sm_lengths, noraise=False, quiet=False):
         """
@@ -989,7 +1052,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
             If True, suppress reports on smoothing lengths (default: False).
         """
 
-        valid = sm_lengths <= .5 * U.pix
+        valid = sm_lengths <= 0.5 * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.DiracDeltaKernel.validate:\n"
@@ -1002,7 +1065,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
                 sm_lengths,
                 valid,
                 noraise=noraise,
-                quiet=quiet
+                quiet=quiet,
             )
         return valid
 
@@ -1066,8 +1129,9 @@ class AdaptiveKernel(_BaseSPHKernel):
             self.kernel_indices[
                 np.logical_and(
                     self.kernel_indices == -1,
-                    K.validate(self.sm_lengths * K._rescale, noraise=True,
-                               quiet=True)
+                    K.validate(
+                        self.sm_lengths * K._rescale, noraise=True, quiet=True
+                    ),
                 )
             ] = ik
         _sizes_in_fwhm = np.array([K.size_in_fwhm for K in self.kernels])
@@ -1098,8 +1162,9 @@ class AdaptiveKernel(_BaseSPHKernel):
         return
 
     def kernel(self, q):
-        raise NotImplementedError('AdaptiveKernel does not have an explicit '
-                                  'kernel function.')
+        raise NotImplementedError(
+            "AdaptiveKernel does not have an explicit " "kernel function."
+        )
 
     def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
@@ -1121,14 +1186,11 @@ class AdaptiveKernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
 
-        retval = np.zeros(h.shape) * h.unit ** -2
+        retval = np.zeros(h.shape) * h.unit**-2
         for ik in np.unique(self.kernel_indices[mask]):
             K = self.kernels[0] if ik == -1 else self.kernels[ik]
             kmask = self.kernel_indices[mask] == ik
-            retval[kmask] = K.kernel_integral(
-                dij[:, kmask],
-                h[kmask]
-            )
+            retval[kmask] = K.kernel_integral(dij[:, kmask], h[kmask])
         return retval
 
     def validate(self, sm_lengths, noraise=False, quiet=False):
@@ -1157,7 +1219,7 @@ class AdaptiveKernel(_BaseSPHKernel):
                 sm_lengths,
                 valid,
                 noraise=noraise,
-                quiet=quiet
+                quiet=quiet,
             )
 
         return

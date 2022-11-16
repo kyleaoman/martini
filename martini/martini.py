@@ -12,29 +12,34 @@ from warnings import warn
 
 try:
     gc = subprocess.check_output(
-        ['git', 'describe', '--always'],
-        stderr=open(os.devnull, 'w'),
-        cwd=os.path.dirname(os.path.realpath(__file__))
+        ["git", "describe", "--always"],
+        stderr=open(os.devnull, "w"),
+        cwd=os.path.dirname(os.path.realpath(__file__)),
     )
 except (subprocess.CalledProcessError, FileNotFoundError):
     pass
 else:
-    martini_version = martini_version + '_commit_' + gc.strip().decode()
+    martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
 def _gen_particle_coords(source=None, datacube=None):
     # pixels indexed from 0 (not like in FITS!) for better use with numpy
     origin = 0
     skycoords = source.sky_coordinates
-    return np.vstack(
-        datacube.wcs.sub(3).wcs_world2pix(
-            skycoords.ra.to(datacube.units[0]),
-            skycoords.dec.to(datacube.units[1]),
-            skycoords.radial_velocity.to(datacube.units[2]),
-            origin)) * U.pix
+    return (
+        np.vstack(
+            datacube.wcs.sub(3).wcs_world2pix(
+                skycoords.ra.to(datacube.units[0]),
+                skycoords.dec.to(datacube.units[1]),
+                skycoords.radial_velocity.to(datacube.units[2]),
+                origin,
+            )
+        )
+        * U.pix
+    )
 
 
-class Martini():
+class Martini:
     """
     Creates synthetic HI data cubes from simulation data.
 
@@ -198,14 +203,16 @@ class Martini():
 
     """
 
-    def __init__(self,
-                 source=None,
-                 datacube=None,
-                 beam=None,
-                 noise=None,
-                 sph_kernel=None,
-                 spectral_model=None,
-                 logtag=''):
+    def __init__(
+        self,
+        source=None,
+        datacube=None,
+        beam=None,
+        noise=None,
+        sph_kernel=None,
+        spectral_model=None,
+        logtag="",
+    ):
         self.source = source
         self.datacube = datacube
         self.beam = beam
@@ -232,17 +239,22 @@ class Martini():
         """
 
         if self.beam is None:
-            warn('Skipping beam convolution, no beam object provided to '
-                 'Martini.')
+            warn(
+                "Skipping beam convolution, no beam object provided to "
+                "Martini."
+            )
 
         unit = self.datacube._array.unit
         for spatial_slice in self.datacube.spatial_slices():
             # use a view [...] to force in-place modification
-            spatial_slice[...] = fftconvolve(
-                spatial_slice, self.beam.kernel, mode='same') * unit
+            spatial_slice[...] = (
+                fftconvolve(spatial_slice, self.beam.kernel, mode="same")
+                * unit
+            )
         self.datacube.drop_pad()
         self.datacube._array = self.datacube._array.to(
-            U.Jy * U.beam**-1, equivalencies=[self.beam.arcsec_to_beam])
+            U.Jy * U.beam**-1, equivalencies=[self.beam.arcsec_to_beam]
+        )
         return
 
     def add_noise(self):
@@ -251,11 +263,12 @@ class Martini():
         """
 
         if self.noise is None:
-            warn('Skipping noise, no noise object provided to Martini.')
+            warn("Skipping noise, no noise object provided to Martini.")
             return
 
-        self.datacube._array = \
-            self.datacube._array + self.noise.generate(self.datacube)
+        self.datacube._array = self.datacube._array + self.noise.generate(
+            self.datacube
+        )
         return
 
     def _prune_particles(self):
@@ -267,21 +280,24 @@ class Martini():
         """
 
         particle_coords = _gen_particle_coords(
-            source=self.source,
-            datacube=self.datacube
+            source=self.source, datacube=self.datacube
         )
-        spectrum_half_width = self.spectral_model.half_width(self.source) / \
-            self.datacube.channel_width
+        spectrum_half_width = (
+            self.spectral_model.half_width(self.source)
+            / self.datacube.channel_width
+        )
         reject_conditions = (
-            (particle_coords[:2] + self.sph_kernel.sm_ranges[np.newaxis] <
-             0 * U.pix).any(axis=0),
-            particle_coords[0] - self.sph_kernel.sm_ranges >
-            (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
-            particle_coords[1] - self.sph_kernel.sm_ranges >
-            (self.datacube.n_px_y + self.datacube.pady * 2) * U.pix,
+            (
+                particle_coords[:2] + self.sph_kernel.sm_ranges[np.newaxis]
+                < 0 * U.pix
+            ).any(axis=0),
+            particle_coords[0] - self.sph_kernel.sm_ranges
+            > (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
+            particle_coords[1] - self.sph_kernel.sm_ranges
+            > (self.datacube.n_px_y + self.datacube.pady * 2) * U.pix,
             particle_coords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
-            particle_coords[2] - 4 * spectrum_half_width * U.pix >
-            self.datacube.n_channels * U.pix,
+            particle_coords[2] - 4 * spectrum_half_width * U.pix
+            > self.datacube.n_channels * U.pix,
         )
         reject_mask = np.zeros(particle_coords[0].shape)
         for condition in reject_conditions:
@@ -311,8 +327,7 @@ class Martini():
         """
 
         particle_coords = _gen_particle_coords(
-            source=self.source,
-            datacube=self.datacube
+            source=self.source, datacube=self.datacube
         )
         self.sph_kernel.confirm_validation(noraise=skip_validation)
 
@@ -320,36 +335,43 @@ class Martini():
         ij_pxs = list(
             product(
                 np.arange(self.datacube._array.shape[0]),
-                np.arange(self.datacube._array.shape[1])))
+                np.arange(self.datacube._array.shape[1]),
+            )
+        )
         if printfreq is not None:
             print(
-                '  ' + self.logtag + '  [columns: {0:.0f}, rows: {1:.0f}]'
-                .format(
+                "  "
+                + self.logtag
+                + "  [columns: {0:.0f}, rows: {1:.0f}]".format(
                     self.datacube._array.shape[0],
-                    self.datacube._array.shape[1]
+                    self.datacube._array.shape[1],
                 )
             )
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             if printfreq is not None:
                 if (ij[1, 0].value == 0) and (ij[0, 0].value % printfreq == 0):
-                    print('  ' + self.logtag +
-                          '  [row {:.0f}]'.format(ij[0, 0].value))
-            mask = (np.abs(ij - particle_coords[:2])
-                    <= self.sph_kernel.sm_ranges).all(axis=0)
+                    print(
+                        "  "
+                        + self.logtag
+                        + "  [row {:.0f}]".format(ij[0, 0].value)
+                    )
+            mask = (
+                np.abs(ij - particle_coords[:2]) <= self.sph_kernel.sm_ranges
+            ).all(axis=0)
             weights = self.sph_kernel.px_weight(
-                particle_coords[:2, mask] - ij,
-                mask=mask
+                particle_coords[:2, mask] - ij, mask=mask
             )
-            self.datacube._array[ij_px[0], ij_px[1], :, 0] = \
-                (self.spectral_model.spectra[mask] *
-                 weights[..., np.newaxis]).sum(axis=-2)
+            self.datacube._array[ij_px[0], ij_px[1], :, 0] = (
+                self.spectral_model.spectra[mask] * weights[..., np.newaxis]
+            ).sum(axis=-2)
 
-        self.datacube._array = \
-            self.datacube._array / np.power(self.datacube.px_size / U.pix, 2)
+        self.datacube._array = self.datacube._array / np.power(
+            self.datacube.px_size / U.pix, 2
+        )
         return
 
-    def write_fits(self, filename, channels='frequency', overwrite=True):
+    def write_fits(self, filename, channels="frequency", overwrite=True):
         """
         Output the DataCube to a FITS-format file.
 
@@ -368,87 +390,89 @@ class Martini():
         """
 
         self.datacube.drop_pad()
-        if channels == 'frequency':
+        if channels == "frequency":
             self.datacube.freq_channels()
-        elif channels == 'velocity':
+        elif channels == "velocity":
             self.datacube.velocity_channels()
         else:
-            raise ValueError("Martini.write_fits: Unknown 'channels' value "
-                             "(use 'frequency' or 'velocity'.")
+            raise ValueError(
+                "Martini.write_fits: Unknown 'channels' value "
+                "(use 'frequency' or 'velocity'."
+            )
 
-        filename = filename if filename[-5:] == '.fits' else filename + '.fits'
+        filename = filename if filename[-5:] == ".fits" else filename + ".fits"
 
         wcs_header = self.datacube.wcs.to_header()
-        wcs_header.rename_keyword('WCSAXES', 'NAXIS')
+        wcs_header.rename_keyword("WCSAXES", "NAXIS")
 
         header = fits.Header()
-        header.append(('SIMPLE', 'T'))
-        header.append(('BITPIX', 16))
-        header.append(('NAXIS', wcs_header['NAXIS']))
-        header.append(('NAXIS1', self.datacube.n_px_x))
-        header.append(('NAXIS2', self.datacube.n_px_y))
-        header.append(('NAXIS3', self.datacube.n_channels))
-        header.append(('NAXIS4', 1))
-        header.append(('EXTEND', 'T'))
-        header.append(('CDELT1', wcs_header['CDELT1']))
-        header.append(('CRPIX1', wcs_header['CRPIX1']))
-        header.append(('CRVAL1', wcs_header['CRVAL1']))
-        header.append(('CTYPE1', wcs_header['CTYPE1']))
-        header.append(('CUNIT1', wcs_header['CUNIT1']))
-        header.append(('CDELT2', wcs_header['CDELT2']))
-        header.append(('CRPIX2', wcs_header['CRPIX2']))
-        header.append(('CRVAL2', wcs_header['CRVAL2']))
-        header.append(('CTYPE2', wcs_header['CTYPE2']))
-        header.append(('CUNIT2', wcs_header['CUNIT2']))
-        header.append(('CDELT3', wcs_header['CDELT3']))
-        header.append(('CRPIX3', wcs_header['CRPIX3']))
-        header.append(('CRVAL3', wcs_header['CRVAL3']))
-        header.append(('CTYPE3', wcs_header['CTYPE3']))
-        header.append(('CUNIT3', wcs_header['CUNIT3']))
-        header.append(('CDELT4', wcs_header['CDELT4']))
-        header.append(('CRPIX4', wcs_header['CRPIX4']))
-        header.append(('CRVAL4', wcs_header['CRVAL4']))
-        header.append(('CTYPE4', wcs_header['CTYPE4']))
-        header.append(('CUNIT4', 'PAR'))
-        header.append(('EPOCH', 2000))
-        header.append(('INSTRUME', 'MARTINI', martini_version))
+        header.append(("SIMPLE", "T"))
+        header.append(("BITPIX", 16))
+        header.append(("NAXIS", wcs_header["NAXIS"]))
+        header.append(("NAXIS1", self.datacube.n_px_x))
+        header.append(("NAXIS2", self.datacube.n_px_y))
+        header.append(("NAXIS3", self.datacube.n_channels))
+        header.append(("NAXIS4", 1))
+        header.append(("EXTEND", "T"))
+        header.append(("CDELT1", wcs_header["CDELT1"]))
+        header.append(("CRPIX1", wcs_header["CRPIX1"]))
+        header.append(("CRVAL1", wcs_header["CRVAL1"]))
+        header.append(("CTYPE1", wcs_header["CTYPE1"]))
+        header.append(("CUNIT1", wcs_header["CUNIT1"]))
+        header.append(("CDELT2", wcs_header["CDELT2"]))
+        header.append(("CRPIX2", wcs_header["CRPIX2"]))
+        header.append(("CRVAL2", wcs_header["CRVAL2"]))
+        header.append(("CTYPE2", wcs_header["CTYPE2"]))
+        header.append(("CUNIT2", wcs_header["CUNIT2"]))
+        header.append(("CDELT3", wcs_header["CDELT3"]))
+        header.append(("CRPIX3", wcs_header["CRPIX3"]))
+        header.append(("CRVAL3", wcs_header["CRVAL3"]))
+        header.append(("CTYPE3", wcs_header["CTYPE3"]))
+        header.append(("CUNIT3", wcs_header["CUNIT3"]))
+        header.append(("CDELT4", wcs_header["CDELT4"]))
+        header.append(("CRPIX4", wcs_header["CRPIX4"]))
+        header.append(("CRVAL4", wcs_header["CRVAL4"]))
+        header.append(("CTYPE4", wcs_header["CTYPE4"]))
+        header.append(("CUNIT4", "PAR"))
+        header.append(("EPOCH", 2000))
+        header.append(("INSTRUME", "MARTINI", martini_version))
         # header.append(('BLANK', -32768)) #only for integer data
-        header.append(('BSCALE', 1.0))
-        header.append(('BZERO', 0.0))
-        header.append(('DATAMAX', np.max(self.datacube._array.value)))
-        header.append(('DATAMIN', np.min(self.datacube._array.value)))
-        header.append(('ORIGIN', 'astropy v' + astropy_version))
+        header.append(("BSCALE", 1.0))
+        header.append(("BZERO", 0.0))
+        header.append(("DATAMAX", np.max(self.datacube._array.value)))
+        header.append(("DATAMIN", np.min(self.datacube._array.value)))
+        header.append(("ORIGIN", "astropy v" + astropy_version))
         # long names break fits format, don't let the user set this
-        header.append(('OBJECT', 'MOCK'))
+        header.append(("OBJECT", "MOCK"))
         if self.beam is not None:
-            header.append(('BPA', self.beam.bpa.to(U.deg).value))
-        header.append(('OBSERVER', 'K. Oman'))
+            header.append(("BPA", self.beam.bpa.to(U.deg).value))
+        header.append(("OBSERVER", "K. Oman"))
         # header.append(('NITERS', ???))
         # header.append(('RMS', ???))
         # header.append(('LWIDTH', ???))
         # header.append(('LSTEP', ???))
-        header.append(('BUNIT', self.datacube._array.unit.to_string('fits')))
+        header.append(("BUNIT", self.datacube._array.unit.to_string("fits")))
         # header.append(('PCDEC', ???))
         # header.append(('LSTART', ???))
-        header.append(('DATE-OBS', datetime.utcnow().isoformat()[:-5]))
+        header.append(("DATE-OBS", datetime.utcnow().isoformat()[:-5]))
         # header.append(('LTYPE', ???))
         # header.append(('PCRA', ???))
         # header.append(('CELLSCAL', ???))
         if self.beam is not None:
-            header.append(('BMAJ', self.beam.bmaj.to(U.deg).value))
-            header.append(('BMIN', self.beam.bmin.to(U.deg).value))
-        header.append(('BTYPE', 'Intensity'))
-        header.append(('SPECSYS', wcs_header['SPECSYS']))
+            header.append(("BMAJ", self.beam.bmaj.to(U.deg).value))
+            header.append(("BMIN", self.beam.bmin.to(U.deg).value))
+        header.append(("BTYPE", "Intensity"))
+        header.append(("SPECSYS", wcs_header["SPECSYS"]))
 
         # flip axes to write
         hdu = fits.PrimaryHDU(header=header, data=self.datacube._array.value.T)
         hdu.writeto(filename, overwrite=overwrite)
 
-        if channels == 'frequency':
+        if channels == "frequency":
             self.datacube.velocity_channels()
         return
 
-    def write_beam_fits(self, filename, channels='frequency', overwrite=True):
+    def write_beam_fits(self, filename, channels="frequency", overwrite=True):
         """
         Output the beam to a FITS-format file.
 
@@ -475,74 +499,84 @@ class Martini():
         """
 
         if self.beam is None:
-            raise ValueError("Martini.write_beam_fits: Called with beam set "
-                             "to 'None'.")
+            raise ValueError(
+                "Martini.write_beam_fits: Called with beam set " "to 'None'."
+            )
 
-        if channels == 'frequency':
+        if channels == "frequency":
             self.datacube.freq_channels()
-        elif channels == 'velocity':
+        elif channels == "velocity":
             self.datacube.velocity_channels()
         else:
-            raise ValueError("Martini.write_beam_fits: Unknown 'channels' "
-                             "value (use 'frequency' or 'velocity'.")
+            raise ValueError(
+                "Martini.write_beam_fits: Unknown 'channels' "
+                "value (use 'frequency' or 'velocity'."
+            )
 
-        filename = filename if filename[-5:] == '.fits' else filename + '.fits'
+        filename = filename if filename[-5:] == ".fits" else filename + ".fits"
 
         wcs_header = self.datacube.wcs.to_header()
 
         header = fits.Header()
-        header.append(('SIMPLE', 'T'))
-        header.append(('BITPIX', 16))
+        header.append(("SIMPLE", "T"))
+        header.append(("BITPIX", 16))
         # header.append(('NAXIS', self.beam.kernel.ndim))
-        header.append(('NAXIS', 3))
-        header.append(('NAXIS1', self.beam.kernel.shape[0]))
-        header.append(('NAXIS2', self.beam.kernel.shape[1]))
-        header.append(('NAXIS3', 1))
-        header.append(('EXTEND', 'T'))
-        header.append(('BSCALE', 1.0))
-        header.append(('BZERO', 0.0))
+        header.append(("NAXIS", 3))
+        header.append(("NAXIS1", self.beam.kernel.shape[0]))
+        header.append(("NAXIS2", self.beam.kernel.shape[1]))
+        header.append(("NAXIS3", 1))
+        header.append(("EXTEND", "T"))
+        header.append(("BSCALE", 1.0))
+        header.append(("BZERO", 0.0))
         # this is 1/arcsec^2, is this right?
-        header.append(('BUNIT', self.beam.kernel.unit.to_string('fits')))
-        header.append(('CRPIX1', self.beam.kernel.shape[0] // 2 + 1))
-        header.append(('CDELT1', wcs_header['CDELT1']))
-        header.append(('CRVAL1', wcs_header['CRVAL1']))
-        header.append(('CTYPE1', wcs_header['CTYPE1']))
-        header.append(('CUNIT1', wcs_header['CUNIT1']))
-        header.append(('CRPIX2', self.beam.kernel.shape[1] // 2 + 1))
-        header.append(('CDELT2', wcs_header['CDELT2']))
-        header.append(('CRVAL2', wcs_header['CRVAL2']))
-        header.append(('CTYPE2', wcs_header['CTYPE2']))
-        header.append(('CUNIT2', wcs_header['CUNIT2']))
-        header.append(('CRPIX3', 1))
-        header.append(('CDELT3', wcs_header['CDELT3']))
-        header.append(('CRVAL3', wcs_header['CRVAL3']))
-        header.append(('CTYPE3', wcs_header['CTYPE3']))
-        header.append(('CUNIT3', wcs_header['CUNIT3']))
-        header.append(('SPECSYS', wcs_header['SPECSYS']))
-        header.append(('BMAJ', self.beam.bmaj.to(U.deg).value))
-        header.append(('BMIN', self.beam.bmin.to(U.deg).value))
-        header.append(('BPA', self.beam.bpa.to(U.deg).value))
-        header.append(('BTYPE', 'beam    '))
-        header.append(('EPOCH', 2000))
-        header.append(('OBSERVER', 'K. Oman'))
+        header.append(("BUNIT", self.beam.kernel.unit.to_string("fits")))
+        header.append(("CRPIX1", self.beam.kernel.shape[0] // 2 + 1))
+        header.append(("CDELT1", wcs_header["CDELT1"]))
+        header.append(("CRVAL1", wcs_header["CRVAL1"]))
+        header.append(("CTYPE1", wcs_header["CTYPE1"]))
+        header.append(("CUNIT1", wcs_header["CUNIT1"]))
+        header.append(("CRPIX2", self.beam.kernel.shape[1] // 2 + 1))
+        header.append(("CDELT2", wcs_header["CDELT2"]))
+        header.append(("CRVAL2", wcs_header["CRVAL2"]))
+        header.append(("CTYPE2", wcs_header["CTYPE2"]))
+        header.append(("CUNIT2", wcs_header["CUNIT2"]))
+        header.append(("CRPIX3", 1))
+        header.append(("CDELT3", wcs_header["CDELT3"]))
+        header.append(("CRVAL3", wcs_header["CRVAL3"]))
+        header.append(("CTYPE3", wcs_header["CTYPE3"]))
+        header.append(("CUNIT3", wcs_header["CUNIT3"]))
+        header.append(("SPECSYS", wcs_header["SPECSYS"]))
+        header.append(("BMAJ", self.beam.bmaj.to(U.deg).value))
+        header.append(("BMIN", self.beam.bmin.to(U.deg).value))
+        header.append(("BPA", self.beam.bpa.to(U.deg).value))
+        header.append(("BTYPE", "beam    "))
+        header.append(("EPOCH", 2000))
+        header.append(("OBSERVER", "K. Oman"))
         # long names break fits format
-        header.append(('OBJECT', 'MOCKBEAM'))
-        header.append(('INSTRUME', 'MARTINI', martini_version))
-        header.append(('DATAMAX', np.max(self.beam.kernel.value)))
-        header.append(('DATAMIN', np.min(self.beam.kernel.value)))
-        header.append(('ORIGIN', 'astropy v' + astropy_version))
+        header.append(("OBJECT", "MOCKBEAM"))
+        header.append(("INSTRUME", "MARTINI", martini_version))
+        header.append(("DATAMAX", np.max(self.beam.kernel.value)))
+        header.append(("DATAMIN", np.min(self.beam.kernel.value)))
+        header.append(("ORIGIN", "astropy v" + astropy_version))
 
         # flip axes to write
         hdu = fits.PrimaryHDU(
-            header=header, data=self.beam.kernel.value[..., np.newaxis].T)
+            header=header, data=self.beam.kernel.value[..., np.newaxis].T
+        )
         hdu.writeto(filename, overwrite=True)
 
-        if channels == 'frequency':
+        if channels == "frequency":
             self.datacube.velocity_channels()
         return
 
-    def write_hdf5(self, filename, channels='frequency', overwrite=True,
-                   memmap=False, compact=False):
+    def write_hdf5(
+        self,
+        filename,
+        channels="frequency",
+        overwrite=True,
+        memmap=False,
+        compact=False,
+    ):
         """
         Output the DataCube and Beam to a HDF5-format file. Requires the h5py
         package.
@@ -573,98 +607,102 @@ class Martini():
         import h5py
 
         self.datacube.drop_pad()
-        if channels == 'frequency':
+        if channels == "frequency":
             self.datacube.freq_channels()
-        elif channels == 'velocity':
+        elif channels == "velocity":
             pass
         else:
-            raise ValueError("Martini.write_fits: Unknown 'channels' value "
-                             "(use 'frequency' or 'velocity'.")
+            raise ValueError(
+                "Martini.write_fits: Unknown 'channels' value "
+                "(use 'frequency' or 'velocity'."
+            )
 
-        filename = filename if filename[-5:] == '.hdf5' else filename + '.hdf5'
+        filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
 
         wcs_header = self.datacube.wcs.to_header()
 
-        mode = 'w' if overwrite else 'x'
-        driver = 'core' if memmap else None
-        h5_kwargs = {'backing_store': False} if memmap else dict()
+        mode = "w" if overwrite else "x"
+        driver = "core" if memmap else None
+        h5_kwargs = {"backing_store": False} if memmap else dict()
         f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
-        f['FluxCube'] = self.datacube._array.value[..., 0]
-        c = f['FluxCube']
+        f["FluxCube"] = self.datacube._array.value[..., 0]
+        c = f["FluxCube"]
         origin = 0  # index from 0 like numpy, not from 1
         if not compact:
             xgrid, ygrid, vgrid = np.meshgrid(
                 np.arange(self.datacube._array.shape[0]),
                 np.arange(self.datacube._array.shape[1]),
-                np.arange(self.datacube._array.shape[2])
+                np.arange(self.datacube._array.shape[2]),
             )
-            cgrid = np.vstack((
-                xgrid.flatten(),
-                ygrid.flatten(),
-                vgrid.flatten(),
-                np.zeros(vgrid.shape).flatten()
-            )).T
+            cgrid = np.vstack(
+                (
+                    xgrid.flatten(),
+                    ygrid.flatten(),
+                    vgrid.flatten(),
+                    np.zeros(vgrid.shape).flatten(),
+                )
+            ).T
             wgrid = self.datacube.wcs.all_pix2world(cgrid, origin)
             ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[..., 0]
             decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[..., 0]
             chgrid = wgrid[:, 2].reshape(self.datacube._array.shape)[..., 0]
-            f['RA'] = ragrid
-            f['RA'].attrs['Unit'] = wcs_header['CUNIT1']
-            f['Dec'] = decgrid
-            f['Dec'].attrs['Unit'] = wcs_header['CUNIT2']
-            f['channel_mids'] = chgrid
-            f['channel_mids'].attrs['Unit'] = wcs_header['CUNIT3']
-        c.attrs['AxisOrder'] = '(RA,Dec,Channels)'
-        c.attrs['FluxCubeUnit'] = str(self.datacube._array.unit)
-        c.attrs['deltaRA_in_RAUnit'] = wcs_header['CDELT1']
-        c.attrs['RA0_in_px'] = wcs_header['CRPIX1'] - 1
-        c.attrs['RA0_in_RAUnit'] = wcs_header['CRVAL1']
-        c.attrs['RAUnit'] = wcs_header['CUNIT1']
-        c.attrs['RAProjType'] = wcs_header['CTYPE1']
-        c.attrs['deltaDec_in_DecUnit'] = wcs_header['CDELT2']
-        c.attrs['Dec0_in_px'] = wcs_header['CRPIX2'] - 1
-        c.attrs['Dec0_in_DecUnit'] = wcs_header['CRVAL2']
-        c.attrs['DecUnit'] = wcs_header['CUNIT2']
-        c.attrs['DecProjType'] = wcs_header['CTYPE2']
-        c.attrs['deltaV_in_VUnit'] = wcs_header['CDELT3']
-        c.attrs['V0_in_px'] = wcs_header['CRPIX3'] - 1
-        c.attrs['V0_in_VUnit'] = wcs_header['CRVAL3']
-        c.attrs['VUnit'] = wcs_header['CUNIT3']
-        c.attrs['VProjType'] = wcs_header['CTYPE3']
+            f["RA"] = ragrid
+            f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
+            f["Dec"] = decgrid
+            f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
+            f["channel_mids"] = chgrid
+            f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
+        c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
+        c.attrs["FluxCubeUnit"] = str(self.datacube._array.unit)
+        c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+        c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
+        c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+        c.attrs["RAUnit"] = wcs_header["CUNIT1"]
+        c.attrs["RAProjType"] = wcs_header["CTYPE1"]
+        c.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+        c.attrs["Dec0_in_px"] = wcs_header["CRPIX2"] - 1
+        c.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+        c.attrs["DecUnit"] = wcs_header["CUNIT2"]
+        c.attrs["DecProjType"] = wcs_header["CTYPE2"]
+        c.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+        c.attrs["V0_in_px"] = wcs_header["CRPIX3"] - 1
+        c.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+        c.attrs["VUnit"] = wcs_header["CUNIT3"]
+        c.attrs["VProjType"] = wcs_header["CTYPE3"]
         if self.beam is not None:
-            c.attrs['BeamPA'] = self.beam.bpa.to(U.deg).value
-            c.attrs['BeamMajor_in_deg'] = self.beam.bmaj.to(U.deg).value
-            c.attrs['BeamMinor_in_deg'] = self.beam.bmin.to(U.deg).value
-        c.attrs['DateCreated'] = datetime.utcnow().isoformat()[:-5]
-        c.attrs['MartiniVersion'] = martini_version
-        c.attrs['AstropyVersion'] = astropy_version
+            c.attrs["BeamPA"] = self.beam.bpa.to(U.deg).value
+            c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to(U.deg).value
+            c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to(U.deg).value
+        c.attrs["DateCreated"] = datetime.utcnow().isoformat()[:-5]
+        c.attrs["MartiniVersion"] = martini_version
+        c.attrs["AstropyVersion"] = astropy_version
         if self.beam is not None:
-            f['Beam'] = self.beam.kernel.value[..., np.newaxis]
-            b = f['Beam']
-            b.attrs['BeamUnit'] = self.beam.kernel.unit.to_string('fits')
-            b.attrs['deltaRA_in_RAUnit'] = wcs_header['CDELT1']
-            b.attrs['RA0_in_px'] = self.beam.kernel.shape[0] // 2
-            b.attrs['RA0_in_RAUnit'] = wcs_header['CRVAL1']
-            b.attrs['RAUnit'] = wcs_header['CUNIT1']
-            b.attrs['RAProjType'] = wcs_header['CTYPE1']
-            b.attrs['deltaDec_in_DecUnit'] = wcs_header['CDELT2']
-            b.attrs['Dec0_in_px'] = self.beam.kernel.shape[1] // 2
-            b.attrs['Dec0_in_DecUnit'] = wcs_header['CRVAL2']
-            b.attrs['DecUnit'] = wcs_header['CUNIT2']
-            b.attrs['DecProjType'] = wcs_header['CTYPE2']
-            b.attrs['deltaV_in_VUnit'] = wcs_header['CDELT3']
-            b.attrs['V0_in_px'] = 0
-            b.attrs['V0_in_VUnit'] = wcs_header['CRVAL3']
-            b.attrs['VUnit'] = wcs_header['CUNIT3']
-            b.attrs['VProjType'] = wcs_header['CTYPE3']
-            b.attrs['BeamPA'] = self.beam.bpa.to(U.deg).value
-            b.attrs['BeamMajor_in_deg'] = self.beam.bmaj.to(U.deg).value
-            b.attrs['BeamMinor_in_deg'] = self.beam.bmin.to(U.deg).value
-            b.attrs['DateCreated'] = datetime.utcnow().isoformat()[:-5]
-            b.attrs['MartiniVersion'] = martini_version
-            b.attrs['AstropyVersion'] = astropy_version
+            f["Beam"] = self.beam.kernel.value[..., np.newaxis]
+            b = f["Beam"]
+            b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
+            b.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+            b.attrs["RA0_in_px"] = self.beam.kernel.shape[0] // 2
+            b.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+            b.attrs["RAUnit"] = wcs_header["CUNIT1"]
+            b.attrs["RAProjType"] = wcs_header["CTYPE1"]
+            b.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+            b.attrs["Dec0_in_px"] = self.beam.kernel.shape[1] // 2
+            b.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+            b.attrs["DecUnit"] = wcs_header["CUNIT2"]
+            b.attrs["DecProjType"] = wcs_header["CTYPE2"]
+            b.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+            b.attrs["V0_in_px"] = 0
+            b.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+            b.attrs["VUnit"] = wcs_header["CUNIT3"]
+            b.attrs["VProjType"] = wcs_header["CTYPE3"]
+            b.attrs["BeamPA"] = self.beam.bpa.to(U.deg).value
+            b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to(U.deg).value
+            b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to(U.deg).value
+            b.attrs["DateCreated"] = datetime.utcnow().isoformat()[:-5]
+            b.attrs["MartiniVersion"] = martini_version
+            b.attrs["AstropyVersion"] = astropy_version
 
-        if channels == 'frequency':
+        if channels == "frequency":
             self.datacube.velocity_channels()
         if memmap:
             return f
@@ -684,7 +722,7 @@ class Martini():
             channel_width=self.datacube.channel_width,
             velocity_centre=self.datacube.velocity_centre,
             ra=self.datacube.ra,
-            dec=self.datacube.dec
+            dec=self.datacube.dec,
         )
         self.datacube.__init__(**init_kwargs)
         return

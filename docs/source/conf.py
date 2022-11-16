@@ -75,5 +75,5 @@ html_static_path = ["_static"]
 intersphinx_mapping = dict(
     scipy=("https://docs.scipy.org/doc/scipy/", None),
     numpy=("https://numpy.org/doc/stable/", None),
-    astropy=("https://docs.astropy.org/en/stable/", None)
+    astropy=("https://docs.astropy.org/en/stable/", None),
 )

@@ -65,36 +65,40 @@ class _BaseSpectrum(object):
         """
 
         channel_edges = datacube.channel_edges
-        channel_widths = np.diff(channel_edges).to(U.km * U.s ** -1)
+        channel_widths = np.diff(channel_edges).to(U.km * U.s**-1)
         vmids = source.sky_coordinates.radial_velocity
-        A = source.mHI_g * \
-            np.power(source.sky_coordinates.distance.to(U.Mpc), -2)
-        MHI_Jy = (
-            U.solMass * U.Mpc ** -2 * (U.km * U.s ** -1) ** -1,
-            U.Jy,
-            lambda x: (1 / 2.36E5) * x,
-            lambda x: 2.36E5 * x
+        A = source.mHI_g * np.power(
+            source.sky_coordinates.distance.to(U.Mpc), -2
         )
-        spectral_function_kwargs = \
-            {k: np.tile(v, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim).T
-             for k, v in self.spectral_function_kwargs(source).items()}
-        raw_spectra = self.spectral_function(
-            np.tile(
-                channel_edges.value[:-1],
-                vmids.shape + (1,)
-            ) * channel_edges.unit,
-            np.tile(
-                channel_edges.value[1:],
-                vmids.shape + (1,)
-            ) * channel_edges.unit,
-            np.tile(
-                vmids.value,
-                np.shape(channel_edges[:-1]) + (1,) * vmids.ndim
-            ).T * vmids.unit,
-            **spectral_function_kwargs
-        ).to(U.dimensionless_unscaled).value
-        self.spectra = (A[..., np.newaxis] * raw_spectra / channel_widths)\
-            .to(U.Jy, equivalencies=[MHI_Jy])
+        MHI_Jy = (
+            U.solMass * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
+            U.Jy,
+            lambda x: (1 / 2.36e5) * x,
+            lambda x: 2.36e5 * x,
+        )
+        spectral_function_kwargs = {
+            k: np.tile(v, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim).T
+            for k, v in self.spectral_function_kwargs(source).items()
+        }
+        raw_spectra = (
+            self.spectral_function(
+                np.tile(channel_edges.value[:-1], vmids.shape + (1,))
+                * channel_edges.unit,
+                np.tile(channel_edges.value[1:], vmids.shape + (1,))
+                * channel_edges.unit,
+                np.tile(
+                    vmids.value,
+                    np.shape(channel_edges[:-1]) + (1,) * vmids.ndim,
+                ).T
+                * vmids.unit,
+                **spectral_function_kwargs
+            )
+            .to(U.dimensionless_unscaled)
+            .value
+        )
+        self.spectra = (A[..., np.newaxis] * raw_spectra / channel_widths).to(
+            U.Jy, equivalencies=[MHI_Jy]
+        )
 
         return
 
@@ -187,14 +191,14 @@ class GaussianSpectrum(_BaseSpectrum):
     DiracDeltaSpectrum
     """
 
-    def __init__(self, sigma=7. * U.km * U.s ** -1):
+    def __init__(self, sigma=7.0 * U.km * U.s**-1):
 
         self.sigma_mode = sigma
         super().__init__()
 
         return
 
-    def spectral_function(self, a, b, vmids, sigma=1.0 * U.km * U.s ** -1):
+    def spectral_function(self, a, b, vmids, sigma=1.0 * U.km * U.s**-1):
         """
         Evaluate a Gaussian integral in a channel.
 
@@ -220,10 +224,14 @@ class GaussianSpectrum(_BaseSpectrum):
         """
 
         # erf strips units
-        return .5 * (
-            erf((b - vmids) / (np.sqrt(2.) * sigma)) -
-            erf((a - vmids) / (np.sqrt(2.) * sigma))
-        ) * U.dimensionless_unscaled
+        return (
+            0.5
+            * (
+                erf((b - vmids) / (np.sqrt(2.0) * sigma))
+                - erf((a - vmids) / (np.sqrt(2.0) * sigma))
+            )
+            * U.dimensionless_unscaled
+        )
 
     def spectral_function_kwargs(self, source):
         """
@@ -241,7 +249,7 @@ class GaussianSpectrum(_BaseSpectrum):
             Keyword arguments for the spectral_function.
         """
 
-        return {'sigma': self.half_width(source)}
+        return {"sigma": self.half_width(source)}
 
     def half_width(self, source):
         """
@@ -259,10 +267,10 @@ class GaussianSpectrum(_BaseSpectrum):
             Velocity dispersion (constant, or per particle).
         """
 
-        if self.sigma_mode == 'thermal':
+        if self.sigma_mode == "thermal":
             # 3D velocity dispersion of an ideal gas is sqrt(3 * kB * T / mp)
             # So 1D velocity dispersion is sqrt(kB * T / mp)
-            return np.sqrt(C.k_B * source.T_g / C.m_p).to(U.km * U.s ** -1)
+            return np.sqrt(C.k_B * source.T_g / C.m_p).to(U.km * U.s**-1)
         else:
             return self.sigma_mode
 
@@ -300,7 +308,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
             The evaluated spectral model.
         """
 
-        return np.heaviside(vmids - a, 1.) * np.heaviside(b - vmids, 0.)
+        return np.heaviside(vmids - a, 1.0) * np.heaviside(b - vmids, 0.0)
 
     def spectral_function_kwargs(self, source):
         """
@@ -334,4 +342,4 @@ class DiracDeltaSpectrum(_BaseSpectrum):
             Velocity dispersion of 0 km/s.
         """
 
-        return 0 * U.km * U.s ** -1
+        return 0 * U.km * U.s**-1

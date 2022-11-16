@@ -70,7 +70,7 @@ class GaussianNoise(_BaseNoise):
             Noise realization with size matching the DataCube._array.
         """
 
-        return np.random.normal(
-            scale=self.rms.value,
-            size=datacube._array.shape
-        ) * self.rms.unit
+        return (
+            np.random.normal(scale=self.rms.value, size=datacube._array.shape)
+            * self.rms.unit
+        )

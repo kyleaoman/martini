@@ -101,39 +101,41 @@ class MagneticumSource(SPHSource):
     dec : Quantity, with dimensions of angle, optional
         Declination for the source centroid. (Default: 0 deg.)
     """
+
     def __init__(
-            self,
-            snapBase=None,
-            haloPosition=None,
-            haloVelocity=None,
-            haloRadius=None,
-            groupFile=None,
-            haloID=None,
-            subhaloID=None,
-            rescaleRadius=1.0,
-            xH=0.76,  # not in header
-            Lbox=100*U.Mpc,  # what is it, actually?
-            internal_units=dict(
-                L=U.kpc,
-                M=1E10 * U.Msun,
-                V=U.km/U.s,
-                T=U.K
-            ),
-            distance=3*U.Mpc,
-            vpeculiar=0*U.km/U.s,
-            rotation={'L_coords': (60.*U.deg, 0.*U.deg)},
-            ra=0*U.deg,
-            dec=0*U.deg
+        self,
+        snapBase=None,
+        haloPosition=None,
+        haloVelocity=None,
+        haloRadius=None,
+        groupFile=None,
+        haloID=None,
+        subhaloID=None,
+        rescaleRadius=1.0,
+        xH=0.76,  # not in header
+        Lbox=100 * U.Mpc,  # what is it, actually?
+        internal_units=dict(L=U.kpc, M=1e10 * U.Msun, V=U.km / U.s, T=U.K),
+        distance=3 * U.Mpc,
+        vpeculiar=0 * U.km / U.s,
+        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        ra=0 * U.deg,
+        dec=0 * U.deg,
     ):
 
         from g3t.stable.g3read import GadgetFile, read_particles_in_box
 
         # I guess I should allow rescaling of radius to get fore/background
 
-        if (haloID is not None) or (subhaloID is not None) \
-           or (groupFile is not None):
-            if (haloPosition is not None) or (haloVelocity is not None) \
-               or (haloRadius is not None):
+        if (
+            (haloID is not None)
+            or (subhaloID is not None)
+            or (groupFile is not None)
+        ):
+            if (
+                (haloPosition is not None)
+                or (haloVelocity is not None)
+                or (haloRadius is not None)
+            ):
                 raise
         else:
             if (haloID is not None) and (subhaloID is not None):
@@ -161,36 +163,38 @@ class MagneticumSource(SPHSource):
         particles = {}
 
         # Here all is still in code units
-        header = GadgetFile(snapBase + '.0').header
+        header = GadgetFile(snapBase + ".0").header
 
         a = header.time
         h = header.HubbleParam
 
-        l_unit = internal_units['L'] * a / h
-        m_unit = internal_units['M'] / h
-        v_unit = internal_units['V'] * np.sqrt(a)
-        T_unit = internal_units['T']
+        l_unit = internal_units["L"] * a / h
+        m_unit = internal_units["M"] / h
+        v_unit = internal_units["V"] * np.sqrt(a)
+        T_unit = internal_units["T"]
 
         f_gas = read_particles_in_box(
             snapBase,
             haloPosition,
             haloRadius,
-            ['POS ', 'VEL ', 'MASS', 'TEMP', 'NH  ', 'HSML'],
-            [0]
+            ["POS ", "VEL ", "MASS", "TEMP", "NH  ", "HSML"],
+            [0],
         )
 
-        particles['xyz_g'] = f_gas['POS '] * l_unit
-        particles['vxyz_g'] = f_gas['VEL '] * v_unit
-        particles['hsm_g'] = f_gas['HSML'] * l_unit
-        particles['T_g'] = f_gas['TEMP'] * T_unit
-        particles['mHI_g'] = f_gas['NH  '] * xH * f_gas['MASS'] * m_unit
+        particles["xyz_g"] = f_gas["POS "] * l_unit
+        particles["vxyz_g"] = f_gas["VEL "] * v_unit
+        particles["hsm_g"] = f_gas["HSML"] * l_unit
+        particles["T_g"] = f_gas["TEMP"] * T_unit
+        particles["mHI_g"] = f_gas["NH  "] * xH * f_gas["MASS"] * m_unit
 
-        particles['xyz_g'] -= haloPosition * l_unit
-        particles['xyz_g'][particles['xyz_g'] > Lbox * a / 2.] \
-            -= Lbox.to(U.kpc) * a
-        particles['xyz_g'][particles['xyz_g'] < -Lbox * a / 2.] \
-            += Lbox.to(U.kpc) * a
-        particles['vxyz_g'] -= haloVelocity * v_unit
+        particles["xyz_g"] -= haloPosition * l_unit
+        particles["xyz_g"][particles["xyz_g"] > Lbox * a / 2.0] -= (
+            Lbox.to(U.kpc) * a
+        )
+        particles["xyz_g"][particles["xyz_g"] < -Lbox * a / 2.0] += (
+            Lbox.to(U.kpc) * a
+        )
+        particles["vxyz_g"] -= haloVelocity * v_unit
 
         super().__init__(
             distance=distance,
