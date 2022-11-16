@@ -109,20 +109,21 @@ class SimbaSource(SPHSource):
 
         gamma = 5 / 3
 
-        with h5py.File(snapFile, 'r') as f:
-            a = f['Header'].attrs['Time']
-            h = f['Header'].attrs['HubbleParam']
-            lbox = f['Header'].attrs['BoxSize'] / h * U.kpc
-            gas = f['PartType0']
-            fH = gas['Metallicity'][()][:, 0]
-            fHe = gas['Metallicity'][()][:, 1]
-            xe = gas['ElectronAbundance'][()]
+        with h5py.File(snapFile, "r") as f:
+            a = f["Header"].attrs["Time"]
+            h = f["Header"].attrs["HubbleParam"]
+            lbox = f["Header"].attrs["BoxSize"] / h * U.kpc
+            gas = f["PartType0"]
+            fZ = gas["Metallicity"][()][:, 0]
+            fHe = gas["Metallicity"][()][:, 1]
+            fH = 1 - fHe - fZ
+            xe = gas["ElectronAbundance"][()]
             particles = dict(
                 xyz_g=gas['Coordinates'][()] * a / h * U.kpc,
                 vxyz_g=gas['Velocities'][()] * np.sqrt(a) * U.km / U.s,
                 T_g=(
-                    (1 + 4 * fHe / (1 - fHe))
-                    / (1 + fHe / 4 / (1 - fHe) + xe) * C.m_p
+                    (4 / (1 + 3 * fH + 4 * fH * xe))
+                    * C.m_p
                     * (gamma - 1)
                     * gas['InternalEnergy'][()] * (U.km / U.s) ** 2 / C.k_B
                 ).to(U.K),
