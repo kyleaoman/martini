@@ -231,8 +231,8 @@ class DataCube(object):
             (self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels, 1)
         )
         self._array = self._array * tmp.unit
-        xregion = np.s_[pad[0]:-pad[0]] if pad[0] > 0 else np.s_[:]
-        yregion = np.s_[pad[1]:-pad[1]] if pad[1] > 0 else np.s_[:]
+        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else np.s_[:]
+        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else np.s_[:]
         self._array[xregion, yregion, ...] = tmp
         self.wcs.wcs.crpix += np.array([pad[0], pad[1], 0, 0])
         self.padx, self.pady = pad
@@ -252,7 +252,7 @@ class DataCube(object):
 
         if (self.padx == 0) and (self.pady == 0):
             return
-        self._array = self._array[self.padx: -self.padx, self.pady: -self.pady, ...]
+        self._array = self._array[self.padx : -self.padx, self.pady : -self.pady, ...]
         self.wcs.wcs.crpix -= np.array([self.padx, self.pady, 0, 0])
         self.padx, self.pady = 0, 0
         return
