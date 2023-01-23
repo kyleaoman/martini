@@ -44,7 +44,11 @@ er_lines = [
     "        ],",
     "        'magneticumsource': 'g3t @ https://github.com/kyleaoman/'",
     "        'g3t/archive/master.zip#egg=g3t',",
-    "        'simbasource': 'h5py'",
+    "        'simbasource': 'h5py',",
+    "        'colibresource': [",
+    "            'swiftsimio',",
+    "            'swiftgalaxy',",
+    "        ],",
     "    },",
 ]
 
