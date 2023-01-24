@@ -320,7 +320,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
 
         The formula used approximates the kernel amplitude as constant
         across the pixel area and converges to the true value within 1%
-        for smoothing lengths >= 2 pixels.
+        for smoothing lengths >= 1.51 pixels.
 
         Parameters
         ----------
@@ -447,6 +447,10 @@ class WendlandC6Kernel(_BaseSPHKernel):
     def kernel_integral(self, dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
+
+        The formula used approximates the kernel amplitude as constant
+        across the pixel area and converges to the true value within 1%
+        for smoothing lengths >= 1.29 pixels.
 
         Parameters
         ----------
@@ -662,7 +666,7 @@ class CubicSplineKernel(_BaseSPHKernel):
 
         The formula used approximates the kernel amplitude as constant across
         the pixel area and converges to the true value within 1% for smoothing
-        lengths >= 2.5 pixels.
+        lengths >= 1.16 pixels.
 
         Parameters
         ----------
@@ -1191,3 +1195,175 @@ class AdaptiveKernel(_BaseSPHKernel):
             )
 
         return
+
+
+class QuarticSplineKernel(_BaseSPHKernel):
+    """
+    Implementation of the quartic spline kernel integral.
+
+    The quartic spline (M5) kernel is used in the SPHENIX scheme (e.g. in Colibre). The
+    exact integral is usually too slow to be practical; the implementation here
+    approximates the kernel amplitude as constant across the pixel, which converges to
+    within 1% of the exact integral provided the SPH smoothing lengths are at least ??
+    pixels in size.
+
+    The quartic spline kernel is here defined as:
+
+    .. math ::
+        W(q) = \\frac{4375}{7648\\pi}\\begin{cases}
+        (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
+        &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
+        (1 - q)^4 - 5(\\frac{3}{5} - q)^4
+        &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+        (1 - q)^4
+        &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+        0
+        &{\\rm for}\\;q \\geq 1
+        \\end{cases}
+
+    """
+
+    min_valid_size = np.nan
+
+    def __init__(self):
+        super().__init__()
+        _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+        self.size_in_fwhm = 1 / _unscaled_fwhm
+        self._rescale /= _unscaled_fwhm
+        return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function.
+
+        The quartic spline kernel is here defined as:
+
+        .. math ::
+            W(q) = \\frac{4375}{7648\\pi}\\begin{cases}
+            (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
+            &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
+            (1 - q)^4 - 5(\\frac{3}{5} - q)^4
+            &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+            (1 - q)^4
+            &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+            0
+            &{\\rm for}\\;q \\geq 1
+            \\end{cases}
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+
+        W = np.zeros(q.shape)
+        mask1 = q < 0.2
+        W[mask1] = (
+            np.power(1 + q[mask1], 4)
+            - 5 * np.power(0.6 + q[mask1], 4)
+            + 10 * np.power(0.2 + q[mask1], 4)
+        )
+        mask2 = np.logical_and(q >= 0.2, q < 0.6)
+        W[mask2] = np.power(1 - q[mask2], 4) - 5 * np.power(0.6 - q[mask2], 4)
+        mask3 = np.logical_and(q >= 0.6, q < 1)
+        W[mask3] = np.power(1 - q[mask3], 4)
+        W *= 4375 / 7648 / np.pi
+        return W
+
+    def kernel_integral(self, dij, h, **kwargs):
+        """
+        Calculate the kernel integral over a pixel.
+
+        The formula used approximates the kernel amplitude as constant across
+        the pixel area and converges to the true value within 1% for smoothing
+        lengths >= ?? pixels.
+
+        Parameters
+        ----------
+        dij : Quantity, with dimensions of pixels
+            Distances from pixel centre to particle positions, in pixels.
+        h : Quantity, with dimensions of pixels
+            Particle smoothing lengths, in pixels.
+
+        Returns
+        -------
+        out : array_like
+            Approximate kernel integral over the pixel area.
+        """
+
+        dr = np.sqrt(np.power(dij, 2).sum(axis=0))
+        retval = np.zeros(h.shape)
+        R = (dr / h).to_value(U.dimensionless_unscaled)
+
+        def IA(R, z, A):
+            q = np.sqrt(np.power(z, 2) + np.power(R, 2))
+            R2 = np.power(R, 2)
+            return (
+                np.power(A, 4) * z
+                - 2 * np.power(A, 3) * z * q
+                + 2 * np.power(A, 2) * z * (3 * R2 + np.power(z, 2))
+                - A * R2 * (R * np.power(A, 2) + 3 * R2) * np.arcsinh(z / R) / 2
+                - A * z * q * (5 * R2 + 2 * np.power(z, 2)) / 2
+                + R2 * R2 * z
+                + 2 * R2 * np.power(z, 3) / 3
+                + np.power(z, 5) / 5
+            )
+
+        z1 = np.sqrt(0.2**2 - np.power(R, 2))
+        z2 = np.sqrt(0.6**2 - np.power(R, 2))
+        z3 = np.sqrt(1 - np.power(R, 2))
+        m1 = np.logical_and(R > 0, R < 0.2)
+        m2 = np.logical_and(R >= 0.2, R < 0.6)
+        m3 = np.logical_and(R >= 0.6, R < 1)
+        retval[m1] = (
+            IA(R[m1], z1[m1], 1)
+            - 5 * IA(R[m1], z1[m1], 0.6)
+            + 10 * IA(R[m1], z1[m1], 0.2)
+            + IA(R[m1], z3[m1], -1)
+            - IA(R[m1], z1[m1], -1)
+            - 5 * IA(R[m1], z2[m1], -0.6)
+            + 5 * IA(R[m1], z2[m1], -0.6)
+        )
+        retval[m2] = IA(R[m2], z3[m2], -1) - 5 * IA(R[m2], z2[m2], -0.6)
+        retval[m3] = IA(R[m3], z3[m3], -1)
+        retval[R == 0] = 384 / 3125
+        # might need overall normalisation
+        # factor of 2 is because all integrals above are half-intervals
+        retval *= 2 * 4375 / 7648 / np.pi
+        return retval / np.power(h, 2)
+
+    def validate(self, sm_lengths, noraise=False, quiet=False):
+        """
+        Check conditions for validity of kernel integral calculation.
+
+        Parameters
+        ----------
+        sm_lengths : Quantity, with dimensions of pixels
+            Particle smoothing lengths, in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
+        """
+
+        valid = sm_lengths >= self.min_valid_size * U.pix
+        if np.logical_not(valid).any():
+            self._validate_error(
+                "Martini.sph_kernels.QuarticSplineKernel.validate:\n"
+                "SPH smoothing lengths must be >= {:f} px in "
+                "size for QuarticSplineKernel kernel integral "
+                "approximation accuracy within 1%.\nThis check "
+                "may be disabled by calling "
+                "Martini.Martini.insert_source_in_cube with "
+                "'skip_validation=True', but use this with "
+                "care.".format(self.min_valid_size),
+                sm_lengths,
+                valid,
+                noraise=noraise,
+                quiet=quiet,
+            )
+        return valid

@@ -1,8 +1,7 @@
 from .sph_source import SPHSource
-from ..sph_kernels import CubicSplineKernel, find_fwhm
+from ..sph_kernels import QuarticSplineKernel, find_fwhm
 from astropy import units as U
 
-# TODO: smoothing lengths need to be converted to FWHM
 # TODO: non-group particles (foregroud/background)?
 # TODO: tests
 # TODO: examples
@@ -72,7 +71,8 @@ class ColibreSource(SPHSource):
             xyz_g=galaxy.gas.coordinates.to_astropy(),
             vxyz_g=galaxy.gas.velocities.to_astropy(),
             T_g=galaxy.gas.temperatures.to_astropy(),
-            hsm_g=galaxy.gas.smoothing_lengths.to_astropy(),
+            hsm_g=galaxy.gas.smoothing_lengths.to_astropy()
+            * find_fwhm(QuarticSplineKernel().kernel),
             mHI_g=galaxy.gas.atomic_hydrogen_masses.to_astropy(),
         )
 

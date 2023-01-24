@@ -5,6 +5,7 @@ from martini.sph_kernels import (
     WendlandC2Kernel,
     GaussianKernel,
     CubicSplineKernel,
+    QuarticSplineKernel,
     WendlandC6Kernel,
     DiracDeltaKernel,
     AdaptiveKernel,
@@ -12,7 +13,7 @@ from martini.sph_kernels import (
 from astropy import units as U
 
 # kernels that have a well-defined FWHM, i.e. not dirac-delta, adaptive
-basic_kernels = WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, GaussianKernel
+basic_kernels = WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, GaussianKernel, QuarticSplineKernel
 all_kernels = basic_kernels + (DiracDeltaKernel, AdaptiveKernel)
 
 for k in all_kernels:
@@ -71,7 +72,6 @@ class TestSPHKernels:
             eval_grid = rgrid <= ri
             k.sm_lengths = h * np.ones(rgrid.shape)[eval_grid].flatten() * U.pix
             dij = np.vstack((xgrid[eval_grid], ygrid[eval_grid]))
-            print(dij.shape)
             IKi = dr**2 * np.sum(
                 k.px_weight(
                     dij * U.pix,
@@ -93,11 +93,12 @@ class TestSPHKernels:
             x_3d.append(ri)
             y_3d.append(dr**3 * np.sum(k.eval_kernel(rgrid[eval_grid], 1)))
 
+        print(np.array(y_2d) / np.array(y_3d))
         assert np.allclose(x_2d, x_3d)  # we evaluated integrals at same radii
         assert np.allclose(y_2d, y_3d, rtol=2.0e-2)  # integrals within 2%
 
     @pytest.mark.parametrize(
-        "kernel", (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel)
+        "kernel", (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, QuarticSplineKernel)
     )
     def test_kernel_validation_minsize(self, kernel):
         """
