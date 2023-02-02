@@ -1223,7 +1223,7 @@ class QuarticSplineKernel(_BaseSPHKernel):
 
     """
 
-    min_valid_size = np.nan
+    min_valid_size = 1.2385
 
     def __init__(self):
         super().__init__()
@@ -1264,9 +1264,9 @@ class QuarticSplineKernel(_BaseSPHKernel):
         W = np.zeros(q.shape)
         mask1 = q < 0.2
         W[mask1] = (
-            np.power(1 + q[mask1], 4)
-            - 5 * np.power(0.6 + q[mask1], 4)
-            + 10 * np.power(0.2 + q[mask1], 4)
+            np.power(1 - q[mask1], 4)
+            - 5 * np.power(0.6 - q[mask1], 4)
+            + 10 * np.power(0.2 - q[mask1], 4)
         )
         mask2 = np.logical_and(q >= 0.2, q < 0.6)
         W[mask2] = np.power(1 - q[mask2], 4) - 5 * np.power(0.6 - q[mask2], 4)
@@ -1307,35 +1307,26 @@ class QuarticSplineKernel(_BaseSPHKernel):
                 np.power(A, 4) * z
                 - 2 * np.power(A, 3) * z * q
                 + 2 * np.power(A, 2) * z * (3 * R2 + np.power(z, 2))
-                - A * R2 * (R * np.power(A, 2) + 3 * R2) * np.arcsinh(z / R) / 2
+                - A * R2 * (4 * np.power(A, 2) + 3 * R2) * np.arcsinh(z / R) / 2
                 - A * z * q * (5 * R2 + 2 * np.power(z, 2)) / 2
                 + R2 * R2 * z
                 + 2 * R2 * np.power(z, 3) / 3
                 + np.power(z, 5) / 5
             )
 
-        z1 = np.sqrt(0.2**2 - np.power(R, 2))
-        z2 = np.sqrt(0.6**2 - np.power(R, 2))
-        z3 = np.sqrt(1 - np.power(R, 2))
         m1 = np.logical_and(R > 0, R < 0.2)
-        m2 = np.logical_and(R >= 0.2, R < 0.6)
-        m3 = np.logical_and(R >= 0.6, R < 1)
-        retval[m1] = (
-            IA(R[m1], z1[m1], 1)
-            - 5 * IA(R[m1], z1[m1], 0.6)
-            + 10 * IA(R[m1], z1[m1], 0.2)
-            + IA(R[m1], z3[m1], -1)
-            - IA(R[m1], z1[m1], -1)
-            - 5 * IA(R[m1], z2[m1], -0.6)
-            + 5 * IA(R[m1], z2[m1], -0.6)
-        )
-        retval[m2] = IA(R[m2], z3[m2], -1) - 5 * IA(R[m2], z2[m2], -0.6)
-        retval[m3] = IA(R[m3], z3[m3], -1)
+        retval[m1] += 10 * IA(R[m1], np.sqrt(0.2**2 - np.power(R[m1], 2)), 0.2)
+        m2 = np.logical_and(R > 0, R < 0.6)
+        retval[m2] -= 5 * IA(R[m2], np.sqrt(0.6**2 - np.power(R[m2], 2)), 0.6)
+        m3 = np.logical_and(R > 0, R < 1.0)
+        retval[m3] += IA(R[m3], np.sqrt(1 - np.power(R[m3], 2)), 1.0)
         retval[R == 0] = 384 / 3125
-        # might need overall normalisation
         # factor of 2 is because all integrals above are half-intervals
         retval *= 2 * 4375 / 7648 / np.pi
-        return retval / np.power(h, 2)
+        # 0.0187 is normalization s.t. kernel integral = 1 for particle mass = 1
+        # getting 1/0.0187 discrepancy w.r.t. numerically evaluated kernel integral
+        # need to place it elsewhere or...?
+        return retval / 0.01874476988236655 / np.power(h, 2)
 
     def validate(self, sm_lengths, noraise=False, quiet=False):
         """

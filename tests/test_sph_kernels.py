@@ -93,7 +93,6 @@ class TestSPHKernels:
             x_3d.append(ri)
             y_3d.append(dr**3 * np.sum(k.eval_kernel(rgrid[eval_grid], 1)))
 
-        print(np.array(y_2d) / np.array(y_3d))
         assert np.allclose(x_2d, x_3d)  # we evaluated integrals at same radii
         assert np.allclose(y_2d, y_3d, rtol=2.0e-2)  # integrals within 2%
 
