@@ -1,7 +1,10 @@
 import pytest
 import os
+import numpy as np
+from astropy import units as U, constants as C
 from astropy.units import isclose, allclose
 from martini import DataCube
+from martini.datacube import HIfreq
 
 
 class TestDataCube:
@@ -34,10 +37,31 @@ class TestDataCube:
         assert len(list(dc.spectra())) == dc.n_px_x * dc.n_px_y
 
     def test_freq_channels(self, dc):
-        raise NotImplementedError
+        v_mid0 = dc.channel_mids[0]
+        v_edge0 = dc.channel_edges[0]
+        v_mid1 = dc.channel_mids[-1]
+        v_edge1 = dc.channel_edges[-1]
+        f_mid0 = HIfreq * (1 - v_mid0 / C.c)
+        f_edge0 = HIfreq * (1 - v_edge0 / C.c)
+        f_mid1 = HIfreq * (1 - v_mid1 / C.c)
+        f_edge1 = HIfreq * (1 - v_edge1 / C.c)
+        dc.freq_channels()
+        assert allclose(dc.channel_mids, np.linspace(f_mid0, f_mid1, dc.n_channels), atol=1 * U.Hz)
+        assert allclose(dc.channel_edges, np.linspace(f_edge0, f_edge1, dc.n_channels + 1), atol=1 * U.Hz)
 
     def test_velocity_channels(self, dc):
-        raise NotImplementedError
+        dc.freq_channels()
+        f_mid0 = dc.channel_mids[0]
+        f_edge0 = dc.channel_edges[0]
+        f_mid1 = dc.channel_mids[-1]
+        f_edge1 = dc.channel_edges[-1]
+        v_mid0 = C.c * (1 - f_mid0 / HIfreq)
+        v_edge0 = C.c * (1 - f_edge0 / HIfreq)
+        v_mid1 = C.c * (1 - f_mid1 / HIfreq)
+        v_edge1 = C.c * (1 - f_edge1 / HIfreq)
+        dc.velocity_channels()
+        assert allclose(dc.channel_mids, np.linspace(v_mid0, v_mid1, dc.n_channels), atol=1e-3 * U.m / U.s)
+        assert allclose(dc.channel_edges, np.linspace(v_edge0, v_edge1, dc.n_channels + 1), atol=1e-3 * U.m / U.s)
 
     def test_channel_mode_switching(self, dc):
         initial_mids = dc.channel_mids

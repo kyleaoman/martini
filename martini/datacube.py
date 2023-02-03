@@ -71,10 +71,10 @@ class DataCube(object):
         self.dec = dec
         self.padx = 0
         self.pady = 0
+        self._freq_channel_mode = False
         self._init_wcs()
         self._channel_mids()
         self._channel_edges()
-        self._freq_channel_mode = False
 
         return
 
@@ -167,7 +167,7 @@ class DataCube(object):
         def convert_to_Hz(q):
             return q.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
 
-        self.wcs.wcs.cdelt[2] = np.abs(
+        self.wcs.wcs.cdelt[2] = -np.abs(
             convert_to_Hz(self.wcs.wcs.cdelt[2] * self.units[2])
             - convert_to_Hz(0.0 * self.units[2])
         ).value
@@ -177,9 +177,9 @@ class DataCube(object):
         self.wcs.wcs.ctype[2] = "FREQ"
         self.units[2] = U.Hz
         self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
+        self._freq_channel_mode = True
         self._channel_mids()
         self._channel_edges()
-        self._freq_channel_mode = True
         return
 
     def velocity_channels(self):
@@ -202,9 +202,9 @@ class DataCube(object):
         self.wcs.wcs.ctype[2] = "VELO-OBS"
         self.units[2] = U.m * U.s**-1
         self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
+        self._freq_channel_mode = False
         self._channel_mids()
         self._channel_edges()
-        self._freq_channel_mode = False
         return
 
     def add_pad(self, pad):
