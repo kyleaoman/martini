@@ -2,10 +2,6 @@ from .sph_source import SPHSource
 from ..sph_kernels import QuarticSplineKernel, find_fwhm
 from astropy import units as U
 
-# TODO: non-group particles (foregroud/background)?
-# TODO: tests
-# TODO: examples
-
 
 class ColibreSource(SPHSource):
     """
