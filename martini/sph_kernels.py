@@ -189,8 +189,9 @@ class _BaseSPHKernel(object):
 
         return
 
+    @staticmethod
     @abstractmethod
-    def kernel(self, q):
+    def kernel(q):
         """
         Abstract method; evaluate the kernel.
 
@@ -286,7 +287,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
 
         return
 
-    def kernel(self, q):
+    @staticmethod
+    def kernel(q):
         """
         Evaluate the kernel function.
 
@@ -411,7 +413,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    def kernel(self, q):
+    @staticmethod
+    def kernel(q):
         """
         Evaluate the kernel function.
 
@@ -626,7 +629,8 @@ class CubicSplineKernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    def kernel(self, q):
+    @staticmethod
+    def kernel(q):
         """
         Evaluate the kernel function.
 
@@ -817,7 +821,8 @@ class GaussianKernel(_BaseSPHKernel):
         self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
         return
 
-    def kernel(self, q):
+    @staticmethod
+    def kernel(q):
         """
         Evaluate the kernel function.
 
@@ -961,7 +966,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
         self._rescale = 1  # need this to be present
         return
 
-    def kernel(self, q):
+    @staticmethod
+    def kernel(q):
         """
         Evaluate the kernel function.
 
@@ -1133,7 +1139,8 @@ class AdaptiveKernel(_BaseSPHKernel):
 
         return
 
-    def kernel(self, q):
+    @staticmethod
+    def kernel(q):
         raise NotImplementedError(
             "AdaptiveKernel does not have an explicit " "kernel function."
         )
@@ -1232,7 +1239,8 @@ class QuarticSplineKernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    def kernel(self, q):
+    @staticmethod
+    def kernel(q):
         """
         Evaluate the kernel function.
 
