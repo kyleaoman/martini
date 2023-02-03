@@ -189,9 +189,8 @@ class _BaseSPHKernel(object):
 
         return
 
-    @staticmethod
     @abstractmethod
-    def kernel(q):
+    def kernel(self, q):
         """
         Abstract method; evaluate the kernel.
 
@@ -316,7 +315,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
         W *= 21 / 2 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    @staticmethod
+    def kernel_integral(dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -447,7 +447,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
         W *= 1365 / 64 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    @staticmethod
+    def kernel_integral(dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -664,7 +665,8 @@ class CubicSplineKernel(_BaseSPHKernel):
         W *= 8 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    @staticmethod
+    def kernel_integral(dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -821,8 +823,7 @@ class GaussianKernel(_BaseSPHKernel):
         self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
         return
 
-    @staticmethod
-    def kernel(q):
+    def kernel(self, q):
         """
         Evaluate the kernel function.
 
@@ -992,7 +993,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         return np.where(q, np.inf * np.ones(q.shape), np.zeros(q.shape))
 
-    def kernel_integral(self, dij, h, **kwargs):
+    @staticmethod
+    def kernel_integral(dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -1217,7 +1219,7 @@ class QuarticSplineKernel(_BaseSPHKernel):
     The quartic spline kernel is here defined as:
 
     .. math ::
-        W(q) = \\frac{4375}{7648\\pi}\\begin{cases}
+        W(q) = \\frac{15625}{512\\pi}\\begin{cases}
         (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
         &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
         (1 - q)^4 - 5(\\frac{3}{5} - q)^4
@@ -1247,7 +1249,7 @@ class QuarticSplineKernel(_BaseSPHKernel):
         The quartic spline kernel is here defined as:
 
         .. math ::
-            W(q) = \\frac{4375}{7648\\pi}\\begin{cases}
+            W(q) = \\frac{15625}{512\\pi}\\begin{cases}
             (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
             &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
             (1 - q)^4 - 5(\\frac{3}{5} - q)^4
@@ -1280,10 +1282,11 @@ class QuarticSplineKernel(_BaseSPHKernel):
         W[mask2] = np.power(1 - q[mask2], 4) - 5 * np.power(0.6 - q[mask2], 4)
         mask3 = np.logical_and(q >= 0.6, q < 1)
         W[mask3] = np.power(1 - q[mask3], 4)
-        W *= 4375 / 7648 / np.pi
+        W *= 15625 / 512 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    @staticmethod
+    def kernel_integral(dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -1330,11 +1333,8 @@ class QuarticSplineKernel(_BaseSPHKernel):
         retval[m3] += IA(R[m3], np.sqrt(1 - np.power(R[m3], 2)), 1.0)
         retval[R == 0] = 384 / 3125
         # factor of 2 is because all integrals above are half-intervals
-        retval *= 2 * 4375 / 7648 / np.pi
-        # 0.0187 is normalization s.t. kernel integral = 1 for particle mass = 1
-        # getting 1/0.0187 discrepancy w.r.t. numerically evaluated kernel integral
-        # need to place it elsewhere or...?
-        return retval / 0.01874476988236655 / np.power(h, 2)
+        retval *= 2 * 15625 / 512 / np.pi
+        return retval / np.power(h, 2)
 
     def validate(self, sm_lengths, noraise=False, quiet=False):
         """
