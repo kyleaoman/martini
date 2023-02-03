@@ -46,8 +46,14 @@ class TestDataCube:
         f_mid1 = HIfreq * (1 - v_mid1 / C.c)
         f_edge1 = HIfreq * (1 - v_edge1 / C.c)
         dc.freq_channels()
-        assert allclose(dc.channel_mids, np.linspace(f_mid0, f_mid1, dc.n_channels), atol=1 * U.Hz)
-        assert allclose(dc.channel_edges, np.linspace(f_edge0, f_edge1, dc.n_channels + 1), atol=1 * U.Hz)
+        assert allclose(
+            dc.channel_mids, np.linspace(f_mid0, f_mid1, dc.n_channels), atol=1 * U.Hz
+        )
+        assert allclose(
+            dc.channel_edges,
+            np.linspace(f_edge0, f_edge1, dc.n_channels + 1),
+            atol=1 * U.Hz,
+        )
 
     def test_velocity_channels(self, dc):
         dc.freq_channels()
@@ -60,8 +66,16 @@ class TestDataCube:
         v_mid1 = C.c * (1 - f_mid1 / HIfreq)
         v_edge1 = C.c * (1 - f_edge1 / HIfreq)
         dc.velocity_channels()
-        assert allclose(dc.channel_mids, np.linspace(v_mid0, v_mid1, dc.n_channels), atol=1e-3 * U.m / U.s)
-        assert allclose(dc.channel_edges, np.linspace(v_edge0, v_edge1, dc.n_channels + 1), atol=1e-3 * U.m / U.s)
+        assert allclose(
+            dc.channel_mids,
+            np.linspace(v_mid0, v_mid1, dc.n_channels),
+            atol=1e-3 * U.m / U.s,
+        )
+        assert allclose(
+            dc.channel_edges,
+            np.linspace(v_edge0, v_edge1, dc.n_channels + 1),
+            atol=1e-3 * U.m / U.s,
+        )
 
     def test_channel_mode_switching(self, dc):
         initial_mids = dc.channel_mids

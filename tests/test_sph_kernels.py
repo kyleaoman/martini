@@ -13,7 +13,13 @@ from martini.sph_kernels import (
 from astropy import units as U
 
 # kernels that have a well-defined FWHM, i.e. not dirac-delta, adaptive
-basic_kernels = WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, GaussianKernel, QuarticSplineKernel
+basic_kernels = (
+    WendlandC2Kernel,
+    WendlandC6Kernel,
+    CubicSplineKernel,
+    GaussianKernel,
+    QuarticSplineKernel,
+)
 all_kernels = basic_kernels + (DiracDeltaKernel, AdaptiveKernel)
 
 for k in all_kernels:
@@ -97,7 +103,8 @@ class TestSPHKernels:
         assert np.allclose(y_2d, y_3d, rtol=2.0e-2)  # integrals within 2%
 
     @pytest.mark.parametrize(
-        "kernel", (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, QuarticSplineKernel)
+        "kernel",
+        (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, QuarticSplineKernel),
     )
     def test_kernel_validation_minsize(self, kernel):
         """
