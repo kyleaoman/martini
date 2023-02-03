@@ -180,7 +180,7 @@ class TNGSource(SPHSource):
         )  # Voronoi cell volume
         r_cell = np.power(3.0 * V_cell / 4.0 / np.pi, 1.0 / 3.0).to(U.kpc)
         # hsm_g has in mind a cubic spline that =0 at h, I think
-        hsm_g = 2.5 * r_cell * find_fwhm(CubicSplineKernel().kernel)
+        hsm_g = 2.5 * r_cell * find_fwhm(CubicSplineKernel.kernel)
         xyz_centre = data_sub["SubhaloPos"] * a / h * U.kpc
         xyz_g -= xyz_centre
         vxyz_centre = data_sub["SubhaloVel"] * np.sqrt(a) * U.km / U.s

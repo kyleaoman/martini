@@ -72,7 +72,7 @@ class ColibreSource(SPHSource):
             vxyz_g=galaxy.gas.velocities.to_astropy(),
             T_g=galaxy.gas.temperatures.to_astropy(),
             hsm_g=galaxy.gas.smoothing_lengths.to_astropy()
-            * find_fwhm(QuarticSplineKernel().kernel),
+            * find_fwhm(QuarticSplineKernel.kernel),
             mHI_g=galaxy.gas.atomic_hydrogen_masses.to_astropy(),
         )
 

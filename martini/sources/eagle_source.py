@@ -187,7 +187,7 @@ class EAGLESource(SPHSource):
                 vxyz_g=(fetch("Velocity") * code_to_cm_s).to(U.km / U.s),
                 T_g=fetch("Temperature") * U.K,
                 hsm_g=(fetch("SmoothingLength") * code_to_cm).to(U.kpc)
-                * find_fwhm(WendlandC2Kernel().kernel),
+                * find_fwhm(WendlandC2Kernel.kernel),
             )
             rho_g = fetch("Density") * U.g * U.cm**-3
             SFR_g = fetch("StarFormationRate")
