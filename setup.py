@@ -26,7 +26,7 @@ setup(
             "pyread_eagle @ https://github.com/kyleaoman/"
             "pyread_eagle/archive/master.zip#egg=pyread_eagle",
             "eagleSqlTools @ https://github.com/kyleaoman/"
-            "eagleSqlTools/archive/master.zip#egg=eagleSqlTools"
+            "eagleSqlTools/archive/master.zip#egg=eagleSqlTools",
         ],
         "tngsource": "Hdecompose @ https://github.com/kyleaoman/"
         "Hdecompose/archive/master.zip#egg=Hdecompose",
@@ -34,7 +34,7 @@ setup(
             "simfiles @ https://github.com/kyleaoman/simfiles/"
             "archive/master.zip#egg=simfiles",
             "simobj @ https://github.com/kyleaoman/simobj/"
-            "archive/master.zip#egg=simobj"
+            "archive/master.zip#egg=simobj",
         ],
         "magneticumsource": "g3t @ https://github.com/kyleaoman/"
         "g3t/archive/master.zip#egg=g3t",
