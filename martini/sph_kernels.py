@@ -32,23 +32,9 @@ class _BaseSPHKernel(object):
     """
 
     __metaclass__ = ABCMeta
-    noFWHMwarn = False
 
     def __init__(self):
         self._rescale = 1
-        if not self.noFWHMwarn:
-            warn(
-                "The definition of the smoothing length has changed since"
-                " earlier versions. Now all kernel modules expect the"
-                " smoothing lengths provided (via the source module) to be"
-                " the FWHM of the kernel. This is to avoid ambiguity in the"
-                " definition. Users of simulation-specific sources"
-                " (TNGSource, EAGLESource, ...) do not need to worry about"
-                " this change: the sources have been updated accordingly."
-                " (This warning can be disabled by setting"
-                " `K.noFWHMwarn = True`, where K is the kernel class, before"
-                " initialization.)"
-            )
         return
 
     def px_weight(self, dij, mask=None):
