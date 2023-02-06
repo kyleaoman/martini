@@ -81,7 +81,12 @@ class SPHSource(object):
         the axis corresponding to the "line of sight".
 
     hsm_g : Quantity, with dimensions of length
-        Particle SPH smoothing lengths.
+        Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
+        Smoothing lengths are variously defined in the literature as the radius where
+        the kernel amplitude reaches 0, or some rational fraction of this radius (and
+        other definitions may well exist). The FWHM requested here is not a standard
+        choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
+        ambiguity in the definition.
 
     coordinate_axis: int, optional
         Rank of axis corresponding to position or velocity of a single

@@ -1,17 +1,29 @@
 from .sph_source import SPHSource
-from ..sph_kernels import QuarticSplineKernel, find_fwhm
 from astropy import units as U
 
 
-class ColibreSource(SPHSource):
+class SWIFTGalaxySource(SPHSource):
     """
-    Class abstracting HI sources designed to work with Colibre simulations. Makes use of
-    the :mod:`swiftsimio` and :mod:`swiftgalaxy` modules.
+    Class abstracting HI sources designed to work with the :mod:`swiftsimio` and
+    :mod:`swiftgalaxy` modules.
 
     Parameters
     ----------
     galaxy: SWIFTGalaxy
-        Instance of a Colibre :class:`~swiftgalaxy.reader.SWIFTGalaxy`.
+        Instance of a :class:`~swiftgalaxy.reader.SWIFTGalaxy`.
+
+    kernel_fwhm: float
+        The conversion between the tabulated smoothing lengths in the snapshot file
+        and the FWHM smoothing scale. For instance, if the simulation used a Gaussian
+        smoothing kernel and the snapshot file records :math:`\\sigma` for a kernel
+        defined:
+
+        ..math::
+            W(q) = (\\sqrt{2\\pi}\\sigma)^{-3}
+            \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
+
+        then the FWHM is :math:`2\\sqrt{2\\log(2)}\\sigma\\sim2.3548\\sigma`, so
+        `kernel_fwhm` should be set to `2.3548`.
 
     distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
@@ -55,6 +67,7 @@ class ColibreSource(SPHSource):
     def __init__(
         self,
         galaxy,
+        kernel_fwhm,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
@@ -67,8 +80,7 @@ class ColibreSource(SPHSource):
             xyz_g=galaxy.gas.coordinates.to_astropy(),
             vxyz_g=galaxy.gas.velocities.to_astropy(),
             T_g=galaxy.gas.temperatures.to_astropy(),
-            hsm_g=galaxy.gas.smoothing_lengths.to_astropy()
-            * find_fwhm(QuarticSplineKernel.kernel),
+            hsm_g=galaxy.gas.smoothing_lengths.to_astropy() * kernel_fwhm,
             mHI_g=galaxy.gas.atomic_hydrogen_masses.to_astropy(),
         )
 

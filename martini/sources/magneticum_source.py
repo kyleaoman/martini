@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as U
+from ..sph_kernels import WendlandC6Kernel, find_fwhm
 from .sph_source import SPHSource
 
 
@@ -179,7 +180,7 @@ class MagneticumSource(SPHSource):
 
         particles["xyz_g"] = f_gas["POS "] * l_unit
         particles["vxyz_g"] = f_gas["VEL "] * v_unit
-        particles["hsm_g"] = f_gas["HSML"] * l_unit
+        particles["hsm_g"] = f_gas["HSML"] * l_unit * find_fwhm(WendlandC6Kernel.kernel)
         particles["T_g"] = f_gas["TEMP"] * T_unit
         particles["mHI_g"] = f_gas["NH  "] * xH * f_gas["MASS"] * m_unit
 
