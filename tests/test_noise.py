@@ -8,7 +8,7 @@ from astropy import units as U
 class TestNoise:
     def test_noise_shape(self):
         """
-        Check that we generate noise with correct shape and amplitude.
+        Check that we generate noise with correct shape.
         """
         rms = 1.0 * U.Jy * U.arcsec**-2
         noise_generator = GaussianNoise(rms=rms)
@@ -18,7 +18,7 @@ class TestNoise:
 
     def test_noise_amplitude(self):
         """
-        Check that we generate noise with correct shape and amplitude.
+        Check that we generate noise with correct amplitude.
         """
         rms = 1.0 * U.Jy * U.arcsec**-2
         noise_generator = GaussianNoise(rms=rms)
