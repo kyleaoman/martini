@@ -5,8 +5,9 @@ from .sph_source import SPHSource
 from ._single_particle_source import _SingleParticleSource
 from ._cross_source import _CrossSource
 
-# simobj-specific source class:
+# toolkit-specific source classes:
 from .so_source import SOSource
+from .swiftgalaxy_source import SWIFTGalaxySource
 
 # simulation-specific source classes:
 from .colibre_source import ColibreSource
