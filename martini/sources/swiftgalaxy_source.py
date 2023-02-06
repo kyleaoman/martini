@@ -12,19 +12,6 @@ class SWIFTGalaxySource(SPHSource):
     galaxy: SWIFTGalaxy
         Instance of a :class:`~swiftgalaxy.reader.SWIFTGalaxy`.
 
-    kernel_fwhm: float
-        The conversion between the tabulated smoothing lengths in the snapshot file
-        and the FWHM smoothing scale. For instance, if the simulation used a Gaussian
-        smoothing kernel and the snapshot file records :math:`\\sigma` for a kernel
-        defined:
-
-        ..math::
-            W(q) = (\\sqrt{2\\pi}\\sigma)^{-3}
-            \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
-
-        then the FWHM is :math:`2\\sqrt{2\\log(2)}\\sigma\\sim2.3548\\sigma`, so
-        `kernel_fwhm` should be set to `2.3548`.
-
     distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
         (Default: 3 Mpc.)
@@ -67,7 +54,6 @@ class SWIFTGalaxySource(SPHSource):
     def __init__(
         self,
         galaxy,
-        kernel_fwhm,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
@@ -80,7 +66,8 @@ class SWIFTGalaxySource(SPHSource):
             xyz_g=galaxy.gas.coordinates.to_astropy(),
             vxyz_g=galaxy.gas.velocities.to_astropy(),
             T_g=galaxy.gas.temperatures.to_astropy(),
-            hsm_g=galaxy.gas.smoothing_lengths.to_astropy() * kernel_fwhm,
+            # SWIFT guarantees smoothing lengths are kernel FWHM, use directly:
+            hsm_g=galaxy.gas.smoothing_lengths.to_astropy(),
             mHI_g=galaxy.gas.atomic_hydrogen_masses.to_astropy(),
         )
 
