@@ -4,7 +4,7 @@ from setuptools import setup
 import os
 
 with open(
-    os.path.join(os.path.dirname(__file__), 'martini", "VERSION")
+    os.path.join(os.path.dirname(__file__), "martini", "VERSION")
 ) as version_file:
     version = version_file.read().strip()
 
