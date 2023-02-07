@@ -17,8 +17,8 @@ class Lines(list):
         self.nind -= 1
         return
 
-    def append(self, l):
-        super().append(self.nind * self.ind + l + "\n")
+    def append(self, line):
+        super().append(self.nind * self.ind + line + "\n")
         return
 
 
@@ -71,13 +71,13 @@ def gencodemeta():
         elif isinstance(v, list):
             L.append('"{:s}": ['.format(k))
             L.indent()
-            for l in v:
-                if isinstance(l, str):
-                    L.append('"{:s}",'.format(l))
-                elif isinstance(l, dict):
+            for line in v:
+                if isinstance(line, str):
+                    L.append('"{:s}",'.format(line))
+                elif isinstance(line, dict):
                     L.append("{")
                     L.indent()
-                    for kk, vv in l.items():
+                    for kk, vv in line.items():
                         L.append('"{:s}": "{:s}",'.format(kk, vv))
                     L.unindent()
                     L.append("},")
