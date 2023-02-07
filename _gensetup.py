@@ -52,6 +52,7 @@ er_lines = [
     '        "colibresource": [',
     '            "swiftsimio",',
     '            "swiftgalaxy",',
+    '            "velociraptor",',
     "        ],",
     "    },",
 ]

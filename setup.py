@@ -46,6 +46,7 @@ setup(
         "colibresource": [
             "swiftsimio",
             "swiftgalaxy",
+            "velociraptor",
         ],
     },
     include_package_data=True,
