@@ -86,10 +86,46 @@ class TestDataCube:
         assert allclose(dc.channel_mids, initial_mids)
 
     def test_add_pad(self, dc):
-        raise NotImplementedError
+        old_shape = dc._array.shape
+        pad = (2, 3)
+        dc.add_pad(pad)
+        expected_shape = (
+            old_shape[0] + 2 * pad[0],
+            old_shape[1] + 2 * pad[1],
+            old_shape[2],
+            old_shape[3],
+        )
+        assert dc._array.shape == expected_shape
+        assert dc.padx == pad[0]
+        assert dc.pady == pad[1]
+
+    def test_add_pad_already_padded(self, dc):
+        pad = (2, 3)
+        dc.add_pad(pad)
+        with pytest.raises(RuntimeError, match="Tried to add padding"):
+            dc.add_pad(pad)
 
     def test_drop_pad(self, dc):
-        raise NotImplementedError
+        initial_shape = dc._array.shape
+        pad = (2, 3)
+        dc.add_pad(pad)
+        old_shape = dc._array.shape
+        dc.drop_pad()
+        expected_shape = (
+            old_shape[0] - 2 * pad[0],
+            old_shape[1] - 2 * pad[1],
+            old_shape[2],
+            old_shape[3],
+        )
+        assert dc._array.shape == initial_shape
+        assert dc._array.shape == expected_shape
+        assert dc.padx == 0
+        assert dc.pady == 0
+
+    def test_drop_pad_already_dropped(self, dc):
+        dc.drop_pad()
+        assert dc.padx == 0
+        assert dc.pady == 0
 
     @pytest.mark.parametrize("with_fchannels", (False, True))
     @pytest.mark.parametrize("with_pad", (False, True))

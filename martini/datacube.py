@@ -226,6 +226,8 @@ class DataCube(object):
         drop_pad
         """
 
+        if self.padx > 0 or self.pady > 0:
+            raise RuntimeError("Tried to add padding to already padded datacube array.")
         tmp = self._array
         self._array = np.zeros(
             (self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels, 1)
