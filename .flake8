@@ -5,8 +5,7 @@ exclude =
     .git,
     __pycache__,
     docs/source/conf.py,
-    build,
-    dist
+    docs/build,
 per-file-ignores = 
     martini/__init__.py:F401
     martini/sources/__init__.py:F401
