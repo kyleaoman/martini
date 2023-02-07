@@ -145,7 +145,7 @@ class SPHSource(object):
         )
         self.hsm_g = hsm_g
 
-        self.npart = self.mHI_g.size
+        self.npart = self.coordinates_g.size
 
         self.ra = ra
         self.dec = dec
@@ -165,10 +165,10 @@ class SPHSource(object):
         )
         distance_vector = direction_vector * self.distance
         self.translate_position(distance_vector)
-        self.vsys = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
-        hubble_flow_vector = direction_vector * self.vsys
-        vpeculiar_vector = direction_vector * self.vpeculiar
-        self.translate_velocity(hubble_flow_vector + vpeculiar_vector)
+        self.vhubble = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
+        self.vsys = self.vhubble + self.vpeculiar
+        vsys_vector = direction_vector * self.vsys
+        self.translate_velocity(vsys_vector)
         self.sky_coordinates = ICRS(self.coordinates_g)
         return
 

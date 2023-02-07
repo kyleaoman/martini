@@ -5,7 +5,7 @@ from martini.martini import Martini
 from martini.datacube import DataCube
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
-from martini.sources import _SingleParticleSource
+from martini.sources import _SingleParticleSource, SPHSource
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import GaussianKernel
 
@@ -83,3 +83,43 @@ def dc():
     )
 
     yield dc
+
+
+@pytest.fixture(scope="function")
+def s():
+
+    n_g = 1000
+    phi = np.random.rand(n_g, 1) * 2 * np.pi
+    R = np.random.rand(n_g, 1)
+    xyz_g = np.hstack(
+        (
+            R * np.cos(phi) * 0.01,
+            R * np.sin(phi) * 0.01,
+            (np.random.rand(n_g, 1) * 2 - 1) * 0.001,  # 1 kpc height
+        )
+    )
+    vxyz_g = (
+        np.hstack(
+            (
+                # solid body, 100 km/s at edge
+                R * np.sin(phi) * 100,
+                R * np.cos(phi) * 100,
+                np.random.rand(n_g, 1) * 20 - 10,  # 10 km/s vertical
+            )
+        )
+        * U.km
+        / U.s
+    )
+    T_g = np.ones(n_g) * 1e4 * U.K
+    mHI_g = np.ones(n_g) * 1e9 * U.Msun / n_g
+    hsm_g = 0.5 * U.kpc
+    particles = dict(
+        xyz_g=xyz_g,
+        vxyz_g=vxyz_g,
+        mHI_g=mHI_g,
+        T_g=T_g,
+        hsm_g=hsm_g,
+    )
+    s = SPHSource(**particles)
+
+    yield s
