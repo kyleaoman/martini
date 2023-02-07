@@ -1,5 +1,5 @@
 colibre_source module
-=================
+=====================
 
 .. automodule:: martini.sources.colibre_source
   :members:
