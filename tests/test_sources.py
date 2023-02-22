@@ -3,6 +3,8 @@ import numpy as np
 from astropy import units as U
 from martini.sources import SPHSource
 from astropy.units import isclose, allclose
+from martini.sources._cartesian_translation import translate, translate_d
+from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 
 
 class TestSourceUtilities:
@@ -10,13 +12,25 @@ class TestSourceUtilities:
     def test_L_align(self):
         raise NotImplementedError
 
-    @pytest.mark.xfail
     def test_translate(self):
-        raise NotImplementedError
+        """
+        Check that cartesian representation transforms correctly.
+        """
+        setattr(CartesianRepresentation, "translate", translate)
+        cr = CartesianRepresentation(np.zeros(3) * U.kpc)
+        translation = np.ones(3) * U.kpc
+        cr_translated = cr.translate(translation)
+        assert allclose(cr_translated.get_xyz(), translation)
 
-    @pytest.mark.xfail
     def test_translate_d(self):
-        raise NotImplementedError
+        """
+        Check that cartesian differential transforms correctly.
+        """
+        setattr(CartesianDifferential, "translate", translate_d)
+        cd = CartesianDifferential(np.zeros(3) * U.km / U.s)
+        translation = np.ones(3) * U.km / U.s
+        cd_translated = cd.translate(translation)
+        assert allclose(cd_translated.get_d_xyz(), translation)
 
 
 class TestSPHSource:
@@ -158,13 +172,29 @@ class TestSPHSource:
     def test_rotate_L_coords(self, s):
         raise NotImplementedError
 
-    @pytest.mark.xfail
     def test_translate_position(self, s):
-        raise NotImplementedError
+        """
+        Check that coordinates translate correctly.
+        """
+        for translation_shape in ((3, 1), (1, 3)):
+            initial_coords = s.coordinates_g.get_xyz()
+            translation = np.ones(3) * U.kpc
+            s.translate_position(translation.reshape(translation_shape))
+            expected_coords = initial_coords + translation.reshape((3, 1))
+            assert allclose(s.coordinates_g.get_xyz(), expected_coords)
 
-    @pytest.mark.xfail
     def test_translate_velocity(self, s):
-        raise NotImplementedError
+        """
+        Check that velocities translate correctly.
+        """
+        for translation_shape in ((3, 1), (1, 3)):
+            initial_vels = s.coordinates_g.differentials["s"].get_d_xyz()
+            translation = np.ones(3) * U.km / U.s
+            s.translate_velocity(translation.reshape(translation_shape))
+            expected_vels = initial_vels + translation.reshape((3, 1))
+            assert allclose(
+                s.coordinates_g.differentials["s"].get_d_xyz(), expected_vels
+            )
 
     @pytest.mark.xfail
     def test_save_current_rotation(self, s):

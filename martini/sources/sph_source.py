@@ -127,21 +127,25 @@ class SPHSource(object):
                     "martini.sources.SPHSource: incorrect "
                     "coordinate shape (not (3, N) or (N, 3))."
                 )
+        else:
+            self.coordinate_axis = coordinate_axis
 
         if xyz_g.shape != vxyz_g.shape:
             raise ValueError(
                 "martini.sources.SPHSource: xyz_g and vxyz_g must"
                 " have matching shapes."
             )
+
+        if coordinate_axis == 0:
+            xyz_g = xyz_g.T
+            vxyz_g = vxyz_g.T
         self.h = h
         self.T_g = T_g
         self.mHI_g = mHI_g
         self.coordinates_g = CartesianRepresentation(
             xyz_g,
-            xyz_axis=coordinate_axis,
-            differentials={
-                "s": CartesianDifferential(vxyz_g, xyz_axis=coordinate_axis)
-            },
+            xyz_axis=1,
+            differentials={"s": CartesianDifferential(vxyz_g, xyz_axis=1)},
         )
         self.hsm_g = hsm_g
 

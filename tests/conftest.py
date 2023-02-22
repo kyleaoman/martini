@@ -91,12 +91,15 @@ def s():
     n_g = 1000
     phi = np.random.rand(n_g, 1) * 2 * np.pi
     R = np.random.rand(n_g, 1)
-    xyz_g = np.hstack(
-        (
-            R * np.cos(phi) * 0.01,
-            R * np.sin(phi) * 0.01,
-            (np.random.rand(n_g, 1) * 2 - 1) * 0.001,  # 1 kpc height
+    xyz_g = (
+        np.hstack(
+            (
+                R * np.cos(phi) * 0.01,
+                R * np.sin(phi) * 0.01,
+                (np.random.rand(n_g, 1) * 2 - 1) * 0.001,  # 1 kpc height
+            )
         )
+        * U.kpc
     )
     vxyz_g = (
         np.hstack(
