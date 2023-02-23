@@ -1,16 +1,64 @@
+import os
 import pytest
 import numpy as np
 from astropy import units as U
 from martini.sources import SPHSource
 from astropy.units import isclose, allclose
 from martini.sources._cartesian_translation import translate, translate_d
+from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 
 
 class TestSourceUtilities:
-    @pytest.mark.xfail
     def test_L_align(self):
-        raise NotImplementedError
+        """
+        Test that L_align produces expected rotation matrices, including saving to file.
+        """
+        # set up 4 particles in x-y plane rotating right-handed about zhat
+        _xyz = np.array([[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]])
+        _vxyz = np.array([[0, 1, 0], [-1, 0, 0], [0, -1, 0], [1, 0, 0]])
+        # tile outwards to make a 4-armed "windmill"
+        xyz = np.vstack((_xyz * np.arange(1, 201).reshape(200, 1, 1))) * U.kpc
+        vxyz = np.vstack((_vxyz * np.arange(1, 201).reshape(200, 1, 1))) * U.km / U.s
+        m = np.ones(xyz.shape[0]) * U.Msun
+        # rotating zhat to align with zhat should stay aligned with zhat
+        # (but might arbitrarily rotate x-y plane)
+        assert np.allclose(
+            np.array([[0, 0, 1]]).dot(L_align(xyz, vxyz, m, Laxis="z")),
+            np.array([0, 0, 1]),
+        )
+        # rotating zhat to align with xhat should align with xhat
+        assert np.allclose(
+            np.array([[0, 0, 1]]).dot(L_align(xyz, vxyz, m, Laxis="x")),
+            np.array([1, 0, 0]),
+        )
+        # rotating zhat to align with yhat should align with yhat
+        assert np.allclose(
+            np.array([[0, 0, 1]]).dot(L_align(xyz, vxyz, m, Laxis="y")),
+            np.array([0, 1, 0]),
+        )
+        # and also check transposed cases
+        assert np.allclose(
+            L_align(xyz.T, vxyz.T, m, Laxis="z").dot(np.array([0, 0, 1])),
+            np.array([0, 0, 1]),
+        )
+        assert np.allclose(
+            L_align(xyz.T, vxyz.T, m, Laxis="x").dot(np.array([0, 0, 1])),
+            np.array([1, 0, 0]),
+        )
+        assert np.allclose(
+            L_align(xyz.T, vxyz.T, m, Laxis="y").dot(np.array([0, 0, 1])),
+            np.array([0, 1, 0]),
+        )
+        # finally check that saving to file works
+        testfile = "testsaverot.npy"
+        try:
+            rotmat = L_align(xyz, vxyz, m, saverot=testfile)
+            saved_rotmat = np.load(testfile)
+        finally:
+            if os.path.exists(testfile):
+                os.remove(testfile)
+        assert np.allclose(rotmat, saved_rotmat)
 
     def test_translate(self):
         """
