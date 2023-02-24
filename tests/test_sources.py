@@ -204,9 +204,45 @@ class TestSPHSource:
         assert isclose(s.sky_coordinates.ra[0], Angle(ra).wrap_at(360 * U.deg))
         assert isclose(s.sky_coordinates.dec[0], Angle(dec).wrap_at(180 * U.deg))
 
-    @pytest.mark.xfail
     def test_apply_mask(self, s):
-        raise NotImplementedError
+        """
+        Check that particle arrays can be masked.
+        """
+        particle_fields = ("T_g", "mHI_g", "hsm_g")
+        npart_before_mask = s.T_g.size
+        particles_before = {k: getattr(s, k) for k in particle_fields}
+        particles_before["coordinates_g"] = s.coordinates_g
+        # make sure we have a scalar value for one field to check it's handled
+        assert particles_before["hsm_g"].isscalar
+        mask = np.r_[
+            np.ones(npart_before_mask - npart_before_mask // 3, dtype=int),
+            np.zeros(npart_before_mask // 3, dtype=int),
+        ]
+        s.apply_mask(mask)
+        for k in particle_fields:
+            if not particles_before[k].isscalar:
+                assert allclose(particles_before[k][mask], getattr(s, k))
+            else:
+                assert isclose(particles_before[k], getattr(s, k))
+        assert allclose(
+            particles_before["coordinates_g"].get_xyz()[:, mask],
+            s.coordinates_g.get_xyz(),
+        )
+        assert allclose(
+            particles_before["coordinates_g"].differentials["s"].get_d_xyz()[:, mask],
+            s.coordinates_g.differentials["s"].get_d_xyz(),
+        )
+
+    def test_apply_badmask(self, s):
+        """
+        Check that bad masks are rejected.
+        """
+        with pytest.raises(
+            ValueError, match="Mask must have same length as particle arrays."
+        ):
+            s.apply_mask(np.array([1, 2, 3]))
+        with pytest.raises(RuntimeError, match="No source particles in target region."):
+            s.apply_mask(np.zeros(s.npart, dtype=int))
 
     @pytest.mark.xfail
     def test_rotate_axis_angle(self, s):
@@ -244,9 +280,23 @@ class TestSPHSource:
                 s.coordinates_g.differentials["s"].get_d_xyz(), expected_vels
             )
 
-    @pytest.mark.xfail
     def test_save_current_rotation(self, s):
-        raise NotImplementedError
+        """
+        Check that current rotation state can be output to file.
+        """
+        assert np.allclose(s.current_rotation, np.eye(3))
+        rotmat = np.array(
+            [[0, -np.sin(np.pi / 4), 0], [np.sin(np.pi / 4), 0, 0], [0, 0, 1]]
+        )
+        s.rotate(rotmat=rotmat)
+        testfile = "testrotmat.npy"
+        try:
+            s.save_current_rotation(testfile)
+            saved_rotmat = np.loadtxt(testfile)
+        finally:
+            if os.path.exists(testfile):
+                os.remove(testfile)
+        assert np.allclose(saved_rotmat, rotmat)
 
 
 class TestSOSource:

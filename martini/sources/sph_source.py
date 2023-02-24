@@ -187,14 +187,20 @@ class SPHSource(object):
             the source arrays.
         """
 
-        self.T_g = self.T_g[mask]
-        self.mHI_g = self.mHI_g[mask]
+        if mask.size != self.npart:
+            raise ValueError("Mask must have same length as particle arrays.")
+        mask_sum = np.sum(mask)
+        if mask_sum == 0:
+            raise RuntimeError("No source particles in target region.")
+        self.npart = mask_sum
+        if not self.T_g.isscalar:
+            self.T_g = self.T_g[mask]
+        if not self.mHI_g.isscalar:
+            self.mHI_g = self.mHI_g[mask]
         self.coordinates_g = self.coordinates_g[mask]
         self.sky_coordinates = ICRS(self.coordinates_g)
-        self.hsm_g = self.hsm_g[mask]
-        self.npart = np.sum(mask)
-        if self.npart == 0:
-            raise RuntimeError("No source particles in target region.")
+        if not self.hsm_g.isscalar:
+            self.hsm_g = self.hsm_g[mask]
         return
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
@@ -292,6 +298,11 @@ class SPHSource(object):
     def save_current_rotation(self, fname):
         """
         Output current rotation matrix to file.
+
+        This includes the rotations applied for RA and Dec. The rotation matrix can be
+        applied to astropy coordinates (e.g. a
+        :class:`~astropy.coordinates.CartesianRepresentation`) as
+        `coordinates.transform(np.loadtxt(fname))`.
 
         Parameters
         ----------
