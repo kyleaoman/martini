@@ -2,6 +2,7 @@ import os
 import pytest
 import numpy as np
 from astropy import units as U
+from astropy.coordinates.matrix_utilities import rotation_matrix
 from martini.sources import SPHSource
 from astropy.units import isclose, allclose
 from martini.sources._cartesian_translation import translate, translate_d
@@ -244,37 +245,93 @@ class TestSPHSource:
         with pytest.raises(RuntimeError, match="No source particles in target region."):
             s.apply_mask(np.zeros(s.npart, dtype=int))
 
-    @pytest.mark.xfail
     def test_rotate_axis_angle(self, s):
-        raise NotImplementedError
+        """
+        Test that we can rotate by an axis-angle transformation.
+        """
+        assert np.allclose(s.current_rotation, np.eye(3))
+        axis = "z"
+        angle = 30 * U.deg
+        # expect a right-handed rotation:
+        rotmat = np.array(
+            [
+                [np.cos(angle), -np.sin(angle), 0],
+                [np.sin(angle), np.cos(angle), 0],
+                [0, 0, 1],
+            ]
+        )
+        s.rotate(axis_angle=(axis, angle))
+        assert np.allclose(s.current_rotation, rotmat)
 
-    @pytest.mark.xfail
     def test_rotate_rotmat(self, s):
-        raise NotImplementedError
+        """
+        Check that we can rotate by a rotmat transformation.
+        """
+        assert np.allclose(s.current_rotation, np.eye(3))
+        angle = 30 * U.deg
+        rotmat = np.array(
+            [
+                [np.cos(angle), -np.sin(angle), 0],
+                [np.sin(angle), np.cos(angle), 0],
+                [0, 0, 1],
+            ]
+        )
+        vector_before = s.coordinates_g.get_xyz()[:, 0]
+        assert any(vector_before > 0)
+        s.rotate(rotmat=rotmat)
+        assert allclose(s.coordinates_g.get_xyz()[:, 0], np.dot(rotmat, vector_before))
 
-    @pytest.mark.xfail
-    def test_rotate_L_coords(self, s):
-        raise NotImplementedError
+    @pytest.mark.parametrize("incl", (0 * U.deg, 30 * U.deg, -30 * U.deg))
+    @pytest.mark.parametrize("az_rot", (0 * U.deg, 30 * U.deg, -30 * U.deg))
+    @pytest.mark.parametrize("pa", (270 * U.deg, 300 * U.deg, 240 * U.deg))
+    def test_rotate_L_coords(self, s, incl, az_rot, pa):
+        """
+        Check that we can rotate automatically to the angular momentum frame.
+        """
+        assert np.allclose(s.current_rotation, np.eye(3))
+        rotmat = L_align(
+            s.coordinates_g.get_xyz(),
+            s.coordinates_g.differentials["s"].get_d_xyz(),
+            s.mHI_g,
+            Laxis="x",
+        )
+        rotmat = rotation_matrix(az_rot, axis="x").T.dot(rotmat)
+        rotmat = rotation_matrix(incl, axis="y").T.dot(rotmat)
+        rotmat = rotation_matrix(-(pa - 270 * U.deg), axis="x").T.dot(rotmat)
+        if isclose(pa, 270 * U.deg):
+            s.rotate(L_coords=(incl, az_rot))
+        else:
+            s.rotate(L_coords=(incl, az_rot, pa))
+        assert np.allclose(s.current_rotation, rotmat)
 
-    def test_translate_position(self, s):
+    def test_composite_rotations(self, s):
+        """
+        Check that multiple rotations in a function call are blocked.
+        """
+        with pytest.raises(
+            ValueError, match="Multiple rotations in a single call not allowed."
+        ):
+            s.rotate(axis_angle=("x", 30 * U.deg), rotmat=np.eye(3))
+
+    def test_translate(self, s):
         """
         Check that coordinates translate correctly.
         """
         for translation_shape in ((3, 1), (1, 3)):
             initial_coords = s.coordinates_g.get_xyz()
             translation = np.ones(3) * U.kpc
-            s.translate_position(translation.reshape(translation_shape))
+            s.translate(translation.reshape(translation_shape))
             expected_coords = initial_coords + translation.reshape((3, 1))
             assert allclose(s.coordinates_g.get_xyz(), expected_coords)
 
-    def test_translate_velocity(self, s):
+    def test_boost(self, s):
         """
         Check that velocities translate correctly.
         """
         for translation_shape in ((3, 1), (1, 3)):
             initial_vels = s.coordinates_g.differentials["s"].get_d_xyz()
             translation = np.ones(3) * U.km / U.s
-            s.translate_velocity(translation.reshape(translation_shape))
+            s.boost(translation.reshape(translation_shape))
             expected_vels = initial_vels + translation.reshape((3, 1))
             assert allclose(
                 s.coordinates_g.differentials["s"].get_d_xyz(), expected_vels
@@ -285,8 +342,13 @@ class TestSPHSource:
         Check that current rotation state can be output to file.
         """
         assert np.allclose(s.current_rotation, np.eye(3))
+        angle = np.pi / 4
         rotmat = np.array(
-            [[0, -np.sin(np.pi / 4), 0], [np.sin(np.pi / 4), 0, 0], [0, 0, 1]]
+            [
+                [np.cos(angle), -np.sin(angle), 0],
+                [np.sin(angle), np.cos(angle), 0],
+                [0, 0, 1],
+            ]
         )
         s.rotate(rotmat=rotmat)
         testfile = "testrotmat.npy"
