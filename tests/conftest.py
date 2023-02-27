@@ -73,9 +73,10 @@ def m_nn():
 def dc():
 
     dc = DataCube(
-        n_px_x=16,
-        n_px_y=16,
-        n_channels=32,
+        n_px_x=64,
+        n_px_y=64,
+        n_channels=64,
+        velocity_centre=3 * 70 * U.km / U.s,
     )
 
     dc._array[...] = (
@@ -94,9 +95,9 @@ def s():
     xyz_g = (
         np.hstack(
             (
-                R * np.cos(phi) * 0.01,
-                R * np.sin(phi) * 0.01,
-                (np.random.rand(n_g, 1) * 2 - 1) * 0.001,  # 1 kpc height
+                R * np.cos(phi) * 3,
+                R * np.sin(phi) * 3,
+                (np.random.rand(n_g, 1) * 2 - 1) * 0.01,
             )
         )
         * U.kpc
@@ -104,10 +105,9 @@ def s():
     vxyz_g = (
         np.hstack(
             (
-                # solid body, 100 km/s at edge
-                R * np.sin(phi) * 100,
+                -R * np.sin(phi) * 100,
                 R * np.cos(phi) * 100,
-                np.random.rand(n_g, 1) * 20 - 10,  # 10 km/s vertical
+                (np.random.rand(n_g, 1) * 2 - 1) * 0.01,
             )
         )
         * U.km
