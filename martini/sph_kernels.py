@@ -56,9 +56,12 @@ class _BaseSPHKernel(object):
         """
         try:
             rescale = self._rescale[mask]
-        except TypeError:
+        except (TypeError, IndexError):
             rescale = self._rescale
-        rescaled_h = self.sm_lengths[mask] * rescale
+        if mask is not None:
+            rescaled_h = self.sm_lengths[mask] * rescale
+        else:
+            rescaled_h = self.sm_lengths * rescale
         return self.kernel_integral(dij, rescaled_h, mask=mask)
 
     def confirm_validation(self, noraise=False, quiet=False):
