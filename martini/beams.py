@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+import scipy.interpolate
 import numpy as np
 import astropy.units as U
 
@@ -84,9 +85,33 @@ class _BaseBeam(object):
         if (self.bmaj is None) or (self.bmin is None) or (self.bpa is None):
             self.init_beam_header()
         npx_x, npx_y = self.kernel_size_px()
-        px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
-        px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
-        self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))
+        px_size_unit = self.px_size.unit
+        px_edges_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 1) * self.px_size
+        px_edges_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 1) * self.px_size
+        # Elliptical Gaussian has no analytic surface integral in cartesian coordinates
+        # and other beam shapes presumably much worse, so let's make a spline interpolator
+        # based on a fine sampling of the beam function and integrate that.
+        fine_sample_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 0.01) * self.px_size
+        fine_sample_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 0.01) * self.px_size
+        rbs = scipy.interpolate.RectBivariateSpline(
+            fine_sample_x.to_value(px_size_unit),
+            fine_sample_y.to_value(px_size_unit),
+            self.f_kernel()(*np.meshgrid(fine_sample_x, fine_sample_y)).to_value(
+                px_size_unit**-2
+            ),
+            kx=3,
+            ky=3,
+        )
+        # rbs.integral only evaluates a point at a time, resort to np.vectorize
+        xgrid, ygrid = np.meshgrid(
+            px_edges_x.to_value(px_size_unit), px_edges_y.to_value(px_size_unit)
+        )
+        self.kernel = (
+            np.vectorize(rbs.integral)(
+                xgrid[1:, :-1], xgrid[1:, 1:], ygrid[:-1, 1:], ygrid[1:, 1:]
+            )
+            * px_size_unit**2
+        )
         # since bmaj, bmin are FWHM, need to include conversion to
         # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
         # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
@@ -198,10 +223,6 @@ class GaussianBeam(_BaseBeam):
             np.cos(self.bpa), 2
         ) / (2.0 * np.power(sigmamaj, 2))
         A = np.power(2.0 * np.pi * sigmamin * sigmamaj, -1)  # arcsec^-2
-        A *= np.power(self.px_size, 2).value
-        # above causes an extra factor of pixel area, need to track this down
-        # properly an see whether correction should apply to all beams, or
-        # somewhere else?
 
         return lambda x, y: A * np.exp(
             -a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2)
