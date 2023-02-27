@@ -297,7 +297,10 @@ class TestSPHSource:
         )
         rotmat = rotation_matrix(az_rot, axis="x").T.dot(rotmat)
         rotmat = rotation_matrix(incl, axis="y").T.dot(rotmat)
-        rotmat = rotation_matrix(-(pa - 270 * U.deg), axis="x").T.dot(rotmat)
+        if incl >= 0:
+            rotmat = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(rotmat)
+        else:
+            rotmat = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(rotmat)
         if isclose(pa, 270 * U.deg):
             s.rotate(L_coords=(incl, az_rot))
         else:
