@@ -262,7 +262,10 @@ class SPHSource(object):
             # rotation_matrix gives left-handed rotation, so transpose for right-handed
             do_rot = rotation_matrix(az_rot, axis="x").T.dot(do_rot)
             do_rot = rotation_matrix(incl, axis="y").T.dot(do_rot)
-            do_rot = rotation_matrix(-(pa - 270 * U.deg), axis="x").T.dot(do_rot)
+            if incl >= 0:
+                do_rot = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(do_rot)
+            else:
+                do_rot = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(do_rot)
 
         self.current_rotation = do_rot.dot(self.current_rotation)
         self.coordinates_g = self.coordinates_g.transform(do_rot)
