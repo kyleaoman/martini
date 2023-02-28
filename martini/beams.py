@@ -107,11 +107,13 @@ class _BaseBeam(object):
         xgrid, ygrid = np.meshgrid(
             px_edges_x.to_value(px_size_unit), px_edges_y.to_value(px_size_unit)
         )
+        # f_kernel is in px_size_unit ** -2, xgrid and ygrid are in px_size_unit so 2D
+        # integral is dimensionless:
         self.kernel = (
             np.vectorize(rbs.integral)(
                 xgrid[1:, :-1], xgrid[1:, 1:], ygrid[:-1, 1:], ygrid[1:, 1:]
             )
-            * px_size_unit**2
+            * U.dimensionless_unscaled
         )
         # since bmaj, bmin are FWHM, need to include conversion to
         # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
