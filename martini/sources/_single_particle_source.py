@@ -29,6 +29,9 @@ class _SingleParticleSource(SPHSource):
 
     dec : Quantity, with dimensions of angle, optional
         Declination for the source centroid. (Default: 0 deg.)
+
+    hsm_g: Quantity, with dimensions of length, optional
+        Smoothing length for the particle. (Default: 1 kpc.)
     """
 
     def __init__(
@@ -37,6 +40,7 @@ class _SingleParticleSource(SPHSource):
         vpeculiar=0 * U.km / U.s,
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        hsm_g=1 * U.kpc,
     ):
 
         super().__init__(
@@ -50,6 +54,6 @@ class _SingleParticleSource(SPHSource):
             mHI_g=np.ones(1) * 1.0e4 * U.solMass,
             xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,
             vxyz_g=np.zeros((1, 3)) * U.km * U.s**-1,
-            hsm_g=np.ones(1) * U.kpc,
+            hsm_g=np.ones(1) * hsm_g,
         )
         return
