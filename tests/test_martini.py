@@ -353,3 +353,6 @@ class TestMartini:
         m_nn.insert_source_in_cube(printfreq=None)
         m_nn.convolve_beam()
         assert allclose(cube_array, m_nn.datacube._array)
+        # check that can reset after doing nothing
+        m_nn.reset()
+        m_nn.reset()
