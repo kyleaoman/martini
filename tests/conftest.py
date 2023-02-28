@@ -20,14 +20,14 @@ def m():
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
-        velocity_centre=source.distance * 70 * U.km / U.s / U.Mpc,
+        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
     beam = GaussianBeam()
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.arcsec**-2)
     sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
-    M = Martini(
+    m = Martini(
         source=source,
         datacube=datacube,
         beam=beam,
@@ -35,10 +35,10 @@ def m():
         sph_kernel=sph_kernel,
         spectral_model=spectral_model,
     )
-    M.insert_source_in_cube()
-    M.add_noise()
-    M.convolve_beam()
-    yield M
+    m.insert_source_in_cube(printfreq=None)
+    m.add_noise()
+    m.convolve_beam()
+    yield m
 
 
 @pytest.fixture(scope="function")
@@ -49,14 +49,14 @@ def m_nn():
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
-        velocity_centre=source.distance * 70 * U.km / U.s / U.Mpc,
+        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
     beam = GaussianBeam()
     noise = None
     sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
-    M = Martini(
+    m = Martini(
         source=source,
         datacube=datacube,
         beam=beam,
@@ -64,9 +64,9 @@ def m_nn():
         sph_kernel=sph_kernel,
         spectral_model=spectral_model,
     )
-    M.insert_source_in_cube()
-    M.convolve_beam()
-    yield M
+    m.insert_source_in_cube(printfreq=None)
+    m.convolve_beam()
+    yield m
 
 
 @pytest.fixture(scope="function")

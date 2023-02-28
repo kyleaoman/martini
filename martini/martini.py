@@ -712,4 +712,6 @@ class Martini:
             dec=self.datacube.dec,
         )
         self.datacube.__init__(**init_kwargs)
+        if self.beam is not None:
+            self.datacube.add_pad(self.beam.needs_pad())
         return

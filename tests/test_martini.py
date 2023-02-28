@@ -2,15 +2,17 @@ import os
 import pytest
 import numpy as np
 import h5py
-from martini import Martini
+from martini import Martini, DataCube
 from martini.datacube import HIfreq
 from martini.beams import GaussianBeam
 from martini.sources import _SingleParticleSource as SingleParticleSource
 from test_sph_kernels import simple_kernels
+from martini.sph_kernels import CubicSplineKernel, GaussianKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from astropy import units as U
-from astropy.units import isclose
+from astropy.units import isclose, allclose
 from astropy.io import fits
+from scipy.signal import fftconvolve
 
 # Should probably actually just inline this into martini to monitor how
 # much of the input mass ends up in the datacube?
@@ -28,7 +30,8 @@ class TestMartini:
     def test_mass_accuracy(self, dc, sph_kernel, spectral_model):
         """
         Check that the input mass in the particles gives the correct total mass in the
-        datacube, by checking the conversion back to total mass.
+        datacube, by checking the conversion back to total mass. Covers testing
+        Martini.insert_source_in_cube.
         """
 
         hsm_g = (
@@ -221,23 +224,132 @@ class TestMartini:
                 if os.path.exists(filename):
                     os.remove(filename)
 
-    @pytest.mark.xfail
-    def test_convolve_beam():
-        raise NotImplementedError
+    def test_convolve_beam(self):
+        """
+        Check that beam convolution gives result matching manual calculation.
+        """
+        source = SingleParticleSource()
+        datacube = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        )
+        beam = GaussianBeam()
+        noise = None
+        sph_kernel = GaussianKernel()
+        spectral_model = GaussianSpectrum()
+
+        m = Martini(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=noise,
+            sph_kernel=sph_kernel,
+            spectral_model=spectral_model,
+        )
+        m.insert_source_in_cube()
+        unconvolved_cube = m.datacube._array.copy()
+        unit = unconvolved_cube.unit
+        for spatial_slice in iter(unconvolved_cube[..., 0].transpose((2, 0, 1))):
+            spatial_slice[...] = (
+                fftconvolve(spatial_slice, m.beam.kernel, mode="same") * unit
+            )
+        convolved_cube = unconvolved_cube[
+            m.datacube.padx : -m.datacube.padx, m.datacube.pady : -m.datacube.padx
+        ]
+        convolved_cube = convolved_cube.to(
+            U.Jy * U.beam**-1, equivalencies=[m.beam.arcsec_to_beam]
+        )
+        m.convolve_beam()
+        assert allclose(m.datacube._array, convolved_cube)
 
     @pytest.mark.xfail
     def test_add_noise():
         raise NotImplementedError
 
-    @pytest.mark.xfail
-    def test_prune_particles():
-        raise NotImplementedError
+    @pytest.mark.parametrize(
+        ("ra_off", "ra_in"),
+        (
+            (0 * U.arcsec, True),
+            (3 * U.arcsec, True),
+            (9 * U.arcsec, False),
+            (-3 * U.arcsec, True),
+            (-9 * U.arcsec, False),
+        ),
+    )
+    @pytest.mark.parametrize(
+        ("dec_off", "dec_in"),
+        (
+            (0 * U.arcsec, True),
+            (3 * U.arcsec, True),
+            (9 * U.arcsec, False),
+            (-3 * U.arcsec, True),
+            (-9 * U.arcsec, False),
+        ),
+    )
+    @pytest.mark.parametrize(
+        ("v_off", "v_in"),
+        (
+            (0 * U.km / U.s, True),
+            (3 * U.km / U.s, True),
+            (7 * U.km / U.s, False),
+            (-3 * U.km / U.s, True),
+            (-7 * U.km / U.s, False),
+        ),
+    )
+    def test_prune_particles(self, ra_off, ra_in, dec_off, dec_in, v_off, v_in):
+        """
+        Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
+        the cube as expected.
+        """
+        expect_particle = all((ra_in, dec_in, v_in))
+        # set distance so that 1kpc = 1arcsec
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        source = SingleParticleSource(
+            distance=distance, ra=ra_off, dec=dec_off, vpeculiar=v_off
+        )
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        # pad size will be 5, so datacube is 12x12 pixels
+        beam = GaussianBeam(bmaj=1 * U.arcsec, bmin=1 * U.arcsec, truncate=4)
+        sph_kernel = CubicSplineKernel()
+        spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
+        kwargs = dict(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=None,
+            sph_kernel=sph_kernel,
+            spectral_model=spectral_model,
+        )
+        # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
+        # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
+        if not expect_particle:
+            with pytest.raises(
+                RuntimeError, match="No source particles in target region."
+            ):
+                Martini(**kwargs)
+        else:
+            assert Martini(**kwargs).source.npart == 1
 
-    @pytest.mark.xfail
-    def test_insert_source_in_cube():
-        raise NotImplementedError
-
-    def test_reset(self, m):
-        assert m.datacube._array.sum() > 0
-        m.reset()
-        assert m.datacube._array.sum() == 0
+    def test_reset(self, m_nn):
+        """
+        Check that resetting martini instance zeros out datacube.
+        """
+        cube_array = m_nn.datacube._array
+        assert m_nn.datacube._array.sum() > 0
+        m_nn.reset()
+        assert m_nn.datacube._array.sum() == 0
+        # check that can start over and get the same result w/o errors
+        m_nn.insert_source_in_cube(printfreq=None)
+        m_nn.convolve_beam()
+        assert allclose(cube_array, m_nn.datacube._array)
