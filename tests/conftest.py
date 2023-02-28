@@ -73,9 +73,9 @@ def m_nn():
 def dc():
 
     dc = DataCube(
-        n_px_x=64,
-        n_px_y=64,
-        n_channels=64,
+        n_px_x=16,
+        n_px_y=16,
+        n_channels=16,
         velocity_centre=3 * 70 * U.km / U.s,
     )
 
