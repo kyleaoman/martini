@@ -91,14 +91,15 @@ class _BaseBeam(object):
         # Elliptical Gaussian has no analytic surface integral in cartesian coordinates
         # and other beam shapes presumably much worse, so let's make a spline interpolator
         # based on a fine sampling of the beam function and integrate that.
-        fine_sample_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 0.01) * self.px_size
-        fine_sample_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 0.01) * self.px_size
+        fine_sample_x = np.arange(-npx_x - 0.5, npx_x + 0.501, 0.1) * self.px_size
+        fine_sample_y = np.arange(-npx_y - 0.5, npx_y + 0.501, 0.1) * self.px_size
+        # set meshgrid indexing to avoid unintentional transpose
         rbs = scipy.interpolate.RectBivariateSpline(
             fine_sample_x.to_value(px_size_unit),
             fine_sample_y.to_value(px_size_unit),
-            self.f_kernel()(*np.meshgrid(fine_sample_x, fine_sample_y)).to_value(
-                px_size_unit**-2
-            ),
+            self.f_kernel()(
+                *np.meshgrid(fine_sample_x, fine_sample_y, indexing="ij")
+            ).to_value(px_size_unit**-2),
             kx=3,
             ky=3,
         )

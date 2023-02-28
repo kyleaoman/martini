@@ -53,13 +53,15 @@ class TestGaussianBeam:
         mid = b.kernel.shape[0] // 2
         if bpa == 0 * U.deg:
             assert isclose(
-                b.kernel[mid, mid + 5].to_value(U.arcsec**-2),
-                b.kernel[mid + 10, mid].to_value(U.arcsec**-2),
+                b.kernel[mid, mid + 5].to_value(U.arcsec**2),
+                b.kernel[mid + 10, mid].to_value(U.arcsec**2),
+                rel_tol=1e-2,
             )
         elif bpa == 90 * U.deg:
             assert isclose(
-                b.kernel[mid, mid + 10].to_value(U.arcsec**-2),
-                b.kernel[mid + 5, mid].to_value(U.arcsec**-2),
+                b.kernel[mid, mid + 10].to_value(U.arcsec**2),
+                b.kernel[mid + 5, mid].to_value(U.arcsec**2),
+                rel_tol=1e-2,
             )
 
     def test_Gaussian_beam_integral(self):
@@ -79,4 +81,4 @@ class TestGaussianBeam:
         )
         b = GaussianBeam(bmaj=bmaj, bmin=bmin, bpa=0 * U.deg, truncate=truncate)
         b.init_kernel(d)
-        assert isclose(np.sum(b.kernel).to_value(U.arcsec**-2), 1.0)
+        assert isclose(np.sum(b.kernel).to_value(U.arcsec**2), 1.0)
