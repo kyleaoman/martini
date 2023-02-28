@@ -13,14 +13,15 @@ from martini.sph_kernels import (
 from astropy import units as U
 
 # kernels that have a well-defined FWHM, i.e. not dirac-delta, adaptive
-basic_kernels = (
+fwhm_kernels = (
     WendlandC2Kernel,
     WendlandC6Kernel,
     CubicSplineKernel,
     GaussianKernel,
     QuarticSplineKernel,
 )
-all_kernels = basic_kernels + (DiracDeltaKernel, AdaptiveKernel)
+simple_kernels = fwhm_kernels + (DiracDeltaKernel,)
+all_kernels = simple_kernels + (AdaptiveKernel,)
 
 for k in all_kernels:
     k.noFWHMwarn = True
@@ -38,7 +39,7 @@ def total_kernel_weight(k, h, ngrid=50):
 
 
 class TestSPHKernels:
-    @pytest.mark.parametrize("kernel", basic_kernels)
+    @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_fwhm_is_one(self, kernel):
         """
         Check that value at FWHM is half of peak value.
@@ -47,7 +48,7 @@ class TestSPHKernels:
         fwhm = 1  # all kernels should be implemented s.t. this is true
         assert isclose(k.eval_kernel(fwhm / 2, 1), k.eval_kernel(0, 1) / 2)
 
-    @pytest.mark.parametrize("kernel", basic_kernels)
+    @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_extent(self, kernel):
         """
         Check that kernel goes to zero at its stated size.
@@ -57,7 +58,7 @@ class TestSPHKernels:
         assert k.eval_kernel(fwhm * k.size_in_fwhm + 1.0e-5, 1) == 0
         assert k.eval_kernel(fwhm * k.size_in_fwhm - 1.0e-5, 1) > 0
 
-    @pytest.mark.parametrize("kernel", basic_kernels)
+    @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_2D_integral(self, kernel):
         """
         Check numerically that integral of 3D kernel and 2D projection agree.
