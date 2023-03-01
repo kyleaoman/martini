@@ -1,7 +1,10 @@
 .. image:: martini_banner.png
 
-|Documentation status|
+|Build status| |Documentation status|
 
+.. |Build status| image:: https://github.com/kyleaoman/martini/actions/workflows/black_pytest.yml/badge.svg
+    :target: https://github.com/kyleaoman/martini/actions/workflows/black_pytest.yml
+    :alt: Build Status
 .. |Documentation status| image:: https://readthedocs.org/projects/martini/badge/?version=latest
     :target: https://martini.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation status
