@@ -1,6 +1,8 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
+from martini.datacube import DataCube
+import typing as T
 
 
 class _BaseNoise(object):
@@ -19,7 +21,7 @@ class _BaseNoise(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, seed=None):
+    def __init__(self, seed: T.Optional[int] = None) -> None:
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
         return
@@ -33,7 +35,7 @@ class _BaseNoise(object):
         """
         pass
 
-    def reset_rng(self):
+    def reset_rng(self) -> None:
         """
         Reset the random number generator to its initial state.
 
@@ -59,14 +61,18 @@ class GaussianNoise(_BaseNoise):
         if an integer is given results will be repeatable. (Default: None)
     """
 
-    def __init__(self, rms=1.0 * U.Jy * U.arcsec**-2, seed=None):
+    def __init__(
+        self,
+        rms: U.Quantity[U.Jy * U.arcsec**-2] = 1.0 * U.Jy * U.arcsec**-2,
+        seed: T.Optional[int] = None,
+    ) -> None:
         self.rms = rms
 
         super().__init__(seed=seed)
 
         return
 
-    def generate(self, datacube):
+    def generate(self, datacube: DataCube) -> U.Quantity[U.Jy * U.arcsec**-2]:
         """
         Create a cube containing Gaussian noise.
 
