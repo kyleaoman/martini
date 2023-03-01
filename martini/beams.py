@@ -2,6 +2,8 @@ from abc import ABCMeta, abstractmethod
 import scipy.interpolate
 import numpy as np
 import astropy.units as U
+from martini.datacube import DataCube
+import typing as T
 
 
 class _BaseBeam(object):
@@ -42,7 +44,12 @@ class _BaseBeam(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, bmaj=15.0 * U.arcsec, bmin=15.0 * U.arcsec, bpa=0.0 * U.deg):
+    def __init__(
+        self,
+        bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bpa: U.Quantity[U.deg] = 0.0 * U.deg,
+    ) -> None:
         # some beams need information from the datacube; in this case make
         # their call to _BaseBeam.__init__ with bmaj == bmin == bpa == None
         # and define a init_beam_header, to be called after the ra, dec,
@@ -55,7 +62,7 @@ class _BaseBeam(object):
 
         return
 
-    def needs_pad(self):
+    def needs_pad(self) -> T.Tuple[int, int]:
         """
         Determine the padding of the datacube required by the beam to prevent
         edge effects during convolution.
@@ -65,9 +72,11 @@ class _BaseBeam(object):
         out : 2-tuple, each element an integer
         """
 
+        if self.kernel is None:
+            raise RuntimeError("Beam kernel not initialized.")
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
 
-    def init_kernel(self, datacube):
+    def init_kernel(self, datacube: DataCube) -> None:
         """
         Calculate the required size of the beam image
 
@@ -85,7 +94,10 @@ class _BaseBeam(object):
         if (self.bmaj is None) or (self.bmin is None) or (self.bpa is None):
             self.init_beam_header()
         npx_x, npx_y = self.kernel_size_px()
-        px_size_unit = self.px_size.unit
+        if self.px_size is not None:
+            px_size_unit = self.px_size.unit
+        else:
+            raise RuntimeError("Beam pixel size not initialized.")
         px_edges_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 1) * self.px_size
         px_edges_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 1) * self.px_size
         # Elliptical Gaussian has no analytic surface integral in cartesian coordinates
@@ -188,13 +200,21 @@ class GaussianBeam(_BaseBeam):
     """
 
     def __init__(
-        self, bmaj=15.0 * U.arcsec, bmin=15.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
-    ):
+        self,
+        bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bpa: U.Quantity[U.deg] = 0.0 * U.deg,
+        truncate: float = 4.0,
+    ) -> None:
         self.truncate = truncate
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return
 
-    def f_kernel(self):
+    def f_kernel(
+        self,
+    ) -> T.Callable[
+        [T.Union[float, np.ndarray], T.Union[float, np.ndarray]], U.Quantity
+    ]:
         """
         Returns a function defining the beam amplitude as a function of
         position.
@@ -209,7 +229,7 @@ class GaussianBeam(_BaseBeam):
             array_like of corresponding size.
         """
 
-        def fwhm_to_sigma(fwhm):
+        def fwhm_to_sigma(fwhm: U.Quantity[U.arcsec]) -> U.Quantity[U.arcsec]:
             return fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
 
         sigmamaj = fwhm_to_sigma(self.bmaj)  # arcsec
@@ -231,7 +251,7 @@ class GaussianBeam(_BaseBeam):
             -a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2)
         )
 
-    def kernel_size_px(self):
+    def kernel_size_px(self) -> T.Tuple[int, int]:
         """
         Returns a 2-tuple specifying the half-size of the beam image to be
         initialized, in pixels.
