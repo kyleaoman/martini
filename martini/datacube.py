@@ -1,8 +1,9 @@
 import numpy as np
 import astropy.units as U
 from astropy import wcs
+import typing as T
 
-HIfreq = 1.420405751e9 * U.Hz
+HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
 
 
 class DataCube(object):
@@ -51,15 +52,15 @@ class DataCube(object):
 
     def __init__(
         self,
-        n_px_x=256,
-        n_px_y=256,
-        n_channels=64,
-        px_size=15.0 * U.arcsec,
-        channel_width=4.0 * U.km * U.s**-1,
-        velocity_centre=0.0 * U.km * U.s**-1,
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-    ):
+        n_px_x: int = 256,
+        n_px_y: int = 256,
+        n_channels: int = 64,
+        px_size: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        channel_width: U.Quantity[U.arcsec] = 4.0 * U.km * U.s**-1,
+        velocity_centre: U.Quantity[U.km / U.s] = 0.0 * U.km * U.s**-1,
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+    ) -> None:
         datacube_unit = U.Jy * U.pix**-2
         self._array = np.zeros((n_px_x, n_px_y, n_channels, 1)) * datacube_unit
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels
@@ -83,7 +84,7 @@ class DataCube(object):
 
         return
 
-    def _init_wcs(self):
+    def _init_wcs(self) -> None:
         self.wcs = wcs.WCS(naxis=3)
         self.wcs.wcs.crpix = [
             self.n_px_x / 2.0 + 0.5,
@@ -106,7 +107,7 @@ class DataCube(object):
         self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         return
 
-    def _channel_mids(self):
+    def _channel_mids(self) -> None:
         """
         Calculate the centres of the channels from the coordinate system.
         """
@@ -122,7 +123,7 @@ class DataCube(object):
         )
         return
 
-    def _channel_edges(self):
+    def _channel_edges(self) -> None:
         """
         Calculate the edges of the channels from the coordinate system.
         """
@@ -138,7 +139,7 @@ class DataCube(object):
         )
         return
 
-    def spatial_slices(self):
+    def spatial_slices(self) -> T.Iterator[np.ndarray]:
         """
         Return an iterator over the spatial 'slices' of the cube.
 
@@ -149,7 +150,7 @@ class DataCube(object):
         """
         return iter(self._array[..., 0].transpose((2, 0, 1)))
 
-    def spectra(self):
+    def spectra(self) -> T.Iterator[np.ndarray]:
         """
         Return an iterator over the spectra (one in each spatial pixel).
 
@@ -162,7 +163,7 @@ class DataCube(object):
             self._array[..., 0].reshape(self.n_px_x * self.n_px_y, self.n_channels)
         )
 
-    def freq_channels(self):
+    def freq_channels(self) -> None:
         """
         Convert spectral axis to frequency units.
         """
@@ -187,7 +188,7 @@ class DataCube(object):
         self._channel_edges()
         return
 
-    def velocity_channels(self):
+    def velocity_channels(self) -> None:
         """
         Convert spectral axis (back) to velocity units.
         """
@@ -212,7 +213,7 @@ class DataCube(object):
         self._channel_edges()
         return
 
-    def add_pad(self, pad):
+    def add_pad(self, pad: T.Tuple[int, int]) -> None:
         """
         Resize the cube to add a padding region in the spatial direction.
 
@@ -245,7 +246,7 @@ class DataCube(object):
         self.padx, self.pady = pad
         return
 
-    def drop_pad(self):
+    def drop_pad(self) -> None:
         """
         Remove the padding added using add_pad.
 
@@ -264,7 +265,7 @@ class DataCube(object):
         self.padx, self.pady = 0, 0
         return
 
-    def copy(self):
+    def copy(self) -> "DataCube":
         """
         Produce a copy of the DataCube.
 
@@ -297,7 +298,7 @@ class DataCube(object):
         copy._array = self._array.copy()
         return copy
 
-    def save_state(self, filename, overwrite=False):
+    def save_state(self, filename: str, overwrite: bool = False) -> None:
         """
         Write a file from which the current DataCube state can be
         re-initialized (see DataCube.load_state). Note that h5py must be
@@ -341,7 +342,7 @@ class DataCube(object):
         return
 
     @classmethod
-    def load_state(cls, filename):
+    def load_state(cls, filename: str) -> "DataCube":
         """
         Initialize a DataCube from a state saved using DataCube.save_state.
         Note that h5py must be installed for use. Note that ONLY the DataCube
@@ -397,7 +398,7 @@ class DataCube(object):
             D._array = f["_array"] * U.Unit(f["_array"].attrs["datacube_unit"])
         return D
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Print the contents of the data cube array itself.
 
