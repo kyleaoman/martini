@@ -2,10 +2,10 @@ import os
 import pytest
 import numpy as np
 import h5py
-from martini import Martini, DataCube
-from martini.datacube import HIfreq
+from martini.martini import Martini, _gen_particle_coords
+from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
-from martini.sources import _SingleParticleSource as SingleParticleSource
+from martini.sources import _SingleParticleSource as SingleParticleSource, SPHSource
 from test_sph_kernels import simple_kernels
 from martini.sph_kernels import CubicSplineKernel, GaussianKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
@@ -15,9 +15,48 @@ from scipy.signal import fftconvolve
 
 
 class TestMartiniUtils:
-    @pytest.mark.xfail
-    def test_gen_particle_coords():
-        raise NotImplementedError
+    def test_gen_particle_coords(self):
+        # set distance so that 1kpc = 1arcsec
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        # line up particles 1 per 1kpc = 1arcsec interval in RA and Dec
+        # and 1 per 1 km / s interval in vlos
+        # set h=0 so that velocity stays centred at 0
+        source = SPHSource(
+            distance=distance,
+            h=0.0,
+            T_g=np.ones(5) * 1e4 * U.K,
+            mHI_g=np.ones(5) * 1e4 * U.Msun,
+            xyz_g=U.Quantity(
+                np.vstack(
+                    (
+                        np.zeros(6),
+                        np.linspace(-2.5, 2.5, 6),
+                        (np.linspace(-2.5, 2.5, 6)),
+                    )
+                ).T,
+                U.kpc,
+            ),
+            vxyz_g=U.Quantity(
+                np.vstack((np.linspace(-2.5, 2.5, 6), np.zeros(6), np.zeros(6))).T,
+                U.km / U.s,
+            ),
+            hsm_g=np.ones(6) * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=6,
+            n_px_y=6,
+            n_channels=6,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+        )
+        expected_coords = (
+            np.vstack((np.arange(6)[::-1], np.arange(6), np.arange(6))) * U.pix
+        )
+        assert U.allclose(
+            _gen_particle_coords(source=source, datacube=datacube),
+            expected_coords,
+            atol=1e-4 * U.pix,
+        )
 
 
 class TestMartini:

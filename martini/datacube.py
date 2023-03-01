@@ -89,7 +89,7 @@ class DataCube(object):
         self.wcs.wcs.crpix = [
             self.n_px_x / 2.0 + 0.5,
             self.n_px_y / 2.0 + 0.5,
-            self.n_channels // 2,
+            self.n_channels / 2.0 + 0.5,
         ]
         self.units = [U.deg, U.deg, U.m * U.s**-1]
         self.wcs.wcs.cunit = [unit.to_string("fits") for unit in self.units]
@@ -115,7 +115,7 @@ class DataCube(object):
             self.wcs.wcs_pix2world(
                 np.zeros(self.n_channels),
                 np.zeros(self.n_channels),
-                np.arange(self.n_channels),
+                np.arange(self.n_channels) - 0.5,
                 np.zeros(self.n_channels),
                 0,
             )[2]
@@ -131,7 +131,7 @@ class DataCube(object):
             self.wcs.wcs_pix2world(
                 np.zeros(self.n_channels + 1),
                 np.zeros(self.n_channels + 1),
-                np.arange(self.n_channels + 1) - 0.5,
+                np.arange(self.n_channels + 1) - 1,
                 np.zeros(self.n_channels + 1),
                 0,
             )[2]
