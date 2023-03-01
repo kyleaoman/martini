@@ -1,6 +1,6 @@
 h5py
 Hdecompose @ https://github.com/kyleaoman/Hdecompose/archive/master.zip#egg=Hdecompose
-pyread_eagle
+pyread_eagle @ https://github.com/kyleaoman/pyread_eagle/archive/master.zip#egg=pyread_eagle
 eagleSqlTools
 swiftsimio
 swiftgalaxy
