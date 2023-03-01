@@ -60,7 +60,6 @@ class ColibreSource(SWIFTGalaxySource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         # No special functionality wanted/needed:
         super().__init__(
             galaxy,

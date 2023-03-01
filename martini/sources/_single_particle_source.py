@@ -42,7 +42,6 @@ class _SingleParticleSource(SPHSource):
         dec=0.0 * U.deg,
         hsm_g=1 * U.kpc,
     ):
-
         super().__init__(
             distance=distance,
             vpeculiar=vpeculiar,

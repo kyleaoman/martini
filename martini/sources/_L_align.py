@@ -9,7 +9,6 @@ import astropy.units as U
 
 
 def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
-
     transposed = False
     if xyz.ndim != 2:
         raise ValueError(

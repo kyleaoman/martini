@@ -88,7 +88,6 @@ class SimbaSource(SPHSource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         if snapPath is None:
             raise ValueError("Provide snapPath argument to SimbaSource.")
         if snapName is None:

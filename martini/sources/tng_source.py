@@ -82,7 +82,6 @@ class TNGSource(SPHSource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         # optional dependencies for this source class
         from illustris_python.groupcat import loadSingle, loadHeader
         from illustris_python.snapshot import loadSubset, getSnapOffsets

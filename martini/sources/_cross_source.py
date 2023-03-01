@@ -73,7 +73,6 @@ class _CrossSource(SPHSource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         xyz_g = np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]]) * U.kpc
 
         vxyz_g = (

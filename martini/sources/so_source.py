@@ -72,7 +72,6 @@ class SOSource(SPHSource):
         SO_instance=None,
         rescale_hsm_g=1,
     ):
-
         from simobj import SimObj  # optional dependency for this source class
 
         self._SO_args = SO_args

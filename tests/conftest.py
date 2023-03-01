@@ -14,7 +14,6 @@ GaussianKernel.noFWHMwarn = True
 
 @pytest.fixture(scope="function")
 def m():
-
     source = _SingleParticleSource()
     datacube = DataCube(
         n_px_x=16,
@@ -43,7 +42,6 @@ def m():
 
 @pytest.fixture(scope="function")
 def m_init():
-
     source = _SingleParticleSource()
     datacube = DataCube(
         n_px_x=16,
@@ -69,7 +67,6 @@ def m_init():
 
 @pytest.fixture(scope="function")
 def m_nn():
-
     source = _SingleParticleSource()
     datacube = DataCube(
         n_px_x=16,
@@ -97,7 +94,6 @@ def m_nn():
 
 @pytest.fixture(scope="function")
 def dc():
-
     dc = DataCube(
         n_px_x=16,
         n_px_y=16,
@@ -114,7 +110,6 @@ def dc():
 
 @pytest.fixture(scope="function")
 def s():
-
     n_g = 1000
     phi = np.random.rand(n_g, 1) * 2 * np.pi
     R = np.random.rand(n_g, 1)

@@ -60,7 +60,6 @@ class SWIFTGalaxySource(SPHSource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         h = galaxy.metadata.cosmology.h
         particles = dict(
             xyz_g=galaxy.gas.coordinates.to_astropy(),

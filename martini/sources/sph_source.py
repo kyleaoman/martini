@@ -109,7 +109,6 @@ class SPHSource(object):
         hsm_g=None,
         coordinate_axis=None,
     ):
-
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
                 coordinate_axis = 0

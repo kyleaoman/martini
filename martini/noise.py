@@ -60,7 +60,6 @@ class GaussianNoise(_BaseNoise):
     """
 
     def __init__(self, rms=1.0 * U.Jy * U.arcsec**-2, seed=None):
-
         self.rms = rms
 
         super().__init__(seed=seed)

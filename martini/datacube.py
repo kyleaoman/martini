@@ -60,7 +60,6 @@ class DataCube(object):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         datacube_unit = U.Jy * U.pix**-2
         self._array = np.zeros((n_px_x, n_px_y, n_channels, 1)) * datacube_unit
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels

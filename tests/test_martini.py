@@ -144,7 +144,6 @@ class TestMartini:
             try:
                 m.write_fits(filename, channels=channel_mode)
                 with fits.open(filename) as f:
-
                     # distance
                     D = m.source.distance
 
@@ -203,7 +202,6 @@ class TestMartini:
             try:
                 m.write_hdf5(filename, channels=channel_mode)
                 with h5py.File(filename, "r") as f:
-
                     # distance
                     D = m.source.distance
 

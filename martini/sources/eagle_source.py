@@ -105,7 +105,6 @@ class EAGLESource(SPHSource):
         dec=0.0 * U.deg,
         print_query=False,
     ):
-
         if snapPath is None:
             raise ValueError("Provide snapPath argument to EAGLESource.")
         if snapBase is None:

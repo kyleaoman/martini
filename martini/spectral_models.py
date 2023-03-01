@@ -196,7 +196,6 @@ class GaussianSpectrum(_BaseSpectrum):
     """
 
     def __init__(self, sigma=7.0 * U.km * U.s**-1, spec_dtype=np.float64):
-
         self.sigma_mode = sigma
         super().__init__(spec_dtype=spec_dtype)
 
