@@ -6,6 +6,7 @@ from martini import Martini, DataCube
 from martini.datacube import HIfreq
 from martini.beams import GaussianBeam
 from martini.sources import _SingleParticleSource as SingleParticleSource
+from martini.noise import GaussianNoise
 from test_sph_kernels import simple_kernels
 from martini.sph_kernels import CubicSplineKernel, GaussianKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
@@ -13,9 +14,6 @@ from astropy import units as U
 from astropy.units import isclose, allclose
 from astropy.io import fits
 from scipy.signal import fftconvolve
-
-# Should probably actually just inline this into martini to monitor how
-# much of the input mass ends up in the datacube?
 
 
 class TestMartiniUtils:
@@ -264,9 +262,22 @@ class TestMartini:
         m.convolve_beam()
         assert allclose(m.datacube._array, convolved_cube)
 
-    @pytest.mark.xfail
-    def test_add_noise():
-        raise NotImplementedError
+    def test_add_noise(self, m_init):
+        """
+        Check that noise provided goes into the datacube when we call add_noise.
+        """
+        assert (m_init.datacube._array.sum() == 0).all()
+        assert m_init.noise.seed is not None
+        expected_noise = m_init.noise.generate(m_init.datacube)
+        m_init.noise.reset_rng()
+        m_init.add_noise()
+        assert allclose(
+            m_init.datacube._array,
+            expected_noise.to(
+                m_init.datacube._array.unit,
+                equivalencies=[m_init.datacube.arcsec2_to_pix],
+            ),
+        )
 
     @pytest.mark.parametrize(
         ("ra_off", "ra_in"),

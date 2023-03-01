@@ -65,6 +65,12 @@ class DataCube(object):
         self._array = np.zeros((n_px_x, n_px_y, n_channels, 1)) * datacube_unit
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels
         self.px_size = px_size
+        self.arcsec2_to_pix = (
+            U.Jy * U.pix**-2,
+            U.Jy * U.arcsec**-2,
+            lambda x: x / self.px_size**2,
+            lambda x: x * self.px_size**2,
+        )
         self.channel_width = channel_width
         self.velocity_centre = velocity_centre
         self.ra = ra

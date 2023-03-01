@@ -262,7 +262,9 @@ class Martini:
             warn("Skipping noise, no noise object provided to Martini.")
             return
 
-        self.datacube._array = self.datacube._array + self.noise.generate(self.datacube)
+        self.datacube._array = self.datacube._array + self.noise.generate(
+            self.datacube
+        ).to(self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix])
         return
 
     def _prune_particles(self):
@@ -353,8 +355,8 @@ class Martini:
                 self.spectral_model.spectra[mask] * weights[..., np.newaxis]
             ).sum(axis=-2)
 
-        self.datacube._array = self.datacube._array / np.power(
-            self.datacube.px_size / U.pix, 2
+        self.datacube._array = self.datacube._array.to(
+            U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
         )
         return
 

@@ -23,7 +23,7 @@ def m():
         velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
     beam = GaussianBeam()
-    noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.arcsec**-2)
+    noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.arcsec**-2, seed=0)
     sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
@@ -38,6 +38,32 @@ def m():
     m.insert_source_in_cube(printfreq=None)
     m.add_noise()
     m.convolve_beam()
+    yield m
+
+
+@pytest.fixture(scope="function")
+def m_init():
+
+    source = _SingleParticleSource()
+    datacube = DataCube(
+        n_px_x=16,
+        n_px_y=16,
+        n_channels=16,
+        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+    )
+    beam = GaussianBeam()
+    noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.arcsec**-2, seed=0)
+    sph_kernel = GaussianKernel()
+    spectral_model = GaussianSpectrum()
+
+    m = Martini(
+        source=source,
+        datacube=datacube,
+        beam=beam,
+        noise=noise,
+        sph_kernel=sph_kernel,
+        spectral_model=spectral_model,
+    )
     yield m
 
 
