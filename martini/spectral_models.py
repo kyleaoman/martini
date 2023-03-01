@@ -66,7 +66,7 @@ class _BaseSpectrum(object):
         vmids = source.sky_coordinates.radial_velocity
         A = source.mHI_g * np.power(source.sky_coordinates.distance.to(U.Mpc), -2)
         MHI_Jy = (
-            U.solMass * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
+            U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
             U.Jy,
             lambda x: (1 / 2.36e5) * x,
             lambda x: 2.36e5 * x,

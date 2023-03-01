@@ -208,7 +208,7 @@ class EAGLESource(SPHSource):
                 T0=T0,
             )
             * code_to_g
-        ).to(U.solMass)
+        ).to(U.Msun)
 
         mask = ng_g == fof
         for k, v in particles.items():

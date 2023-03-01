@@ -51,7 +51,7 @@ class _SingleParticleSource(SPHSource):
             dec=dec,
             h=0.7,
             T_g=np.ones(1) * 1.0e4 * U.K,
-            mHI_g=np.ones(1) * 1.0e4 * U.solMass,
+            mHI_g=np.ones(1) * 1.0e4 * U.Msun,
             xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,
             vxyz_g=np.zeros((1, 3)) * U.km * U.s**-1,
             hsm_g=np.ones(1) * hsm_g,
