@@ -16,6 +16,10 @@ from scipy.signal import fftconvolve
 
 class TestMartiniUtils:
     def test_gen_particle_coords(self):
+        """
+        Check that pixel coordinates are accurately calculated from angular positions and
+        velocity offsets.
+        """
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         # line up particles 1 per 1kpc = 1arcsec interval in RA and Dec
