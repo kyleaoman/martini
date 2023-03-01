@@ -57,7 +57,7 @@ class TestMartiniUtils:
             np.vstack((np.arange(6)[::-1], np.arange(6), np.arange(6))) * U.pix
         )
         assert U.allclose(
-            _gen_particle_coords(source=source, datacube=datacube),
+            _gen_particle_coords(source, datacube),
             expected_coords,
             atol=1e-4 * U.pix,
         )

@@ -9,6 +9,13 @@ from datetime import datetime
 from itertools import product
 from ._version import __version__ as martini_version
 from warnings import warn
+from martini.datacube import DataCube
+from martini.sources.sph_source import SPHSource
+from martini.beams import _BaseBeam
+from martini.noise import _BaseNoise
+from martini.sph_kernels import _BaseSPHKernel
+from martini.spectral_models import _BaseSpectrum
+import typing as T
 
 try:
     gc = subprocess.check_output(
@@ -22,7 +29,7 @@ else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
-def _gen_particle_coords(source=None, datacube=None):
+def _gen_particle_coords(source: SPHSource, datacube: DataCube) -> U.Quantity[U.pix]:
     # pixels indexed from 0 (not like in FITS!) for better use with numpy
     origin = 0
     skycoords = source.sky_coordinates
@@ -205,20 +212,36 @@ class Martini:
 
     def __init__(
         self,
-        source=None,
-        datacube=None,
-        beam=None,
-        noise=None,
-        sph_kernel=None,
-        spectral_model=None,
-        logtag="",
-    ):
-        self.source = source
-        self.datacube = datacube
+        source: T.Optional[SPHSource] = None,
+        datacube: T.Optional[DataCube] = None,
+        beam: T.Optional[_BaseBeam] = None,
+        noise: T.Optional[_BaseNoise] = None,
+        sph_kernel: T.Optional[_BaseSPHKernel] = None,
+        spectral_model: T.Optional[_BaseSpectrum] = None,
+        logtag: str = "",
+    ) -> None:
+        self.source: SPHSource
+        if source is not None:
+            self.source = source
+        else:
+            raise ValueError("A source instance is required.")
+        self.datacube: DataCube
+        if datacube is not None:
+            self.datacube = datacube
+        else:
+            raise ValueError("A datacube instance is required.")
         self.beam = beam
         self.noise = noise
-        self.sph_kernel = sph_kernel
-        self.spectral_model = spectral_model
+        self.sph_kernel: _BaseSPHKernel
+        if sph_kernel is not None:
+            self.sph_kernel = sph_kernel
+        else:
+            raise ValueError("An SPH kernel instance is required.")
+        self.spectral_model: _BaseSpectrum
+        if spectral_model is not None:
+            self.spectral_model = spectral_model
+        else:
+            raise ValueError("A spectral model instance is required.")
         self.logtag = logtag
 
         if self.beam is not None:
@@ -233,13 +256,14 @@ class Martini:
 
         return
 
-    def convolve_beam(self):
+    def convolve_beam(self) -> None:
         """
         Convolve the beam and DataCube.
         """
 
         if self.beam is None:
             warn("Skipping beam convolution, no beam object provided to " "Martini.")
+            return
 
         unit = self.datacube._array.unit
         for spatial_slice in self.datacube.spatial_slices():
@@ -253,7 +277,7 @@ class Martini:
         )
         return
 
-    def add_noise(self):
+    def add_noise(self) -> None:
         """
         Insert noise into the DataCube.
         """
@@ -267,7 +291,7 @@ class Martini:
         ).to(self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix])
         return
 
-    def _prune_particles(self):
+    def _prune_particles(self) -> None:
         """
         Determines which particles cannot contribute to the DataCube and
         removes them to speed up calculation. Assumes the kernel is 0 at
@@ -275,9 +299,7 @@ class Martini:
         SPH smoothing length).
         """
 
-        particle_coords = _gen_particle_coords(
-            source=self.source, datacube=self.datacube
-        )
+        particle_coords = _gen_particle_coords(self.source, self.datacube)
         spectrum_half_width = (
             self.spectral_model.half_width(self.source) / self.datacube.channel_width
         )
@@ -301,7 +323,9 @@ class Martini:
         self.sph_kernel.apply_mask(np.logical_not(reject_mask))
         return
 
-    def insert_source_in_cube(self, skip_validation=False, printfreq=100):
+    def insert_source_in_cube(
+        self, skip_validation: bool = False, printfreq: T.Optional[int] = 100
+    ) -> None:
         """
         Populates the DataCube with flux from the particles in the source.
 
@@ -320,9 +344,7 @@ class Martini:
             Messages completely suppressed with printfreq=None. (Default: 100.)
         """
 
-        particle_coords = _gen_particle_coords(
-            source=self.source, datacube=self.datacube
-        )
+        particle_coords = _gen_particle_coords(self.source, self.datacube)
         self.sph_kernel.confirm_validation(noraise=skip_validation)
 
         # pixel iteration
@@ -360,7 +382,12 @@ class Martini:
         )
         return
 
-    def write_fits(self, filename, channels="frequency", overwrite=True):
+    def write_fits(
+        self,
+        filename: str,
+        channels: str = "frequency",
+        overwrite: bool = True,
+    ) -> None:
         """
         Output the DataCube to a FITS-format file.
 
@@ -461,7 +488,9 @@ class Martini:
             self.datacube.velocity_channels()
         return
 
-    def write_beam_fits(self, filename, channels="frequency", overwrite=True):
+    def write_beam_fits(
+        self, filename: str, channels: str = "frequency", overwrite: bool = True
+    ) -> None:
         """
         Output the beam to a FITS-format file.
 
@@ -491,7 +520,10 @@ class Martini:
             raise ValueError(
                 "Martini.write_beam_fits: Called with beam set " "to 'None'."
             )
-
+        if self.beam.kernel is None:
+            raise ValueError(
+                "Martini.write_beam_fits: Called with beam kernel uninitialized."
+            )
         if channels == "frequency":
             self.datacube.freq_channels()
         elif channels == "velocity":
@@ -560,12 +592,12 @@ class Martini:
 
     def write_hdf5(
         self,
-        filename,
-        channels="frequency",
-        overwrite=True,
-        memmap=False,
-        compact=False,
-    ):
+        filename: str,
+        channels: str = "frequency",
+        overwrite: bool = True,
+        memmap: bool = False,
+        compact: bool = False,
+    ) -> None:
         """
         Output the DataCube and Beam to a HDF5-format file. Requires the h5py
         package.
@@ -666,6 +698,11 @@ class Martini:
         c.attrs["MartiniVersion"] = martini_version
         c.attrs["AstropyVersion"] = astropy_version
         if self.beam is not None:
+            if self.beam.kernel is None:
+                raise ValueError(
+                    "Martini.write_hdf5: Called with beam present but beam kernel"
+                    " uninitialized."
+                )
             f["Beam"] = self.beam.kernel.value[..., np.newaxis]
             b = f["Beam"]
             b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
@@ -699,7 +736,7 @@ class Martini:
             f.close()
             return
 
-    def reset(self):
+    def reset(self) -> None:
         """
         Re-initializes the DataCube with zero-values.
         """
@@ -713,7 +750,7 @@ class Martini:
             ra=self.datacube.ra,
             dec=self.datacube.dec,
         )
-        self.datacube.__init__(**init_kwargs)
+        self.__class__(**init_kwargs)
         if self.beam is not None:
             self.datacube.add_pad(self.beam.needs_pad())
         return

@@ -57,8 +57,18 @@ class _BaseBeam(object):
         self.bmaj = bmaj
         self.bmin = bmin
         self.bpa = bpa
-        self.px_size = None
-        self.kernel = None
+        self.px_size: T.Optional[U.Quantity[U.arcsec]] = None
+        self.kernel: T.Optional[U.Quantity[U.dimensionless_unscaled]] = None
+
+        # since bmaj, bmin are FWHM, need to include conversion to
+        # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
+        # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
+        self.arcsec_to_beam = (
+            U.Jy * U.arcsec**-2,
+            U.Jy * U.beam**-1,
+            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
+            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
+        )
 
         return
 
@@ -126,15 +136,6 @@ class _BaseBeam(object):
                 xgrid[1:, :-1], xgrid[1:, 1:], ygrid[:-1, 1:], ygrid[1:, 1:]
             )
             * U.dimensionless_unscaled
-        )
-        # since bmaj, bmin are FWHM, need to include conversion to
-        # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
-        # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
-        self.arcsec_to_beam = (
-            U.Jy * U.arcsec**-2,
-            U.Jy * U.beam**-1,
-            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
-            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
         )
 
         # can turn 2D beam into a 3D beam here; use above for central channel
