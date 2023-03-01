@@ -4,7 +4,6 @@ from martini import DataCube
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from martini.sources import _SingleParticleSource
 from astropy import units as U
-from astropy.units import isclose
 
 spectral_models = GaussianSpectrum, DiracDeltaSpectrum
 
@@ -22,19 +21,19 @@ class TestGaussianSpectrum:
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
         flux = spectral_model.spectra[0].sum() * datacube.channel_width
-        assert isclose(flux, expected_flux, rtol=1.0e-5)
+        assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width_constant(self):
         sigma = 7.0 * U.km / U.s
         source = _SingleParticleSource()
         spectral_model = GaussianSpectrum(sigma=sigma)
-        assert isclose(spectral_model.half_width(source), sigma)
+        assert U.isclose(spectral_model.half_width(source), sigma)
 
     def test_half_width_thermal(self):
         expected_sigma = 9.0853727258 * U.km / U.s  # @1E4K
         source = _SingleParticleSource()
         spectral_model = GaussianSpectrum(sigma="thermal")
-        assert isclose(spectral_model.half_width(source)[0], expected_sigma)
+        assert U.isclose(spectral_model.half_width(source)[0], expected_sigma)
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     def test_spectral_function(self, sigma):
@@ -49,7 +48,7 @@ class TestGaussianSpectrum:
             U.Quantity([source.vsys]),  # expected from _SingleParticleSource
             **spectral_model.spectral_function_kwargs(source),
         )
-        assert isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
+        assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     def test_spectral_function_kwargs(self, sigma):
@@ -72,12 +71,12 @@ class TestDiracDeltaSpectrum:
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
         flux = spectral_model.spectra[0].sum() * datacube.channel_width
-        assert isclose(flux, expected_flux, rtol=1.0e-5)
+        assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width(self):
         source = _SingleParticleSource()
         spectral_model = DiracDeltaSpectrum()
-        assert isclose(spectral_model.half_width(source), 0 * U.km / U.s)
+        assert U.isclose(spectral_model.half_width(source), 0 * U.km / U.s)
 
     def test_spectral_function(self):
         source = _SingleParticleSource()
@@ -91,7 +90,7 @@ class TestDiracDeltaSpectrum:
             U.Quantity([source.vsys]),  # expected from _SingleParticleSource
             **spectral_model.spectral_function_kwargs(source),
         )
-        assert isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
+        assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
     def test_spectral_function_kwargs(self):
         source = _SingleParticleSource()

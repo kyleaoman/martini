@@ -2,7 +2,6 @@ import pytest
 import os
 import numpy as np
 from astropy import units as U, constants as C
-from astropy.units import isclose, allclose
 from martini import DataCube
 from martini.datacube import HIfreq
 
@@ -46,10 +45,10 @@ class TestDataCube:
         f_mid1 = HIfreq * (1 - v_mid1 / C.c)
         f_edge1 = HIfreq * (1 - v_edge1 / C.c)
         dc.freq_channels()
-        assert allclose(
+        assert U.allclose(
             dc.channel_mids, np.linspace(f_mid0, f_mid1, dc.n_channels), atol=1 * U.Hz
         )
-        assert allclose(
+        assert U.allclose(
             dc.channel_edges,
             np.linspace(f_edge0, f_edge1, dc.n_channels + 1),
             atol=1 * U.Hz,
@@ -66,12 +65,12 @@ class TestDataCube:
         v_mid1 = C.c * (1 - f_mid1 / HIfreq)
         v_edge1 = C.c * (1 - f_edge1 / HIfreq)
         dc.velocity_channels()
-        assert allclose(
+        assert U.allclose(
             dc.channel_mids,
             np.linspace(v_mid0, v_mid1, dc.n_channels),
             atol=1e-3 * U.m / U.s,
         )
-        assert allclose(
+        assert U.allclose(
             dc.channel_edges,
             np.linspace(v_edge0, v_edge1, dc.n_channels + 1),
             atol=1e-3 * U.m / U.s,
@@ -82,8 +81,8 @@ class TestDataCube:
         initial_edges = dc.channel_edges
         dc.freq_channels()
         dc.velocity_channels()
-        assert allclose(dc.channel_edges, initial_edges)
-        assert allclose(dc.channel_mids, initial_mids)
+        assert U.allclose(dc.channel_edges, initial_edges)
+        assert U.allclose(dc.channel_mids, initial_mids)
 
     def test_add_pad(self, dc):
         old_shape = dc._array.shape
@@ -152,13 +151,13 @@ class TestDataCube:
             "ra",
             "dec",
         ):
-            assert isclose(getattr(dc, attr), getattr(copy, attr))
+            assert U.isclose(getattr(dc, attr), getattr(copy, attr))
         for attr in (
             "channel_edges",
             "channel_mids",
             "_array",
         ):
-            assert allclose(getattr(dc, attr), getattr(copy, attr))
+            assert U.allclose(getattr(dc, attr), getattr(copy, attr))
         assert str(dc.wcs) == str(copy.wcs)
 
     @pytest.mark.parametrize("with_fchannels", (False, True))
@@ -188,13 +187,13 @@ class TestDataCube:
                 "ra",
                 "dec",
             ):
-                assert isclose(getattr(dc, attr), getattr(loaded, attr))
+                assert U.isclose(getattr(dc, attr), getattr(loaded, attr))
             for attr in (
                 "channel_edges",
                 "channel_mids",
                 "_array",
             ):
-                assert allclose(getattr(dc, attr), getattr(loaded, attr))
+                assert U.allclose(getattr(dc, attr), getattr(loaded, attr))
             assert str(dc.wcs) == str(loaded.wcs)
         except Exception:
             raise

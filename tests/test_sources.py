@@ -4,7 +4,6 @@ import numpy as np
 from astropy import units as U
 from astropy.coordinates.matrix_utilities import rotation_matrix
 from martini.sources import SPHSource
-from astropy.units import isclose, allclose
 from martini.sources._cartesian_translation import translate, translate_d
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
@@ -69,7 +68,7 @@ class TestSourceUtilities:
         cr = CartesianRepresentation(np.zeros(3) * U.kpc)
         translation = np.ones(3) * U.kpc
         cr_translated = cr.translate(translation)
-        assert allclose(cr_translated.get_xyz(), translation)
+        assert U.allclose(cr_translated.get_xyz(), translation)
 
     def test_translate_d(self):
         """
@@ -79,7 +78,7 @@ class TestSourceUtilities:
         cd = CartesianDifferential(np.zeros(3) * U.km / U.s)
         translation = np.ones(3) * U.km / U.s
         cd_translated = cd.translate(translation)
-        assert allclose(cd_translated.get_d_xyz(), translation)
+        assert U.allclose(cd_translated.get_d_xyz(), translation)
 
 
 class TestSPHSource:
@@ -144,8 +143,10 @@ class TestSPHSource:
             ]
         )
         rotmat = R_y.dot(R_z)
-        assert allclose(s.coordinates_g.xyz.T, xyz_g.dot(rotmat))
-        assert allclose(s.coordinates_g.differentials["s"].d_xyz.T, vxyz_g.dot(rotmat))
+        assert U.allclose(s.coordinates_g.xyz.T, xyz_g.dot(rotmat))
+        assert U.allclose(
+            s.coordinates_g.differentials["s"].d_xyz.T, vxyz_g.dot(rotmat)
+        )
 
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
@@ -182,10 +183,10 @@ class TestSPHSource:
         )
         rotmat = R_y.dot(R_z)
         direction_vector = rotmat.T.dot(np.array([[1], [0], [0]]))
-        assert allclose(
+        assert U.allclose(
             s.coordinates_g.xyz.T, xyz_g.dot(rotmat) + direction_vector.T * distance
         )
-        assert allclose(
+        assert U.allclose(
             s.coordinates_g.differentials["s"].d_xyz.T,
             vxyz_g.dot(rotmat) + direction_vector.T * vsys,
         )
@@ -202,8 +203,8 @@ class TestSPHSource:
         vxyz_g = np.zeros((1, 3)) * U.km / U.s
         s = SPHSource(xyz_g=xyz_g, vxyz_g=vxyz_g, ra=ra, dec=dec)
         print(s.sky_coordinates.ra[0], Angle(ra).wrap_at(360 * U.deg))
-        assert isclose(s.sky_coordinates.ra[0], Angle(ra).wrap_at(360 * U.deg))
-        assert isclose(s.sky_coordinates.dec[0], Angle(dec).wrap_at(180 * U.deg))
+        assert U.isclose(s.sky_coordinates.ra[0], Angle(ra).wrap_at(360 * U.deg))
+        assert U.isclose(s.sky_coordinates.dec[0], Angle(dec).wrap_at(180 * U.deg))
 
     def test_apply_mask(self, s):
         """
@@ -222,14 +223,14 @@ class TestSPHSource:
         s.apply_mask(mask)
         for k in particle_fields:
             if not particles_before[k].isscalar:
-                assert allclose(particles_before[k][mask], getattr(s, k))
+                assert U.allclose(particles_before[k][mask], getattr(s, k))
             else:
-                assert isclose(particles_before[k], getattr(s, k))
-        assert allclose(
+                assert U.isclose(particles_before[k], getattr(s, k))
+        assert U.allclose(
             particles_before["coordinates_g"].get_xyz()[:, mask],
             s.coordinates_g.get_xyz(),
         )
-        assert allclose(
+        assert U.allclose(
             particles_before["coordinates_g"].differentials["s"].get_d_xyz()[:, mask],
             s.coordinates_g.differentials["s"].get_d_xyz(),
         )
@@ -279,7 +280,9 @@ class TestSPHSource:
         vector_before = s.coordinates_g.get_xyz()[:, 0]
         assert any(vector_before > 0)
         s.rotate(rotmat=rotmat)
-        assert allclose(s.coordinates_g.get_xyz()[:, 0], np.dot(rotmat, vector_before))
+        assert U.allclose(
+            s.coordinates_g.get_xyz()[:, 0], np.dot(rotmat, vector_before)
+        )
 
     @pytest.mark.parametrize("incl", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("az_rot", (0 * U.deg, 30 * U.deg, -30 * U.deg))
@@ -301,7 +304,7 @@ class TestSPHSource:
             rotmat = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(rotmat)
         else:
             rotmat = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(rotmat)
-        if isclose(pa, 270 * U.deg):
+        if U.isclose(pa, 270 * U.deg):
             s.rotate(L_coords=(incl, az_rot))
         else:
             s.rotate(L_coords=(incl, az_rot, pa))
@@ -325,7 +328,7 @@ class TestSPHSource:
             translation = np.ones(3) * U.kpc
             s.translate(translation.reshape(translation_shape))
             expected_coords = initial_coords + translation.reshape((3, 1))
-            assert allclose(s.coordinates_g.get_xyz(), expected_coords)
+            assert U.allclose(s.coordinates_g.get_xyz(), expected_coords)
 
     def test_boost(self, s):
         """
@@ -336,7 +339,7 @@ class TestSPHSource:
             translation = np.ones(3) * U.km / U.s
             s.boost(translation.reshape(translation_shape))
             expected_vels = initial_vels + translation.reshape((3, 1))
-            assert allclose(
+            assert U.allclose(
                 s.coordinates_g.differentials["s"].get_d_xyz(), expected_vels
             )
 

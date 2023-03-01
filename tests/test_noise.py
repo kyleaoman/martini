@@ -2,7 +2,6 @@ import numpy as np
 from martini.noise import GaussianNoise
 from martini import DataCube
 from astropy import units as U
-from astropy.units import isclose, allclose
 
 
 class TestNoise:
@@ -25,7 +24,7 @@ class TestNoise:
         datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
         noise = noise_generator.generate(datacube)
         measured_rms = np.sqrt(np.mean(np.power(noise, 2)))
-        assert isclose(measured_rms, rms, rtol=0.1)
+        assert U.isclose(measured_rms, rms, rtol=0.1)
 
     def test_noise_seed(self):
         """
@@ -37,7 +36,7 @@ class TestNoise:
         datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
         noise_generator1 = GaussianNoise(rms=rms, seed=seed)
         noise_generator2 = GaussianNoise(rms=rms, seed=seed)
-        assert allclose(
+        assert U.allclose(
             noise_generator1.generate(datacube), noise_generator2.generate(datacube)
         )
 
@@ -51,7 +50,7 @@ class TestNoise:
         datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
         noise_generator1 = GaussianNoise(rms=rms, seed=seed)
         noise_generator2 = GaussianNoise(rms=rms, seed=seed)
-        assert not allclose(
+        assert not U.allclose(
             noise_generator1.generate(datacube), noise_generator2.generate(datacube)
         )
 
@@ -68,4 +67,4 @@ class TestNoise:
         noise2 = noise_generator.generate(datacube)
 
         assert noise_generator.seed is not None
-        assert allclose(noise1, noise2)
+        assert U.allclose(noise1, noise2)

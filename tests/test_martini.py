@@ -6,12 +6,10 @@ from martini import Martini, DataCube
 from martini.datacube import HIfreq
 from martini.beams import GaussianBeam
 from martini.sources import _SingleParticleSource as SingleParticleSource
-from martini.noise import GaussianNoise
 from test_sph_kernels import simple_kernels
 from martini.sph_kernels import CubicSplineKernel, GaussianKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from astropy import units as U
-from astropy.units import isclose, allclose
 from astropy.io import fits
 from scipy.signal import fftconvolve
 
@@ -67,7 +65,7 @@ class TestMartini:
         ).to(U.Msun)
 
         # demand accuracy within 1% after source insertion
-        assert isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
         m.convolve_beam()
 
@@ -96,7 +94,7 @@ class TestMartini:
         ).to(U.Msun)
 
         # demand accuracy within 1% after beam convolution
-        assert isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
         for channel_mode in ("velocity", "frequency"):
             filename = f"cube_{channel_mode}.fits"
@@ -151,7 +149,7 @@ class TestMartini:
                     ).to(U.Msun)
 
                 # demand accuracy within 1% in output fits file
-                assert isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+                assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
             finally:
                 if os.path.exists(filename):
@@ -216,7 +214,7 @@ class TestMartini:
                     ).to(U.Msun)
 
                 # demand accuracy within 1% in output fits file
-                assert isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+                assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
             finally:
                 if os.path.exists(filename):
@@ -260,7 +258,7 @@ class TestMartini:
             U.Jy * U.beam**-1, equivalencies=[m.beam.arcsec_to_beam]
         )
         m.convolve_beam()
-        assert allclose(m.datacube._array, convolved_cube)
+        assert U.allclose(m.datacube._array, convolved_cube)
 
     def test_add_noise(self, m_init):
         """
@@ -271,7 +269,7 @@ class TestMartini:
         expected_noise = m_init.noise.generate(m_init.datacube)
         m_init.noise.reset_rng()
         m_init.add_noise()
-        assert allclose(
+        assert U.allclose(
             m_init.datacube._array,
             expected_noise.to(
                 m_init.datacube._array.unit,
@@ -363,7 +361,7 @@ class TestMartini:
         # check that can start over and get the same result w/o errors
         m_nn.insert_source_in_cube(printfreq=None)
         m_nn.convolve_beam()
-        assert allclose(cube_array, m_nn.datacube._array)
+        assert U.allclose(cube_array, m_nn.datacube._array)
         # check that can reset after doing nothing
         m_nn.reset()
         m_nn.reset()

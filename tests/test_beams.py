@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 from astropy import units as U
-from astropy.units import isclose
 from martini.beams import GaussianBeam
 from martini import DataCube
 
@@ -52,13 +51,13 @@ class TestGaussianBeam:
         b.init_kernel(d)
         mid = b.kernel.shape[0] // 2
         if bpa == 0 * U.deg:
-            assert isclose(
+            assert U.isclose(
                 b.kernel[mid, mid + 5],
                 b.kernel[mid + 10, mid],
                 rtol=1e-2,
             )
         elif bpa == 90 * U.deg:
-            assert isclose(
+            assert U.isclose(
                 b.kernel[mid, mid + 10],
                 b.kernel[mid + 5, mid],
                 rtol=1e-2,
@@ -81,4 +80,4 @@ class TestGaussianBeam:
         )
         b = GaussianBeam(bmaj=bmaj, bmin=bmin, bpa=0 * U.deg, truncate=truncate)
         b.init_kernel(d)
-        assert isclose(np.sum(b.kernel), 1.0 * U.dimensionless_unscaled)
+        assert U.isclose(np.sum(b.kernel), 1.0 * U.dimensionless_unscaled)
