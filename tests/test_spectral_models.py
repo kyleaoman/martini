@@ -8,13 +8,12 @@ from astropy import units as U
 spectral_models = GaussianSpectrum, DiracDeltaSpectrum
 
 
-def test_docstrings():
-    raise RuntimeError("This file needs docstrings.")
-
-
 class TestGaussianSpectrum:
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     def test_init_spectra(self, sigma):
+        """
+        Check that spectrum sums to expected flux.
+        """
         source = _SingleParticleSource(distance=1 * U.Mpc)  # D=1Mpc
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
@@ -28,12 +27,18 @@ class TestGaussianSpectrum:
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width_constant(self):
+        """
+        Check that spectrum reports expected width (constant case).
+        """
         sigma = 7.0 * U.km / U.s
         source = _SingleParticleSource()
         spectral_model = GaussianSpectrum(sigma=sigma)
         assert U.isclose(spectral_model.half_width(source), sigma)
 
     def test_half_width_thermal(self):
+        """
+        Check that spectrum reports expected half width (thermal case).
+        """
         expected_sigma = 9.0853727258 * U.km / U.s  # @1E4K
         source = _SingleParticleSource()
         spectral_model = GaussianSpectrum(sigma="thermal")
@@ -41,6 +46,9 @@ class TestGaussianSpectrum:
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     def test_spectral_function(self, sigma):
+        """
+        Check that spectral function gives a normalised spectrum.
+        """
         source = _SingleParticleSource()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
@@ -57,6 +65,9 @@ class TestGaussianSpectrum:
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     @pytest.mark.parametrize("source", (_SingleParticleSource(), _CrossSource()))
     def test_spectral_function_extra_data(self, sigma, source):
+        """
+        Check that required extra data is loaded: velocity dispersions.
+        """
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
@@ -72,6 +83,9 @@ class TestGaussianSpectrum:
 
 class TestDiracDeltaSpectrum:
     def test_init_spectra(self):
+        """
+        Chec that spectrum sums to expected flux.
+        """
         source = _SingleParticleSource(distance=1 * U.Mpc)  # D=1Mpc
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
@@ -85,11 +99,17 @@ class TestDiracDeltaSpectrum:
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width(self):
+        """
+        Check that spectrum reports zero width.
+        """
         source = _SingleParticleSource()
         spectral_model = DiracDeltaSpectrum()
         assert U.isclose(spectral_model.half_width(source), 0 * U.km / U.s)
 
     def test_spectral_function(self):
+        """
+        Check that spectral function returns normalised spectrum.
+        """
         source = _SingleParticleSource()
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
@@ -103,6 +123,9 @@ class TestDiracDeltaSpectrum:
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
     def test_spectral_function_extra_data(self):
+        """
+        Check that no extra data is loaded.
+        """
         source = _SingleParticleSource()
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
@@ -117,6 +140,9 @@ class TestSpectrumPrecision:
     @pytest.mark.parametrize("SpectralModel", spectral_models)
     @pytest.mark.parametrize("dtype", (np.float64, np.float32))
     def test_spectrum_precision(self, SpectralModel, dtype):
+        """
+        Check that spectral model can use specified precision.
+        """
         source = _SingleParticleSource()
         spectral_model = SpectralModel(spec_dtype=dtype)
         datacube = DataCube()
