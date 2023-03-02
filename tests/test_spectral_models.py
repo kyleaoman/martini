@@ -2,10 +2,14 @@ import pytest
 import numpy as np
 from martini import DataCube
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
-from martini.sources import _SingleParticleSource
+from martini.sources import _SingleParticleSource, _CrossSource
 from astropy import units as U
 
 spectral_models = GaussianSpectrum, DiracDeltaSpectrum
+
+
+def test_docstrings():
+    raise RuntimeError("This file needs docstrings.")
 
 
 class TestGaussianSpectrum:
@@ -42,21 +46,28 @@ class TestGaussianSpectrum:
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
         )
+        spectral_model.init_spectral_function_extra_data(source, datacube)
         spectrum = spectral_model.spectral_function(
             datacube.channel_edges[:-1],
             datacube.channel_edges[1:],
             U.Quantity([source.vsys]),  # expected from _SingleParticleSource
-            **spectral_model.spectral_function_kwargs(source),
         )
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
-    def test_spectral_function_kwargs(self, sigma):
-        source = _SingleParticleSource()
+    @pytest.mark.parametrize("source", (_SingleParticleSource(), _CrossSource()))
+    def test_spectral_function_extra_data(self, sigma, source):
         spectral_model = GaussianSpectrum(sigma=sigma)
-        kwargs = spectral_model.spectral_function_kwargs(source)
-        assert set(kwargs.keys()) == {"sigma"}
-        assert kwargs["sigma"] == spectral_model.half_width(source)
+        datacube = DataCube(
+            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+        )
+        spectral_model.init_spectral_function_extra_data(source, datacube)
+        extra_data = spectral_model.spectral_function_extra_data
+        assert set(extra_data.keys()) == {"sigma"}
+        for column in extra_data["sigma"].T:
+            assert U.allclose(column, spectral_model.half_width(source))
+        expected_rows = 1 if sigma != "thermal" else source.npart
+        assert extra_data["sigma"].shape == (expected_rows, datacube.n_channels)
 
 
 class TestDiracDeltaSpectrum:
@@ -88,15 +99,18 @@ class TestDiracDeltaSpectrum:
             datacube.channel_edges[:-1],
             datacube.channel_edges[1:],
             U.Quantity([source.vsys]),  # expected from _SingleParticleSource
-            **spectral_model.spectral_function_kwargs(source),
         )
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
-    def test_spectral_function_kwargs(self):
+    def test_spectral_function_extra_data(self):
         source = _SingleParticleSource()
+        datacube = DataCube(
+            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+        )
         spectral_model = DiracDeltaSpectrum()
-        kwargs = spectral_model.spectral_function_kwargs(source)
-        assert len(kwargs) == 0
+        spectral_model.init_spectral_function_extra_data(source, datacube)
+        extra_data = spectral_model.spectral_function_extra_data
+        assert len(extra_data) == 0
 
 
 class TestSpectrumPrecision:
