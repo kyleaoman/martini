@@ -21,7 +21,7 @@ class _BaseNoise(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, seed: T.Optional[int] = None) -> None:
+    def __init__(self, seed=None):
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
         return
@@ -35,7 +35,7 @@ class _BaseNoise(object):
         """
         pass
 
-    def reset_rng(self) -> None:
+    def reset_rng(self):
         """
         Reset the random number generator to its initial state.
 
@@ -63,16 +63,16 @@ class GaussianNoise(_BaseNoise):
 
     def __init__(
         self,
-        rms: U.Quantity[U.Jy * U.arcsec**-2] = 1.0 * U.Jy * U.arcsec**-2,
-        seed: T.Optional[int] = None,
-    ) -> None:
+        rms=1.0 * U.Jy * U.arcsec**-2,
+        seed=None,
+    ):
         self.rms = rms
 
         super().__init__(seed=seed)
 
         return
 
-    def generate(self, datacube: DataCube) -> U.Quantity[U.Jy * U.arcsec**-2]:
+    def generate(self, datacube):
         """
         Create a cube containing Gaussian noise.
 
