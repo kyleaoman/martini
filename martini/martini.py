@@ -344,6 +344,8 @@ class Martini:
             Messages completely suppressed with printfreq=None. (Default: 100.)
         """
 
+        assert self.spectral_model.spectra is not None
+
         particle_coords = _gen_particle_coords(self.source, self.datacube)
         self.sph_kernel.confirm_validation(noraise=skip_validation)
 
@@ -520,10 +522,7 @@ class Martini:
             raise ValueError(
                 "Martini.write_beam_fits: Called with beam set " "to 'None'."
             )
-        if self.beam.kernel is None:
-            raise ValueError(
-                "Martini.write_beam_fits: Called with beam kernel uninitialized."
-            )
+        assert self.beam.kernel is not None
         if channels == "frequency":
             self.datacube.freq_channels()
         elif channels == "velocity":
