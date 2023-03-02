@@ -5,6 +5,9 @@ import h5py
 
 class TestWrite:
     def test_write_fits_freqchannels(self, m):
+        """
+        Check that fits cube gets written with frequency channels.
+        """
         filename = "cube_f.fits"
         try:
             m.write_fits(filename, channels="frequency")
@@ -16,6 +19,9 @@ class TestWrite:
                 os.remove(filename)
 
     def test_write_fits_velchannels(self, m):
+        """
+        Check that fits cube gets written with velocity channels.
+        """
         filename = "cube_v.fits"
         try:
             m.write_fits(filename, channels="velocity")
@@ -27,6 +33,9 @@ class TestWrite:
                 os.remove(filename)
 
     def test_write_hdf5_freqchannels(self, m):
+        """
+        Check that hdf5 cube gets written with frequency channels.
+        """
         filename = "cube_f.hdf5"
         try:
             m.write_hdf5(filename, channels="frequency")
@@ -37,6 +46,9 @@ class TestWrite:
                 os.remove(filename)
 
     def test_write_hdf5_velchannels(self, m):
+        """
+        Check that hdf5 cube gets written with velocity channels.
+        """
         filename = "cube_v.hdf5"
         try:
             m.write_hdf5(filename, channels="velocity")
@@ -47,6 +59,9 @@ class TestWrite:
                 os.remove(filename)
 
     def test_write_fits_beam_freqchannels(self, m):
+        """
+        Check that fits beam cube gets written with frequency channels.
+        """
         filename = "beam_f.fits"
         try:
             m.write_beam_fits(filename, channels="frequency")
@@ -58,6 +73,9 @@ class TestWrite:
                 os.remove(filename)
 
     def test_write_fits_beam_velchannels(self, m):
+        """
+        Check that fits beam cube gets written with velocity channels.
+        """
         filename = "beam_v.fits"
         try:
             m.write_beam_fits(filename, channels="velocity")
