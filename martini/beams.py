@@ -258,12 +258,7 @@ class GaussianBeam(_BaseBeam):
         out : 2-tuple, each element an integer.
         """
 
-        size = (
-            np.ceil(
-                (self.bmaj * self.truncate).to(
-                    U.pix, U.pixel_scale(self.px_size / U.pix)
-                )
-            ).value
-            + 1
+        size = (np.ceil((self.bmaj * self.truncate))).to_value(
+            U.pix, U.pixel_scale(self.px_size / U.pix) + 1
         )
         return size, size

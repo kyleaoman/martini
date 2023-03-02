@@ -70,26 +70,29 @@ class _BaseSpectrum(metaclass=ABCMeta):
             lambda x: 2.36e5 * x,
         )
         self.init_spectral_function_extra_data(source, datacube)
-        raw_spectra = (
-            self.spectral_function(
-                (
-                    np.tile(channel_edges.value[:-1], vmids.shape + (1,))
-                    * channel_edges.unit
-                ).astype(self.spec_dtype),
-                (
-                    np.tile(channel_edges.value[1:], vmids.shape + (1,))
-                    * channel_edges.unit
-                ).astype(self.spec_dtype),
-                (
-                    np.tile(
-                        vmids.value, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim
-                    ).T
-                    * vmids.unit
-                ).astype(self.spec_dtype),
-            )
-            .to(U.dimensionless_unscaled)
-            .value
-        )
+        channel_edges_unit = U.km / U.s
+        vmids_unit = U.km / U.s
+        raw_spectra = self.spectral_function(
+            (
+                np.tile(
+                    channel_edges.to_value(channel_edges_unit)[:-1], vmids.shape + (1,)
+                )
+                * channel_edges.unit
+            ).astype(self.spec_dtype),
+            (
+                np.tile(
+                    channel_edges.to_value(channel_edges_unit)[1:], vmids.shape + (1,)
+                )
+                * channel_edges.unit
+            ).astype(self.spec_dtype),
+            (
+                np.tile(
+                    vmids.to_value(vmids_unit),
+                    np.shape(channel_edges[:-1]) + (1,) * vmids.ndim,
+                ).T
+                * vmids.unit
+            ).astype(self.spec_dtype),
+        ).to_value(U.dimensionless_unscaled)
         self.spectra = (
             A.astype(self.spec_dtype)[..., np.newaxis]
             * raw_spectra

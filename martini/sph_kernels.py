@@ -129,7 +129,7 @@ class _BaseSPHKernel(object):
 
         q = np.array(r / h / self._rescale)
         if isinstance(q, U.Quantity):
-            q = q.to(U.dimensionless_unscaled).value
+            q = q.to_value(U.dimensionless_unscaled)
         scalar_input = q.ndim == 0
         W = self.kernel(q)
         W /= np.power(self._rescale, 3)

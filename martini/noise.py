@@ -91,8 +91,10 @@ class GaussianNoise(_BaseNoise):
         out : Quantity, with dimensions of flux density
             Noise realization with size matching the DataCube._array.
         """
-
+        rms_unit = self.rms.unit
         return (
-            self.rng.normal(scale=self.rms.value, size=datacube._array.shape)
-            * self.rms.unit
+            self.rng.normal(
+                scale=self.rms.to_value(rms_unit), size=datacube._array.shape
+            )
+            * rms_unit
         )
