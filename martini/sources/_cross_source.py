@@ -86,7 +86,7 @@ class _CrossSource(SPHSource):
             ra=ra,
             dec=dec,
             h=0.7,
-            T_g=np.ones(4) * 1.0e4 * U.K,
+            T_g=np.arange(1, 5) * 1.0e4 * U.K,
             mHI_g=np.ones(4) * 1.0e4 * U.Msun,
             xyz_g=xyz_g,
             vxyz_g=vxyz_g,
