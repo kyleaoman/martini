@@ -323,8 +323,9 @@ class DataCube(object):
             f["_array"].attrs["n_px_x"] = self.n_px_x
             f["_array"].attrs["n_px_y"] = self.n_px_y
             f["_array"].attrs["n_channels"] = self.n_channels
-            f["_array"].attrs["px_size"] = self.px_size.to_value(U.deg)
-            f["_array"].attrs["px_size_unit"] = str(self.px_size.unit)
+            px_size_unit = self.px_size.unit
+            f["_array"].attrs["px_size"] = self.px_size.to_value(px_size_unit)
+            f["_array"].attrs["px_size_unit"] = str(px_size_unit)
             channel_width_unit = self.channel_width.unit
             f["_array"].attrs["channel_width"] = self.channel_width.to_value(
                 channel_width_unit

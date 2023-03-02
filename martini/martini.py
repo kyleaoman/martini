@@ -766,7 +766,7 @@ class Martini:
             ra=self.datacube.ra,
             dec=self.datacube.dec,
         )
-        self.__class__(**init_kwargs)
+        self.datacube = DataCube(**init_kwargs)
         if self.beam is not None:
             self.datacube.add_pad(self.beam.needs_pad())
         return
