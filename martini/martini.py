@@ -29,7 +29,7 @@ else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
-def _gen_particle_coords(source: SPHSource, datacube: DataCube) -> U.Quantity[U.pix]:
+def _gen_particle_coords(source, datacube):
     # pixels indexed from 0 (not like in FITS!) for better use with numpy
     origin = 0
     skycoords = source.sky_coordinates
@@ -212,32 +212,28 @@ class Martini:
 
     def __init__(
         self,
-        source: T.Optional[SPHSource] = None,
-        datacube: T.Optional[DataCube] = None,
-        beam: T.Optional[_BaseBeam] = None,
-        noise: T.Optional[_BaseNoise] = None,
-        sph_kernel: T.Optional[_BaseSPHKernel] = None,
-        spectral_model: T.Optional[_BaseSpectrum] = None,
-        logtag: str = "",
-    ) -> None:
-        self.source: SPHSource
+        source=None,
+        datacube=None,
+        beam=None,
+        noise=None,
+        sph_kernel=None,
+        spectral_model=None,
+        logtag="",
+    ):
         if source is not None:
             self.source = source
         else:
             raise ValueError("A source instance is required.")
-        self.datacube: DataCube
         if datacube is not None:
             self.datacube = datacube
         else:
             raise ValueError("A datacube instance is required.")
         self.beam = beam
         self.noise = noise
-        self.sph_kernel: _BaseSPHKernel
         if sph_kernel is not None:
             self.sph_kernel = sph_kernel
         else:
             raise ValueError("An SPH kernel instance is required.")
-        self.spectral_model: _BaseSpectrum
         if spectral_model is not None:
             self.spectral_model = spectral_model
         else:
@@ -256,7 +252,7 @@ class Martini:
 
         return
 
-    def convolve_beam(self) -> None:
+    def convolve_beam(self):
         """
         Convolve the beam and DataCube.
         """
@@ -277,7 +273,7 @@ class Martini:
         )
         return
 
-    def add_noise(self) -> None:
+    def add_noise(self):
         """
         Insert noise into the DataCube.
         """
@@ -291,7 +287,7 @@ class Martini:
         ).to(self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix])
         return
 
-    def _prune_particles(self) -> None:
+    def _prune_particles(self):
         """
         Determines which particles cannot contribute to the DataCube and
         removes them to speed up calculation. Assumes the kernel is 0 at
@@ -323,9 +319,7 @@ class Martini:
         self.sph_kernel.apply_mask(np.logical_not(reject_mask))
         return
 
-    def insert_source_in_cube(
-        self, skip_validation: bool = False, printfreq: T.Optional[int] = 100
-    ) -> None:
+    def insert_source_in_cube(self, skip_validation=False, printfreq=100):
         """
         Populates the DataCube with flux from the particles in the source.
 
@@ -392,10 +386,10 @@ class Martini:
 
     def write_fits(
         self,
-        filename: str,
-        channels: str = "frequency",
-        overwrite: bool = True,
-    ) -> None:
+        filename,
+        channels="frequency",
+        overwrite=True,
+    ):
         """
         Output the DataCube to a FITS-format file.
 
@@ -503,9 +497,7 @@ class Martini:
             self.datacube.velocity_channels()
         return
 
-    def write_beam_fits(
-        self, filename: str, channels: str = "frequency", overwrite: bool = True
-    ) -> None:
+    def write_beam_fits(self, filename, channels="frequency", overwrite=True):
         """
         Output the beam to a FITS-format file.
 
@@ -606,12 +598,12 @@ class Martini:
 
     def write_hdf5(
         self,
-        filename: str,
-        channels: str = "frequency",
-        overwrite: bool = True,
-        memmap: bool = False,
-        compact: bool = False,
-    ) -> None:
+        filename,
+        channels="frequency",
+        overwrite=True,
+        memmap=False,
+        compact=False,
+    ):
         """
         Output the DataCube and Beam to a HDF5-format file. Requires the h5py
         package.
@@ -752,7 +744,7 @@ class Martini:
             f.close()
             return
 
-    def reset(self) -> None:
+    def reset(self):
         """
         Re-initializes the DataCube with zero-values.
         """
