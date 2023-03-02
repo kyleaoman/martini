@@ -3,9 +3,6 @@ import astropy.units as U
 from astropy import constants as C
 from scipy.special import erf
 from abc import ABCMeta, abstractmethod
-from martini.sources.sph_source import SPHSource
-from martini.datacube import DataCube
-import typing as T
 
 
 class _BaseSpectrum(metaclass=ABCMeta):
