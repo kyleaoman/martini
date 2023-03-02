@@ -237,6 +237,9 @@ class _BaseSPHKernel(object):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
 
+        noraise: bool
+            If True, suppress exceptions.
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -275,8 +278,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
 
         return
 
-    @staticmethod
-    def kernel(q):
+    def kernel(self, q):
         """
         Evaluate the kernel function.
 
@@ -304,8 +306,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         W *= 21 / 2 / np.pi
         return W
 
-    @staticmethod
-    def kernel_integral(dij, h, **kwargs):
+    def kernel_integral(self, dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -402,8 +403,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    @staticmethod
-    def kernel(q):
+    def kernel(self, q):
         """
         Evaluate the kernel function.
 
@@ -436,8 +436,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         W *= 1365 / 64 / np.pi
         return W
 
-    @staticmethod
-    def kernel_integral(dij, h, **kwargs):
+    def kernel_integral(self, dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -619,8 +618,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    @staticmethod
-    def kernel(q):
+    def kernel(self, q):
         """
         Evaluate the kernel function.
 
@@ -654,8 +652,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         W *= 8 / np.pi
         return W
 
-    @staticmethod
-    def kernel_integral(dij, h, **kwargs):
+    def kernel_integral(self, dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -778,7 +775,7 @@ class GaussianKernel(_BaseSPHKernel):
 
     no6sigwarn = False
 
-    def __init__(self, truncate=3):
+    def __init__(self, truncate=3.0):
         self.truncate = truncate
         if self.truncate < 1:
             raise RuntimeError(
@@ -956,8 +953,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         self._rescale = 1  # need this to be present
         return
 
-    @staticmethod
-    def kernel(q):
+    def kernel(self, q):
         """
         Evaluate the kernel function.
 
@@ -982,8 +978,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         return np.where(q, np.inf * np.ones(q.shape), np.zeros(q.shape))
 
-    @staticmethod
-    def kernel_integral(dij, h, **kwargs):
+    def kernel_integral(self, dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
@@ -1130,10 +1125,9 @@ class AdaptiveKernel(_BaseSPHKernel):
 
         return
 
-    @staticmethod
-    def kernel(q):
+    def kernel(self, q):
         raise NotImplementedError(
-            "AdaptiveKernel does not have an explicit " "kernel function."
+            "AdaptiveKernel does not have an explicit kernel function."
         )
 
     def kernel_integral(self, dij, h, mask=np.s_[...]):
@@ -1230,8 +1224,7 @@ class QuarticSplineKernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    @staticmethod
-    def kernel(q):
+    def kernel(self, q):
         """
         Evaluate the kernel function.
 
@@ -1274,8 +1267,7 @@ class QuarticSplineKernel(_BaseSPHKernel):
         W *= 15625 / 512 / np.pi
         return W
 
-    @staticmethod
-    def kernel_integral(dij, h, **kwargs):
+    def kernel_integral(self, dij, h, **kwargs):
         """
         Calculate the kernel integral over a pixel.
 
