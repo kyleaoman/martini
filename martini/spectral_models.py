@@ -70,8 +70,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
             lambda x: 2.36e5 * x,
         )
         self.init_spectral_function_extra_data(source, datacube)
-        channel_edges_unit = U.km / U.s
-        vmids_unit = U.km / U.s
+        channel_edges_unit = channel_edges.unit
+        vmids_unit = vmids.unit
         raw_spectra = self.spectral_function(
             (
                 np.tile(
