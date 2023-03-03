@@ -54,14 +54,14 @@ class _BaseSPHKernel(object):
         out : Quantity, with dimensions of pixels^-2
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
-        try:
-            rescale = self._rescale[mask]
-        except (TypeError, IndexError):
-            rescale = self._rescale
         if mask is not None:
+            try:
+                rescale = self._rescale[mask]
+            except (TypeError, IndexError):
+                rescale = self._rescale
             rescaled_h = self.sm_lengths[mask] * rescale
         else:
-            rescaled_h = self.sm_lengths * rescale
+            rescaled_h = self.sm_lengths * self._rescale
         return self.kernel_integral(dij, rescaled_h, mask=mask)
 
     def confirm_validation(self, noraise=False, quiet=False):
@@ -196,13 +196,9 @@ class _BaseSPHKernel(object):
         pass
 
     @abstractmethod
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Abstract method; calculate the kernel integral over a pixel.
-
-        Should also accept **kwargs, as a mask (which is generally not
-        needed for the calculation, but used in the AdaptiveKernel) will
-        also be passed.
 
         Parameters
         ----------
@@ -210,6 +206,8 @@ class _BaseSPHKernel(object):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -306,7 +304,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         W *= 21 / 2 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
@@ -320,6 +318,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -436,7 +436,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         W *= 1365 / 64 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
@@ -450,6 +450,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -652,7 +654,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         W *= 8 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
@@ -666,6 +668,8 @@ class CubicSplineKernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -848,7 +852,7 @@ class GaussianKernel(_BaseSPHKernel):
             / self.norm
         )
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
@@ -862,6 +866,8 @@ class GaussianKernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -978,7 +984,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         return np.where(q, np.inf * np.ones(q.shape), np.zeros(q.shape))
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
@@ -1143,6 +1149,7 @@ class AdaptiveKernel(_BaseSPHKernel):
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
         mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -1196,7 +1203,7 @@ class QuarticSplineKernel(_BaseSPHKernel):
     The quartic spline (M5) kernel is used in the SPHENIX scheme (e.g. in Colibre). The
     exact integral is usually too slow to be practical; the implementation here
     approximates the kernel amplitude as constant across the pixel, which converges to
-    within 1% of the exact integral provided the SPH smoothing lengths are at least ??
+    within 1% of the exact integral provided the SPH smoothing lengths are at least 1.2385
     pixels in size.
 
     The quartic spline kernel is here defined as:
@@ -1267,13 +1274,13 @@ class QuarticSplineKernel(_BaseSPHKernel):
         W *= 15625 / 512 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
         The formula used approximates the kernel amplitude as constant across
         the pixel area and converges to the true value within 1% for smoothing
-        lengths >= ?? pixels.
+        lengths >= 1.2385 pixels.
 
         Parameters
         ----------
@@ -1281,6 +1288,8 @@ class QuarticSplineKernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
