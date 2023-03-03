@@ -3,7 +3,6 @@ from astropy.coordinates import ICRS
 from numpy import ndarray
 import typing as T
 
-
 class SPHSource:
     h: float
     T_g: U.Quantity[U.K]
@@ -40,12 +39,8 @@ class SPHSource:
         vxyz_g: T.Optional[U.Quantity[U.km / U.s]] = ...,
         hsm_g: T.Optional[U.Quantity[U.kpc]] = ...,
         coordinate_axis: T.Optional[int] = ...,
-    ) -> None:
-        ...
-
-    def apply_mask(self, mask: ndarray) -> None:
-        ...
-
+    ) -> None: ...
+    def apply_mask(self, mask: ndarray) -> None: ...
     def rotate(
         self,
         axis_angle: T.Optional[T.Tuple[str, U.Quantity[U.deg]]] = ...,
@@ -54,14 +49,7 @@ class SPHSource:
             T.Tuple[U.Quantity[U.deg], U.Quantity[U.deg]]
             | T.Tuple[U.Quantity[U.deg], U.Quantity[U.deg], U.Quantity[U.deg]]
         ] = ...,
-    ) -> None:
-        ...
-
-    def translate(self, translation_vector: U.Quantity[U.kpc]) -> None:
-        ...
-
-    def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
-        ...
-
-    def save_current_rotation(self, fname: str) -> None:
-        ...
+    ) -> None: ...
+    def translate(self, translation_vector: U.Quantity[U.kpc]) -> None: ...
+    def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None: ...
+    def save_current_rotation(self, fname: str) -> None: ...
