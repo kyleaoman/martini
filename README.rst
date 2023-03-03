@@ -73,7 +73,7 @@ Installation Notes
 
 .. INSTALLATION_NOTES_START_LABEL
 
-MARTINI works with ``python3``, and does not support ``python2``.
+MARTINI works with ``python3`` (version ``3.7`` or higher), and does not support ``python2``.
 
 Stable releases are available via PyPI_ (``pip install astromartini``) and the numbered branches on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github or kyle.a.oman@durham.ac.uk.
 

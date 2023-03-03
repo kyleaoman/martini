@@ -5,7 +5,7 @@ import h5py
 from martini.martini import Martini, _gen_particle_coords
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
-from martini.sources import _SingleParticleSource as SingleParticleSource, SPHSource
+from martini.sources import SPHSource
 from test_sph_kernels import simple_kernels
 from martini.sph_kernels import CubicSplineKernel, GaussianKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
@@ -57,7 +57,7 @@ class TestMartiniUtils:
             np.vstack((np.arange(6)[::-1], np.arange(6), np.arange(6))) * U.pix
         )
         assert U.allclose(
-            _gen_particle_coords(source=source, datacube=datacube),
+            _gen_particle_coords(source, datacube),
             expected_coords,
             atol=1e-4 * U.pix,
         )
@@ -66,7 +66,9 @@ class TestMartiniUtils:
 class TestMartini:
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
-    def test_mass_accuracy(self, dc, sph_kernel, spectral_model):
+    def test_mass_accuracy(
+        self, dc, sph_kernel, spectral_model, single_particle_source
+    ):
         """
         Check that the input mass in the particles gives the correct total mass in the
         datacube, by checking the conversion back to total mass. Covers testing
@@ -76,10 +78,11 @@ class TestMartini:
         hsm_g = (
             0.1 * U.kpc if sph_kernel.__name__ == "DiracDeltaKernel" else 1.0 * U.kpc
         )
+        source = single_particle_source(hsm_g=hsm_g)
 
-        # SingleParticleSource has a mass of 1E4Msun, temperature of 1E4K
+        # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         m = Martini(
-            source=SingleParticleSource(hsm_g=hsm_g),
+            source=source,
             datacube=dc,
             beam=GaussianBeam(),
             noise=None,
@@ -261,11 +264,11 @@ class TestMartini:
                 if os.path.exists(filename):
                     os.remove(filename)
 
-    def test_convolve_beam(self):
+    def test_convolve_beam(self, single_particle_source):
         """
         Check that beam convolution gives result matching manual calculation.
         """
-        source = SingleParticleSource()
+        source = single_particle_source()
         datacube = DataCube(
             n_px_x=16,
             n_px_y=16,
@@ -348,7 +351,9 @@ class TestMartini:
             (-7 * U.km / U.s, False),
         ),
     )
-    def test_prune_particles(self, ra_off, ra_in, dec_off, dec_in, v_off, v_in):
+    def test_prune_particles(
+        self, ra_off, ra_in, dec_off, dec_in, v_off, v_in, single_particle_source
+    ):
         """
         Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
         the cube as expected.
@@ -356,7 +361,7 @@ class TestMartini:
         expect_particle = all((ra_in, dec_in, v_in))
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
-        source = SingleParticleSource(
+        source = single_particle_source(
             distance=distance, ra=ra_off, dec=dec_off, vpeculiar=v_off
         )
         datacube = DataCube(

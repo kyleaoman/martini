@@ -153,9 +153,8 @@ class SPHSource(object):
         self.dec = dec
         self.distance = distance
         self.vpeculiar = vpeculiar
-        self.rotation = rotation
         self.current_rotation = np.eye(3)
-        self.rotate(**self.rotation)
+        self.rotate(**rotation)
         self.rotate(axis_angle=("y", -self.dec))
         self.rotate(axis_angle=("z", self.ra))
         direction_vector = np.array(
@@ -286,7 +285,7 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
         return
 
-    def boost(self, translation_vector):
+    def boost(self, boost_vector):
         """
         Apply an offset to the source velocity.
 
@@ -301,7 +300,7 @@ class SPHSource(object):
 
         self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
             "s"
-        ].translate(translation_vector)
+        ].translate(boost_vector)
         return
 
     def save_current_rotation(self, fname):

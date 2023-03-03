@@ -59,7 +59,11 @@ class GaussianNoise(_BaseNoise):
         if an integer is given results will be repeatable. (Default: None)
     """
 
-    def __init__(self, rms=1.0 * U.Jy * U.arcsec**-2, seed=None):
+    def __init__(
+        self,
+        rms=1.0 * U.Jy * U.arcsec**-2,
+        seed=None,
+    ):
         self.rms = rms
 
         super().__init__(seed=seed)
@@ -85,8 +89,10 @@ class GaussianNoise(_BaseNoise):
         out : Quantity, with dimensions of flux density
             Noise realization with size matching the DataCube._array.
         """
-
+        rms_unit = self.rms.unit
         return (
-            self.rng.normal(scale=self.rms.value, size=datacube._array.shape)
-            * self.rms.unit
+            self.rng.normal(
+                scale=self.rms.to_value(rms_unit), size=datacube._array.shape
+            )
+            * rms_unit
         )

@@ -9,6 +9,7 @@ from datetime import datetime
 from itertools import product
 from ._version import __version__ as martini_version
 from warnings import warn
+from martini.datacube import DataCube
 
 try:
     gc = subprocess.check_output(
@@ -22,7 +23,7 @@ else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
-def _gen_particle_coords(source=None, datacube=None):
+def _gen_particle_coords(source, datacube):
     # pixels indexed from 0 (not like in FITS!) for better use with numpy
     origin = 0
     skycoords = source.sky_coordinates
@@ -213,12 +214,24 @@ class Martini:
         spectral_model=None,
         logtag="",
     ):
-        self.source = source
-        self.datacube = datacube
+        if source is not None:
+            self.source = source
+        else:
+            raise ValueError("A source instance is required.")
+        if datacube is not None:
+            self.datacube = datacube
+        else:
+            raise ValueError("A datacube instance is required.")
         self.beam = beam
         self.noise = noise
-        self.sph_kernel = sph_kernel
-        self.spectral_model = spectral_model
+        if sph_kernel is not None:
+            self.sph_kernel = sph_kernel
+        else:
+            raise ValueError("An SPH kernel instance is required.")
+        if spectral_model is not None:
+            self.spectral_model = spectral_model
+        else:
+            raise ValueError("A spectral model instance is required.")
         self.logtag = logtag
 
         if self.beam is not None:
@@ -240,6 +253,7 @@ class Martini:
 
         if self.beam is None:
             warn("Skipping beam convolution, no beam object provided to " "Martini.")
+            return
 
         unit = self.datacube._array.unit
         for spatial_slice in self.datacube.spatial_slices():
@@ -275,9 +289,7 @@ class Martini:
         SPH smoothing length).
         """
 
-        particle_coords = _gen_particle_coords(
-            source=self.source, datacube=self.datacube
-        )
+        particle_coords = _gen_particle_coords(self.source, self.datacube)
         spectrum_half_width = (
             self.spectral_model.half_width(self.source) / self.datacube.channel_width
         )
@@ -320,9 +332,9 @@ class Martini:
             Messages completely suppressed with printfreq=None. (Default: 100.)
         """
 
-        particle_coords = _gen_particle_coords(
-            source=self.source, datacube=self.datacube
-        )
+        assert self.spectral_model.spectra is not None
+
+        particle_coords = _gen_particle_coords(self.source, self.datacube)
         self.sph_kernel.confirm_validation(noraise=skip_validation)
 
         # pixel iteration
@@ -343,8 +355,14 @@ class Martini:
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
             if printfreq is not None:
-                if (ij[1, 0].value == 0) and (ij[0, 0].value % printfreq == 0):
-                    print("  " + self.logtag + "  [row {:.0f}]".format(ij[0, 0].value))
+                if (ij[1, 0].to_value(U.pix) == 0) and (
+                    ij[0, 0].to_value(U.pix) % printfreq == 0
+                ):
+                    print(
+                        "  "
+                        + self.logtag
+                        + "  [row {:.0f}]".format(ij[0, 0].to_value(U.pix))
+                    )
             mask = (np.abs(ij - particle_coords[:2]) <= self.sph_kernel.sm_ranges).all(
                 axis=0
             )
@@ -360,7 +378,12 @@ class Martini:
         )
         return
 
-    def write_fits(self, filename, channels="frequency", overwrite=True):
+    def write_fits(
+        self,
+        filename,
+        channels="frequency",
+        overwrite=True,
+    ):
         """
         Output the DataCube to a FITS-format file.
 
@@ -428,19 +451,24 @@ class Martini:
         # header.append(('BLANK', -32768)) #only for integer data
         header.append(("BSCALE", 1.0))
         header.append(("BZERO", 0.0))
-        header.append(("DATAMAX", np.max(self.datacube._array.value)))
-        header.append(("DATAMIN", np.min(self.datacube._array.value)))
+        datacube_array_units = self.datacube._array.unit
+        header.append(
+            ("DATAMAX", np.max(self.datacube._array.to_value(datacube_array_units)))
+        )
+        header.append(
+            ("DATAMIN", np.min(self.datacube._array.to_value(datacube_array_units)))
+        )
         header.append(("ORIGIN", "astropy v" + astropy_version))
         # long names break fits format, don't let the user set this
         header.append(("OBJECT", "MOCK"))
         if self.beam is not None:
-            header.append(("BPA", self.beam.bpa.to(U.deg).value))
+            header.append(("BPA", self.beam.bpa.to_value(U.deg)))
         header.append(("OBSERVER", "K. Oman"))
         # header.append(('NITERS', ???))
         # header.append(('RMS', ???))
         # header.append(('LWIDTH', ???))
         # header.append(('LSTEP', ???))
-        header.append(("BUNIT", self.datacube._array.unit.to_string("fits")))
+        header.append(("BUNIT", datacube_array_units.to_string("fits")))
         # header.append(('PCDEC', ???))
         # header.append(('LSTART', ???))
         header.append(("DATE-OBS", datetime.utcnow().isoformat()[:-5]))
@@ -448,13 +476,15 @@ class Martini:
         # header.append(('PCRA', ???))
         # header.append(('CELLSCAL', ???))
         if self.beam is not None:
-            header.append(("BMAJ", self.beam.bmaj.to(U.deg).value))
-            header.append(("BMIN", self.beam.bmin.to(U.deg).value))
+            header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
+            header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
         header.append(("BTYPE", "Intensity"))
         header.append(("SPECSYS", wcs_header["SPECSYS"]))
 
         # flip axes to write
-        hdu = fits.PrimaryHDU(header=header, data=self.datacube._array.value.T)
+        hdu = fits.PrimaryHDU(
+            header=header, data=self.datacube._array.to_value(datacube_array_units).T
+        )
         hdu.writeto(filename, overwrite=overwrite)
 
         if channels == "frequency":
@@ -491,7 +521,7 @@ class Martini:
             raise ValueError(
                 "Martini.write_beam_fits: Called with beam set " "to 'None'."
             )
-
+        assert self.beam.kernel is not None
         if channels == "frequency":
             self.datacube.freq_channels()
         elif channels == "velocity":
@@ -506,6 +536,7 @@ class Martini:
 
         wcs_header = self.datacube.wcs.to_header()
 
+        beam_kernel_units = self.beam.kernel.unit
         header = fits.Header()
         header.append(("SIMPLE", "T"))
         header.append(("BITPIX", 16))
@@ -518,7 +549,7 @@ class Martini:
         header.append(("BSCALE", 1.0))
         header.append(("BZERO", 0.0))
         # this is 1/arcsec^2, is this right?
-        header.append(("BUNIT", self.beam.kernel.unit.to_string("fits")))
+        header.append(("BUNIT", beam_kernel_units.to_string("fits")))
         header.append(("CRPIX1", self.beam.kernel.shape[0] // 2 + 1))
         header.append(("CDELT1", wcs_header["CDELT1"]))
         header.append(("CRVAL1", wcs_header["CRVAL1"]))
@@ -535,22 +566,23 @@ class Martini:
         header.append(("CTYPE3", wcs_header["CTYPE3"]))
         header.append(("CUNIT3", wcs_header["CUNIT3"]))
         header.append(("SPECSYS", wcs_header["SPECSYS"]))
-        header.append(("BMAJ", self.beam.bmaj.to(U.deg).value))
-        header.append(("BMIN", self.beam.bmin.to(U.deg).value))
-        header.append(("BPA", self.beam.bpa.to(U.deg).value))
+        header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
+        header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
+        header.append(("BPA", self.beam.bpa.to_value(U.deg)))
         header.append(("BTYPE", "beam    "))
         header.append(("EPOCH", 2000))
         header.append(("OBSERVER", "K. Oman"))
         # long names break fits format
         header.append(("OBJECT", "MOCKBEAM"))
         header.append(("INSTRUME", "MARTINI", martini_version))
-        header.append(("DATAMAX", np.max(self.beam.kernel.value)))
-        header.append(("DATAMIN", np.min(self.beam.kernel.value)))
+        header.append(("DATAMAX", np.max(self.beam.kernel.to_value(beam_kernel_units))))
+        header.append(("DATAMIN", np.min(self.beam.kernel.to_value(beam_kernel_units))))
         header.append(("ORIGIN", "astropy v" + astropy_version))
 
         # flip axes to write
         hdu = fits.PrimaryHDU(
-            header=header, data=self.beam.kernel.value[..., np.newaxis].T
+            header=header,
+            data=self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis].T,
         )
         hdu.writeto(filename, overwrite=True)
 
@@ -614,7 +646,8 @@ class Martini:
         driver = "core" if memmap else None
         h5_kwargs = {"backing_store": False} if memmap else dict()
         f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
-        f["FluxCube"] = self.datacube._array.value[..., 0]
+        datacube_array_units = self.datacube._array.unit
+        f["FluxCube"] = self.datacube._array.to_value(datacube_array_units)[..., 0]
         c = f["FluxCube"]
         origin = 0  # index from 0 like numpy, not from 1
         if not compact:
@@ -659,14 +692,20 @@ class Martini:
         c.attrs["VUnit"] = wcs_header["CUNIT3"]
         c.attrs["VProjType"] = wcs_header["CTYPE3"]
         if self.beam is not None:
-            c.attrs["BeamPA"] = self.beam.bpa.to(U.deg).value
-            c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to(U.deg).value
-            c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to(U.deg).value
+            c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+            c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+            c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
         c.attrs["DateCreated"] = datetime.utcnow().isoformat()[:-5]
         c.attrs["MartiniVersion"] = martini_version
         c.attrs["AstropyVersion"] = astropy_version
         if self.beam is not None:
-            f["Beam"] = self.beam.kernel.value[..., np.newaxis]
+            if self.beam.kernel is None:
+                raise ValueError(
+                    "Martini.write_hdf5: Called with beam present but beam kernel"
+                    " uninitialized."
+                )
+            beam_kernel_units = self.beam.kernel.unit
+            f["Beam"] = self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis]
             b = f["Beam"]
             b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
             b.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
@@ -684,9 +723,9 @@ class Martini:
             b.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
             b.attrs["VUnit"] = wcs_header["CUNIT3"]
             b.attrs["VProjType"] = wcs_header["CTYPE3"]
-            b.attrs["BeamPA"] = self.beam.bpa.to(U.deg).value
-            b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to(U.deg).value
-            b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to(U.deg).value
+            b.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+            b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+            b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
             b.attrs["DateCreated"] = datetime.utcnow().isoformat()[:-5]
             b.attrs["MartiniVersion"] = martini_version
             b.attrs["AstropyVersion"] = astropy_version
@@ -713,7 +752,7 @@ class Martini:
             ra=self.datacube.ra,
             dec=self.datacube.dec,
         )
-        self.datacube.__init__(**init_kwargs)
+        self.datacube = DataCube(**init_kwargs)
         if self.beam is not None:
             self.datacube.add_pad(self.beam.needs_pad())
         return

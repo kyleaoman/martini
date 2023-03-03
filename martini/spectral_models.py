@@ -5,27 +5,25 @@ from scipy.special import erf
 from abc import ABCMeta, abstractmethod
 
 
-class _BaseSpectrum(object):
+class _BaseSpectrum(metaclass=ABCMeta):
     """
     Abstract base class for implementions of spectral models to inherit from.
 
-    Classes inheriting from _BaseSpectrum must implement three methods:
-    `half_width`, `spectral_function` and `spectral_function_kwargs`.
+    Classes inheriting from _BaseSpectrum must implement two methods:
+    `half_width` and `spectral_function`.
 
     `half_width` should define a characteristic width for the model, measured
     from the peak to the characteristic location. Note that particles whose
     spectra within +/- 4 half-widths of the peak do not intersect the DataCube
     bandpass will be discarded to speed computation.
 
-    `spectral_function` should define the model spectrum. Arguments which
-    depend on the martini.sources.SPHSource (or derived class) properties
-    should make use of the 'spectral_function_kwargs' method. The spectrum
-    should integrate to 1, the amplitude is handled separately.
+    `spectral_function` should define the model spectrum. The spectrum should integrate to
+    1, the amplitude is handled separately.
 
-    `spectral_function_kwargs` should provide a helper to pass properties from
-    martini.source.SPHSource (or derived class) to the 'spectral_function'.
-    This is required because the source object is not accessible at class
-    initialization.
+    They may also override the function `init_spectral_function_extra_data` to make
+    information that depends on the martini.sources.SPHSource (or derived class)
+    or martini.datacube.DataCube properties available internally. This is required because
+    the source object is not accessible at class initialization.
 
     See Also
     --------
@@ -34,9 +32,8 @@ class _BaseSpectrum(object):
     DiracDeltaSpectrum
     """
 
-    __metaclass__ = ABCMeta
-
     def __init__(self, spec_dtype=np.float64):
+        self.spectral_function_extra_data = None
         self.spectra = None
         self.spec_dtype = spec_dtype
         return
@@ -45,11 +42,12 @@ class _BaseSpectrum(object):
         """
         Pre-compute the spectrum of each particle.
 
-        The spectral model defined in 'spectral_function' is evaluated using
+        The spectral model defined in `spectral_function` is evaluated using
         the channel edges from the DataCube instance and the particle
         velocities of the SPHSource (or derived class) instance provided.
-        Additional particle properties can be accessed via the
-        'spectral_function_kwargs' helper method.
+        Initializes additional particle properties by calling
+        `init_spectral_function_extra_data` which then becomes accessible via
+        `spectral_function_extra_data`.
 
         Parameters
         ----------
@@ -71,33 +69,30 @@ class _BaseSpectrum(object):
             lambda x: (1 / 2.36e5) * x,
             lambda x: 2.36e5 * x,
         )
-        spectral_function_kwargs = {
-            k: np.tile(v, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim)
-            .astype(self.spec_dtype)
-            .T
-            for k, v in self.spectral_function_kwargs(source).items()
-        }
-        raw_spectra = (
-            self.spectral_function(
-                (
-                    np.tile(channel_edges.value[:-1], vmids.shape + (1,))
-                    * channel_edges.unit
-                ).astype(self.spec_dtype),
-                (
-                    np.tile(channel_edges.value[1:], vmids.shape + (1,))
-                    * channel_edges.unit
-                ).astype(self.spec_dtype),
-                (
-                    np.tile(
-                        vmids.value, np.shape(channel_edges[:-1]) + (1,) * vmids.ndim
-                    ).T
-                    * vmids.unit
-                ).astype(self.spec_dtype),
-                **spectral_function_kwargs
-            )
-            .to(U.dimensionless_unscaled)
-            .value
-        )
+        self.init_spectral_function_extra_data(source, datacube)
+        channel_edges_unit = channel_edges.unit
+        vmids_unit = vmids.unit
+        raw_spectra = self.spectral_function(
+            (
+                np.tile(
+                    channel_edges.to_value(channel_edges_unit)[:-1], vmids.shape + (1,)
+                )
+                * channel_edges.unit
+            ).astype(self.spec_dtype),
+            (
+                np.tile(
+                    channel_edges.to_value(channel_edges_unit)[1:], vmids.shape + (1,)
+                )
+                * channel_edges.unit
+            ).astype(self.spec_dtype),
+            (
+                np.tile(
+                    vmids.to_value(vmids_unit),
+                    np.shape(channel_edges[:-1]) + (1,) * vmids.ndim,
+                ).T
+                * vmids.unit
+            ).astype(self.spec_dtype),
+        ).to_value(U.dimensionless_unscaled)
         self.spectra = (
             A.astype(self.spec_dtype)[..., np.newaxis]
             * raw_spectra
@@ -121,7 +116,7 @@ class _BaseSpectrum(object):
         pass
 
     @abstractmethod
-    def spectral_function(self, a, b, vmids, **kwargs):
+    def spectral_function(self, a, b, vmids):
         """
         Abstract method; implementation of the spectral model.
 
@@ -139,37 +134,44 @@ class _BaseSpectrum(object):
         vmids : Quantity, with dimensions of velocity
             Particle velocities along the line of sight.
 
-        **kwargs
-            See spectral_function_kwargs.
-
         See Also
         --------
-        spectral_function_kwargs
+        init_spectral_function_extra_data
         """
 
         pass
 
-    @abstractmethod
-    def spectral_function_kwargs(self, source):
+    def init_spectral_function_extra_data(self, source, datacube):
         """
-        Abstract method; helper method to pass additional arguments to the
-        spectral_function.
+        Initialize extra data needed by spectral function. Default is no extra data.
 
-        Should return a dict containing the kwarg names as keys with the values
-        to pass as associated values.
+        Derived classes should override this function, if needed, to populate the dict
+        with any information from the source that is required by the spectral_function,
+        then call super().init_spectral_function_extra_data.
 
         Parameters
         ----------
         source : martini.sources.SPHSource (or derived class) instance
-            The source object will be provided so that its attributes can be
-            accessed.
+            Source object, making particle properties available.
 
         See Also
         --------
-        GaussianSpectrum (example implementation)
+        GaussianSpectrum.init_spectral_function_extra_data (for an example with extra
+                                                            data)
         """
-
-        pass
+        if self.spectral_function_extra_data is None:
+            self.spectral_function_extra_data = dict()
+        self.spectral_function_extra_data = {
+            k: np.tile(
+                v,
+                np.shape(datacube.channel_edges[:-1])
+                + (1,) * source.sky_coordinates.radial_velocity.ndim,
+            )
+            .astype(self.spec_dtype)
+            .T
+            for k, v in self.spectral_function_extra_data.items()
+        }
+        return
 
 
 class GaussianSpectrum(_BaseSpectrum):
@@ -201,9 +203,10 @@ class GaussianSpectrum(_BaseSpectrum):
 
         return
 
-    def spectral_function(self, a, b, vmids, sigma=1.0 * U.km * U.s**-1):
+    def spectral_function(self, a, b, vmids):
         """
-        Evaluate a Gaussian integral in a channel.
+        Evaluate a Gaussian integral in a channel. Requires sigma to be available
+        from `spectral_function_extra_data`.
 
         Parameters
         ----------
@@ -216,38 +219,37 @@ class GaussianSpectrum(_BaseSpectrum):
         vmids : Quantity, with dimensions of velocity
             Particle velocities along the line of sight.
 
-        sigma : Quantity, with dimensions of velocity
-            Velocity dispersion for HI line width, either for each particle or
-            constant.
-
         Returns
         -------
         out : Quantity, dimensionless
             The evaluated spectral model.
         """
 
+        assert self.spectral_function_extra_data is not None
+        sigma = self.spectral_function_extra_data["sigma"]
+
         return 0.5 * (
             erf((b - vmids) / (np.sqrt(2.0) * sigma))
             - erf((a - vmids) / (np.sqrt(2.0) * sigma))
         )
 
-    def spectral_function_kwargs(self, source):
+    def init_spectral_function_extra_data(self, source, datacube):
         """
-        Helper function to pass particle velocity dispersions to the
-        spectral_function.
+        Helper function to expose particle velocity dispersions to `spectral_function`.
 
         Parameters
         ----------
         source : martini.sources.SPHSource (or derived class) instance
             Source object.
 
-        Returns
-        -------
-        out : dict
-            Keyword arguments for the spectral_function.
+        datacube: martini.datacube.DataCube instance
+            DataCube object.
+
         """
 
-        return {"sigma": self.half_width(source)}
+        self.spectral_function_extra_data = dict(sigma=self.half_width(source))
+        super().init_spectral_function_extra_data(source, datacube)
+        return
 
     def half_width(self, source):
         """
@@ -307,23 +309,6 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         """
 
         return np.heaviside(vmids - a, 1.0) * np.heaviside(b - vmids, 0.0)
-
-    def spectral_function_kwargs(self, source):
-        """
-        No additional kwargs.
-
-        Parameters
-        ----------
-        source : martini.sources.SPHSource (or derived class) instance
-            Source object, making particle properties available.
-
-        Returns
-        -------
-        out : dict
-            Empty; no additional kwargs.
-        """
-
-        return dict()
 
     def half_width(self, source):
         """

@@ -42,7 +42,12 @@ class _BaseBeam(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, bmaj=15.0 * U.arcsec, bmin=15.0 * U.arcsec, bpa=0.0 * U.deg):
+    def __init__(
+        self,
+        bmaj=15.0 * U.arcsec,
+        bmin=15.0 * U.arcsec,
+        bpa=0.0 * U.deg,
+    ):
         # some beams need information from the datacube; in this case make
         # their call to _BaseBeam.__init__ with bmaj == bmin == bpa == None
         # and define a init_beam_header, to be called after the ra, dec,
@@ -52,6 +57,16 @@ class _BaseBeam(object):
         self.bpa = bpa
         self.px_size = None
         self.kernel = None
+
+        # since bmaj, bmin are FWHM, need to include conversion to
+        # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
+        # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
+        self.arcsec_to_beam = (
+            U.Jy * U.arcsec**-2,
+            U.Jy * U.beam**-1,
+            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
+            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
+        )
 
         return
 
@@ -65,6 +80,8 @@ class _BaseBeam(object):
         out : 2-tuple, each element an integer
         """
 
+        if self.kernel is None:
+            raise RuntimeError("Beam kernel not initialized.")
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
 
     def init_kernel(self, datacube):
@@ -85,7 +102,10 @@ class _BaseBeam(object):
         if (self.bmaj is None) or (self.bmin is None) or (self.bpa is None):
             self.init_beam_header()
         npx_x, npx_y = self.kernel_size_px()
-        px_size_unit = self.px_size.unit
+        if self.px_size is not None:
+            px_size_unit = self.px_size.unit
+        else:
+            raise RuntimeError("Beam pixel size not initialized.")
         px_edges_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 1) * self.px_size
         px_edges_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 1) * self.px_size
         # Elliptical Gaussian has no analytic surface integral in cartesian coordinates
@@ -114,15 +134,6 @@ class _BaseBeam(object):
                 xgrid[1:, :-1], xgrid[1:, 1:], ygrid[:-1, 1:], ygrid[1:, 1:]
             )
             * U.dimensionless_unscaled
-        )
-        # since bmaj, bmin are FWHM, need to include conversion to
-        # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
-        # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
-        self.arcsec_to_beam = (
-            U.Jy * U.arcsec**-2,
-            U.Jy * U.beam**-1,
-            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
-            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
         )
 
         # can turn 2D beam into a 3D beam here; use above for central channel
@@ -188,13 +199,19 @@ class GaussianBeam(_BaseBeam):
     """
 
     def __init__(
-        self, bmaj=15.0 * U.arcsec, bmin=15.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
+        self,
+        bmaj=15.0 * U.arcsec,
+        bmin=15.0 * U.arcsec,
+        bpa=0.0 * U.deg,
+        truncate=4.0,
     ):
         self.truncate = truncate
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return
 
-    def f_kernel(self):
+    def f_kernel(
+        self,
+    ):
         """
         Returns a function defining the beam amplitude as a function of
         position.
@@ -240,13 +257,11 @@ class GaussianBeam(_BaseBeam):
         -------
         out : 2-tuple, each element an integer.
         """
-
-        size = (
-            np.ceil(
-                (self.bmaj * self.truncate).to(
-                    U.pix, U.pixel_scale(self.px_size / U.pix)
-                )
-            ).value
+        size = np.ceil(
+            (self.bmaj * self.truncate).to_value(
+                U.pix, U.pixel_scale(self.px_size / U.pix)
+            )
             + 1
         )
+
         return size, size

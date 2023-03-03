@@ -1,10 +1,6 @@
 # generic source class:
 from .sph_source import SPHSource
 
-# debugging source classes:
-from ._single_particle_source import _SingleParticleSource
-from ._cross_source import _CrossSource
-
 # toolkit-specific source classes:
 from .so_source import SOSource
 from .swiftgalaxy_source import SWIFTGalaxySource

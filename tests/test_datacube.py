@@ -36,6 +36,9 @@ class TestDataCube:
         assert len(list(dc.spectra())) == dc.n_px_x * dc.n_px_y
 
     def test_freq_channels(self, dc):
+        """
+        Check that we can convert to frequency channels.
+        """
         v_mid0 = dc.channel_mids[0]
         v_edge0 = dc.channel_edges[0]
         v_mid1 = dc.channel_mids[-1]
@@ -55,6 +58,9 @@ class TestDataCube:
         )
 
     def test_velocity_channels(self, dc):
+        """
+        Check that we can convert to velocity channels.
+        """
         dc.freq_channels()
         f_mid0 = dc.channel_mids[0]
         f_edge0 = dc.channel_edges[0]
@@ -77,6 +83,9 @@ class TestDataCube:
         )
 
     def test_channel_mode_switching(self, dc):
+        """
+        Check that switching twice returns to starting point.
+        """
         initial_mids = dc.channel_mids
         initial_edges = dc.channel_edges
         dc.freq_channels()
@@ -85,6 +94,9 @@ class TestDataCube:
         assert U.allclose(dc.channel_mids, initial_mids)
 
     def test_add_pad(self, dc):
+        """
+        Check that adding pad gives desired shape.
+        """
         old_shape = dc._array.shape
         pad = (2, 3)
         dc.add_pad(pad)
@@ -99,12 +111,18 @@ class TestDataCube:
         assert dc.pady == pad[1]
 
     def test_add_pad_already_padded(self, dc):
+        """
+        Check that we can't double-pad.
+        """
         pad = (2, 3)
         dc.add_pad(pad)
         with pytest.raises(RuntimeError, match="Tried to add padding"):
             dc.add_pad(pad)
 
     def test_drop_pad(self, dc):
+        """
+        Check that we get expected shape when dropping padding.
+        """
         initial_shape = dc._array.shape
         pad = (2, 3)
         dc.add_pad(pad)
@@ -122,6 +140,11 @@ class TestDataCube:
         assert dc.pady == 0
 
     def test_drop_pad_already_dropped(self, dc):
+        """
+        Check that dropping already dropped pad gives no change.
+        """
+        assert dc.padx == 0
+        assert dc.pady == 0
         dc.drop_pad()
         assert dc.padx == 0
         assert dc.pady == 0
@@ -129,6 +152,9 @@ class TestDataCube:
     @pytest.mark.parametrize("with_fchannels", (False, True))
     @pytest.mark.parametrize("with_pad", (False, True))
     def test_copy(self, dc, with_fchannels, with_pad):
+        """
+        Check that copying a datacube copies all required information.
+        """
         if with_fchannels:
             dc.freq_channels()
         else:
@@ -163,6 +189,9 @@ class TestDataCube:
     @pytest.mark.parametrize("with_fchannels", (False, True))
     @pytest.mark.parametrize("with_pad", (False, True))
     def test_save_and_load_state(self, dc, with_fchannels, with_pad):
+        """
+        Check that we can recover a datacube from a save file.
+        """
         try:
             if with_fchannels:
                 dc.freq_channels()
