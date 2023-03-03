@@ -10,12 +10,6 @@ from itertools import product
 from ._version import __version__ as martini_version
 from warnings import warn
 from martini.datacube import DataCube
-from martini.sources.sph_source import SPHSource
-from martini.beams import _BaseBeam
-from martini.noise import _BaseNoise
-from martini.sph_kernels import _BaseSPHKernel
-from martini.spectral_models import _BaseSpectrum
-import typing as T
 
 try:
     gc = subprocess.check_output(
