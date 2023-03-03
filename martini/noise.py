@@ -1,8 +1,6 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
-from martini.datacube import DataCube
-import typing as T
 
 
 class _BaseNoise(object):

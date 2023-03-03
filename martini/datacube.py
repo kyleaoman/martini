@@ -1,7 +1,6 @@
 import numpy as np
 import astropy.units as U
 from astropy import wcs
-import typing as T
 
 HIfreq = 1.420405751e9 * U.Hz
 
