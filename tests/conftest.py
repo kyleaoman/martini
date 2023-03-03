@@ -231,5 +231,4 @@ def cross_source():
 
 @pytest.fixture(scope="function")
 def single_particle_source():
-
     yield sps_sourcegen
