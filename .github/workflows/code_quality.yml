@@ -22,7 +22,7 @@ jobs:
       - name: Run mypy
         run: mypy
       - name: Run stubcheck
-        run: ./run_stubcheck
+        run: ./run_stubtest
       
 
   build:
