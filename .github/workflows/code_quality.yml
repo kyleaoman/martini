@@ -21,6 +21,8 @@ jobs:
         run: pip install mypy
       - name: Run mypy
         run: mypy
+      - name: Run stubcheck
+        run: ./run_stubcheck
       
 
   build:
