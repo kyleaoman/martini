@@ -5,16 +5,91 @@ from martini.martini import Martini
 from martini.datacube import DataCube
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
-from martini.sources import _SingleParticleSource, SPHSource
+from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import GaussianKernel
 
 GaussianKernel.noFWHMwarn = True
 
 
+def sps_sourcegen(
+    T_g=np.ones(1) * 1.0e4 * U.K,
+    mHI_g=np.ones(1) * 1.0e4 * U.Msun,
+    xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,
+    vxyz_g=np.zeros((1, 3)) * U.km * U.s**-1,
+    hsm_g=np.ones(1) * U.kpc,
+    distance=3 * U.Mpc,
+    ra=0 * U.deg,
+    dec=0 * U.deg,
+    vpeculiar=0 * U.km / U.s,
+):
+    """
+    Creates a single particle test source.
+
+    A simple test source consisting of a single particle will be created. The
+    particle has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a
+    temperature of 10^4 K, a position offset by (x, y, z) = (1 pc, 1 pc, 1 pc)
+    from the source centroid, a peculiar velocity of 0 km/s, and will be placed
+    in the Hubble flow assuming h = 0.7 at a distance of 3 Mpc. The particle has
+    a 1 kpc smoothing length.
+    """
+    return SPHSource(
+        T_g=T_g,
+        mHI_g=mHI_g,
+        xyz_g=xyz_g,
+        vxyz_g=vxyz_g,
+        hsm_g=hsm_g,
+        distance=distance,
+        ra=ra,
+        dec=dec,
+        vpeculiar=vpeculiar,
+    )
+
+
+def cross_sourcegen(
+    T_g=np.arange(4) * 1.0e4 * U.K,
+    mHI_g=np.ones(4) * 1.0e4 * U.Msun,
+    xyz_g=np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]]) * U.kpc,
+    vxyz_g=np.array([[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]]) * U.km * U.s**-1,
+    hsm_g=np.ones(4) * U.kpc,
+    distance=3 * U.Mpc,
+    ra=0 * U.deg,
+    dec=0 * U.deg,
+    vpeculiar=0 * U.km / U.s,
+):
+    """
+    Creates a source consisting of 4 particles arrayed in an asymmetric cross.
+
+    A simple test source consisting of four particles will be created. Each has
+    a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, and will be placed in the Hubble
+    flow assuming h=.7 and a distance of 3 Mpc. Particle coordinates in kpc are
+    [[0,  1,  0],
+    [0,  0,  2],
+    [0, -3,  0],
+    [0,  0, -4]]
+    and velocities in km/s are
+    [[0,  0,  1],
+    [0, -1,  0],
+    [0,  0, -1],
+    [0,  1,  0]]
+    Particles temperatures are [1, 2, 3, 4] * 1e4 Kelvin.
+    """
+    return SPHSource(
+        T_g=T_g,
+        mHI_g=mHI_g,
+        xyz_g=xyz_g,
+        vxyz_g=vxyz_g,
+        hsm_g=hsm_g,
+        distance=distance,
+        ra=ra,
+        dec=dec,
+        vpeculiar=vpeculiar,
+    )
+
+
 @pytest.fixture(scope="function")
 def m():
-    source = _SingleParticleSource()
+    source = sps_sourcegen()
     datacube = DataCube(
         n_px_x=16,
         n_px_y=16,
@@ -42,7 +117,7 @@ def m():
 
 @pytest.fixture(scope="function")
 def m_init():
-    source = _SingleParticleSource()
+    source = sps_sourcegen()
     datacube = DataCube(
         n_px_x=16,
         n_px_y=16,
@@ -67,7 +142,7 @@ def m_init():
 
 @pytest.fixture(scope="function")
 def m_nn():
-    source = _SingleParticleSource()
+    source = sps_sourcegen()
     datacube = DataCube(
         n_px_x=16,
         n_px_y=16,
@@ -147,3 +222,14 @@ def s():
     s = SPHSource(**particles)
 
     yield s
+
+
+@pytest.fixture(scope="function")
+def cross_source():
+    yield cross_sourcegen
+
+
+@pytest.fixture(scope="function")
+def single_particle_source():
+
+    yield sps_sourcegen
