@@ -131,7 +131,7 @@ class SimbaSource(SPHSource):
                 * a
                 / h
                 * U.kpc
-                * find_fwhm(CubicSplineKernel.kernel),
+                * find_fwhm(CubicSplineKernel().kernel),
                 mHI_g=gas["Masses"][()] * fH * gas["GrackleHI"][()] * 1e10 / h * U.Msun,
             )
             del fH, fHe, xe
