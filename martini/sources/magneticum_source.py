@@ -194,6 +194,6 @@ class MagneticumSource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
-            **particles
+            **particles,
         )
         return
