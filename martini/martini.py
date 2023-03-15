@@ -7,7 +7,7 @@ from astropy.io import fits
 from astropy import __version__ as astropy_version
 from datetime import datetime
 from itertools import product
-from ._version import __version__ as martini_version
+from .__version__ import __version__ as martini_version
 from warnings import warn
 from martini.datacube import DataCube
 
