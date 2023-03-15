@@ -30,12 +30,12 @@ dependencies = [
 [project.optional-dependencies]
 hdf5_output = ["h5py"]
 eaglesource = [
-    "Hdecompose @ https://github.com/kyleaoman/Hdecompose/archive/master.zip#egg=Hdecompose",
-    "pyread_eagle"
+    "hdecompose",
+    "pyread_eagle",
     "eagleSqlTools",
 ]
-tngsource = ["Hdecompose @ https://github.com/kyleaoman/Hdecompose/archive/master.zip#egg=Hdecompose"]
-magneticumsource = ["g3t @ https://github.com/kyleaoman/g3t/archive/master.zip#egg=g3t"]
+tngsource = ["hdecompose"]
+magneticumsource = ["g3t"]
 simbasource = ["h5py"]
 swiftgalaxysource = [
     "swiftsimio",
