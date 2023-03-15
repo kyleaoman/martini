@@ -148,9 +148,9 @@ class SimbaSource(SPHSource):
         particles["xyz_g"][particles["xyz_g"] < -lbox / 2.0] += lbox
         particles["vxyz_g"] -= vcent
 
-        mask = np.zeros(particles["xyz_g"].shape[0], dtype=np.bool)
+        mask = np.zeros(particles["xyz_g"].shape[0], dtype=bool)
         outer_cube = (np.abs(particles["xyz_g"]) < aperture).all(axis=1)
-        inner_cube = np.zeros(particles["xyz_g"].shape[0], dtype=np.bool)
+        inner_cube = np.zeros(particles["xyz_g"].shape[0], dtype=bool)
         inner_cube[outer_cube] = (
             np.abs(particles["xyz_g"][outer_cube]) < aperture / np.sqrt(3)
         ).all(axis=1)
