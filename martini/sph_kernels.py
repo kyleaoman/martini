@@ -910,7 +910,7 @@ class GaussianKernel(_BaseSPHKernel):
         """
 
         if self.lims is None:
-            valid = np.ones(sm_lengths.shape, dtype=np.bool)
+            valid = np.ones(sm_lengths.shape, dtype=bool)
         else:
             valid = np.logical_or(
                 sm_lengths <= self.lims[0] * U.pix, sm_lengths >= self.lims[1] * U.pix
