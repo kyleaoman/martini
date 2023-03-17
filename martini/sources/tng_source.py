@@ -1,3 +1,5 @@
+import os
+import h5py
 import numpy as np
 import astropy.units as U
 import astropy.constants as C
@@ -5,21 +7,37 @@ from .sph_source import SPHSource
 from ..sph_kernels import CubicSplineKernel, find_fwhm
 
 
+def api_get(path, params=None, api_key=None):
+    import requests
+
+    baseUrl = "http://www.tng-project.org/api/"
+    r = requests.get(f"{baseUrl}/{path}", params=params, headers={"api-key": api_key})
+    r.raise_for_status()
+    if r.headers["content-type"] == "application/json":
+        return r.json()
+    return r
+
+
 class TNGSource(SPHSource):
     """
-    Class abstracting HI sources designed to run in the IllustrisTNG JupyterLab
-    environment for access to simulation data.
+    Class abstracting HI sources for use with IllustrisTNG simulations.
 
-    Can also be used in other environments, but requires that the
-    `illustris_python` module be importable, and further that the data are laid
-    out on disk in the fiducial way
-    (see: http://www.tng-project.org/data/docs/scripts/).
+    If used in the IllustrisTNG JupyterLab environment
+    (https://www.tng-project.org/data/lab/), files on disk are accessed directly.
+    Otherwise, particles for the galaxy of interest are automatically retrieved using
+    the TNG web API (https://www.tng-project.org/data/docs/api/).
+
+    Use of the TNG web API requires an API key: login at
+    https://www.tng-project.org/users/login/ or register at
+    https://www.tng-project.org/users/register/ then obtain your API
+    key from https://www.tng-project.org/users/profile/ and pass to TNGSource as the
+    api_key parameter. An API key is not required if logged into the TNG JupyterLab.
 
     Parameters
     ----------
-    basePath : str
-        Directory containing simulation data, for instance 'TNG100-1/output/',
-        see also http://www.tng-project.org/data/docs/scripts/
+    simulation : str
+        Simulation identifier string, for example "TNG100-1", see
+        https://www.tng-project.org/data/docs/background/
 
     snapNum : int
         Snapshot number. In TNG, snapshot 99 is the final output. Note that
@@ -32,7 +50,9 @@ class TNGSource(SPHSource):
         group to which the subhalo belongs are used to construct the data cube.
         This avoids strange 'holes' at the locations of other subhaloes in the
         same group, and gives a more realistic treatment of foreground and
-        background emission local to the source.
+        background emission local to the source. An object of interest could be
+        found using https://www.tng-project.org/data/search/, for instance. The
+        "ID" column in the search results on that page is the subID.
 
     distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
@@ -73,9 +93,10 @@ class TNGSource(SPHSource):
 
     def __init__(
         self,
-        basePath,
+        simulation,
         snapNum,
         subID,
+        api_key=None,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"rotmat": np.eye(3)},
@@ -83,71 +104,151 @@ class TNGSource(SPHSource):
         dec=0.0 * U.deg,
     ):
         # optional dependencies for this source class
-        from illustris_python.groupcat import loadSingle, loadHeader
-        from illustris_python.snapshot import loadSubset, getSnapOffsets
+        import io
         from Hdecompose.atomic_frac import atomic_frac
 
         X_H = 0.76
-        data_header = loadHeader(basePath, snapNum)
-        data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
-        haloID = data_sub["SubhaloGrNr"]
-        fields_g = (
-            "Masses",
-            "Velocities",
-            "InternalEnergy",
-            "ElectronAbundance",
-            "Density",
-        )
-        subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
-        data_g = loadSubset(basePath, snapNum, "gas", fields=fields_g, subset=subset_g)
-        try:
-            data_g.update(
-                loadSubset(
-                    basePath,
-                    snapNum,
-                    "gas",
-                    fields=("CenterOfMass",),
-                    subset=subset_g,
-                    sq=False,
+
+        # are we running on the TNG jupyterlab?
+        jupyterlab = os.path.exists("/home/tnguser/sims.TNG")
+        if not jupyterlab:
+            from requests import HTTPError
+
+            if api_key is None:
+                raise ValueError(
+                    "A TNG API key is required: login at "
+                    "https://www.tng-project.org/users/login/ or register at "
+                    "https://www.tng-project.org/users/register/ then obtain your API "
+                    "key from https://www.tng-project.org/users/profile/"
                 )
+            data_header = dict()
+            data_sub = dict()
+            sim_header_api_path = f"{simulation}"
+            snap_header_api_path = f"{simulation}/snapshots/{snapNum}"
+            sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
+            sim_header = api_get(sim_header_api_path, api_key=api_key)
+            snap_header = api_get(snap_header_api_path, api_key=api_key)
+            sub = api_get(sub_api_path, api_key=api_key)
+            haloID = sub["grnr"]
+            data_sub["SubhaloPos"] = np.array([sub[f"pos_{ax}"] for ax in "xyz"])
+            data_sub["SubhaloVel"] = np.array([sub[f"vel_{ax}"] for ax in "xyz"])
+            data_header["HubbleParam"] = sim_header["hubble"]
+            data_header["Redshift"] = snap_header["redshift"]
+            data_header["Time"] = 1 / (1 + data_header["Redshift"])
+            data_g = dict()
+            cutout_api_path = (
+                f"{simulation}/snapshots/{snapNum}/halos/{haloID}/cutout.hdf5"
             )
-        except Exception as exc:
-            if ("Particle type" in exc.args[0]) and (
-                "does not have field" in exc.args[0]
-            ):
+            fields_g = (
+                "Masses",
+                "Velocities",
+                "InternalEnergy",
+                "ElectronAbundance",
+                "Density",
+            )
+            cutout_request = dict(gas=",".join(fields_g))
+            cutout = api_get(cutout_api_path, params=cutout_request, api_key=api_key)
+            with h5py.File(io.BytesIO(cutout.content), "r") as cutout_file:
+                for field in fields_g:
+                    data_g[field] = cutout_file["PartType0"][field][()]
+            try:
+                cutout_request = dict(gas="CenterOfMass")
+                cutout = api_get(
+                    cutout_api_path, params=cutout_request, api_key=api_key
+                )
+            except HTTPError:
+                cutout_request = dict(gas="Coordinates")
+                cutout = api_get(
+                    cutout_api_path, params=cutout_request, api_key=api_key
+                )
+                coordinate_type = "Coordinates"
+            else:
+                coordinate_type = "CenterOfMass"
+            with h5py.File(io.BytesIO(cutout.content), "r") as cutout_file:
+                data_g[coordinate_type] = cutout_file["PartType0"][coordinate_type][()]
+            try:
+                cutout_request = dict(gas="GFM_Metals")
+                cutout = api_get(
+                    cutout_api_path, params=cutout_request, api_key=api_key
+                )
+            except HTTPError:
+                X_H_g = X_H
+            else:
+                with h5py.File(io.BytesIO(cutout.content), "r") as cutout_file:
+                    data_g["GFM_Metals"] = cutout_file["PartType0"]["GFM_Metals"][:, 0]
+                X_H_g = data_g["GFM_Metals"]
+
+        else:
+            from ._illustris_tools import (
+                loadHeader,
+                loadSingle,
+                loadSubset,
+                getSnapOffsets,
+            )
+
+            basePath = f"/home/tnguser/sims.TNG/{simulation}/output/"
+            data_header = loadHeader(basePath, snapNum)
+            data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
+            haloID = data_sub["SubhaloGrNr"]
+            fields_g = (
+                "Masses",
+                "Velocities",
+                "InternalEnergy",
+                "ElectronAbundance",
+                "Density",
+            )
+            subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
+            data_g = loadSubset(
+                basePath, snapNum, "gas", fields=fields_g, subset=subset_g
+            )
+            try:
                 data_g.update(
                     loadSubset(
                         basePath,
                         snapNum,
                         "gas",
-                        fields=("Coordinates",),
+                        fields=("CenterOfMass",),
                         subset=subset_g,
                         sq=False,
                     )
                 )
+            except Exception as exc:
+                if ("Particle type" in exc.args[0]) and (
+                    "does not have field" in exc.args[0]
+                ):
+                    data_g.update(
+                        loadSubset(
+                            basePath,
+                            snapNum,
+                            "gas",
+                            fields=("Coordinates",),
+                            subset=subset_g,
+                            sq=False,
+                        )
+                    )
             else:
                 raise
-        try:
-            data_g.update(
-                loadSubset(
-                    basePath,
-                    snapNum,
-                    "gas",
-                    fields=("GFM_Metals",),
-                    subset=subset_g,
-                    mdi=(0,),
-                    sq=False,
+            try:
+                data_g.update(
+                    loadSubset(
+                        basePath,
+                        snapNum,
+                        "gas",
+                        fields=("GFM_Metals",),
+                        subset=subset_g,
+                        mdi=(0,),
+                        sq=False,
+                    )
                 )
-            )
-        except Exception as exc:
-            if ("Particle type" in exc.args[0]) and (
-                "does not have field" in exc.args[0]
-            ):
-                X_H_g = X_H
+            except Exception as exc:
+                if ("Particle type" in exc.args[0]) and (
+                    "does not have field" in exc.args[0]
+                ):
+                    X_H_g = X_H
+                else:
+                    raise
             else:
-                raise
-        else:
-            X_H_g = data_g["GFM_Metals"]  # only loaded column 0: Hydrogen
+                X_H_g = data_g["GFM_Metals"]  # only loaded column 0: Hydrogen
 
         a = data_header["Time"]
         z = data_header["Redshift"]
