@@ -90,7 +90,7 @@ class TestMartini:
             sph_kernel=sph_kernel(),
         )
 
-        m.insert_source_in_cube(printfreq=None)
+        m.insert_source_in_cube(progressbar=False)
 
         # flux
         F = m.datacube._array.sum() * m.datacube.px_size**2  # Jy
@@ -405,7 +405,7 @@ class TestMartini:
         m_nn.reset()
         assert m_nn.datacube._array.sum() == 0
         # check that can start over and get the same result w/o errors
-        m_nn.insert_source_in_cube(printfreq=None)
+        m_nn.insert_source_in_cube(progressbar=False)
         m_nn.convolve_beam()
         assert U.allclose(cube_array, m_nn.datacube._array)
         # check that can reset after doing nothing

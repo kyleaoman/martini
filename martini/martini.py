@@ -1,5 +1,6 @@
 import subprocess
 import os
+import tqdm
 from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
@@ -313,7 +314,7 @@ class Martini:
         self.sph_kernel.apply_mask(np.logical_not(reject_mask))
         return
 
-    def insert_source_in_cube(self, skip_validation=False, printfreq=100):
+    def insert_source_in_cube(self, skip_validation=False, progressbar=True):
         """
         Populates the DataCube with flux from the particles in the source.
 
@@ -327,9 +328,8 @@ class Martini:
             RuntimeError if so. This validation can be skipped (at the cost
             of accuracy!) by setting this parameter True. (Default: False.)
 
-        printfreq : int or None, optional
-            Every printfreq rows a message will be printed to track progress.
-            Messages completely suppressed with printfreq=None. (Default: 100.)
+        progressbar : bool, optional
+            If True, a progress bar will be shown. (Default: True.)
         """
 
         assert self.spectral_model.spectra is not None
@@ -344,25 +344,10 @@ class Martini:
                 np.arange(self.datacube._array.shape[1]),
             )
         )
-        if printfreq is not None:
-            print(
-                "  "
-                + self.logtag
-                + "  [columns: {0:.0f}, rows: {1:.0f}]".format(
-                    self.datacube._array.shape[0], self.datacube._array.shape[1]
-                )
-            )
+        if progressbar:
+            ij_pxs = tqdm.tqdm(ij_pxs)
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            if printfreq is not None:
-                if (ij[1, 0].to_value(U.pix) == 0) and (
-                    ij[0, 0].to_value(U.pix) % printfreq == 0
-                ):
-                    print(
-                        "  "
-                        + self.logtag
-                        + "  [row {:.0f}]".format(ij[0, 0].to_value(U.pix))
-                    )
             mask = (np.abs(ij - particle_coords[:2]) <= self.sph_kernel.sm_ranges).all(
                 axis=0
             )

@@ -109,7 +109,7 @@ def m():
         sph_kernel=sph_kernel,
         spectral_model=spectral_model,
     )
-    m.insert_source_in_cube(printfreq=None)
+    m.insert_source_in_cube(progressbar=False)
     m.add_noise()
     m.convolve_beam()
     yield m
@@ -162,7 +162,7 @@ def m_nn():
         sph_kernel=sph_kernel,
         spectral_model=spectral_model,
     )
-    m.insert_source_in_cube(printfreq=None)
+    m.insert_source_in_cube(progressbar=False)
     m.convolve_beam()
     yield m
 

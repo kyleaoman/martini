@@ -20,6 +20,7 @@ dependencies = [
     "numpy",
     "scipy",
     "astropy",
+    "tqdm",
 ]
 
 [project.urls]
