@@ -34,7 +34,7 @@ eaglesource = [
     "pyread_eagle",
     "eagleSqlTools",
 ]
-tngsource = ["hdecompose"]
+tngsource = ["hdecompose", "h5py", "requests"]
 magneticumsource = ["g3t"]
 simbasource = ["h5py"]
 swiftgalaxysource = [

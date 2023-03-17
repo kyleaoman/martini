@@ -1,5 +1,5 @@
+import io
 import os
-import h5py
 import numpy as np
 import astropy.units as U
 import astropy.constants as C
@@ -104,7 +104,7 @@ class TNGSource(SPHSource):
         dec=0.0 * U.deg,
     ):
         # optional dependencies for this source class
-        import io
+        import h5py
         from Hdecompose.atomic_frac import atomic_frac
 
         X_H = 0.76

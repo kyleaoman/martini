@@ -1,3 +1,4 @@
+requests
 h5py
 hdecompose
 pyread_eagle

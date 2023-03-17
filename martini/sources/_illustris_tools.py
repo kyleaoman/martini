@@ -1,6 +1,5 @@
 import os
 import six
-import h5py
 import numpy as np
 
 """
@@ -91,6 +90,8 @@ def loadSingle(basePath, snapNum, haloID=-1, subhaloID=-1):
 
     Reproduced from the illustris_python toolkit.
     """
+    import h5py
+
     if (haloID < 0 and subhaloID < 0) or (haloID >= 0 and subhaloID >= 0):
         raise Exception("Must specify either haloID or subhaloID (and not both).")
 
@@ -144,6 +145,8 @@ def loadSubset(
 
     Reproduced from the illustris_python toolkit.
     """
+    import h5py
+
     result = {}
 
     ptNum = partTypeNum(partType)
@@ -281,6 +284,8 @@ def loadHeader(basePath, snapNum):
 
     Reproduced from the illustris_python toolkit.
     """
+    import h5py
+
     with h5py.File(gcPath(basePath, snapNum), "r") as f:
         header = dict(f["Header"].attrs.items())
 
