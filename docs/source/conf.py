@@ -76,4 +76,6 @@ intersphinx_mapping = dict(
     scipy=("https://docs.scipy.org/doc/scipy/", None),
     numpy=("https://numpy.org/doc/stable/", None),
     astropy=("https://docs.astropy.org/en/stable/", None),
+    swiftgalaxy=("https://swiftgalaxy.readthedocs.io/en/latest", None),
+    swiftsimio=("https://swiftsimio.readthedocs.io/en/latest", None),
 )

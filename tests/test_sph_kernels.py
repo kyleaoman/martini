@@ -1,10 +1,10 @@
 import pytest
 import numpy as np
-from math import isclose
 from martini.sph_kernels import (
     WendlandC2Kernel,
     GaussianKernel,
     CubicSplineKernel,
+    QuarticSplineKernel,
     WendlandC6Kernel,
     DiracDeltaKernel,
     AdaptiveKernel,
@@ -12,8 +12,15 @@ from martini.sph_kernels import (
 from astropy import units as U
 
 # kernels that have a well-defined FWHM, i.e. not dirac-delta, adaptive
-basic_kernels = WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, GaussianKernel
-all_kernels = basic_kernels + (DiracDeltaKernel, AdaptiveKernel)
+fwhm_kernels = (
+    WendlandC2Kernel,
+    WendlandC6Kernel,
+    CubicSplineKernel,
+    GaussianKernel,
+    QuarticSplineKernel,
+)
+simple_kernels = fwhm_kernels + (DiracDeltaKernel,)
+all_kernels = simple_kernels + (AdaptiveKernel,)
 
 for k in all_kernels:
     k.noFWHMwarn = True
@@ -31,16 +38,16 @@ def total_kernel_weight(k, h, ngrid=50):
 
 
 class TestSPHKernels:
-    @pytest.mark.parametrize("kernel", basic_kernels)
+    @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_fwhm_is_one(self, kernel):
         """
         Check that value at FWHM is half of peak value.
         """
         k = kernel()
         fwhm = 1  # all kernels should be implemented s.t. this is true
-        assert isclose(k.eval_kernel(fwhm / 2, 1), k.eval_kernel(0, 1) / 2)
+        assert np.isclose(k.eval_kernel(fwhm / 2, 1), k.eval_kernel(0, 1) / 2)
 
-    @pytest.mark.parametrize("kernel", basic_kernels)
+    @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_extent(self, kernel):
         """
         Check that kernel goes to zero at its stated size.
@@ -50,7 +57,7 @@ class TestSPHKernels:
         assert k.eval_kernel(fwhm * k.size_in_fwhm + 1.0e-5, 1) == 0
         assert k.eval_kernel(fwhm * k.size_in_fwhm - 1.0e-5, 1) > 0
 
-    @pytest.mark.parametrize("kernel", basic_kernels)
+    @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_2D_integral(self, kernel):
         """
         Check numerically that integral of 3D kernel and 2D projection agree.
@@ -71,7 +78,6 @@ class TestSPHKernels:
             eval_grid = rgrid <= ri
             k.sm_lengths = h * np.ones(rgrid.shape)[eval_grid].flatten() * U.pix
             dij = np.vstack((xgrid[eval_grid], ygrid[eval_grid]))
-            print(dij.shape)
             IKi = dr**2 * np.sum(
                 k.px_weight(
                     dij * U.pix,
@@ -97,7 +103,8 @@ class TestSPHKernels:
         assert np.allclose(y_2d, y_3d, rtol=2.0e-2)  # integrals within 2%
 
     @pytest.mark.parametrize(
-        "kernel", (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel)
+        "kernel",
+        (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, QuarticSplineKernel),
     )
     def test_kernel_validation_minsize(self, kernel):
         """
@@ -107,14 +114,14 @@ class TestSPHKernels:
         """
         k = kernel()
         # check that a very well-sampled case gives 1.0
-        assert isclose(total_kernel_weight(k, 20), 1.0, rel_tol=1.0e-3)
+        assert np.isclose(total_kernel_weight(k, 20), 1.0, rtol=1.0e-3)
         # check that the minimum size gives 1.0 within 1%
-        assert isclose(
-            total_kernel_weight(k, kernel.min_valid_size), 1.0, rel_tol=1.0e-2
+        assert np.isclose(
+            total_kernel_weight(k, kernel.min_valid_size), 1.0, rtol=1.0e-2
         )
         # check that with a smaller size is more than 1% from 1.0
-        assert not isclose(
-            total_kernel_weight(k, kernel.min_valid_size * 0.9), 1.0, rel_tol=1.0e-2
+        assert not np.isclose(
+            total_kernel_weight(k, kernel.min_valid_size * 0.9), 1.0, rtol=1.0e-2
         )
 
     @pytest.mark.parametrize("kernel", (DiracDeltaKernel,))
@@ -126,17 +133,17 @@ class TestSPHKernels:
         """
         k = kernel()
         # check that a very well-sampled case gives 1.0
-        assert isclose(total_kernel_weight(k, 20), 1.0, rel_tol=1.0e-3)
+        assert np.isclose(total_kernel_weight(k, 20), 1.0, rtol=1.0e-3)
         # check that the maximum size gives 1.0 within 1%
-        assert isclose(
-            total_kernel_weight(k, kernel.max_valid_size), 1.0, rel_tol=1.0e-2
+        assert np.isclose(
+            total_kernel_weight(k, kernel.max_valid_size), 1.0, rtol=1.0e-2
         )
         # check that with a larger size is more than 1% from 1.0
         if kernel not in (DiracDeltaKernel,):
             # DiracDeltaKernel will still converge to right answer, but is
             # a poor approximation on geometric grounds
-            assert not isclose(
-                total_kernel_weight(k, kernel.max_valid_size * 1.1), 1.0, rel_tol=1.0e-2
+            assert not np.isclose(
+                total_kernel_weight(k, kernel.max_valid_size * 1.1), 1.0, rtol=1.0e-2
             )
 
     @pytest.mark.parametrize("truncate", (0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
@@ -156,24 +163,24 @@ class TestSPHKernels:
         else:
             k = GaussianKernel(truncate=truncate)
         # check that a very well-sampled case gives 1.0 within 1%
-        assert isclose(total_kernel_weight(k, 20), 1.0, rel_tol=1.0e-2)
+        assert np.isclose(total_kernel_weight(k, 20), 1.0, rtol=1.0e-2)
         if k.lims is not None:
             # check that the lower limit size gives 1.0 within 1%
             if k.lims[0] > 0:
-                assert isclose(total_kernel_weight(k, k.lims[0]), 1.0, rel_tol=1.0e-2)
+                assert np.isclose(total_kernel_weight(k, k.lims[0]), 1.0, rtol=1.0e-2)
             # check that the upper limit size gives 1.0 within 1%
-            assert isclose(total_kernel_weight(k, k.lims[1]), 1.0, rel_tol=1.0e-2)
+            assert np.isclose(total_kernel_weight(k, k.lims[1]), 1.0, rtol=1.0e-2)
             # check that 1.1 * lower limit and 0.9 * upper limit are forbidden
             assert 1.1 * k.lims[0] < k.lims[1]
             assert 0.9 * k.lims[1] > k.lims[0]
             # check that with these values we are more than 1% from 1.0
             if k.lims[0] > 0:
-                assert not isclose(
-                    total_kernel_weight(k, 1.1 * k.lims[0]), 1.0, rel_tol=1.0e-2
+                assert not np.isclose(
+                    total_kernel_weight(k, 1.1 * k.lims[0]), 1.0, rtol=1.0e-2
                 )
-            assert not isclose(
-                total_kernel_weight(k, 0.9 * k.lims[1]), 1.0, rel_tol=1.0e-2
+            assert not np.isclose(
+                total_kernel_weight(k, 0.9 * k.lims[1]), 1.0, rtol=1.0e-2
             )
         else:
             # check that quite a poorly-sampled case gives 1.0 within 1%
-            assert isclose(total_kernel_weight(k, 0.1), 1.0, rel_tol=1.0e-2)
+            assert np.isclose(total_kernel_weight(k, 0.1), 1.0, rtol=1.0e-2)

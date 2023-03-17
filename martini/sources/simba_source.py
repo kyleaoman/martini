@@ -45,10 +45,9 @@ class SimbaSource(SPHSource):
         (Default: 0 km/s.)
 
     rotation : dict, optional
-        Keys may be any combination of `axis_angle`, `rotmat` and/or
-        `L_coords`. These will be applied in this order. Note that the 'y-z'
-        plane will be the one eventually placed in the plane of the "sky". The
-        corresponding values:
+        Must have a single key, which must be one of `axis_angle`, `rotmat` or
+        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        plane of the "sky". The corresponding value must be:
 
         - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
         axis to rotate about, second element a Quantity with \
@@ -60,9 +59,12 @@ class SimbaSource(SPHSource):
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about 'y').
+        momentum pole (rotation about 'x'), and inclined (rotation about \
+        'y'). A 3-tuple may be provided instead, in which case the third \
+        value specifies the position angle on the sky (rotation about 'x'). \
+        The default position angle is 270 degrees.
 
-        (Default: rotmat with the identity rotation.)
+        (Default: identity rotation matrix.)
 
     ra : Quantity, with dimensions of angle, optional
         Right ascension for the source centroid. (Default: 0 deg.)
@@ -82,11 +84,10 @@ class SimbaSource(SPHSource):
         aperture=50.0 * U.kpc,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
-        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         if snapPath is None:
             raise ValueError("Provide snapPath argument to SimbaSource.")
         if snapName is None:
@@ -111,15 +112,15 @@ class SimbaSource(SPHSource):
             h = f["Header"].attrs["HubbleParam"]
             lbox = f["Header"].attrs["BoxSize"] / h * U.kpc
             gas = f["PartType0"]
-            fH = gas["Metallicity"][()][:, 0]
+            fZ = gas["Metallicity"][()][:, 0]
             fHe = gas["Metallicity"][()][:, 1]
+            fH = 1 - fHe - fZ
             xe = gas["ElectronAbundance"][()]
             particles = dict(
                 xyz_g=gas["Coordinates"][()] * a / h * U.kpc,
                 vxyz_g=gas["Velocities"][()] * np.sqrt(a) * U.km / U.s,
                 T_g=(
-                    (1 + 4 * fHe / (1 - fHe))
-                    / (1 + fHe / 4 / (1 - fHe) + xe)
+                    (4 / (1 + 3 * fH + 4 * fH * xe))
                     * C.m_p
                     * (gamma - 1)
                     * gas["InternalEnergy"][()]
@@ -147,9 +148,9 @@ class SimbaSource(SPHSource):
         particles["xyz_g"][particles["xyz_g"] < -lbox / 2.0] += lbox
         particles["vxyz_g"] -= vcent
 
-        mask = np.zeros(particles["xyz_g"].shape[0], dtype=np.bool)
+        mask = np.zeros(particles["xyz_g"].shape[0], dtype=bool)
         outer_cube = (np.abs(particles["xyz_g"]) < aperture).all(axis=1)
-        inner_cube = np.zeros(particles["xyz_g"].shape[0], dtype=np.bool)
+        inner_cube = np.zeros(particles["xyz_g"].shape[0], dtype=bool)
         inner_cube[outer_cube] = (
             np.abs(particles["xyz_g"][outer_cube]) < aperture / np.sqrt(3)
         ).all(axis=1)
@@ -169,6 +170,6 @@ class SimbaSource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
-            **particles
+            **particles,
         )
         return

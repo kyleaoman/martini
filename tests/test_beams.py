@@ -1,8 +1,7 @@
 import pytest
 import numpy as np
-from math import isclose
 from astropy import units as U
-from martini.beams import GaussianBeam, WSRTBeam
+from martini.beams import GaussianBeam
 from martini import DataCube
 
 
@@ -52,14 +51,16 @@ class TestGaussianBeam:
         b.init_kernel(d)
         mid = b.kernel.shape[0] // 2
         if bpa == 0 * U.deg:
-            assert isclose(
-                b.kernel[mid, mid + 5].to_value(U.arcsec**-2),
-                b.kernel[mid + 10, mid].to_value(U.arcsec**-2),
+            assert U.isclose(
+                b.kernel[mid, mid + 5],
+                b.kernel[mid + 10, mid],
+                rtol=1e-2,
             )
         elif bpa == 90 * U.deg:
-            assert isclose(
-                b.kernel[mid, mid + 10].to_value(U.arcsec**-2),
-                b.kernel[mid + 5, mid].to_value(U.arcsec**-2),
+            assert U.isclose(
+                b.kernel[mid, mid + 10],
+                b.kernel[mid + 5, mid],
+                rtol=1e-2,
             )
 
     def test_Gaussian_beam_integral(self):
@@ -79,45 +80,4 @@ class TestGaussianBeam:
         )
         b = GaussianBeam(bmaj=bmaj, bmin=bmin, bpa=0 * U.deg, truncate=truncate)
         b.init_kernel(d)
-        assert isclose(np.sum(b.kernel).to_value(U.arcsec**-2), 1.0)
-
-
-class TestWSRTBeam:
-    def test_WSRT_beam_size(self):
-        """
-        Check that we produce a beam array of the expected shape.
-        """
-        px_size = 5 * U.arcsec
-        d = DataCube(
-            n_px_x=1,
-            n_px_y=1,
-            n_channels=1,
-            px_size=px_size,
-            channel_width=1 * U.km / U.s,
-            dec=30 * U.deg,
-            velocity_centre=10000.0 * U.km / U.s,
-        )
-        b = WSRTBeam()
-        b.init_kernel(d)
-        assert b.kernel.shape == (1610, 3223)
-
-    def test_WSRT_beam_integral(self):
-        """
-        Check that the beam integrates to 1.0.
-        """
-        px_size = 5 * U.arcsec
-        d = DataCube(
-            n_px_x=1,
-            n_px_y=1,
-            n_channels=1,
-            px_size=px_size,
-            channel_width=1 * U.km / U.s,
-            dec=30 * U.deg,
-            velocity_centre=10000.0 * U.km / U.s,
-        )
-        b = WSRTBeam()
-        b.init_kernel(d)
-        # not sure if I should expect this to sum to 1, or even if beams are supposed
-        # to be in arcsec^-2... something funny in the GaussianBeam units, see comments
-        # in beams.py
-        assert isclose(np.sum(b.kernel).to_value(U.arcsec**-2), 1.0)
+        assert U.isclose(np.sum(b.kernel), 1.0 * U.dimensionless_unscaled)

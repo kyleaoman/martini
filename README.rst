@@ -1,7 +1,10 @@
 .. image:: martini_banner.png
 
-|Documentation status|
+|Build status| |Documentation status|
 
+.. |Build status| image:: https://github.com/kyleaoman/martini/actions/workflows/black_pytest.yml/badge.svg
+    :target: https://github.com/kyleaoman/martini/actions/workflows/black_pytest.yml
+    :alt: Build Status
 .. |Documentation status| image:: https://readthedocs.org/projects/martini/badge/?version=latest
     :target: https://martini.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation status
@@ -70,7 +73,7 @@ Installation Notes
 
 .. INSTALLATION_NOTES_START_LABEL
 
-MARTINI works with ``python3``, and does not support ``python2``.
+MARTINI works with ``python3`` (version ``3.7`` or higher), and does not support ``python2``.
 
 Stable releases are available via PyPI_ (``pip install astromartini``) and the numbered branches on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github or kyle.a.oman@durham.ac.uk.
 

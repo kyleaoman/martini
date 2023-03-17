@@ -32,10 +32,9 @@ class SPHSource(object):
         (Default: 0 km/s.)
 
     rotation : dict, optional
-        Keys may be any combination of `axis_angle`, `rotmat` and/or
-        `L_coords`. These will be applied in this order. Note that the 'y-z'
-        plane will be the one eventually placed in the plane of the "sky". The
-        corresponding values:
+        Must have a single key, which must be one of `axis_angle`, `rotmat` or
+        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        plane of the "sky". The corresponding value must be:
 
         - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
         axis to rotate about, second element a Quantity with \
@@ -47,9 +46,12 @@ class SPHSource(object):
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about 'y').
+        momentum pole (rotation about 'x'), and inclined (rotation about \
+        'y'). A 3-tuple may be provided instead, in which case the third \
+        value specifies the position angle on the sky (rotation about 'x'). \
+        The default position angle is 270 degrees.
 
-        (Default: rotmat with the identity rotation.)
+        (Default: identity rotation matrix.)
 
     ra : Quantity, with dimensions of angle, optional
         Right ascension for the source centroid. (Default: 0 deg.)
@@ -78,7 +80,12 @@ class SPHSource(object):
         the axis corresponding to the "line of sight".
 
     hsm_g : Quantity, with dimensions of length
-        Particle SPH smoothing lengths.
+        Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
+        Smoothing lengths are variously defined in the literature as the radius where
+        the kernel amplitude reaches 0, or some rational fraction of this radius (and
+        other definitions may well exist). The FWHM requested here is not a standard
+        choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
+        ambiguity in the definition.
 
     coordinate_axis: int, optional
         Rank of axis corresponding to position or velocity of a single
@@ -102,7 +109,6 @@ class SPHSource(object):
         hsm_g=None,
         coordinate_axis=None,
     ):
-
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
                 coordinate_axis = 0
@@ -119,35 +125,38 @@ class SPHSource(object):
                     "martini.sources.SPHSource: incorrect "
                     "coordinate shape (not (3, N) or (N, 3))."
                 )
+        else:
+            coordinate_axis = coordinate_axis
 
         if xyz_g.shape != vxyz_g.shape:
             raise ValueError(
                 "martini.sources.SPHSource: xyz_g and vxyz_g must"
                 " have matching shapes."
             )
+
+        if coordinate_axis == 0:
+            xyz_g = xyz_g.T
+            vxyz_g = vxyz_g.T
         self.h = h
         self.T_g = T_g
         self.mHI_g = mHI_g
         self.coordinates_g = CartesianRepresentation(
             xyz_g,
-            xyz_axis=coordinate_axis,
-            differentials={
-                "s": CartesianDifferential(vxyz_g, xyz_axis=coordinate_axis)
-            },
+            xyz_axis=1,
+            differentials={"s": CartesianDifferential(vxyz_g, xyz_axis=1)},
         )
         self.hsm_g = hsm_g
 
-        self.npart = self.mHI_g.size
+        self.npart = self.coordinates_g.size
 
         self.ra = ra
         self.dec = dec
         self.distance = distance
         self.vpeculiar = vpeculiar
-        self.rotation = rotation
         self.current_rotation = np.eye(3)
-        self.rotate(**self.rotation)
-        self.rotate(axis_angle=("y", self.dec))
-        self.rotate(axis_angle=("z", -self.ra))
+        self.rotate(**rotation)
+        self.rotate(axis_angle=("y", -self.dec))
+        self.rotate(axis_angle=("z", self.ra))
         direction_vector = np.array(
             [
                 np.cos(self.ra) * np.cos(self.dec),
@@ -156,11 +165,11 @@ class SPHSource(object):
             ]
         )
         distance_vector = direction_vector * self.distance
-        self.translate_position(distance_vector)
-        self.vsys = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
-        hubble_flow_vector = direction_vector * self.vsys
-        vpeculiar_vector = direction_vector * self.vpeculiar
-        self.translate_velocity(hubble_flow_vector + vpeculiar_vector)
+        self.translate(distance_vector)
+        self.vhubble = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
+        self.vsys = self.vhubble + self.vpeculiar
+        vsys_vector = direction_vector * self.vsys
+        self.boost(vsys_vector)
         self.sky_coordinates = ICRS(self.coordinates_g)
         return
 
@@ -175,53 +184,72 @@ class SPHSource(object):
             the source arrays.
         """
 
-        self.T_g = self.T_g[mask]
-        self.mHI_g = self.mHI_g[mask]
+        if mask.size != self.npart:
+            raise ValueError("Mask must have same length as particle arrays.")
+        mask_sum = np.sum(mask)
+        if mask_sum == 0:
+            raise RuntimeError("No source particles in target region.")
+        self.npart = mask_sum
+        if not self.T_g.isscalar:
+            self.T_g = self.T_g[mask]
+        if not self.mHI_g.isscalar:
+            self.mHI_g = self.mHI_g[mask]
         self.coordinates_g = self.coordinates_g[mask]
         self.sky_coordinates = ICRS(self.coordinates_g)
-        self.hsm_g = self.hsm_g[mask]
-        self.npart = np.sum(mask)
-        if self.npart == 0:
-            raise RuntimeError("No source particles in target region.")
+        if not self.hsm_g.isscalar:
+            self.hsm_g = self.hsm_g[mask]
         return
 
     def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
         """
         Rotate the source.
 
-        The arguments correspond to different rotation types. If supplied
-        together in one function call, they are applied in order: axis_angle,
-        then rotmat, then L_coords.
+        The arguments correspond to different rotation types. Multiple types cannot be
+        given in a single function call.
 
         Parameters
         ----------
         axis_angle : 2-tuple
             First element one of {'x', 'y', 'z'} for the axis to rotate about,
             second element a Quantity with dimensions of angle, indicating the
-            angle to rotate through.
+            angle to rotate through (right-handed rotation).
         rotmat : array_like with shape (3, 3)
             Rotation matrix.
-        L_coords : 2-tuple
-            First element containing an inclination and second element an
+        L_coords : 2-tuple or 3-tuple
+            First element containing an inclination, second element an
             azimuthal angle (both Quantity instances with
             dimensions of angle). The routine will first attempt to identify
             a preferred plane based on the angular momenta of the central 1/3
             of particles in the source. This plane will then be rotated to lie
             in the 'y-z' plane, followed by a rotation by the azimuthal angle
-            about its angular momentum pole (rotation about 'x'), and finally
-            inclined (rotation about 'y').
+            about its angular momentum pole (rotation about 'x'), and then
+            inclined (rotation about 'y'). By default the position angle on the
+            sky is 270 degrees, but if a third element is provided it sets the
+            position angle (rotation about 'z').
         """
+
+        args_given = (axis_angle is not None, rotmat is not None, L_coords is not None)
+        if np.sum(args_given) == 0:
+            # no-op
+            return
+        elif np.sum(args_given) > 1:
+            raise ValueError("Multiple rotations in a single call not allowed.")
 
         do_rot = np.eye(3)
 
         if axis_angle is not None:
-            do_rot = rotation_matrix(axis_angle[1], axis=axis_angle[0]).dot(do_rot)
+            # rotation_matrix gives left-handed rotation, so transpose for right-handed
+            do_rot = rotation_matrix(axis_angle[1], axis=axis_angle[0]).T.dot(do_rot)
 
         if rotmat is not None:
             do_rot = rotmat.dot(do_rot)
 
         if L_coords is not None:
-            incl, az_rot = L_coords
+            if len(L_coords) == 2:
+                incl, az_rot = L_coords
+                pa = 270 * U.deg
+            elif len(L_coords) == 3:
+                incl, az_rot, pa = L_coords
             do_rot = L_align(
                 self.coordinates_g.get_xyz(),
                 self.coordinates_g.differentials["s"].get_d_xyz(),
@@ -229,14 +257,19 @@ class SPHSource(object):
                 frac=0.3,
                 Laxis="x",
             ).dot(do_rot)
-            do_rot = rotation_matrix(az_rot, axis="x").dot(do_rot)
-            do_rot = rotation_matrix(incl, axis="y").dot(do_rot)
+            # rotation_matrix gives left-handed rotation, so transpose for right-handed
+            do_rot = rotation_matrix(az_rot, axis="x").T.dot(do_rot)
+            do_rot = rotation_matrix(incl, axis="y").T.dot(do_rot)
+            if incl >= 0:
+                do_rot = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(do_rot)
+            else:
+                do_rot = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(do_rot)
 
         self.current_rotation = do_rot.dot(self.current_rotation)
         self.coordinates_g = self.coordinates_g.transform(do_rot)
         return
 
-    def translate_position(self, translation_vector):
+    def translate(self, translation_vector):
         """
         Translate the source.
 
@@ -252,7 +285,7 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
         return
 
-    def translate_velocity(self, translation_vector):
+    def boost(self, boost_vector):
         """
         Apply an offset to the source velocity.
 
@@ -267,12 +300,17 @@ class SPHSource(object):
 
         self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
             "s"
-        ].translate(translation_vector)
+        ].translate(boost_vector)
         return
 
     def save_current_rotation(self, fname):
         """
         Output current rotation matrix to file.
+
+        This includes the rotations applied for RA and Dec. The rotation matrix can be
+        applied to astropy coordinates (e.g. a
+        :class:`~astropy.coordinates.CartesianRepresentation`) as
+        `coordinates.transform(np.loadtxt(fname))`.
 
         Parameters
         ----------
