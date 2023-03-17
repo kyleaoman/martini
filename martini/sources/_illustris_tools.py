@@ -1,5 +1,4 @@
 import os
-import six
 import numpy as np
 
 """
@@ -146,6 +145,7 @@ def loadSubset(
     Reproduced from the illustris_python toolkit.
     """
     import h5py
+    import six
 
     result = {}
 
