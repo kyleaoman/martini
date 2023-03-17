@@ -155,7 +155,6 @@ def loadSubset(
 
     # load header from first chunk
     with h5py.File(snapPath(basePath, snapNum), "r") as f:
-
         header = dict(f["Header"].attrs.items())
         nPart = getNumPart(header)
 
