@@ -2,7 +2,7 @@ from . import Martini, DataCube
 from .beams import GaussianBeam
 from .noise import GaussianNoise
 from .spectral_models import GaussianSpectrum
-from .sph_kernels import DiracDeltaKernel
+from .sph_kernels import GaussianKernel
 from .sources import SPHSource
 import astropy.units as U
 import numpy as np
@@ -89,7 +89,7 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
 
     spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
-    sph_kernel = DiracDeltaKernel()
+    sph_kernel = GaussianKernel(truncate=4)
 
     M = Martini(
         source=source,
@@ -105,9 +105,12 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
     M.convolve_beam()
     M.write_beam_fits(beamfile, channels="velocity")
     M.write_fits(cubefile, channels="velocity")
+    print(f"Wrote demo fits output to {cubefile}, and beam image to {beamfile}.")
     try:
         M.write_hdf5(hdf5file, channels="velocity")
     except ModuleNotFoundError:
         print("h5py package not present, skipping hdf5 output demo.")
+    else:
+        print("Wrote demo hdf5 output to {hdf5file}.")
 
     return

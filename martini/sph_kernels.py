@@ -577,7 +577,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
-                "'skip_validation=True', but use this with"
+                "'skip_validation=True', but use this with "
                 "care.".format(self.min_valid_size),
                 sm_lengths,
                 valid,
@@ -924,7 +924,7 @@ class GaussianKernel(_BaseSPHKernel):
                 "accuracy within 1%.\n"
                 "This check may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
-                "'skip_validation=True', but use this with"
+                "'skip_validation=True', but use this with "
                 "care.",
                 sm_lengths,
                 valid,

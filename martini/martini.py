@@ -114,7 +114,7 @@ class Martini:
         from martini.beams import GaussianBeam
         from martini.noise import GaussianNoise
         from martini.spectral_models import GaussianSpectrum
-        from martini.sph_kernels import DiracDeltaKernel
+        from martini.sph_kernels import GaussianKernel
         from martini.sources import SPHSource
         import astropy.units as U
         import numpy as np
@@ -186,7 +186,7 @@ class Martini:
             sigma=7 * U.km * U.s ** -1
         )
 
-        sph_kernel = DiracDeltaKernel()
+        sph_kernel = GaussianKernel(truncate=4)
 
         M = Martini(
             source=source,
@@ -200,9 +200,15 @@ class Martini:
         M.insert_source_in_cube()
         M.add_noise()
         M.convolve_beam()
-        M.write_beam_fits('testbeam.fits', channels='velocity')
-        M.write_fits('testcube.fits', channels='velocity')
-
+        M.write_beam_fits(beamfile, channels="velocity")
+        M.write_fits(cubefile, channels="velocity")
+        print(f"Wrote demo fits output to {cubefile}, and beam image to {beamfile}.")
+        try:
+            M.write_hdf5(hdf5file, channels="velocity")
+        except ModuleNotFoundError:
+            print("h5py package not present, skipping hdf5 output demo.")
+        else:
+            print("Wrote demo hdf5 output to {hdf5file}.")ocity')
     """
 
     def __init__(
