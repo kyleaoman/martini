@@ -41,9 +41,9 @@ class TNGSource(SPHSource):
 
     snapNum : int
         Snapshot number. In TNG, snapshot 99 is the final output. Note that
-        a full snapshot (not a 'mini' snapshot, see
-        http://www.tng-project.org/data/docs/specifications/#sec1a) must be
-        used.
+        if a 'mini' snapshot (see
+        http://www.tng-project.org/data/docs/specifications/#sec1a) is selected then
+        some additional approximations are used.
 
     subID : int
         Subhalo ID of the target object. Note that all particles in the FOF
@@ -97,6 +97,7 @@ class TNGSource(SPHSource):
         snapNum,
         subID,
         api_key=None,
+        cutout_dir=None,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"rotmat": np.eye(3)},
@@ -108,6 +109,25 @@ class TNGSource(SPHSource):
         from Hdecompose.atomic_frac import atomic_frac
 
         X_H = 0.76
+
+        full_fields_g = (
+            "Masses",
+            "Velocities",
+            "InternalEnergy",
+            "ElectronAbundance",
+            "Density",
+            "CeterOfMass",
+            "GFM_Metals",
+        )
+        mdi_full = [None, None, None, None, None, None, 0]
+        mini_fields_g = (
+            "Masses",
+            "Velocities",
+            "InternalEnergy",
+            "ElectronAbundance",
+            "Density",
+            "Coordinates",
+        )
 
         # are we running on the TNG jupyterlab?
         jupyterlab = os.path.exists("/home/tnguser/sims.TNG")
@@ -135,48 +155,61 @@ class TNGSource(SPHSource):
             data_header["HubbleParam"] = sim_header["hubble"]
             data_header["Redshift"] = snap_header["redshift"]
             data_header["Time"] = 1 / (1 + data_header["Redshift"])
+            if cutout_dir is None:
+                have_cutout = False
+                print("No cutout_dir provided, cutout will be downloaded.")
+            else:
+                # check for an existing local cutout file
+                cutout_file_full = os.path.join(
+                    cutout_dir,
+                    f"martini-cutout-{simulation}-{snapNum}-{haloID}-full.hdf5",
+                )
+                cutout_file_mini = os.path.join(
+                    cutout_dir,
+                    f"martini-cutout-{simulation}-{snapNum}-{haloID}-mini.hdf5",
+                )
+                if os.path.exists(cutout_file_full):
+                    minisnap = False
+                    have_cutout = True
+                elif os.path.exists(cutout_file_mini):
+                    minisnap = True
+                    have_cutout = True
+                else:
+                    have_cutout = False
             data_g = dict()
-            cutout_api_path = (
-                f"{simulation}/snapshots/{snapNum}/halos/{haloID}/cutout.hdf5"
-            )
-            fields_g = (
-                "Masses",
-                "Velocities",
-                "InternalEnergy",
-                "ElectronAbundance",
-                "Density",
-            )
-            cutout_request = dict(gas=",".join(fields_g))
-            cutout = api_get(cutout_api_path, params=cutout_request, api_key=api_key)
-            with h5py.File(io.BytesIO(cutout.content), "r") as cutout_file:
-                for field in fields_g:
-                    data_g[field] = cutout_file["PartType0"][field][()]
-            try:
-                cutout_request = dict(gas="CenterOfMass")
-                cutout = api_get(
-                    cutout_api_path, params=cutout_request, api_key=api_key
-                )
-            except HTTPError:
-                cutout_request = dict(gas="Coordinates")
-                cutout = api_get(
-                    cutout_api_path, params=cutout_request, api_key=api_key
-                )
-                coordinate_type = "Coordinates"
+            if have_cutout:
+                cutout_file = cutout_file_mini if minisnap else cutout_file_full
+                print(f"Using local cutout file {cutout_file}")
             else:
-                coordinate_type = "CenterOfMass"
-            with h5py.File(io.BytesIO(cutout.content), "r") as cutout_file:
-                data_g[coordinate_type] = cutout_file["PartType0"][coordinate_type][()]
-            try:
-                cutout_request = dict(gas="GFM_Metals")
-                cutout = api_get(
-                    cutout_api_path, params=cutout_request, api_key=api_key
+                print("No local cutout found, cutout will be downloaded.")
+                cutout_api_path = (
+                    f"{simulation}/snapshots/{snapNum}/halos/{haloID}/cutout.hdf5"
                 )
-            except HTTPError:
-                X_H_g = X_H
-            else:
-                with h5py.File(io.BytesIO(cutout.content), "r") as cutout_file:
-                    data_g["GFM_Metals"] = cutout_file["PartType0"]["GFM_Metals"][:, 0]
-                X_H_g = data_g["GFM_Metals"]
+                cutout_request = dict(gas=",".join(full_fields_g))
+                try:
+                    cutout = api_get(
+                        cutout_api_path, params=cutout_request, api_key=api_key
+                    )
+                except HTTPError:
+                    cutout_request = dict(gas=",".join(mini_fields_g))
+                    cutout = api_get(
+                        cutout_api_path, params=cutout_request, api_key=api_key
+                    )
+                    minisnap = True
+                else:
+                    minisnap = False
+                # hold file in memory
+                cutout_file = io.BytesIO(cutout.content)
+                if cutout_dir is not None:
+                    # write a copy to disk for later use
+                    ofile = cutout_file_mini if minisnap else cutout_file_full
+                    print(f"Writing downloaded cutout to {ofile}")
+                    with open(ofile, "wb") as of:
+                        of.write(cutout.content)
+            fields_g = mini_fields_g if minisnap else full_fields_g
+            with h5py.File(cutout_file, "r") as cf:
+                data_g = {field: cf["PartType0"][field][()] for field in fields_g}
+            X_H_g = X_H if minisnap else data_g["GFM_Metals"][:, 0]
 
         else:
             from ._illustris_tools import (
@@ -190,28 +223,17 @@ class TNGSource(SPHSource):
             data_header = loadHeader(basePath, snapNum)
             data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
             haloID = data_sub["SubhaloGrNr"]
-            fields_g = (
-                "Masses",
-                "Velocities",
-                "InternalEnergy",
-                "ElectronAbundance",
-                "Density",
-            )
             subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
-            data_g = loadSubset(
-                basePath, snapNum, "gas", fields=fields_g, subset=subset_g
-            )
             try:
-                data_g.update(
-                    loadSubset(
-                        basePath,
-                        snapNum,
-                        "gas",
-                        fields=("CenterOfMass",),
-                        subset=subset_g,
-                        sq=False,
-                    )
+                data_g = loadSubset(
+                    basePath,
+                    snapNum,
+                    "gas",
+                    fields=full_fields_g,
+                    subset=subset_g,
+                    mdi=mdi_full,
                 )
+                minisnap = False
             except Exception as exc:
                 if ("Particle type" in exc.args[0]) and (
                     "does not have field" in exc.args[0]
@@ -221,34 +243,18 @@ class TNGSource(SPHSource):
                             basePath,
                             snapNum,
                             "gas",
-                            fields=("Coordinates",),
+                            fields=("CenterOfMass",),
                             subset=subset_g,
                             sq=False,
                         )
                     )
-            else:
-                raise
-            try:
-                data_g.update(
-                    loadSubset(
-                        basePath,
-                        snapNum,
-                        "gas",
-                        fields=("GFM_Metals",),
-                        subset=subset_g,
-                        mdi=(0,),
-                        sq=False,
-                    )
-                )
-            except Exception as exc:
-                if ("Particle type" in exc.args[0]) and (
-                    "does not have field" in exc.args[0]
-                ):
+                    minisnap = True
                     X_H_g = X_H
                 else:
                     raise
-            else:
-                X_H_g = data_g["GFM_Metals"]  # only loaded column 0: Hydrogen
+            X_H_g = (
+                X_H if minisnap else data_g["GFM_Metals"]
+            )  # only loaded column 0: Hydrogen
 
         a = data_header["Time"]
         z = data_header["Redshift"]
