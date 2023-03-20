@@ -54,6 +54,23 @@ class TNGSource(SPHSource):
         found using https://www.tng-project.org/data/search/, for instance. The
         "ID" column in the search results on that page is the subID.
 
+    api_key: str, optional
+        Use of the TNG web API requires an API key: login at
+        https://www.tng-project.org/users/login/ or register at
+        https://www.tng-project.org/users/register/ then obtain your API
+        key from https://www.tng-project.org/users/profile/ and provide as a string. An
+        API key is not required if logged into the TNG JupyterLab. (Default: None.)
+
+    cutout_dir: str, optional
+        Ignored if running on the TNG JupyterLab. Directory in which to search for and
+        save cutout files (see documentation at
+        https://www.tng-project.org/data/docs/api/ for a description of cutouts). Cutout
+        filenames are enforced by MARTINI. If `cutout_dir==None` (the default), then the
+        data will always be downloaded. If a `cutout_dir` is provided, it will first be
+        searched for the required data. If the data are found, the local copy is used,
+        otherwise the data are downloaded and a local copy is saved in `cutout_dir` for
+        future use. (Default: None.)
+
     distance : Quantity, with dimensions of length, optional
         Source distance, also used to set the velocity offset via Hubble's law.
         (Default: 3 Mpc.)
@@ -219,6 +236,8 @@ class TNGSource(SPHSource):
                 getSnapOffsets,
             )
 
+            if cutout_dir is not None:
+                print("Running on TNG JupyterLab, cutout_dir ignored.")
             basePath = f"/home/tnguser/sims.TNG/{simulation}/output/"
             data_header = loadHeader(basePath, snapNum)
             data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
