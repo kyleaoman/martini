@@ -202,19 +202,12 @@ class TNGSource(SPHSource):
                 )
             if not have_cutout:  # not else because previous if can modify have_cutout
                 print("No local cutout found, cutout will be downloaded.")
-                sim_header_api_path = f"{simulation}"
-                snap_header_api_path = f"{simulation}/snapshots/{snapNum}"
                 sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
-                sim_header = api_get(sim_header_api_path, api_key=api_key)
-                snap_header = api_get(snap_header_api_path, api_key=api_key)
                 sub = api_get(sub_api_path, api_key=api_key)
                 haloID = sub["grnr"]
                 np.save(grnr_file, haloID)
                 data_sub["SubhaloPos"] = np.array([sub[f"pos_{ax}"] for ax in "xyz"])
                 data_sub["SubhaloVel"] = np.array([sub[f"vel_{ax}"] for ax in "xyz"])
-                data_header["HubbleParam"] = sim_header["hubble"]
-                data_header["Redshift"] = snap_header["redshift"]
-                data_header["Time"] = 1 / (1 + data_header["Redshift"])
                 cutout_api_path = (
                     f"{simulation}/snapshots/{snapNum}/halos/{haloID}/cutout.hdf5"
                 )
@@ -240,9 +233,6 @@ class TNGSource(SPHSource):
                     with open(ofile, "wb") as of:
                         of.write(cutout.content)
                     with h5py.File(ofile, "r+") as of:
-                        # of.create_group("Header")
-                        # of["Header"].attrs["hubble"] = data_header["HubbleParam"]
-                        # of["Header"].attrs["redshift"] = data_header["Redshift"]
                         of.create_group(f"{subID}")
                         of[f"{subID}"].attrs["pos"] = data_sub["SubhaloPos"]
                         of[f"{subID}"].attrs["vel"] = data_sub["SubhaloVel"]
