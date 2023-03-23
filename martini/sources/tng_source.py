@@ -138,7 +138,7 @@ class TNGSource(SPHSource):
             "InternalEnergy",
             "ElectronAbundance",
             "Density",
-            "CeterOfMass",
+            "CenterOfMass",
             "GFM_Metals",
         )
         mdi_full = [None, None, None, None, None, None, 0]
