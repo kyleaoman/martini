@@ -208,7 +208,7 @@ class Martini:
         except ModuleNotFoundError:
             print("h5py package not present, skipping hdf5 output demo.")
         else:
-            print("Wrote demo hdf5 output to {hdf5file}.")ocity')
+            print(f"Wrote demo hdf5 output to {hdf5file}.")
     """
 
     def __init__(
