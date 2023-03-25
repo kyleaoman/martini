@@ -18,6 +18,10 @@ def api_get(path, params=None, api_key=None):
     return r
 
 
+def cutout_file(simulation, snapNum, haloID):
+    return f"martini-cutout-{simulation}-{snapNum}-{haloID}.hdf5"
+
+
 class TNGSource(SPHSource):
     """
     Class abstracting HI sources for use with IllustrisTNG simulations.
@@ -133,7 +137,7 @@ class TNGSource(SPHSource):
             "InternalEnergy",
             "ElectronAbundance",
             "Density",
-            "CeterOfMass",
+            "CenterOfMass",
             "GFM_Metals",
         )
         mdi_full = [None, None, None, None, None, None, 0]
@@ -149,6 +153,9 @@ class TNGSource(SPHSource):
         # are we running on the TNG jupyterlab?
         jupyterlab = os.path.exists("/home/tnguser/sims.TNG")
         if not jupyterlab:
+            data_header = dict()
+            data_sub = dict()
+            data_g = dict()
             from requests import HTTPError
 
             if api_key is None:
@@ -158,47 +165,37 @@ class TNGSource(SPHSource):
                     "https://www.tng-project.org/users/register/ then obtain your API "
                     "key from https://www.tng-project.org/users/profile/"
                 )
-            data_header = dict()
-            data_sub = dict()
-            sim_header_api_path = f"{simulation}"
-            snap_header_api_path = f"{simulation}/snapshots/{snapNum}"
-            sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
-            sim_header = api_get(sim_header_api_path, api_key=api_key)
-            snap_header = api_get(snap_header_api_path, api_key=api_key)
-            sub = api_get(sub_api_path, api_key=api_key)
-            haloID = sub["grnr"]
-            data_sub["SubhaloPos"] = np.array([sub[f"pos_{ax}"] for ax in "xyz"])
-            data_sub["SubhaloVel"] = np.array([sub[f"vel_{ax}"] for ax in "xyz"])
-            data_header["HubbleParam"] = sim_header["hubble"]
-            data_header["Redshift"] = snap_header["redshift"]
-            data_header["Time"] = 1 / (1 + data_header["Redshift"])
-            if cutout_dir is None:
-                have_cutout = False
-                print("No cutout_dir provided, cutout will be downloaded.")
-            else:
-                # check for an existing local cutout file
-                cutout_file_full = os.path.join(
+            if cutout_dir is not None:
+                grnr_file = os.path.join(
                     cutout_dir,
-                    f"martini-cutout-{simulation}-{snapNum}-{haloID}-full.hdf5",
+                    f"martini-cutout-grnr-{simulation}-{snapNum}-{subID}.npy",
                 )
-                cutout_file_mini = os.path.join(
-                    cutout_dir,
-                    f"martini-cutout-{simulation}-{snapNum}-{haloID}-mini.hdf5",
-                )
-                if os.path.exists(cutout_file_full):
-                    minisnap = False
-                    have_cutout = True
-                elif os.path.exists(cutout_file_mini):
-                    minisnap = True
+                if os.path.exists(grnr_file):
+                    haloID = np.load(grnr_file)
                     have_cutout = True
                 else:
                     have_cutout = False
-            data_g = dict()
-            if have_cutout:
-                cutout_file = cutout_file_mini if minisnap else cutout_file_full
-                print(f"Using local cutout file {cutout_file}")
             else:
+                print("No cutout_dir provided, cutout will be downloaded.")
+                have_cutout = False
+            if have_cutout:
+                # check for an existing local cutout file
+                if not os.path.exists(
+                    os.path.join(cutout_dir, cutout_file(simulation, snapNum, haloID))
+                ):
+                    have_cutout = False
+                cfname = os.path.join(
+                    cutout_dir, cutout_file(simulation, snapNum, haloID)
+                )
+                print(f"Using local cutout file {os.path.basename(cfname)}")
+            if not have_cutout:  # not else because previous if can modify have_cutout
                 print("No local cutout found, cutout will be downloaded.")
+                sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
+                sub = api_get(sub_api_path, api_key=api_key)
+                haloID = sub["grnr"]
+                np.save(grnr_file, haloID)
+                data_sub["SubhaloPos"] = np.array([sub[f"pos_{ax}"] for ax in "xyz"])
+                data_sub["SubhaloVel"] = np.array([sub[f"vel_{ax}"] for ax in "xyz"])
                 cutout_api_path = (
                     f"{simulation}/snapshots/{snapNum}/halos/{haloID}/cutout.hdf5"
                 )
@@ -212,20 +209,29 @@ class TNGSource(SPHSource):
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
-                    minisnap = True
-                else:
-                    minisnap = False
                 # hold file in memory
-                cutout_file = io.BytesIO(cutout.content)
+                cfname = io.BytesIO(cutout.content)
                 if cutout_dir is not None:
                     # write a copy to disk for later use
-                    ofile = cutout_file_mini if minisnap else cutout_file_full
+                    ofile = cutout_file(simulation, snapNum, haloID)
                     print(f"Writing downloaded cutout to {ofile}")
                     with open(ofile, "wb") as of:
                         of.write(cutout.content)
-            fields_g = mini_fields_g if minisnap else full_fields_g
-            with h5py.File(cutout_file, "r") as cf:
+                    with h5py.File(ofile, "r+") as of:
+                        of.create_group(f"{subID}")
+                        of[f"{subID}"].attrs["pos"] = data_sub["SubhaloPos"]
+                        of[f"{subID}"].attrs["vel"] = data_sub["SubhaloVel"]
+            with h5py.File(cfname, "r") as cf:
+                minisnap = "CenterOfMass" not in cf["PartType0"].keys()
+                fields_g = mini_fields_g if minisnap else full_fields_g
                 data_g = {field: cf["PartType0"][field][()] for field in fields_g}
+                if len(data_header) == 0:
+                    data_header["HubbleParam"] = cf["Header"].attrs["HubbleParam"]
+                    data_header["Redshift"] = cf["Header"].attrs["Redshift"]
+                    data_header["Time"] = cf["Header"].attrs["Time"]
+                if len(data_sub) == 0:
+                    data_sub["SubhaloPos"] = cf[f"{subID}"].attrs["pos"]
+                    data_sub["SubhaloVel"] = cf[f"{subID}"].attrs["vel"]
             X_H_g = X_H if minisnap else data_g["GFM_Metals"][:, 0]
 
         else:

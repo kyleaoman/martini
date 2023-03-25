@@ -111,6 +111,6 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
     except ModuleNotFoundError:
         print("h5py package not present, skipping hdf5 output demo.")
     else:
-        print("Wrote demo hdf5 output to {hdf5file}.")
+        print(f"Wrote demo hdf5 output to {hdf5file}.")
 
     return
