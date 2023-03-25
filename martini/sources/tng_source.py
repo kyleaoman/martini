@@ -18,9 +18,8 @@ def api_get(path, params=None, api_key=None):
     return r
 
 
-def cutout_file(simulation, snapNum, haloID, mini=False):
-    ms = "mini" if mini else "full"
-    return f"martini-cutout-{ms}-{simulation}-{snapNum}-{haloID}.hdf5"
+def cutout_file(simulation, snapNum, haloID):
+    return f"martini-cutout-{simulation}-{snapNum}-{haloID}.hdf5"
 
 
 class TNGSource(SPHSource):
@@ -181,25 +180,14 @@ class TNGSource(SPHSource):
                 have_cutout = False
             if have_cutout:
                 # check for an existing local cutout file
-                if os.path.exists(
+                if not os.path.exists(
                     os.path.join(cutout_dir, cutout_file(simulation, snapNum, haloID))
                 ):
-                    minisnap = False
-                elif os.path.exists(
-                    os.path.join(
-                        cutout_dir, cutout_file(simulation, snapNum, haloID, mini=True)
-                    )
-                ):
-                    minisnap = True
-                else:
                     have_cutout = False
                 cfname = os.path.join(
-                    cutout_dir, cutout_file(simulation, snapNum, haloID, mini=minisnap)
+                    cutout_dir, cutout_file(simulation, snapNum, haloID)
                 )
-                print(
-                    f"Using local cutout file "
-                    f"{cutout_file(simulation, snapNum, haloID, mini=minisnap)}"
-                )
+                print(f"Using local cutout file {os.path.basename(cfname)}")
             if not have_cutout:  # not else because previous if can modify have_cutout
                 print("No local cutout found, cutout will be downloaded.")
                 sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
@@ -221,14 +209,11 @@ class TNGSource(SPHSource):
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
-                    minisnap = True
-                else:
-                    minisnap = False
                 # hold file in memory
                 cfname = io.BytesIO(cutout.content)
                 if cutout_dir is not None:
                     # write a copy to disk for later use
-                    ofile = cutout_file(simulation, snapNum, haloID, mini=minisnap)
+                    ofile = cutout_file(simulation, snapNum, haloID)
                     print(f"Writing downloaded cutout to {ofile}")
                     with open(ofile, "wb") as of:
                         of.write(cutout.content)
@@ -236,8 +221,9 @@ class TNGSource(SPHSource):
                         of.create_group(f"{subID}")
                         of[f"{subID}"].attrs["pos"] = data_sub["SubhaloPos"]
                         of[f"{subID}"].attrs["vel"] = data_sub["SubhaloVel"]
-            fields_g = mini_fields_g if minisnap else full_fields_g
             with h5py.File(cfname, "r") as cf:
+                minisnap = "CenterOfMass" not in cf["PartType0"].keys()
+                fields_g = mini_fields_g if minisnap else full_fields_g
                 data_g = {field: cf["PartType0"][field][()] for field in fields_g}
                 if len(data_header) == 0:
                     data_header["HubbleParam"] = cf["Header"].attrs["HubbleParam"]
