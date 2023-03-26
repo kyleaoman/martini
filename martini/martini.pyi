@@ -15,7 +15,7 @@ class Martini:
     noise: _BaseNoise
     sph_kernel: _BaseSPHKernel
     spectral_model: _BaseSpectrum
-    logtag: str
+    quiet: bool
 
     def __init__(
         self,
@@ -25,7 +25,7 @@ class Martini:
         noise: T.Optional[_BaseNoise] = ...,
         sph_kernel: T.Optional[_BaseSPHKernel] = ...,
         spectral_model: T.Optional[_BaseSpectrum] = ...,
-        logtag: str = ...,
+        quiet: T.Optional[bool] = ...,
     ) -> None: ...
     def convolve_beam(self) -> None: ...
     def add_noise(self) -> None: ...
