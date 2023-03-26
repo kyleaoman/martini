@@ -75,14 +75,12 @@ Installation Notes
 
 MARTINI works with ``python3`` (version ``3.7`` or higher), and does not support ``python2``.
 
-Stable releases are available via PyPI_ (``pip install astromartini``) and the numbered branches on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github or kyle.a.oman@durham.ac.uk.
+Stable releases are available via PyPI_ (``pip install astromartini``) and the numbered releases (starting from 2.0.0) on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github or kyle.a.oman@durham.ac.uk.
 
 .. _PyPI: https://pypi.org/
 .. _kyle.a.oman@durham.ac.uk: mailto:kyle.a.oman@durham.ac.uk
 
-The easiest way to install martini is from PyPI by doing ``python3 -m pip install astromartini``. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. Other optional features require additional dependencies hosted on github, and PyPI does not allow installing these automatically. In particular, EAGLE and Illustris/TNG users who wish to use the custom source modules for those simulations in MARTINI must install from github (see below) to automatically install the optional dependencies. Or, it is also possible to install from PyPI and then manually install the optional dependencies.
-
-Installation by doing ``python setup.py install`` is *not* recommended.
+The easiest way to install martini is from PyPI by doing ``python3 -m pip install astromartini``. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. Other optional features require additional dependencies hosted on PyPI. In particular, EAGLE, Illustris/TNG and Simba users who wish to use the custom source modules for those simulations in MARTINI can automatically install the optional dependencies with ``python3 -m pip install astromartini[eaglesource]``, or ``[simbasource]`` or ``[tngsource]``.
 
 .. INSTALLATION_NOTES_END_LABEL
 
@@ -91,7 +89,7 @@ Installing from github
 
 .. GITHUB_INSTALLATION_NOTES_START_LABEL
 
-Choose a branch_. The numbered branches (e.g. 1.0.X) are stable, while the main branch is actively developed. The latest numbered branch is usually the best choice. From the branch page (e.g. ``https://github.com/kyleaoman/martini/tree/1.0.X``), click the green 'Code' button and follow instructions to obtain the files. Unpack the zip file if necessary. You should then be able to do ``python3 -m pip install martini/[optional]``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``setup.py`` file for MARTINI. The currently available options are:
+Choose a branch_. Unless you want to install the latest (possibly buggy) main branch, installing with PyPI should usually be preferred. From the branch page (e.g. ``https://github.com/kyleaoman/martini/tree/2.0.X``), click the green 'Code' button and follow instructions to obtain the files. Unpack the zip file if necessary. You should then be able to do ``python3 -m pip install martini/[optional]``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``setup.py`` file for MARTINI. The currently available options are:
 
 - ``hdf5_output``: Supports output to hdf5 files via the h5py package. Since h5py is hosted on PyPI, this option may be used when installing via PyPI.
 - ``eaglesource``: Dependencies for the |martini.sources.EAGLESource| module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions. Also installs `my python-only version`_ of John Helly's `read_eagle`_ package for quick extraction of particles in a simulation sub-volume. h5py is also required.
