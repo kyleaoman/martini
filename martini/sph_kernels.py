@@ -768,7 +768,7 @@ class GaussianKernel(_BaseSPHKernel):
     ----------
     truncate : float, optional
         Number of standard deviations at which to truncate kernel (default=3).
-        Truncation radii <2 may lead to large errors and are not recommended.
+        Truncation radii <2 would lead to large errors and are not permitted.
     """
 
     def __init__(self, truncate=3.0):
