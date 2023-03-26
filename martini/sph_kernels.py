@@ -3,7 +3,6 @@ import numpy as np
 import astropy.units as U
 from scipy.special import erf
 from scipy.optimize import fsolve
-from warnings import warn
 
 
 def find_fwhm(f):
@@ -80,15 +79,11 @@ class _BaseSPHKernel(object):
             If True, suppress reports on smoothing lengths (default: False).
         """
 
-        return self.validate(
-            self.sm_lengths * self._rescale, noraise=noraise, quiet=quiet
-        )
+        return self.validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
     def _validate_error(self, msg, sm_lengths, valid, noraise=False, quiet=False):
         if not quiet:
-            print(
-                "    ---------{:s} VALIDATION---------".format(self.__class__.__name__)
-            )
+            print(f"    ---------{self.__class__.__name__} VALIDATION---------")
             print("    Median smoothing length: ", np.median(sm_lengths), "px")
             print("    Minimum smoothing length: ", np.min(sm_lengths), "px")
             print("    Maximum smoothing length: ", np.max(sm_lengths), "px")
@@ -352,18 +347,17 @@ class WendlandC2Kernel(_BaseSPHKernel):
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
-
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.WendlandC2Kernel.validate:\n"
-                "SPH smoothing lengths must be >= {:f} px in "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC2 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
-                "care.\n".format(self.min_valid_size),
+                "care.\n",
                 sm_lengths,
                 valid,
                 noraise=noraise,
@@ -572,13 +566,13 @@ class WendlandC6Kernel(_BaseSPHKernel):
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.WendlandC6Kernel.validate:\n"
-                "SPH smoothing lengths must be >= {:f} px in "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC6 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
-                "care.".format(self.min_valid_size),
+                "care.",
                 sm_lengths,
                 valid,
                 noraise=noraise,
@@ -733,13 +727,13 @@ class CubicSplineKernel(_BaseSPHKernel):
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.CubicSplineKernel.validate:\n"
-                "SPH smoothing lengths must be >= {:f} px in "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for CubicSplineKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
-                "care.".format(self.min_valid_size),
+                "care.",
                 sm_lengths,
                 valid,
                 noraise=noraise,
@@ -777,34 +771,23 @@ class GaussianKernel(_BaseSPHKernel):
         Truncation radii <2 may lead to large errors and are not recommended.
     """
 
-    no6sigwarn = False
-
     def __init__(self, truncate=3.0):
         self.truncate = truncate
-        if self.truncate < 1:
+        if self.truncate < 2:
             raise RuntimeError(
-                "GaussianKernel with truncation <1sigma will "
+                "GaussianKernel with truncation <2sigma will "
                 "cause large errors in total mass."
             )
-        elif (self.truncate >= 1) and (self.truncate < 2):
-            self.lims = (0, 13)
         elif (self.truncate >= 2) and (self.truncate < 3):
-            self.lims = (0, 4)
+            self.min_valid_size = 3.7
         elif (self.truncate >= 3) and (self.truncate < 4):
-            self.lims = (0, 2)
+            self.min_valid_size = 2.3357
         elif (self.truncate >= 4) and (self.truncate < 5):
-            self.lims = (0.4, 0.9)
+            self.min_valid_size = 1.1288
         elif (self.truncate >= 5) and (self.truncate < 6):
-            self.lims = (0.4, 0.5)
+            self.min_valid_size = 0.45
         elif self.truncate >= 6:
-            self.lims = None
-            if not self.no6sigwarn:
-                warn(
-                    "GaussianKernel with truncation >=6sigma may "
-                    "unnecessarily slow down computation. (This warning can "
-                    "be disabled by setting GaussianKernel.no6sigwarn=True "
-                    "before initialization.)"
-                )
+            self.min_valid_size = 0.336
 
         self.norm = erf(self.truncate / np.sqrt(2)) - 2 * self.truncate / np.sqrt(
             2 * np.pi
@@ -908,24 +891,17 @@ class GaussianKernel(_BaseSPHKernel):
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
-
-        if self.lims is None:
-            valid = np.ones(sm_lengths.shape, dtype=bool)
-        else:
-            valid = np.logical_or(
-                sm_lengths <= self.lims[0] * U.pix, sm_lengths >= self.lims[1] * U.pix
-            )
+        valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.GaussianKernel.validate:\n"
-                "SPH smoothing lengths must not be in interval "
-                "[{0:.1f}, {1:.1f}] px ".format(*self.lims)
-                + "for Gaussian kernel integral approximation "
-                "accuracy within 1%.\n"
-                "This check may be disabled by calling "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
+                "size for GaussianKernel kernel integral "
+                "approximation accuracy within 1%.\nThis check "
+                "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
-                "care.",
+                "care. Note that the minimum size depends on the kernel truncation.",
                 sm_lengths,
                 valid,
                 noraise=noraise,
@@ -1028,12 +1004,12 @@ class DiracDeltaKernel(_BaseSPHKernel):
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.DiracDeltaKernel.validate:\n"
-                "provided smoothing scale (FWHM) must be <= {:f} "
+                f"provided smoothing scale (FWHM) must be <= {self.max_valid_size:f} "
                 "px in size for DiracDelta kernel to be a "
                 "reasonable approximation. Call "
                 "Martini.Martini.insert_source_in_cube with "
-                "'skip_validation=True' to override, at the "
-                "cost of accuracy.".format(self.max_valid_size),
+                "'skip_validation=True' to override at the "
+                "cost of accuracy, but use this with care.",
                 sm_lengths,
                 valid,
                 noraise=noraise,
@@ -1343,13 +1319,13 @@ class QuarticSplineKernel(_BaseSPHKernel):
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.QuarticSplineKernel.validate:\n"
-                "SPH smoothing lengths must be >= {:f} px in "
+                "SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for QuarticSplineKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
-                "care.".format(self.min_valid_size),
+                "care.",
                 sm_lengths,
                 valid,
                 noraise=noraise,
