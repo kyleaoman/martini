@@ -2,8 +2,8 @@
 
 |Build status| |Documentation status|
 
-.. |Build status| image:: https://github.com/kyleaoman/martini/actions/workflows/black_pytest.yml/badge.svg
-    :target: https://github.com/kyleaoman/martini/actions/workflows/black_pytest.yml
+.. |Build status| image:: https://github.com/kyleaoman/martini/actions/workflows/code_quality.yml/badge.svg
+    :target: https://github.com/kyleaoman/martini/actions/workflows/code_quality.yml
     :alt: Build Status
 .. |Documentation status| image:: https://readthedocs.org/projects/martini/badge/?version=latest
     :target: https://martini.readthedocs.io/en/latest/?badge=latest
