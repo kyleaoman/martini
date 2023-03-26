@@ -140,6 +140,7 @@ class SPHSource(object):
         self.h = h
         self.T_g = T_g
         self.mHI_g = mHI_g
+        self.input_mass = mHI_g.sum()
         self.coordinates_g = CartesianRepresentation(
             xyz_g,
             xyz_axis=1,

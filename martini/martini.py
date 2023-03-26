@@ -5,8 +5,8 @@ from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
 from astropy.io import fits
+from astropy.time import Time
 from astropy import __version__ as astropy_version
-from datetime import datetime
 from itertools import product
 from .__version__ import __version__ as martini_version
 from warnings import warn
@@ -89,8 +89,8 @@ class Martini:
         temperature-dependent Gaussian line models are provided; implementing
         other models is straightforward. See sub-module documentation.
 
-    logtag : string
-        String to prepend to standard output messages.
+    quiet : bool
+        If True, suppress output to stdout. (Default: False)
 
     See Also
     --------
@@ -110,83 +110,69 @@ class Martini:
     crude model of a gas disk. This example can be run by doing
     'from martini import demo; demo()'::
 
-        from martini import Martini, DataCube
-        from martini.beams import GaussianBeam
-        from martini.noise import GaussianNoise
-        from martini.spectral_models import GaussianSpectrum
-        from martini.sph_kernels import GaussianKernel
-        from martini.sources import SPHSource
-        import astropy.units as U
-        import numpy as np
-
         # ------make a toy galaxy----------
-        N = 1000
+        N = 500
         phi = np.random.rand(N) * 2 * np.pi
         r = []
         for L in np.random.rand(N):
+
             def f(r):
-                return L - .5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
-            r.append(fsolve(f, 1.)[0])
+                return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
+
+            r.append(fsolve(f, 1.0)[0])
         r = np.array(r)
         # exponential disk
         r *= 3 / np.sort(r)[N // 2]
         z = -np.log(np.random.rand(N))
         # exponential scale height
-        z *= .5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - .5)
+        z *= 0.5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - 0.5)
         x = r * np.cos(phi)
         y = r * np.sin(phi)
         xyz_g = np.vstack((x, y, z)) * U.kpc
         # linear rotation curve
-        vphi = 100 * r / 6.
+        vphi = 100 * r / 6.0
         vx = -vphi * np.sin(phi)
         vy = vphi * np.cos(phi)
         # small pure random z velocities
-        vz = (np.random.rand(N) * 2. - 1.) * 5
-        vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s ** -1
-        T_g = np.ones(N) * 8E3 * U.K
-        mHI_g = np.ones(N) / N * 5.E9 * U.Msun
+        vz = (np.random.rand(N) * 2.0 - 1.0) * 5
+        vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
+        T_g = np.ones(N) * 8e3 * U.K
+        mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
         # ~mean interparticle spacing smoothing
-        hsm_g = np.ones(N) * 2 / np.sqrt(N) * U.kpc
+        hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
         # ---------------------------------
 
         source = SPHSource(
-            distance=5. * U.Mpc,
-            rotation={'L_coords': (60. * U.deg, 0. * U.deg)},
-            ra=0. * U.deg,
-            dec=0. * U.deg,
-            h=.7,
+            distance=3.0 * U.Mpc,
+            rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+            ra=0.0 * U.deg,
+            dec=0.0 * U.deg,
+            h=0.7,
             T_g=T_g,
             mHI_g=mHI_g,
             xyz_g=xyz_g,
             vxyz_g=vxyz_g,
-            hsm_g=hsm_g
+            hsm_g=hsm_g,
         )
 
         datacube = DataCube(
             n_px_x=128,
             n_px_y=128,
             n_channels=32,
-            px_size=10. * U.arcsec,
-            channel_width=10. * U.km * U.s ** -1,
-            velocity_centre=source.vsys
+            px_size=10.0 * U.arcsec,
+            channel_width=10.0 * U.km * U.s**-1,
+            velocity_centre=source.vsys,
         )
 
         beam = GaussianBeam(
-            bmaj=30. * U.arcsec,
-            bmin=30. * U.arcsec,
-            bpa=0. * U.deg,
-            truncate = 4.
+            bmaj=30.0 * U.arcsec, bmin=30.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
         )
 
-        noise = GaussianNoise(
-            rms=3.E-4 * U.Jy * U.arcsec ** -2
-        )
+        noise = GaussianNoise(rms=3.0e-4 * U.Jy * U.arcsec**-2)
 
-        spectral_model = GaussianSpectrum(
-            sigma=7 * U.km * U.s ** -1
-        )
+        spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
-        sph_kernel = GaussianKernel(truncate=4)
+        sph_kernel = CubicSplineKernel()
 
         M = Martini(
             source=source,
@@ -194,7 +180,7 @@ class Martini:
             beam=beam,
             noise=noise,
             spectral_model=spectral_model,
-            sph_kernel=sph_kernel
+            sph_kernel=sph_kernel,
         )
 
         M.insert_source_in_cube()
@@ -219,8 +205,9 @@ class Martini:
         noise=None,
         sph_kernel=None,
         spectral_model=None,
-        logtag="",
+        quiet=False,
     ):
+        self.quiet = quiet
         if source is not None:
             self.source = source
         else:
@@ -231,6 +218,21 @@ class Martini:
             raise ValueError("A datacube instance is required.")
         self.beam = beam
         self.noise = noise
+        if self.noise is not None:
+            if not self.quiet:
+                sig_maj = (
+                    self.beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / self.datacube.px_size
+                ).to_value(U.dimensionless_unscaled)
+                sig_min = (
+                    self.beam.bmin / 2 / np.sqrt(2 * np.log(2)) / self.datacube.px_size
+                ).to_value(U.dimensionless_unscaled)
+                post_conv_noise_est = (
+                    self.noise.rms / 2 / np.sqrt(np.pi * sig_maj * sig_min)
+                ).to(U.Jy / U.beam, equivalencies=[self.beam.arcsec_to_beam])
+                print(
+                    "Approximate cube RMS expected after convolution: "
+                    f"{post_conv_noise_est:.2e}"
+                )
         if sph_kernel is not None:
             self.sph_kernel = sph_kernel
         else:
@@ -239,7 +241,6 @@ class Martini:
             self.spectral_model = spectral_model
         else:
             raise ValueError("A spectral model instance is required.")
-        self.logtag = logtag
 
         if self.beam is not None:
             self.beam.init_kernel(self.datacube)
@@ -272,6 +273,16 @@ class Martini:
         self.datacube._array = self.datacube._array.to(
             U.Jy * U.beam**-1, equivalencies=[self.beam.arcsec_to_beam]
         )
+        if not self.quiet:
+            print(
+                "Beam convolved.",
+                "  Data cube RMS after beam convolution:"
+                f" {np.std(self.datacube._array):.2e}",
+                f"  Maximum pixel: {self.datacube._array.max():.2e}",
+                "  Median non-zero pixel:"
+                f" {np.median(self.datacube._array[self.datacube._array > 0]):.2e}",
+                sep="\n",
+            )
         return
 
     def add_noise(self):
@@ -283,9 +294,18 @@ class Martini:
             warn("Skipping noise, no noise object provided to Martini.")
             return
 
-        self.datacube._array = self.datacube._array + self.noise.generate(
-            self.datacube
-        ).to(self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix])
+        noise_cube = self.noise.generate(self.datacube).to(
+            self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix]
+        )
+        self.datacube._array = self.datacube._array + noise_cube
+        if not self.quiet:
+            print(
+                "Noise added.",
+                f"  Noise cube RMS: {np.std(noise_cube):.2e}",
+                "  Data cube RMS after noise addition: "
+                f"{np.std(self.datacube._array):.2e}",
+                sep="\n",
+            )
         return
 
     def _prune_particles(self):
@@ -296,6 +316,11 @@ class Martini:
         SPH smoothing length).
         """
 
+        if not self.quiet:
+            print(
+                f"Source module contained {self.source.npart} particles with total HI"
+                f" mass of {self.source.mHI_g.sum():.2e}."
+            )
         particle_coords = _gen_particle_coords(self.source, self.datacube)
         spectrum_half_width = (
             self.spectral_model.half_width(self.source) / self.datacube.channel_width
@@ -318,6 +343,12 @@ class Martini:
         self.source.apply_mask(np.logical_not(reject_mask))
         # most kernels ignore this line, but required by AdaptiveKernel
         self.sph_kernel.apply_mask(np.logical_not(reject_mask))
+        if not self.quiet:
+            print(
+                f"Pruned particles that will not contribute to data cube, "
+                f"{self.source.npart} particles remaining with total HI mass of "
+                f"{self.source.mHI_g.sum():.2e}."
+            )
         return
 
     def insert_source_in_cube(self, skip_validation=False, progressbar=True):
@@ -341,7 +372,7 @@ class Martini:
         assert self.spectral_model.spectra is not None
 
         particle_coords = _gen_particle_coords(self.source, self.datacube)
-        self.sph_kernel.confirm_validation(noraise=skip_validation)
+        self.sph_kernel.confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
         # pixel iteration
         ij_pxs = list(
@@ -350,7 +381,14 @@ class Martini:
                 np.arange(self.datacube._array.shape[1]),
             )
         )
+        if not self.quiet:
+            print("Inserting source in cube.")
         if progressbar:
+            if self.quiet:
+                print(
+                    "To silence progress bar, set"
+                    " insert_source_in_cube(progressbar=False)"
+                )
             ij_pxs = tqdm.tqdm(ij_pxs)
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
@@ -367,6 +405,38 @@ class Martini:
         self.datacube._array = self.datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
         )
+        pad_mask = (
+            np.s_[
+                self.datacube.padx : -self.datacube.padx,
+                self.datacube.pady : -self.datacube.pady,
+                ...,
+            ]
+            if self.datacube.padx > 0 and self.datacube.pady > 0
+            else np.s_[...]
+        )
+        inserted_flux = (
+            self.datacube._array[pad_mask].sum() * self.datacube.px_size**2
+        )
+        inserted_mass = (
+            2.36e5
+            * U.Msun
+            * self.source.distance.to_value(U.Mpc) ** 2
+            * inserted_flux.to_value(U.Jy)
+            * self.datacube.channel_width.to_value(U.km / U.s)
+        )
+        if not self.quiet:
+            print(
+                "Source inserted.",
+                f"  Flux in cube: {inserted_flux:.2e}",
+                f"  Mass in cube (assuming distance {self.source.distance:.2f}):"
+                f" {inserted_mass:.2e}",
+                f"    [{inserted_mass / self.source.input_mass * 100:.0f}%"
+                f" of initial source mass]",
+                f"  Maximum pixel: {self.datacube._array.max():.2e}",
+                "  Median non-zero pixel:"
+                f" {np.median(self.datacube._array[self.datacube._array > 0]):.2e}",
+                sep="\n",
+            )
         return
 
     def write_fits(
@@ -462,7 +532,7 @@ class Martini:
         header.append(("BUNIT", datacube_array_units.to_string("fits")))
         # header.append(('PCDEC', ???))
         # header.append(('LSTART', ???))
-        header.append(("MJD-OBS", datetime.utcnow().isoformat()[:-5]))
+        header.append(("MJD-OBS", Time.now().to_value("mjd")))
         # header.append(('LTYPE', ???))
         # header.append(('PCRA', ???))
         # header.append(('CELLSCAL', ???))
@@ -686,7 +756,7 @@ class Martini:
             c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
             c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
             c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
-        c.attrs["DateCreated"] = datetime.utcnow().isoformat()[:-5]
+        c.attrs["DateCreated"] = str(Time.now())
         c.attrs["MartiniVersion"] = martini_version
         c.attrs["AstropyVersion"] = astropy_version
         if self.beam is not None:
@@ -717,7 +787,7 @@ class Martini:
             b.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
             b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
             b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
-            b.attrs["DateCreated"] = datetime.utcnow().isoformat()[:-5]
+            b.attrs["DateCreated"] = str(Time.now())
             b.attrs["MartiniVersion"] = martini_version
             b.attrs["AstropyVersion"] = astropy_version
 
