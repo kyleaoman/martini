@@ -2,7 +2,7 @@ from . import Martini, DataCube
 from .beams import GaussianBeam
 from .noise import GaussianNoise
 from .spectral_models import GaussianSpectrum
-from .sph_kernels import GaussianKernel
+from .sph_kernels import CubicSplineKernel
 from .sources import SPHSource
 import astropy.units as U
 import numpy as np
@@ -28,7 +28,7 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
     """
 
     # ------make a toy galaxy----------
-    N = 1000
+    N = 500
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
@@ -56,11 +56,11 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
     T_g = np.ones(N) * 8e3 * U.K
     mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
     # ~mean interparticle spacing smoothing
-    hsm_g = np.ones(N) * 2 / np.sqrt(N) * U.kpc
+    hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
     # ---------------------------------
 
     source = SPHSource(
-        distance=5.0 * U.Mpc,
+        distance=3.0 * U.Mpc,
         rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
@@ -89,7 +89,7 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
 
     spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
-    sph_kernel = GaussianKernel(truncate=4)
+    sph_kernel = CubicSplineKernel()
 
     M = Martini(
         source=source,
