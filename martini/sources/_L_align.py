@@ -9,17 +9,14 @@ import astropy.units as U
 
 
 def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
-
     transposed = False
     if xyz.ndim != 2:
         raise ValueError(
-            "L_align: cannot guess coordinate axis for input with"
-            " ndim != 2."
+            "L_align: cannot guess coordinate axis for input with" " ndim != 2."
         )
     elif (xyz.shape[0] == 3) and (xyz.shape[1] == 3):
         raise ValueError(
-            "L_align: cannot guess coordinate axis for input with"
-            " shape (3, 3)."
+            "L_align: cannot guess coordinate axis for input with" " shape (3, 3)."
         )
     elif xyz.shape[1] == 3:
         xyz = xyz.T
@@ -47,7 +44,12 @@ def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
     Ltot = np.sqrt(np.sum(np.power(np.sum(L, axis=1), 2)))
     Lhat = np.sum(L, axis=1) / Ltot
     zhat = Lhat / np.sqrt(np.sum(np.power(Lhat, 2)))  # normalized
-    xaxis = np.array([1.0, 1.0, 1.0])  # default unlikely Laxis
+    xaxis = np.array([1.0, 1.0, 1.0]) / np.sqrt(3)  # default unlikely Laxis
+    if (zhat == xaxis).all():
+        raise RuntimeError(
+            "Angular momentum exactly aligned with arbitrarily chosen vector, L_align"
+            " failed."
+        )
     xhat = xaxis - xaxis.dot(zhat) * zhat
     xhat = xhat / np.sqrt(np.sum(np.power(xhat, 2)))  # normalized
     yhat = np.cross(zhat, xhat)  # guarantees right-handedness

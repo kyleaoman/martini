@@ -1,13 +1,7 @@
 from abc import ABCMeta, abstractmethod
+import scipy.interpolate
 import numpy as np
 import astropy.units as U
-from astropy.io import fits
-from astropy import wcs
-from scipy.interpolate import RectBivariateSpline
-import warnings
-import os.path
-
-f_HI = 1.420405751 * U.GHz
 
 
 class _BaseBeam(object):
@@ -49,7 +43,10 @@ class _BaseBeam(object):
     __metaclass__ = ABCMeta
 
     def __init__(
-        self, bmaj=15.0 * U.arcsec, bmin=15.0 * U.arcsec, bpa=0.0 * U.deg
+        self,
+        bmaj=15.0 * U.arcsec,
+        bmin=15.0 * U.arcsec,
+        bpa=0.0 * U.deg,
     ):
         # some beams need information from the datacube; in this case make
         # their call to _BaseBeam.__init__ with bmaj == bmin == bpa == None
@@ -60,6 +57,16 @@ class _BaseBeam(object):
         self.bpa = bpa
         self.px_size = None
         self.kernel = None
+
+        # since bmaj, bmin are FWHM, need to include conversion to
+        # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
+        # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
+        self.arcsec_to_beam = (
+            U.Jy * U.arcsec**-2,
+            U.Jy * U.beam**-1,
+            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
+            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
+        )
 
         return
 
@@ -73,6 +80,8 @@ class _BaseBeam(object):
         out : 2-tuple, each element an integer
         """
 
+        if self.kernel is None:
+            raise RuntimeError("Beam kernel not initialized.")
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
 
     def init_kernel(self, datacube):
@@ -93,17 +102,38 @@ class _BaseBeam(object):
         if (self.bmaj is None) or (self.bmin is None) or (self.bpa is None):
             self.init_beam_header()
         npx_x, npx_y = self.kernel_size_px()
-        px_centres_x = (np.arange(-npx_x, npx_x + 1)) * self.px_size
-        px_centres_y = (np.arange(-npx_y, npx_y + 1)) * self.px_size
-        self.kernel = self.f_kernel()(*np.meshgrid(px_centres_x, px_centres_y))
-        # since bmaj, bmin are FWHM, need to include conversion to
-        # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
-        # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
-        self.arcsec_to_beam = (
-            U.Jy * U.arcsec**-2,
-            U.Jy * U.beam**-1,
-            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
-            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
+        if self.px_size is not None:
+            px_size_unit = self.px_size.unit
+        else:
+            raise RuntimeError("Beam pixel size not initialized.")
+        px_edges_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 1) * self.px_size
+        px_edges_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 1) * self.px_size
+        # Elliptical Gaussian has no analytic surface integral in cartesian coordinates
+        # and other beam shapes presumably much worse, so let's make a spline interpolator
+        # based on a fine sampling of the beam function and integrate that.
+        fine_sample_x = np.arange(-npx_x - 0.5, npx_x + 0.501, 0.1) * self.px_size
+        fine_sample_y = np.arange(-npx_y - 0.5, npx_y + 0.501, 0.1) * self.px_size
+        # set meshgrid indexing to avoid unintentional transpose
+        rbs = scipy.interpolate.RectBivariateSpline(
+            fine_sample_x.to_value(px_size_unit),
+            fine_sample_y.to_value(px_size_unit),
+            self.f_kernel()(
+                *np.meshgrid(fine_sample_x, fine_sample_y, indexing="ij")
+            ).to_value(px_size_unit**-2),
+            kx=3,
+            ky=3,
+        )
+        # rbs.integral only evaluates a point at a time, resort to np.vectorize
+        xgrid, ygrid = np.meshgrid(
+            px_edges_x.to_value(px_size_unit), px_edges_y.to_value(px_size_unit)
+        )
+        # f_kernel is in px_size_unit ** -2, xgrid and ygrid are in px_size_unit so 2D
+        # integral is dimensionless:
+        self.kernel = (
+            np.vectorize(rbs.integral)(
+                xgrid[1:, :-1], xgrid[1:, 1:], ygrid[:-1, 1:], ygrid[1:, 1:]
+            )
+            * U.dimensionless_unscaled
         )
 
         # can turn 2D beam into a 3D beam here; use above for central channel
@@ -179,7 +209,9 @@ class GaussianBeam(_BaseBeam):
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return
 
-    def f_kernel(self):
+    def f_kernel(
+        self,
+    ):
         """
         Returns a function defining the beam amplitude as a function of
         position.
@@ -197,24 +229,20 @@ class GaussianBeam(_BaseBeam):
         def fwhm_to_sigma(fwhm):
             return fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
 
-        sigmamaj = fwhm_to_sigma(self.bmaj)
-        sigmamin = fwhm_to_sigma(self.bmin)
+        sigmamaj = fwhm_to_sigma(self.bmaj)  # arcsec
+        sigmamin = fwhm_to_sigma(self.bmin)  # arcsec
 
-        a = np.power(np.cos(self.bpa), 2) / (
-            2.0 * np.power(sigmamin, 2)
-        ) + np.power(np.sin(self.bpa), 2) / (2.0 * np.power(sigmamaj, 2))
+        a = np.power(np.cos(self.bpa), 2) / (2.0 * np.power(sigmamin, 2)) + np.power(
+            np.sin(self.bpa), 2
+        ) / (2.0 * np.power(sigmamaj, 2))
         # signs set for CCW rotation (PA)
         b = -np.sin(2.0 * self.bpa) / (4 * np.power(sigmamin, 2)) + np.sin(
             2.0 * self.bpa
         ) / (4 * np.power(sigmamaj, 2))
-        c = np.power(np.sin(self.bpa), 2) / (
-            2.0 * np.power(sigmamin, 2)
-        ) + np.power(np.cos(self.bpa), 2) / (2.0 * np.power(sigmamaj, 2))
-        A = np.power(2.0 * np.pi * sigmamin * sigmamaj, -1)
-        A *= np.power(self.px_size, 2).value
-        # above causes an extra factor of pixel area, need to track this down
-        # properly an see whether correction should apply to all beams, or
-        # somewhere else?
+        c = np.power(np.sin(self.bpa), 2) / (2.0 * np.power(sigmamin, 2)) + np.power(
+            np.cos(self.bpa), 2
+        ) / (2.0 * np.power(sigmamaj, 2))
+        A = np.power(2.0 * np.pi * sigmamin * sigmamaj, -1)  # arcsec^-2
 
         return lambda x, y: A * np.exp(
             -a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2)
@@ -229,167 +257,11 @@ class GaussianBeam(_BaseBeam):
         -------
         out : 2-tuple, each element an integer.
         """
-
-        size = (
-            np.ceil(
-                (self.bmaj * self.truncate).to(
-                    U.pix, U.pixel_scale(self.px_size / U.pix)
-                )
-            ).value
+        size = np.ceil(
+            (self.bmaj * self.truncate).to_value(
+                U.pix, U.pixel_scale(self.px_size / U.pix)
+            )
             + 1
         )
+
         return size, size
-
-
-class WSRTBeam(_BaseBeam):
-    """
-    Class implementing a beam model for the Westerbork Synthesis Radio
-    Telescope.
-
-    The beam is adapted from an actual image from the telescope. The image is
-    scaled for frequency and declination then interpolated to the required
-    resolution. Note that the image is for the "classic" WSRT, not APERTIF.
-
-    The input image is located at:
-    '<martini directory>/data/beam00_freq02.fits'
-    """
-
-    beamfile = os.path.join(
-        os.path.dirname(__file__), "data/beam00_freq02.fits"
-    )
-
-    def __init__(self):
-        super().__init__(bmaj=None, bmin=None, bpa=None)
-
-    def _load_beamfile(self):
-        """
-        Open the input image.
-
-        Returns
-        -------
-        out : 2-tuple containing an astropy.io.fits.Header and a Quantity.
-        """
-        with fits.open(self.beamfile) as f:
-            return (
-                f[0].header,
-                np.transpose(f[0].data, axes=(1, 2, 0)) * U.Jy / U.beam,
-            )
-
-    def _centroid(self):
-        """
-        Determine the centre in RA, Dec and frequency of the input image.
-
-        Returns
-        -------
-        out : 3-tuple containing: three astropy.units.Quantity objects with
-        dimensions of angle, angle and frequency, respectively, corresponding
-        to the RA, Dec and frequency centres.
-        """
-
-        bheader, bdata = self._load_beamfile()
-        c = wcs.WCS(header=bheader)
-        RAgrid, Decgrid, freqgrid = c.wcs_pix2world(
-            *np.meshgrid(*tuple([np.arange(N) for N in bdata.shape])), 0
-        )
-        RAgrid *= U.deg
-        Decgrid *= U.deg
-        freqgrid *= U.Hz
-        return tuple(
-            [
-                A[tuple(np.array(bdata.shape) // 2)]
-                for A in (RAgrid, Decgrid, freqgrid)
-            ]
-        )
-
-    def init_beam_header(self):
-        """
-        Set beam major/minor axis lengths and position angle to WSRT values.
-        """
-
-        self.bmaj = 15.0 * U.arcsec / np.sin(self.dec)
-        self.bmin = 15.0 * U.arcsec
-        self.bpa = 90.0 * U.deg
-        return
-
-    def f_kernel(self):
-        """
-        Returns a function defining the beam amplitude as a function of
-        position.
-
-        The model implemented is based on an interpolation of an image of the
-        WSRT beam, re-scaled according to declination and frequency.
-
-        Returns
-        -------
-        out : callable
-            Accepts 2 arguments (both array_like) and return an
-            array_like of corresponding size.
-        """
-
-        if self.dec <= 0.0 * U.deg:
-            raise ValueError("WSRT beam requires positive declination.")
-        freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
-        bheader, bdata = self._load_beamfile()
-        centroid = self._centroid()
-        bpx_ra = np.abs(bheader["CDELT1"] * U.deg).to(U.arcsec)
-        bpx_dec = np.abs(bheader["CDELT2"] * U.deg).to(U.arcsec)
-        dRAs = (
-            np.arange(-(bdata.shape[0] // 2), bdata.shape[0] // 2 + 1)
-            * bpx_ra
-            * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        )
-        dDecs = (
-            np.arange(-(bdata.shape[1] // 2), bdata.shape[1] // 2 + 1)
-            * bpx_dec
-            * np.sin(self.dec)
-            / np.sin(centroid[1])
-            * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        )
-        interpolator = RectBivariateSpline(
-            dRAs, dDecs, bdata[..., 0], kx=1, ky=1, s=0
-        )
-        # RectBivariateSpline is a wrapper around Fortran code and causes a
-        # transpose
-        return lambda x, y: interpolator(y, x, grid=False).T
-
-    def kernel_size_px(self):
-        """
-        Returns a 2-tuple specifying the half-size of the beam image to be
-        initialized, in pixels.
-
-        The interpolation may become unstable if the image is severely
-        undersampled, pixel sizes of more than 8 arcsec are not recommended.
-
-        Returns
-        -------
-        out : 2-tuple, each element an integer.
-        """
-
-        if self.px_size > 12.0 * U.arcsec:
-            warnings.warn(
-                "Using WSRT beam with datacube pixel size >> 8 arcsec,"
-                " beam interpolation may fail."
-            )
-        freq = self.vel.to(U.GHz, equivalencies=U.doppler_radio(f_HI))
-        bheader, bdata = self._load_beamfile()
-        centroid = self._centroid()
-        aspect_x, aspect_y = (
-            np.floor(bdata.shape[0] // 2 * np.sin(self.dec)),
-            bdata.shape[1] // 2,
-        )
-        aspect_x = (
-            aspect_x
-            * np.abs((bheader["CDELT1"] * U.deg)).to(U.arcsec)
-            * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        )
-        aspect_y = (
-            aspect_y
-            * (bheader["CDELT2"] * U.deg).to(U.arcsec)
-            * (centroid[2] / freq).to(U.dimensionless_unscaled)
-        )
-        return tuple(
-            [
-                (a.to(U.pix, U.pixel_scale(self.px_size / U.pix))).value + 1
-                for a in (aspect_x, aspect_y)
-            ]
-        )

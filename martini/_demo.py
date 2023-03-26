@@ -2,18 +2,14 @@ from . import Martini, DataCube
 from .beams import GaussianBeam
 from .noise import GaussianNoise
 from .spectral_models import GaussianSpectrum
-from .sph_kernels import DiracDeltaKernel
+from .sph_kernels import CubicSplineKernel
 from .sources import SPHSource
 import astropy.units as U
 import numpy as np
 from scipy.optimize import fsolve
 
 
-def demo(
-    cubefile="testcube.fits",
-    beamfile="testbeam.fits",
-    hdf5file="testcube.hdf5",
-):
+def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"):
     """
     Demonstrates basic usage of MARTINI.
 
@@ -32,7 +28,7 @@ def demo(
     """
 
     # ------make a toy galaxy----------
-    N = 1000
+    N = 500
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
@@ -60,11 +56,11 @@ def demo(
     T_g = np.ones(N) * 8e3 * U.K
     mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
     # ~mean interparticle spacing smoothing
-    hsm_g = np.ones(N) * 2 / np.sqrt(N) * U.kpc
+    hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
     # ---------------------------------
 
     source = SPHSource(
-        distance=5.0 * U.Mpc,
+        distance=3.0 * U.Mpc,
         rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
@@ -86,17 +82,14 @@ def demo(
     )
 
     beam = GaussianBeam(
-        bmaj=30.0 * U.arcsec,
-        bmin=30.0 * U.arcsec,
-        bpa=0.0 * U.deg,
-        truncate=4.0,
+        bmaj=30.0 * U.arcsec, bmin=30.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
     )
 
     noise = GaussianNoise(rms=3.0e-4 * U.Jy * U.arcsec**-2)
 
     spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
-    sph_kernel = DiracDeltaKernel()
+    sph_kernel = CubicSplineKernel()
 
     M = Martini(
         source=source,
@@ -112,9 +105,12 @@ def demo(
     M.convolve_beam()
     M.write_beam_fits(beamfile, channels="velocity")
     M.write_fits(cubefile, channels="velocity")
+    print(f"Wrote demo fits output to {cubefile}, and beam image to {beamfile}.")
     try:
         M.write_hdf5(hdf5file, channels="velocity")
     except ModuleNotFoundError:
         print("h5py package not present, skipping hdf5 output demo.")
+    else:
+        print(f"Wrote demo hdf5 output to {hdf5file}.")
 
     return

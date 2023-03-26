@@ -57,10 +57,9 @@ class EAGLESource(SPHSource):
         (Default: 0 km/s.)
 
     rotation : dict, optional
-        Keys may be any combination of `axis_angle`, `rotmat` and/or
-        `L_coords`. These will be applied in this order. Note that the 'y-z'
-        plane will be the one eventually placed in the plane of the "sky". The
-        corresponding values:
+        Must have a single key, which must be one of `axis_angle`, `rotmat` or
+        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        plane of the "sky". The corresponding value must be:
 
         - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
         axis to rotate about, second element a Quantity with \
@@ -77,7 +76,7 @@ class EAGLESource(SPHSource):
         value specifies the position angle on the sky (rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: rotmat with the identity rotation.)
+        (Default: identity rotation matrix.)
 
     ra : Quantity, with dimensions of angle, optional
         Right ascension for the source centroid. (Default: 0 deg.)
@@ -101,12 +100,11 @@ class EAGLESource(SPHSource):
         subBoxSize=50.0 * U.kpc,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
-        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         print_query=False,
     ):
-
         if snapPath is None:
             raise ValueError("Provide snapPath argument to EAGLESource.")
         if snapBase is None:
@@ -160,9 +158,7 @@ class EAGLESource(SPHSource):
             subBoxSize = (subBoxSize * h / a).to(U.Mpc).value
             centre = (cop * h / a).to(U.Mpc).value
             eagle_data = EagleSnapshot(snapFile)
-            region = np.vstack(
-                (centre - subBoxSize, centre + subBoxSize)
-            ).T.flatten()
+            region = np.vstack((centre - subBoxSize, centre + subBoxSize)).T.flatten()
             eagle_data.select_region(*region)
             lbox = f["/Header"].attrs["BoxSize"] * U.Mpc / h
             fH = f["/RuntimePars"].attrs["InitAbundance_Hydrogen"]
@@ -182,9 +178,7 @@ class EAGLESource(SPHSource):
 
             code_to_g = f["/Units"].attrs["UnitMass_in_g"] * U.g
             code_to_cm = f["/Units"].attrs["UnitLength_in_cm"] * U.cm
-            code_to_cm_s = (
-                f["/Units"].attrs["UnitVelocity_in_cm_per_s"] * U.cm / U.s
-            )
+            code_to_cm_s = f["/Units"].attrs["UnitVelocity_in_cm_per_s"] * U.cm / U.s
             ng_g = fetch("GroupNumber")
             particles = dict(
                 xyz_g=(fetch("Coordinates") * code_to_cm).to(U.kpc),
@@ -213,7 +207,7 @@ class EAGLESource(SPHSource):
                 T0=T0,
             )
             * code_to_g
-        ).to(U.solMass)
+        ).to(U.Msun)
 
         mask = ng_g == fof
         for k, v in particles.items():
@@ -231,6 +225,6 @@ class EAGLESource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
-            **particles
+            **particles,
         )
         return

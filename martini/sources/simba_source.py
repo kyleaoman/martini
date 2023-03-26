@@ -45,10 +45,9 @@ class SimbaSource(SPHSource):
         (Default: 0 km/s.)
 
     rotation : dict, optional
-        Keys may be any combination of `axis_angle`, `rotmat` and/or
-        `L_coords`. These will be applied in this order. Note that the 'y-z'
-        plane will be the one eventually placed in the plane of the "sky". The
-        corresponding values:
+        Must have a single key, which must be one of `axis_angle`, `rotmat` or
+        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        plane of the "sky". The corresponding value must be:
 
         - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
         axis to rotate about, second element a Quantity with \
@@ -65,7 +64,7 @@ class SimbaSource(SPHSource):
         value specifies the position angle on the sky (rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: rotmat with the identity rotation.)
+        (Default: identity rotation matrix.)
 
     ra : Quantity, with dimensions of angle, optional
         Right ascension for the source centroid. (Default: 0 deg.)
@@ -85,11 +84,10 @@ class SimbaSource(SPHSource):
         aperture=50.0 * U.kpc,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
-        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
     ):
-
         if snapPath is None:
             raise ValueError("Provide snapPath argument to SimbaSource.")
         if snapName is None:
@@ -134,12 +132,7 @@ class SimbaSource(SPHSource):
                 / h
                 * U.kpc
                 * find_fwhm(CubicSplineKernel().kernel),
-                mHI_g=gas["Masses"][()]
-                * fH
-                * gas["GrackleHI"][()]
-                * 1e10
-                / h
-                * U.Msun,
+                mHI_g=gas["Masses"][()] * fH * gas["GrackleHI"][()] * 1e10 / h * U.Msun,
             )
             del fH, fHe, xe
 
@@ -148,18 +141,16 @@ class SimbaSource(SPHSource):
             gmask = groupID == groupIDs
             # no h^-1 on minpotpos, not sure about comoving yet
             cop = f["galaxy_data/minpotpos"][()][gmask][0] * a * U.kpc
-            vcent = (
-                f["galaxy_data/vel"][()][gmask][0] * np.sqrt(a) * U.km / U.s
-            )
+            vcent = f["galaxy_data/vel"][()][gmask][0] * np.sqrt(a) * U.km / U.s
 
         particles["xyz_g"] -= cop
         particles["xyz_g"][particles["xyz_g"] > lbox / 2.0] -= lbox
         particles["xyz_g"][particles["xyz_g"] < -lbox / 2.0] += lbox
         particles["vxyz_g"] -= vcent
 
-        mask = np.zeros(particles["xyz_g"].shape[0], dtype=np.bool)
+        mask = np.zeros(particles["xyz_g"].shape[0], dtype=bool)
         outer_cube = (np.abs(particles["xyz_g"]) < aperture).all(axis=1)
-        inner_cube = np.zeros(particles["xyz_g"].shape[0], dtype=np.bool)
+        inner_cube = np.zeros(particles["xyz_g"].shape[0], dtype=bool)
         inner_cube[outer_cube] = (
             np.abs(particles["xyz_g"][outer_cube]) < aperture / np.sqrt(3)
         ).all(axis=1)
@@ -179,6 +170,6 @@ class SimbaSource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
-            **particles
+            **particles,
         )
         return

@@ -19,15 +19,28 @@ class _BaseNoise(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self):
+    def __init__(self, seed=None):
+        self.seed = seed
+        self.rng = np.random.default_rng(seed=seed)
         return
 
     @abstractmethod
     def generate(self, datacube):
         """
         Abstract method; create a cube containing noise.
+
+        Any random number generation should use the self.rng generator.
         """
         pass
+
+    def reset_rng(self):
+        """
+        Reset the random number generator to its initial state.
+
+        If the seed is None (the default value), this has no effect.
+        """
+        self.rng = np.random.default_rng(seed=self.seed)
+        return
 
 
 class GaussianNoise(_BaseNoise):
@@ -38,15 +51,22 @@ class GaussianNoise(_BaseNoise):
 
     Parameters
     ----------
-    rms : Quantity, with dimensions of flux density (e.g. Jy)
+    rms : Quantity, with dimensions of flux density per solid angle
         Root mean square amplitude of the noise field.
+
+    seed : int or None
+        Seed for random number generator. If None, results will be unpredictable,
+        if an integer is given results will be repeatable. (Default: None)
     """
 
-    def __init__(self, rms=1.0 * U.Jy):
-
+    def __init__(
+        self,
+        rms=1.0 * U.Jy * U.arcsec**-2,
+        seed=None,
+    ):
         self.rms = rms
 
-        super().__init__()
+        super().__init__(seed=seed)
 
         return
 
@@ -69,8 +89,10 @@ class GaussianNoise(_BaseNoise):
         out : Quantity, with dimensions of flux density
             Noise realization with size matching the DataCube._array.
         """
-
+        rms_unit = self.rms.unit
         return (
-            np.random.normal(scale=self.rms.value, size=datacube._array.shape)
-            * self.rms.unit
+            self.rng.normal(
+                scale=self.rms.to_value(rms_unit), size=datacube._array.shape
+            )
+            * rms_unit
         )

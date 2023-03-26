@@ -3,7 +3,6 @@ import numpy as np
 import astropy.units as U
 from scipy.special import erf
 from scipy.optimize import fsolve
-from warnings import warn
 
 
 def find_fwhm(f):
@@ -32,23 +31,9 @@ class _BaseSPHKernel(object):
     """
 
     __metaclass__ = ABCMeta
-    noFWHMwarn = False
 
     def __init__(self):
         self._rescale = 1
-        if not self.noFWHMwarn:
-            warn(
-                "The definition of the smoothing length has changed since"
-                " earlier versions. Now all kernel modules expect the"
-                " smoothing lengths provided (via the source module) to be"
-                " the FWHM of the kernel. This is to avoid ambiguity in the"
-                " definition. Users of simulation-specific sources"
-                " (TNGSource, EAGLESource, ...) do not need to worry about"
-                " this change: the sources have been updated accordingly."
-                " (This warning can be disabled by setting"
-                " `K.noFWHMwarn = True`, where K is the kernel class, before"
-                " initialization.)"
-            )
         return
 
     def px_weight(self, dij, mask=None):
@@ -68,11 +53,14 @@ class _BaseSPHKernel(object):
         out : Quantity, with dimensions of pixels^-2
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
-        try:
-            rescale = self._rescale[mask]
-        except TypeError:
-            rescale = self._rescale
-        rescaled_h = self.sm_lengths[mask] * rescale
+        if mask is not None:
+            try:
+                rescale = self._rescale[mask]
+            except (TypeError, IndexError):
+                rescale = self._rescale
+            rescaled_h = self.sm_lengths[mask] * rescale
+        else:
+            rescaled_h = self.sm_lengths * self._rescale
         return self.kernel_integral(dij, rescaled_h, mask=mask)
 
     def confirm_validation(self, noraise=False, quiet=False):
@@ -91,19 +79,11 @@ class _BaseSPHKernel(object):
             If True, suppress reports on smoothing lengths (default: False).
         """
 
-        return self.validate(
-            self.sm_lengths * self._rescale, noraise=noraise, quiet=quiet
-        )
+        return self.validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
-    def _validate_error(
-        self, msg, sm_lengths, valid, noraise=False, quiet=False
-    ):
+    def _validate_error(self, msg, sm_lengths, valid, noraise=False, quiet=False):
         if not quiet:
-            print(
-                "    ---------{:s} VALIDATION---------".format(
-                    self.__class__.__name__
-                )
-            )
+            print(f"    ---------{self.__class__.__name__} VALIDATION---------")
             print("    Median smoothing length: ", np.median(sm_lengths), "px")
             print("    Minimum smoothing length: ", np.min(sm_lengths), "px")
             print("    Maximum smoothing length: ", np.max(sm_lengths), "px")
@@ -119,8 +99,7 @@ class _BaseSPHKernel(object):
                 "smoothing lengths fail validation.",
             )
             print(
-                "    -----------------------------"
-                + "-" * len(self.__class__.__name__)
+                "    -----------------------------" + "-" * len(self.__class__.__name__)
             )
         if not noraise:
             raise RuntimeError(msg)
@@ -145,7 +124,7 @@ class _BaseSPHKernel(object):
 
         q = np.array(r / h / self._rescale)
         if isinstance(q, U.Quantity):
-            q = q.to(U.dimensionless_unscaled).value
+            q = q.to_value(U.dimensionless_unscaled)
         scalar_input = q.ndim == 0
         W = self.kernel(q)
         W /= np.power(self._rescale, 3)
@@ -180,9 +159,9 @@ class _BaseSPHKernel(object):
         datacube : martini.DataCube instance
             The datacube providing the pixel scale.
         """
-        self.sm_lengths = np.arctan(
-            source.hsm_g / source.sky_coordinates.distance
-        ).to(U.pix, U.pixel_scale(datacube.px_size / U.pix))
+        self.sm_lengths = np.arctan(source.hsm_g / source.sky_coordinates.distance).to(
+            U.pix, U.pixel_scale(datacube.px_size / U.pix)
+        )
 
         return
 
@@ -190,9 +169,7 @@ class _BaseSPHKernel(object):
         """
         Determine maximum number of pixels reached by kernel.
         """
-        self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm).astype(
-            int
-        )
+        self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm).astype(int)
 
         return
 
@@ -214,13 +191,9 @@ class _BaseSPHKernel(object):
         pass
 
     @abstractmethod
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Abstract method; calculate the kernel integral over a pixel.
-
-        Should also accept **kwargs, as a mask (which is generally not
-        needed for the calculation, but used in the AdaptiveKernel) will
-        also be passed.
 
         Parameters
         ----------
@@ -228,6 +201,8 @@ class _BaseSPHKernel(object):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -254,6 +229,9 @@ class _BaseSPHKernel(object):
         ----------
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
+
+        noraise: bool
+            If True, suppress exceptions.
 
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
@@ -282,6 +260,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
         \\end{cases}
 
     """
+
+    min_valid_size = 1.51
 
     def __init__(self):
         super().__init__()
@@ -315,19 +295,17 @@ class WendlandC2Kernel(_BaseSPHKernel):
             Kernel value at positions q.
         """
 
-        W = np.where(
-            q < 1, np.power(1 - q, 4) * (4 * q + 1), np.zeros(q.shape)
-        )
+        W = np.where(q < 1, np.power(1 - q, 4) * (4 * q + 1), np.zeros(q.shape))
         W *= 21 / 2 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
         The formula used approximates the kernel amplitude as constant
         across the pixel area and converges to the true value within 1%
-        for smoothing lengths >= 2 pixels.
+        for smoothing lengths >= 1.51 pixels.
 
         Parameters
         ----------
@@ -335,6 +313,8 @@ class WendlandC2Kernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -367,12 +347,11 @@ class WendlandC2Kernel(_BaseSPHKernel):
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
-
-        valid = sm_lengths >= 1.51 * U.pix
+        valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.WendlandC2Kernel.validate:\n"
-                "SPH smoothing lengths must be >= 1.51 px in "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC2 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
@@ -408,6 +387,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
         \\end{cases}
 
     """
+
+    min_valid_size = 1.29
 
     def __init__(self):
         super().__init__()
@@ -449,9 +430,13 @@ class WendlandC6Kernel(_BaseSPHKernel):
         W *= 1365 / 64 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
-        Calculate the kernel integral over a pixel. Not currently implemented.
+        Calculate the kernel integral over a pixel.
+
+        The formula used approximates the kernel amplitude as constant
+        across the pixel area and converges to the true value within 1%
+        for smoothing lengths >= 1.29 pixels.
 
         Parameters
         ----------
@@ -459,6 +444,8 @@ class WendlandC6Kernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -467,9 +454,6 @@ class WendlandC6Kernel(_BaseSPHKernel):
         """
 
         def indef(R, z):
-            # integral(1 - sqrt(R^2 + z^2))^8 \
-            # (1 + 8 sqrt(R^2 + z^2) + 25 (R^2 + z^2) \
-            # + 32 (R^2 + z^2)^1.5) dz =
             return (
                 -231 * np.power(R, 10) * z
                 - 385 * np.power(R, 8) * np.power(z, 3)
@@ -485,24 +469,17 @@ class WendlandC6Kernel(_BaseSPHKernel):
                 - 660 * np.power(R, 2) * np.power(z, 7)
                 - 277.2 * np.power(R, 2) * np.power(z, 5)
                 + 44 * np.power(R, 2) * np.power(z, 3)
-                + 8
-                / 3
-                * np.power(z, 11)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 8 / 3 * np.power(z, 11) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
                 + (16 + 4 / 15)
                 * np.power(R, 2)
                 * np.power(z, 9)
                 * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 70.4
-                * np.power(z, 9)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 70.4 * np.power(z, 9) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
                 + 360.8
                 * np.power(R, 2)
                 * np.power(z, 7)
                 * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 132
-                * np.power(z, 7)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+                + 132 * np.power(z, 7) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
                 + 550
                 * np.power(R, 2)
                 * np.power(z, 5)
@@ -585,16 +562,16 @@ class WendlandC6Kernel(_BaseSPHKernel):
             If True, suppress reports on smoothing lengths (default: False).
         """
 
-        valid = sm_lengths >= 1.29 * U.pix
+        valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.WendlandC6Kernel.validate:\n"
-                " SPH smoothing lengths must be >= 1.29 px in "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC6 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
-                "'skip_validation=True', but use this with"
+                "'skip_validation=True', but use this with "
                 "care.",
                 sm_lengths,
                 valid,
@@ -627,6 +604,8 @@ class CubicSplineKernel(_BaseSPHKernel):
         \\end{cases}
 
     """
+
+    min_valid_size = 1.16
 
     def __init__(self):
         super().__init__()
@@ -663,21 +642,19 @@ class CubicSplineKernel(_BaseSPHKernel):
         """
 
         W = np.where(
-            q < 0.5,
-            1 - 6 * np.power(q, 2) + 6 * np.power(q, 3),
-            2 * np.power(1 - q, 3),
+            q < 0.5, 1 - 6 * np.power(q, 2) + 6 * np.power(q, 3), 2 * np.power(1 - q, 3)
         )
         W[q > 1] = 0
         W *= 8 / np.pi
         return W
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
         The formula used approximates the kernel amplitude as constant across
         the pixel area and converges to the true value within 1% for smoothing
-        lengths >= 2.5 pixels.
+        lengths >= 1.16 pixels.
 
         Parameters
         ----------
@@ -685,6 +662,8 @@ class CubicSplineKernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths, in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -710,19 +689,11 @@ class CubicSplineKernel(_BaseSPHKernel):
             - 0.5 * np.power(A_1, 3)
             - 1.5 * R2_1 * A_1
             + 3.0 / 32.0 * A_1 * (3 * R2_1 + 2)
-            + 9.0
-            / 32.0
-            * R2_1
-            * R2_1
-            * (np.log(1 + A_1) - np.log(np.sqrt(R2_1)))
+            + 9.0 / 32.0 * R2_1 * R2_1 * (np.log(1 + A_1) - np.log(np.sqrt(R2_1)))
         )
         I2 = (
             -B_2 * (3 * R2_2 + 56) / 4.0
-            - 3.0
-            / 8.0
-            * R2_2
-            * (R2_2 + 16)
-            * np.log((2 + B_2) / np.sqrt(R2_2))
+            - 3.0 / 8.0 * R2_2 * (R2_2 + 16) * np.log((2 + B_2) / np.sqrt(R2_2))
             + 2 * (3 * R2_2 + 4) * B_2
             + 2 * np.power(B_2, 3)
         )
@@ -752,11 +723,11 @@ class CubicSplineKernel(_BaseSPHKernel):
             If True, suppress reports on smoothing lengths (default: False).
         """
 
-        valid = sm_lengths >= 1.16 * U.pix
+        valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.CubicSplineKernel.validate:\n"
-                "SPH smoothing lengths must be >= 1.16 px in "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for CubicSplineKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
@@ -797,18 +768,30 @@ class GaussianKernel(_BaseSPHKernel):
     ----------
     truncate : float, optional
         Number of standard deviations at which to truncate kernel (default=3).
-        Truncation radii <2 may lead to large errors and are not recommended.
+        Truncation radii <2 would lead to large errors and are not permitted.
     """
 
-    no6sigwarn = False
-
-    def __init__(self, truncate=3):
+    def __init__(self, truncate=3.0):
         self.truncate = truncate
-        self.norm = erf(
-            self.truncate / np.sqrt(2)
-        ) - 2 * self.truncate / np.sqrt(2 * np.pi) * np.exp(
-            -np.power(self.truncate, 2) / 2
-        )
+        if self.truncate < 2:
+            raise RuntimeError(
+                "GaussianKernel with truncation <2sigma will "
+                "cause large errors in total mass."
+            )
+        elif (self.truncate >= 2) and (self.truncate < 3):
+            self.min_valid_size = 3.7
+        elif (self.truncate >= 3) and (self.truncate < 4):
+            self.min_valid_size = 2.3357
+        elif (self.truncate >= 4) and (self.truncate < 5):
+            self.min_valid_size = 1.1288
+        elif (self.truncate >= 5) and (self.truncate < 6):
+            self.min_valid_size = 0.45
+        elif self.truncate >= 6:
+            self.min_valid_size = 0.336
+
+        self.norm = erf(self.truncate / np.sqrt(2)) - 2 * self.truncate / np.sqrt(
+            2 * np.pi
+        ) * np.exp(-np.power(self.truncate, 2) / 2)
         super().__init__()
         self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
         return
@@ -852,7 +835,7 @@ class GaussianKernel(_BaseSPHKernel):
             / self.norm
         )
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
@@ -866,6 +849,8 @@ class GaussianKernel(_BaseSPHKernel):
             Distances from pixel centre to particle positions, in pixels.
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -874,21 +859,16 @@ class GaussianKernel(_BaseSPHKernel):
         """
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
-        zmax = np.where(
-            self.truncate > dr / h / sig,
-            np.sqrt(np.power(self.truncate, 2) - np.power(dr / h / sig, 2)),
-            0,
-        )
+        with np.errstate(invalid="ignore"):
+            zmax = np.sqrt(np.power(self.truncate, 2) - np.power(dr / h / sig, 2))
+        zmax = np.where(self.truncate > dr / h / sig, zmax, 0)
         x0 = (dij[0] - 0.5 * U.pix) / h / np.sqrt(2) / sig
         x1 = (dij[0] + 0.5 * U.pix) / h / np.sqrt(2) / sig
         y0 = (dij[1] - 0.5 * U.pix) / h / np.sqrt(2) / sig
         y1 = (dij[1] + 0.5 * U.pix) / h / np.sqrt(2) / sig
 
         retval = (
-            0.25
-            * erf(zmax / np.sqrt(2))
-            * (erf(x1) - erf(x0))
-            * (erf(y1) - erf(y0))
+            0.25 * erf(zmax / np.sqrt(2)) * (erf(x1) - erf(x0)) * (erf(y1) - erf(y0))
         )
 
         # explicit truncation not required as only pixels inside
@@ -911,48 +891,17 @@ class GaussianKernel(_BaseSPHKernel):
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
-
-        if self.truncate < 1:
-            raise RuntimeError(
-                "GaussianKernel with truncation <1sigma will "
-                "cause large errors in total mass."
-            )
-        elif (self.truncate >= 1) and (self.truncate < 2):
-            lims = (0, 20)
-        elif (self.truncate >= 2) and (self.truncate < 3):
-            lims = (0, 7)
-        elif (self.truncate >= 3) and (self.truncate < 4):
-            lims = (0, 3)
-        elif (self.truncate >= 4) and (self.truncate < 5):
-            lims = (0.4, 1)
-        elif (self.truncate >= 5) and (self.truncate < 6):
-            lims = (0.4, 0.5)
-        elif self.truncate >= 6:
-            lims = None
-            if not self.no6sigwarn:
-                warn(
-                    "GaussianKernel with truncation >=6sigma may "
-                    "unnecessarily slow down computation. (This warning can "
-                    "be disabled by setting GaussianKernel.no6sigwarn=True "
-                    "before initialization.)"
-                )
-        if lims is None:
-            valid = np.ones(sm_lengths.shape, dtype=np.bool)
-        else:
-            valid = np.logical_or(
-                sm_lengths <= lims[0] * U.pix, sm_lengths >= lims[1] * U.pix
-            )
+        valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.GaussianKernel.validate:\n"
-                "SPH smoothing lengths must not be in interval "
-                "[{0:.1f}, {1:.1f}] px ".format(*lims)
-                + "for Gaussian kernel integral approximation "
-                "accuracy within 1%.\n"
-                "This check may be disabled by calling "
+                f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
+                "size for GaussianKernel kernel integral "
+                "approximation accuracy within 1%.\nThis check "
+                "may be disabled by calling "
                 "Martini.Martini.insert_source_in_cube with "
-                "'skip_validation=True', but use this with"
-                "care.",
+                "'skip_validation=True', but use this with "
+                "care. Note that the minimum size depends on the kernel truncation.",
                 sm_lengths,
                 valid,
                 noraise=noraise,
@@ -974,6 +923,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
         \\end{cases}
 
     """
+
+    max_valid_size = 0.5
 
     def __init__(self):
         super().__init__()
@@ -1009,7 +960,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         return np.where(q, np.inf * np.ones(q.shape), np.zeros(q.shape))
 
-    def kernel_integral(self, dij, h, **kwargs):
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
         Calculate the kernel integral over a pixel.
 
@@ -1030,10 +981,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
             Kernel integral over the pixel area.
         """
 
-        return (
-            np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0)
-            * U.pix**-2
-        )
+        return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
 
     def validate(self, sm_lengths, noraise=False, quiet=False):
         """
@@ -1052,16 +1000,16 @@ class DiracDeltaKernel(_BaseSPHKernel):
             If True, suppress reports on smoothing lengths (default: False).
         """
 
-        valid = sm_lengths <= 0.5 * U.pix
+        valid = sm_lengths <= self.max_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
                 "Martini.sph_kernels.DiracDeltaKernel.validate:\n"
-                "provided smoothing scale (FWHM) must be <= .5 "
+                f"provided smoothing scale (FWHM) must be <= {self.max_valid_size:f} "
                 "px in size for DiracDelta kernel to be a "
                 "reasonable approximation. Call "
                 "Martini.Martini.insert_source_in_cube with "
-                "'skip_validation=True' to override, at the "
-                "cost of accuracy.",
+                "'skip_validation=True' to override at the "
+                "cost of accuracy, but use this with care.",
                 sm_lengths,
                 valid,
                 noraise=noraise,
@@ -1123,15 +1071,13 @@ class AdaptiveKernel(_BaseSPHKernel):
         """
 
         super()._init_sm_lengths(source=source, datacube=datacube)
-        self.kernel_indices = -1 * np.ones(source.hsm_g.shape, dtype=np.int)
+        self.kernel_indices = -1 * np.ones(source.hsm_g.shape, dtype=int)
         for ik, K in enumerate(self.kernels):
             # if valid and not already assigned an earlier kernel, assign
             self.kernel_indices[
                 np.logical_and(
                     self.kernel_indices == -1,
-                    K.validate(
-                        self.sm_lengths * K._rescale, noraise=True, quiet=True
-                    ),
+                    K.validate(self.sm_lengths * K._rescale, noraise=True, quiet=True),
                 )
             ] = ik
         _sizes_in_fwhm = np.array([K.size_in_fwhm for K in self.kernels])
@@ -1163,7 +1109,7 @@ class AdaptiveKernel(_BaseSPHKernel):
 
     def kernel(self, q):
         raise NotImplementedError(
-            "AdaptiveKernel does not have an explicit " "kernel function."
+            "AdaptiveKernel does not have an explicit kernel function."
         )
 
     def kernel_integral(self, dij, h, mask=np.s_[...]):
@@ -1179,6 +1125,7 @@ class AdaptiveKernel(_BaseSPHKernel):
         h : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in pixels.
         mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
 
         Returns
         -------
@@ -1223,3 +1170,165 @@ class AdaptiveKernel(_BaseSPHKernel):
             )
 
         return
+
+
+class QuarticSplineKernel(_BaseSPHKernel):
+    """
+    Implementation of the quartic spline kernel integral.
+
+    The quartic spline (M5) kernel is used in the SPHENIX scheme (e.g. in Colibre). The
+    exact integral is usually too slow to be practical; the implementation here
+    approximates the kernel amplitude as constant across the pixel, which converges to
+    within 1% of the exact integral provided the SPH smoothing lengths are at least 1.2385
+    pixels in size.
+
+    The quartic spline kernel is here defined as:
+
+    .. math ::
+        W(q) = \\frac{15625}{512\\pi}\\begin{cases}
+        (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
+        &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
+        (1 - q)^4 - 5(\\frac{3}{5} - q)^4
+        &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+        (1 - q)^4
+        &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+        0
+        &{\\rm for}\\;q \\geq 1
+        \\end{cases}
+
+    """
+
+    min_valid_size = 1.2385
+
+    def __init__(self):
+        super().__init__()
+        _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
+        self.size_in_fwhm = 1 / _unscaled_fwhm
+        self._rescale /= _unscaled_fwhm
+        return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function.
+
+        The quartic spline kernel is here defined as:
+
+        .. math ::
+            W(q) = \\frac{15625}{512\\pi}\\begin{cases}
+            (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
+            &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
+            (1 - q)^4 - 5(\\frac{3}{5} - q)^4
+            &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+            (1 - q)^4
+            &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+            0
+            &{\\rm for}\\;q \\geq 1
+            \\end{cases}
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+
+        W = np.zeros(q.shape)
+        mask1 = q < 0.2
+        W[mask1] = (
+            np.power(1 - q[mask1], 4)
+            - 5 * np.power(0.6 - q[mask1], 4)
+            + 10 * np.power(0.2 - q[mask1], 4)
+        )
+        mask2 = np.logical_and(q >= 0.2, q < 0.6)
+        W[mask2] = np.power(1 - q[mask2], 4) - 5 * np.power(0.6 - q[mask2], 4)
+        mask3 = np.logical_and(q >= 0.6, q < 1)
+        W[mask3] = np.power(1 - q[mask3], 4)
+        W *= 15625 / 512 / np.pi
+        return W
+
+    def kernel_integral(self, dij, h, mask=np.s_[...]):
+        """
+        Calculate the kernel integral over a pixel.
+
+        The formula used approximates the kernel amplitude as constant across
+        the pixel area and converges to the true value within 1% for smoothing
+        lengths >= 1.2385 pixels.
+
+        Parameters
+        ----------
+        dij : Quantity, with dimensions of pixels
+            Distances from pixel centre to particle positions, in pixels.
+        h : Quantity, with dimensions of pixels
+            Particle smoothing lengths, in pixels.
+        mask : array_like, containing boolean array or slice
+            If the kernel has other internal properties to mask, it may use this.
+
+        Returns
+        -------
+        out : array_like
+            Approximate kernel integral over the pixel area.
+        """
+
+        dr = np.sqrt(np.power(dij, 2).sum(axis=0))
+        retval = np.zeros(h.shape)
+        R = (dr / h).to_value(U.dimensionless_unscaled)
+
+        def IA(R, z, A):
+            q = np.sqrt(np.power(z, 2) + np.power(R, 2))
+            R2 = np.power(R, 2)
+            return (
+                np.power(A, 4) * z
+                - 2 * np.power(A, 3) * z * q
+                + 2 * np.power(A, 2) * z * (3 * R2 + np.power(z, 2))
+                - A * R2 * (4 * np.power(A, 2) + 3 * R2) * np.arcsinh(z / R) / 2
+                - A * z * q * (5 * R2 + 2 * np.power(z, 2)) / 2
+                + R2 * R2 * z
+                + 2 * R2 * np.power(z, 3) / 3
+                + np.power(z, 5) / 5
+            )
+
+        m1 = np.logical_and(R > 0, R < 0.2)
+        retval[m1] += 10 * IA(R[m1], np.sqrt(0.2**2 - np.power(R[m1], 2)), 0.2)
+        m2 = np.logical_and(R > 0, R < 0.6)
+        retval[m2] -= 5 * IA(R[m2], np.sqrt(0.6**2 - np.power(R[m2], 2)), 0.6)
+        m3 = np.logical_and(R > 0, R < 1.0)
+        retval[m3] += IA(R[m3], np.sqrt(1 - np.power(R[m3], 2)), 1.0)
+        retval[R == 0] = 384 / 3125
+        # factor of 2 is because all integrals above are half-intervals
+        retval *= 2 * 15625 / 512 / np.pi
+        return retval / np.power(h, 2)
+
+    def validate(self, sm_lengths, noraise=False, quiet=False):
+        """
+        Check conditions for validity of kernel integral calculation.
+
+        Parameters
+        ----------
+        sm_lengths : Quantity, with dimensions of pixels
+            Particle smoothing lengths, in units of pixels.
+
+        quiet : bool
+            If True, suppress reports on smoothing lengths (default: False).
+        """
+
+        valid = sm_lengths >= self.min_valid_size * U.pix
+        if np.logical_not(valid).any():
+            self._validate_error(
+                "Martini.sph_kernels.QuarticSplineKernel.validate:\n"
+                "SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
+                "size for QuarticSplineKernel kernel integral "
+                "approximation accuracy within 1%.\nThis check "
+                "may be disabled by calling "
+                "Martini.Martini.insert_source_in_cube with "
+                "'skip_validation=True', but use this with "
+                "care.",
+                sm_lengths,
+                valid,
+                noraise=noraise,
+                quiet=quiet,
+            )
+        return valid

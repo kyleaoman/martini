@@ -1,7 +1,7 @@
 from .martini import Martini
 from .datacube import DataCube
 from ._demo import demo
-from ._version import __version__
+from .__version__ import __version__
 
 __doc__ = """
     Mock APERTIF-like Radio Telescope Interferometry of the Neutral ISM

@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as U
+from ..sph_kernels import WendlandC6Kernel, find_fwhm
 from .sph_source import SPHSource
 
 
@@ -73,10 +74,9 @@ class MagneticumSource(SPHSource):
         (Default: 0 km/s.)
 
     rotation : dict, optional
-        Keys may be any combination of `axis_angle`, `rotmat` and/or
-        `L_coords`. These will be applied in this order. Note that the 'y-z'
-        plane will be the one eventually placed in the plane of the "sky". The
-        corresponding values:
+        Must have a single key, which must be one of `axis_angle`, `rotmat` or
+        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        plane of the "sky". The corresponding value must be:
 
         - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
         axis to rotate about, second element a Quantity with \
@@ -93,7 +93,7 @@ class MagneticumSource(SPHSource):
         value specifies the position angle on the sky (rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: rotmat with the identity rotation.)
+        (Default: identity rotation matrix.)
 
     ra : Quantity, with dimensions of angle, optional
         Right ascension for the source centroid. (Default: 0 deg.)
@@ -117,20 +117,15 @@ class MagneticumSource(SPHSource):
         internal_units=dict(L=U.kpc, M=1e10 * U.Msun, V=U.km / U.s, T=U.K),
         distance=3 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
-        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        rotation={"rotmat": np.eye(3)},
         ra=0 * U.deg,
         dec=0 * U.deg,
     ):
-
         from g3t.stable.g3read import GadgetFile, read_particles_in_box
 
         # I guess I should allow rescaling of radius to get fore/background
 
-        if (
-            (haloID is not None)
-            or (subhaloID is not None)
-            or (groupFile is not None)
-        ):
+        if (haloID is not None) or (subhaloID is not None) or (groupFile is not None):
             if (
                 (haloPosition is not None)
                 or (haloVelocity is not None)
@@ -183,17 +178,15 @@ class MagneticumSource(SPHSource):
 
         particles["xyz_g"] = f_gas["POS "] * l_unit
         particles["vxyz_g"] = f_gas["VEL "] * v_unit
-        particles["hsm_g"] = f_gas["HSML"] * l_unit
+        particles["hsm_g"] = (
+            f_gas["HSML"] * l_unit * find_fwhm(WendlandC6Kernel().kernel)
+        )
         particles["T_g"] = f_gas["TEMP"] * T_unit
         particles["mHI_g"] = f_gas["NH  "] * xH * f_gas["MASS"] * m_unit
 
         particles["xyz_g"] -= haloPosition * l_unit
-        particles["xyz_g"][particles["xyz_g"] > Lbox * a / 2.0] -= (
-            Lbox.to(U.kpc) * a
-        )
-        particles["xyz_g"][particles["xyz_g"] < -Lbox * a / 2.0] += (
-            Lbox.to(U.kpc) * a
-        )
+        particles["xyz_g"][particles["xyz_g"] > Lbox * a / 2.0] -= Lbox.to(U.kpc) * a
+        particles["xyz_g"][particles["xyz_g"] < -Lbox * a / 2.0] += Lbox.to(U.kpc) * a
         particles["vxyz_g"] -= haloVelocity * v_unit
 
         super().__init__(
@@ -203,6 +196,6 @@ class MagneticumSource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
-            **particles
+            **particles,
         )
         return
