@@ -3,8 +3,8 @@ name: Run tests
 on:
   schedule:
     - cron: '19 3 * * 1-5'
-    push:
-    pull_request:
+  push:
+  pull_request:
 
 jobs:
 
