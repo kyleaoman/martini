@@ -213,7 +213,9 @@ class TNGSource(SPHSource):
                 cfname = io.BytesIO(cutout.content)
                 if cutout_dir is not None:
                     # write a copy to disk for later use
-                    ofile = cutout_file(simulation, snapNum, haloID)
+                    ofile = os.path.join(
+                        cutout_dir, cutout_file(simulation, snapNum, haloID)
+                    )
                     print(f"Writing downloaded cutout to {ofile}")
                     with open(ofile, "wb") as of:
                         of.write(cutout.content)
