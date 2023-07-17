@@ -73,18 +73,19 @@ class DataCube(object):
         self.velocity_centre = velocity_centre.to(
             U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
         )
-        self.channel_width = (
-            velocity_centre.to(
-                channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
-            )
-            + 0.5 * channel_width
-        ).to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)) - (
-            velocity_centre.to(
-                channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
-            )
-            - 0.5 * channel_width
-        ).to(
-            U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
+        self.channel_width = np.abs(
+            (
+                velocity_centre.to(
+                    channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
+                )
+                + 0.5 * channel_width
+            ).to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
+            - (
+                velocity_centre.to(
+                    channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
+                )
+                - 0.5 * channel_width
+            ).to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
         )
         self.ra = ra
         self.dec = dec
@@ -121,6 +122,7 @@ class DataCube(object):
             ),
         ]
         self.wcs.wcs.ctype = ["RA---TAN", "DEC--TAN", "VRAD"]
+        self.wcs.wcs.specsys = "GALACTOC"
         self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         return
 

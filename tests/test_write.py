@@ -27,7 +27,7 @@ class TestWrite:
             m.write_fits(filename, channels="velocity")
             with fits.open(filename) as f:
                 hdr = f[0].header
-            assert "VOPT" in hdr["CTYPE3"]
+            assert hdr["CTYPE3"] == "VRAD"
         finally:
             if os.path.exists(filename):
                 os.remove(filename)
@@ -53,7 +53,7 @@ class TestWrite:
         try:
             m.write_hdf5(filename, channels="velocity")
             with h5py.File(filename, "r") as f:
-                assert f["FluxCube"].attrs["VProjType"] == "VOPT"
+                assert f["FluxCube"].attrs["VProjType"] == "VRAD"
         finally:
             if os.path.exists(filename):
                 os.remove(filename)
@@ -81,7 +81,7 @@ class TestWrite:
             m.write_beam_fits(filename, channels="velocity")
             with fits.open(filename) as f:
                 hdr = f[0].header
-            assert "VOPT" in hdr["CTYPE3"]
+            assert "VRAD" in hdr["CTYPE3"]
         finally:
             if os.path.exists(filename):
                 os.remove(filename)
