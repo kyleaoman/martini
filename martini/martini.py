@@ -470,7 +470,7 @@ class Martini:
         else:
             raise ValueError(
                 "Martini.write_fits: Unknown 'channels' value "
-                "(use 'frequency' or 'velocity'."
+                "(use 'frequency' or 'velocity')."
             )
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"

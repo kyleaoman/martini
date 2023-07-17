@@ -1,7 +1,7 @@
 import pytest
 import os
 import numpy as np
-from astropy import units as U, constants as C
+from astropy import units as U
 from martini import DataCube
 from martini.datacube import HIfreq
 
@@ -39,22 +39,16 @@ class TestDataCube:
         """
         Check that we can convert to frequency channels.
         """
-        v_mid0 = dc.channel_mids[0]
-        v_edge0 = dc.channel_edges[0]
-        v_mid1 = dc.channel_mids[-1]
-        v_edge1 = dc.channel_edges[-1]
-        f_mid0 = HIfreq * (1 - v_mid0 / C.c)
-        f_edge0 = HIfreq * (1 - v_edge0 / C.c)
-        f_mid1 = HIfreq * (1 - v_mid1 / C.c)
-        f_edge1 = HIfreq * (1 - v_edge1 / C.c)
+        v_channel_mids = dc.channel_mids
+        v_channel_edges = dc.channel_edges
         dc.freq_channels()
         assert U.allclose(
-            dc.channel_mids, np.linspace(f_mid0, f_mid1, dc.n_channels), atol=1 * U.Hz
+            dc.channel_mids.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)),
+            v_channel_mids,
         )
         assert U.allclose(
-            dc.channel_edges,
-            np.linspace(f_edge0, f_edge1, dc.n_channels + 1),
-            atol=1 * U.Hz,
+            dc.channel_edges.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)),
+            v_channel_edges,
         )
 
     def test_velocity_channels(self, dc):
@@ -62,24 +56,16 @@ class TestDataCube:
         Check that we can convert to velocity channels.
         """
         dc.freq_channels()
-        f_mid0 = dc.channel_mids[0]
-        f_edge0 = dc.channel_edges[0]
-        f_mid1 = dc.channel_mids[-1]
-        f_edge1 = dc.channel_edges[-1]
-        v_mid0 = C.c * (1 - f_mid0 / HIfreq)
-        v_edge0 = C.c * (1 - f_edge0 / HIfreq)
-        v_mid1 = C.c * (1 - f_mid1 / HIfreq)
-        v_edge1 = C.c * (1 - f_edge1 / HIfreq)
+        f_channel_mids = dc.channel_mids
+        f_channel_edges = dc.channel_edges
         dc.velocity_channels()
         assert U.allclose(
-            dc.channel_mids,
-            np.linspace(v_mid0, v_mid1, dc.n_channels),
-            atol=1e-3 * U.m / U.s,
+            dc.channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
+            f_channel_mids,
         )
         assert U.allclose(
-            dc.channel_edges,
-            np.linspace(v_edge0, v_edge1, dc.n_channels + 1),
-            atol=1e-3 * U.m / U.s,
+            dc.channel_edges.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
+            f_channel_edges,
         )
 
     def test_channel_mode_switching(self, dc):
@@ -228,3 +214,48 @@ class TestDataCube:
             raise
         finally:
             os.remove("test_savestate.hdf5")
+
+    def test_init_with_frequency_channel_spec(self, dc):
+        """
+        Check that we can specify channel spacing and central channel in frequency units.
+        """
+        const_kwargs = dict(
+            n_px_x=dc.n_px_x,
+            n_px_y=dc.n_px_y,
+            n_channels=dc.n_channels,
+        )
+        f_velocity_centre = dc.velocity_centre.to(
+            U.Hz, equivalencies=U.doppler_radio(HIfreq)
+        )
+        f_channel_width = (dc.velocity_centre - 0.5 * dc.channel_width).to(
+            U.Hz, equivalencies=U.doppler_radio(HIfreq)
+        ) - (dc.velocity_centre + 0.5 * dc.channel_width).to(
+            U.Hz, equivalencies=U.doppler_radio(HIfreq)
+        )
+        dc_vf = DataCube(
+            velocity_centre=dc.velocity_centre,
+            channel_width=f_channel_width,
+            **const_kwargs,
+        )
+        dc_fv = DataCube(
+            velocity_centre=f_velocity_centre,
+            channel_width=dc.channel_width,
+            **const_kwargs,
+        )
+        dc_ff = DataCube(
+            velocity_centre=f_velocity_centre,
+            channel_width=f_channel_width,
+            **const_kwargs,
+        )
+        assert U.allclose(dc_vf.channel_edges, dc.channel_edges)
+        assert U.allclose(dc_fv.channel_edges, dc.channel_edges)
+        assert U.allclose(dc_ff.channel_edges, dc.channel_edges)
+
+    def test_channels_equal_in_frequency(self, dc):
+        """
+        Expect channels to be equally spaced in frequency, check that this is the case.
+        """
+        dc.freq_channels()
+        assert U.allclose(
+            np.diff(np.diff(dc.channel_edges)), 0 * U.Hz, atol=1e-5 * U.Hz
+        )
