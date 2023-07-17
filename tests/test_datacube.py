@@ -235,17 +235,17 @@ class TestDataCube:
         dc_vf = DataCube(
             velocity_centre=dc.velocity_centre,
             channel_width=f_channel_width,
-            **const_kwargs
+            **const_kwargs,
         )
         dc_fv = DataCube(
             velocity_centre=f_velocity_centre,
             channel_width=dc.channel_width,
-            **const_kwargs
+            **const_kwargs,
         )
         dc_ff = DataCube(
             velocity_centre=f_velocity_centre,
             channel_width=f_channel_width,
-            **const_kwargs
+            **const_kwargs,
         )
         assert U.allclose(dc_vf.channel_edges, dc.channel_edges)
         assert U.allclose(dc_fv.channel_edges, dc.channel_edges)
