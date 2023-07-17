@@ -30,12 +30,12 @@ class DataCube(object):
     px_size : Quantity, with dimensions of angle, optional
         Angular scale of one pixel. (Default: 15 arcsec.)
 
-    channel_width : Quantity, with dimensions of velocity, optional
-        Step size along the spectral axis. Must be provided as a velocity.
-        (Default: 4 km/s.)
+    channel_width : Quantity, with dimensions of velocity or frequency, optional
+        Step size along the spectral axis. Can be provided as a velocity or a
+        frequency. (Default: 4 km/s.)
 
-    velocity_centre : Quantity, with dimensions of velocity, optional
-        Velocity of the central channel along the spectral axis.
+    velocity_centre : Quantity, with dimensions of velocity or frequency, optional
+        Velocity (or frequency) of the centre along the spectral axis.
         (Default: 0 km/s.)
 
     ra : Quantity, with dimensions of angle, optional
@@ -70,8 +70,22 @@ class DataCube(object):
             lambda x: x / self.px_size**2,
             lambda x: x * self.px_size**2,
         )
-        self.channel_width = channel_width
-        self.velocity_centre = velocity_centre
+        self.velocity_centre = velocity_centre.to(
+            U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
+        )
+        self.channel_width = (
+            velocity_centre.to(
+                channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
+            )
+            + 0.5 * channel_width
+        ).to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)) - (
+            velocity_centre.to(
+                channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
+            )
+            - 0.5 * channel_width
+        ).to(
+            U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
+        )
         self.ra = ra
         self.dec = dec
         self.padx = 0
@@ -90,19 +104,23 @@ class DataCube(object):
             self.n_px_y / 2.0 + 0.5,
             self.n_channels / 2.0 + 0.5,
         ]
-        self.units = [U.deg, U.deg, U.m * U.s**-1]
+        self.units = [U.deg, U.deg, U.m / U.s]
         self.wcs.wcs.cunit = [unit.to_string("fits") for unit in self.units]
         self.wcs.wcs.cdelt = [
             -self.px_size.to_value(self.units[0]),
             self.px_size.to_value(self.units[1]),
-            self.channel_width.to_value(self.units[2]),
+            self.channel_width.to_value(
+                self.units[2], equivalencies=U.doppler_radio(HIfreq)
+            ),
         ]
         self.wcs.wcs.crval = [
             self.ra.to_value(self.units[0]),
             self.dec.to_value(self.units[1]),
-            self.velocity_centre.to_value(self.units[2]),
+            self.velocity_centre.to_value(
+                self.units[2], equivalencies=U.doppler_radio(HIfreq)
+            ),
         ]
-        self.wcs.wcs.ctype = ["RA---TAN", "DEC--TAN", "VELO-OBS"]
+        self.wcs.wcs.ctype = ["RA---TAN", "DEC--TAN", "VRAD"]
         self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         return
 
@@ -169,14 +187,17 @@ class DataCube(object):
         if self._freq_channel_mode:
             return
 
-        def convert_to_Hz(q):
-            return q.to_value(U.Hz, equivalencies=U.doppler_radio(HIfreq))
-
         self.wcs.wcs.cdelt[2] = -np.abs(
-            convert_to_Hz(self.wcs.wcs.cdelt[2] * self.units[2])
-            - convert_to_Hz(0.0 * self.units[2])
+            (
+                (self.wcs.wcs.crval[2] + 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
+            ).to_value(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+            - (
+                (self.wcs.wcs.crval[2] - 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
+            ).to_value(U.Hz, equivalencies=U.doppler_radio(HIfreq))
         )
-        self.wcs.wcs.crval[2] = convert_to_Hz(self.wcs.wcs.crval[2] * self.units[2])
+        self.wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
+            U.Hz, equivalencies=U.doppler_radio(HIfreq)
+        )
         self.wcs.wcs.ctype[2] = "FREQ"
         self.units[2] = U.Hz
         self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
@@ -187,20 +208,23 @@ class DataCube(object):
 
     def velocity_channels(self):
         """
-        Convert spectral axis (back) to velocity units.
+        Convert spectral axis to velocity units.
         """
         if not self._freq_channel_mode:
             return
 
-        def convert_to_ms(q):
-            return q.to_value(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
-
         self.wcs.wcs.cdelt[2] = np.abs(
-            convert_to_ms(self.wcs.wcs.cdelt[2] * self.units[2])
-            - convert_to_ms(0.0 * self.units[2])
+            (
+                (self.wcs.wcs.crval[2] - 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
+            ).to_value(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
+            - (
+                (self.wcs.wcs.crval[2] + 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
+            ).to_value(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
         )
-        self.wcs.wcs.crval[2] = convert_to_ms(self.wcs.wcs.crval[2] * self.units[2])
-        self.wcs.wcs.ctype[2] = "VELO-OBS"
+        self.wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
+            U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
+        )
+        self.wcs.wcs.ctype[2] = "VRAD"
         self.units[2] = U.m * U.s**-1
         self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
         self._freq_channel_mode = False
@@ -396,7 +420,6 @@ class DataCube(object):
                 dec=dec,
             )
             D._init_wcs()
-            print(D.wcs)
             D.add_pad((f["_array"].attrs["padx"], f["_array"].attrs["pady"]))
             if bool(f["_array"].attrs["_freq_channel_mode"]):
                 D.freq_channels()
