@@ -167,13 +167,13 @@ class TestMartini:
                     if channel_mode == "velocity":
                         dv = dchannel
                     elif channel_mode == "frequency":
-                        dv = np.abs(
-                            dchannel.to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            )
-                            - (0 * U.Hz).to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            )
+                        channelmid = U.Quantity(
+                            f[0].header["CRVAL3"], unit=f[0].header["CUNIT3"]
+                        )
+                        dv = (channelmid - 0.5 * dchannel).to(
+                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                        ) - (channelmid + 0.5 * dchannel).to(
+                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
                         )
                     px_area = U.Quantity(
                         np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
@@ -229,13 +229,14 @@ class TestMartini:
                     if channel_mode == "velocity":
                         dv = dchannel
                     elif channel_mode == "frequency":
-                        dv = np.abs(
-                            dchannel.to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            )
-                            - (0 * U.Hz).to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            )
+                        channelmid = U.Quantity(
+                            f["FluxCube"].attrs["V0_in_VUnit"],
+                            unit=f["FluxCube"].attrs["VUnit"],
+                        )
+                        dv = (channelmid - 0.5 * dchannel).to(
+                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                        ) - (channelmid + 0.5 * dchannel).to(
+                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
                         )
                     px_area = U.Quantity(
                         np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
@@ -257,7 +258,7 @@ class TestMartini:
                         * dv.to_value(U.km / U.s)
                     ).to(U.Msun)
 
-                # demand accuracy within 1% in output fits file
+                # demand accuracy within 1% in output hdf5 file
                 assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
             finally:
@@ -291,7 +292,8 @@ class TestMartini:
         m.insert_source_in_cube()
         unconvolved_cube = m.datacube._array.copy()
         unit = unconvolved_cube.unit
-        for spatial_slice in iter(unconvolved_cube[..., 0].transpose((2, 0, 1))):
+        s = np.s_[..., 0] if m.datacube.stokes_axis else np.s_[...]
+        for spatial_slice in iter(unconvolved_cube[s].transpose((2, 0, 1))):
             spatial_slice[...] = (
                 fftconvolve(spatial_slice, m.beam.kernel, mode="same") * unit
             )

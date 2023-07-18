@@ -44,6 +44,9 @@ class DataCube(object):
     dec : Quantity, with dimensions of angle, optional
         Declination of the cube centroid. (Default: 0 deg.)
 
+    stokes_axis : bool, optional
+        Whether the datacube should be initialized with a Stokes' axis. (Default: False.)
+
     See Also
     --------
     load_state
@@ -59,9 +62,13 @@ class DataCube(object):
         velocity_centre=0.0 * U.km * U.s**-1,
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        stokes_axis=False,
     ):
+        self.stokes_axis = stokes_axis
         datacube_unit = U.Jy * U.pix**-2
-        self._array = np.zeros((n_px_x, n_px_y, n_channels, 1)) * datacube_unit
+        self._array = np.zeros((n_px_x, n_px_y, n_channels)) * datacube_unit
+        if self.stokes_axis:
+            self._array = self._array[..., np.newaxis]
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels
         self.px_size = px_size
         self.arcsec2_to_pix = (
@@ -123,19 +130,24 @@ class DataCube(object):
         ]
         self.wcs.wcs.ctype = ["RA---TAN", "DEC--TAN", "VRAD"]
         self.wcs.wcs.specsys = "GALACTOC"
-        self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
+        if self.stokes_axis:
+            self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         return
 
     def _channel_mids(self):
         """
         Calculate the centres of the channels from the coordinate system.
         """
+        pixels = (
+            np.zeros(self.n_channels),
+            np.zeros(self.n_channels),
+            np.arange(self.n_channels) - 0.5,
+        )
+        if self.stokes_axis:
+            pixels = pixels + (np.zeros(self.n_channels),)
         self.channel_mids = (
             self.wcs.wcs_pix2world(
-                np.zeros(self.n_channels),
-                np.zeros(self.n_channels),
-                np.arange(self.n_channels) - 0.5,
-                np.zeros(self.n_channels),
+                *pixels,
                 0,
             )[2]
             * self.units[2]
@@ -146,12 +158,16 @@ class DataCube(object):
         """
         Calculate the edges of the channels from the coordinate system.
         """
+        pixels = (
+            np.zeros(self.n_channels + 1),
+            np.zeros(self.n_channels + 1),
+            np.arange(self.n_channels + 1) - 1,
+        )
+        if self.stokes_axis:
+            pixels = pixels + (np.zeros(self.n_channels + 1),)
         self.channel_edges = (
             self.wcs.wcs_pix2world(
-                np.zeros(self.n_channels + 1),
-                np.zeros(self.n_channels + 1),
-                np.arange(self.n_channels + 1) - 1,
-                np.zeros(self.n_channels + 1),
+                *pixels,
                 0,
             )[2]
             * self.units[2]
@@ -167,7 +183,8 @@ class DataCube(object):
         out : iterator
             Iterator over the spatial 'slices' of the cube.
         """
-        return iter(self._array[..., 0].transpose((2, 0, 1)))
+        s = np.s_[..., 0] if self.stokes_axis else np.s_[...]
+        return iter(self._array[s].transpose((2, 0, 1)))
 
     def spectra(self):
         """
@@ -178,9 +195,8 @@ class DataCube(object):
         out : iterator
             Iterator over the spectra (one in each spatial pixel).
         """
-        return iter(
-            self._array[..., 0].reshape(self.n_px_x * self.n_px_y, self.n_channels)
-        )
+        s = np.s_[..., 0] if self.stokes_axis else np.s_[...]
+        return iter(self._array[s].reshape(self.n_px_x * self.n_px_y, self.n_channels))
 
     def freq_channels(self):
         """
@@ -256,14 +272,18 @@ class DataCube(object):
         if self.padx > 0 or self.pady > 0:
             raise RuntimeError("Tried to add padding to already padded datacube array.")
         tmp = self._array
-        self._array = np.zeros(
-            (self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels, 1)
-        )
+        shape = (self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels)
+        if self.stokes_axis:
+            shape = shape + (1,)
+        self._array = np.zeros(shape)
         self._array = self._array * tmp.unit
         xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else np.s_[:]
         yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else np.s_[:]
         self._array[xregion, yregion, ...] = tmp
-        self.wcs.wcs.crpix += np.array([pad[0], pad[1], 0, 0])
+        extend_crpix = [pad[0], pad[1], 0]
+        if self.stokes_axis:
+            extend_crpix.append(0)
+        self.wcs.wcs.crpix += np.array(extend_crpix)
         self.padx, self.pady = pad
         return
 
@@ -282,7 +302,10 @@ class DataCube(object):
         if (self.padx == 0) and (self.pady == 0):
             return
         self._array = self._array[self.padx : -self.padx, self.pady : -self.pady, ...]
-        self.wcs.wcs.crpix -= np.array([self.padx, self.pady, 0, 0])
+        retract_crpix = [self.padx, self.pady, 0]
+        if self.stokes_axis:
+            retract_crpix.append(0)
+        self.wcs.wcs.crpix -= np.array(retract_crpix)
         self.padx, self.pady = 0, 0
         return
 
@@ -370,6 +393,7 @@ class DataCube(object):
             f["_array"].attrs["padx"] = self.padx
             f["_array"].attrs["pady"] = self.pady
             f["_array"].attrs["_freq_channel_mode"] = int(self._freq_channel_mode)
+            f["_array"].attrs["stokes_axis"] = self.stokes_axis
         return
 
     @classmethod
@@ -411,6 +435,7 @@ class DataCube(object):
             )
             ra = f["_array"].attrs["ra"] * U.Unit(f["_array"].attrs["ra_unit"])
             dec = f["_array"].attrs["dec"] * U.Unit(f["_array"].attrs["dec_unit"])
+            stokes_axis = bool(f["_array"].attrs["stokes_axis"])
             D = cls(
                 n_px_x=n_px_x,
                 n_px_y=n_px_y,
@@ -420,6 +445,7 @@ class DataCube(object):
                 velocity_centre=velocity_centre,
                 ra=ra,
                 dec=dec,
+                stokes_axis=stokes_axis,
             )
             D._init_wcs()
             D.add_pad((f["_array"].attrs["padx"], f["_array"].attrs["pady"]))

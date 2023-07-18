@@ -167,13 +167,14 @@ def m_nn():
     yield m
 
 
-@pytest.fixture(scope="function")
-def dc():
+@pytest.fixture(scope="function", params=[True, False])
+def dc(request):
     dc = DataCube(
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
         velocity_centre=3 * 70 * U.km / U.s,
+        stokes_axis=request.param,
     )
 
     dc._array[...] = (
