@@ -168,7 +168,7 @@ class Martini:
             bmaj=30.0 * U.arcsec, bmin=30.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
         )
 
-        noise = GaussianNoise(rms=3.0e-4 * U.Jy * U.arcsec**-2)
+        noise = GaussianNoise(rms=3.0e-5 * U.Jy * U.beam**-1)
 
         spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
@@ -218,21 +218,6 @@ class Martini:
             raise ValueError("A datacube instance is required.")
         self.beam = beam
         self.noise = noise
-        if self.noise is not None:
-            if not self.quiet:
-                sig_maj = (
-                    self.beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / self.datacube.px_size
-                ).to_value(U.dimensionless_unscaled)
-                sig_min = (
-                    self.beam.bmin / 2 / np.sqrt(2 * np.log(2)) / self.datacube.px_size
-                ).to_value(U.dimensionless_unscaled)
-                post_conv_noise_est = (
-                    self.noise.rms / 2 / np.sqrt(np.pi * sig_maj * sig_min)
-                ).to(U.Jy / U.beam, equivalencies=[self.beam.arcsec_to_beam])
-                print(
-                    "Approximate cube RMS expected after convolution: "
-                    f"{post_conv_noise_est:.2e}"
-                )
         if sph_kernel is not None:
             self.sph_kernel = sph_kernel
         else:
@@ -294,15 +279,21 @@ class Martini:
             warn("Skipping noise, no noise object provided to Martini.")
             return
 
-        noise_cube = self.noise.generate(self.datacube).to(
-            self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix]
+        # this unit conversion means noise can be added before or after source insertion:
+        noise_cube = (
+            self.noise.generate(self.datacube, self.beam)
+            .to(
+                U.Jy * U.arcsec**-2,
+                equivalencies=[self.beam.arcsec_to_beam],
+            )
+            .to(self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix])
         )
         self.datacube._array = self.datacube._array + noise_cube
         if not self.quiet:
             print(
                 "Noise added.",
-                f"  Noise cube RMS: {np.std(noise_cube):.2e}",
-                "  Data cube RMS after noise addition: "
+                f"  Noise cube RMS: {np.std(noise_cube):.2e} (before beam convolution).",
+                "  Data cube RMS after noise addition (before beam convolution): "
                 f"{np.std(self.datacube._array):.2e}",
                 sep="\n",
             )

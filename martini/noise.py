@@ -25,7 +25,7 @@ class _BaseNoise(object):
         return
 
     @abstractmethod
-    def generate(self, datacube):
+    def generate(self, datacube, beam):
         """
         Abstract method; create a cube containing noise.
 
@@ -51,8 +51,9 @@ class GaussianNoise(_BaseNoise):
 
     Parameters
     ----------
-    rms : Quantity, with dimensions of flux density per solid angle
-        Root mean square amplitude of the noise field.
+    rms : Quantity, with dimensions of flux density per beam
+        Desired root mean square amplitude of the noise field after convolution with the
+        beam.
 
     seed : int or None
         Seed for random number generator. If None, results will be unpredictable,
@@ -61,16 +62,16 @@ class GaussianNoise(_BaseNoise):
 
     def __init__(
         self,
-        rms=1.0 * U.Jy * U.arcsec**-2,
+        rms=1.0 * U.Jy * U.beam**-2,
         seed=None,
     ):
-        self.rms = rms
+        self.target_rms = rms
 
         super().__init__(seed=seed)
 
         return
 
-    def generate(self, datacube):
+    def generate(self, datacube, beam):
         """
         Create a cube containing Gaussian noise.
 
@@ -84,15 +85,30 @@ class GaussianNoise(_BaseNoise):
             an argument; its attributes can thus be accessed here.
             datacube._array.shape is particularly relevant.
 
+        beam : instance of a class from martini.beams
+            This method will be called passing the martini.beam instance as an argument;
+            its attributes can thus be accessed here. The beam size is needed to estimate
+            the pre-convolution rms required to obtain the desired post-convolution rms.
+
         Returns
         -------
         out : Quantity, with dimensions of flux density
             Noise realization with size matching the DataCube._array.
         """
-        rms_unit = self.rms.unit
+
+        sig_maj = (beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
+            U.dimensionless_unscaled
+        )
+        sig_min = (beam.bmin / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
+            U.dimensionless_unscaled
+        )
+        # Approximate rms reduction by convolution:
+        # new_rms * 2 * sqrt(pi) * beam_std ~ old_rms for a circular beam
+        # for an elliptical beam beam_std = sqrt(beam_std_maj * beam_std_min)
+        # Approximation turns out to be low by ~ 10%, correct for this:
+        rms = self.target_rms * 2.19568 * np.sqrt(np.pi * sig_maj * sig_min)
+        rms_unit = rms.unit
         return (
-            self.rng.normal(
-                scale=self.rms.to_value(rms_unit), size=datacube._array.shape
-            )
+            self.rng.normal(scale=rms.to_value(rms_unit), size=datacube._array.shape)
             * rms_unit
         )
