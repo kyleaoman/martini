@@ -12,7 +12,8 @@ class TestDataCube:
         Check that dimensions are as requested.
         """
         datacube = DataCube(n_px_x=10, n_px_y=11, n_channels=12)
-        assert datacube._array.shape == (10, 11, 12, 1)
+        expected_shape = (10, 11, 12, 1) if datacube.stokes_axis else (10, 11, 12)
+        assert datacube._array.shape == expected_shape
 
     def test_channel_mids(self, dc):
         """
@@ -90,8 +91,9 @@ class TestDataCube:
             old_shape[0] + 2 * pad[0],
             old_shape[1] + 2 * pad[1],
             old_shape[2],
-            old_shape[3],
         )
+        if dc.stokes_axis:
+            expected_shape = expected_shape + (old_shape[3],)
         assert dc._array.shape == expected_shape
         assert dc.padx == pad[0]
         assert dc.pady == pad[1]
@@ -118,8 +120,9 @@ class TestDataCube:
             old_shape[0] - 2 * pad[0],
             old_shape[1] - 2 * pad[1],
             old_shape[2],
-            old_shape[3],
         )
+        if dc.stokes_axis:
+            expected_shape = expected_shape + (old_shape[3],)
         assert dc._array.shape == initial_shape
         assert dc._array.shape == expected_shape
         assert dc.padx == 0

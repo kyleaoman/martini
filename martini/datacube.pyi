@@ -26,6 +26,7 @@ class DataCube:
     n_px_x: int
     n_px_y: int
     n_channels: int
+    stokes_axis: bool
 
     def __init__(
         self,
@@ -37,6 +38,7 @@ class DataCube:
         velocity_centre: U.Quantity[U.km / U.s] = ...,
         ra: U.Quantity[U.deg] = ...,
         dec: U.Quantity[U.deg] = ...,
+        stokes_axis: bool = ...,
     ) -> None: ...
     def spatial_slices(self) -> T.Iterator[U.Quantity]: ...
     def spectra(self) -> T.Iterator[U.Quantity]: ...

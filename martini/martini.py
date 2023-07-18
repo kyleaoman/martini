@@ -398,7 +398,12 @@ class Martini:
             weights = self.sph_kernel.px_weight(
                 particle_coords[:2, mask] - ij, mask=mask
             )
-            self.datacube._array[ij_px[0], ij_px[1], :, 0] = (
+            insertion_slice = (
+                np.s_[ij_px[0], ij_px[1], :, 0]
+                if self.datacube.stokes_axis
+                else np.s_[ij_px[0], ij_px[1], :]
+            )
+            self.datacube._array[insertion_slice] = (
                 self.spectral_model.spectra[mask] * weights[..., np.newaxis]
             ).sum(axis=-2)
 
@@ -485,7 +490,8 @@ class Martini:
         header.append(("NAXIS1", self.datacube.n_px_x))
         header.append(("NAXIS2", self.datacube.n_px_y))
         header.append(("NAXIS3", self.datacube.n_channels))
-        header.append(("NAXIS4", 1))
+        if self.datacube.stokes_axis:
+            header.append(("NAXIS4", 1))
         header.append(("EXTEND", "T"))
         header.append(("CDELT1", wcs_header["CDELT1"]))
         header.append(("CRPIX1", wcs_header["CRPIX1"]))
@@ -502,11 +508,12 @@ class Martini:
         header.append(("CRVAL3", wcs_header["CRVAL3"]))
         header.append(("CTYPE3", wcs_header["CTYPE3"]))
         header.append(("CUNIT3", wcs_header["CUNIT3"]))
-        header.append(("CDELT4", wcs_header["CDELT4"]))
-        header.append(("CRPIX4", wcs_header["CRPIX4"]))
-        header.append(("CRVAL4", wcs_header["CRVAL4"]))
-        header.append(("CTYPE4", wcs_header["CTYPE4"]))
-        header.append(("CUNIT4", "PAR"))
+        if self.datacube.stokes_axis:
+            header.append(("CDELT4", wcs_header["CDELT4"]))
+            header.append(("CRPIX4", wcs_header["CRPIX4"]))
+            header.append(("CRVAL4", wcs_header["CRVAL4"]))
+            header.append(("CTYPE4", wcs_header["CTYPE4"]))
+            header.append(("CUNIT4", "PAR"))
         header.append(("EPOCH", 2000))
         header.append(("INSTRUME", "MARTINI", martini_version))
         # header.append(('BLANK', -32768)) #only for integer data
@@ -696,7 +703,7 @@ class Martini:
         else:
             raise ValueError(
                 "Martini.write_fits: Unknown 'channels' value "
-                "(use 'frequency' or 'velocity'."
+                "(use 'frequency' or 'velocity')."
             )
 
         filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
@@ -708,7 +715,8 @@ class Martini:
         h5_kwargs = {"backing_store": False} if memmap else dict()
         f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
         datacube_array_units = self.datacube._array.unit
-        f["FluxCube"] = self.datacube._array.to_value(datacube_array_units)[..., 0]
+        s = np.s_[..., 0] if self.datacube.stokes_axis else np.s_[...]
+        f["FluxCube"] = self.datacube._array.to_value(datacube_array_units)[s]
         c = f["FluxCube"]
         origin = 0  # index from 0 like numpy, not from 1
         if not compact:
@@ -717,14 +725,24 @@ class Martini:
                 np.arange(self.datacube._array.shape[1]),
                 np.arange(self.datacube._array.shape[2]),
             )
-            cgrid = np.vstack(
-                (
-                    xgrid.flatten(),
-                    ygrid.flatten(),
-                    vgrid.flatten(),
-                    np.zeros(vgrid.shape).flatten(),
-                )
-            ).T
+            cgrid = (
+                np.vstack(
+                    (
+                        xgrid.flatten(),
+                        ygrid.flatten(),
+                        vgrid.flatten(),
+                        np.zeros(vgrid.shape).flatten(),
+                    )
+                ).T
+                if self.datacube.stokes_axis
+                else np.vstack(
+                    (
+                        xgrid.flatten(),
+                        ygrid.flatten(),
+                        vgrid.flatten(),
+                    )
+                ).T
+            )
             wgrid = self.datacube.wcs.all_pix2world(cgrid, origin)
             ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[..., 0]
             decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[..., 0]
