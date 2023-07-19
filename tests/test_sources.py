@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 from astropy import units as U
 from astropy.coordinates.matrix_utilities import rotation_matrix
+from martini.datacube import DataCube
 from martini.sources import SPHSource
 from martini.sources._cartesian_translation import translate, translate_d
 from martini.sources._L_align import L_align
@@ -109,8 +110,8 @@ class TestSPHSource:
         )
         assert s.coordinates_g.shape == (3,)
         assert s.coordinates_g.differentials["s"].shape == (3,)
-        assert s.coordinates_g.x[1] == 1 * U.kpc + s.distance
-        assert s.coordinates_g.differentials["s"].d_x[1] == 1 * U.km / U.s + s.vsys
+        assert s.coordinates_g.x[1] == 1 * U.kpc
+        assert s.coordinates_g.differentials["s"].d_x[1] == 1 * U.km / U.s
         assert s.npart == 3
         s = SPHSource(
             xyz_g=symm_coords, vxyz_g=symm_vels, mHI_g=mHI_g, coordinate_axis=1
@@ -137,6 +138,7 @@ class TestSPHSource:
         s = SPHSource(
             xyz_g=xyz_g, vxyz_g=vxyz_g, mHI_g=mHI_g, ra=ra, dec=dec, distance=0 * U.Mpc
         )
+        s._init_skycoords(_reset=False)
         R_y = np.array(
             [
                 [np.cos(dec), 0, np.sin(dec)],
@@ -177,6 +179,7 @@ class TestSPHSource:
             distance=distance,
             vpeculiar=vpeculiar,
         )
+        s._init_skycoords(_reset=False)
         vsys = s.h * 100 * U.km / U.s / U.Mpc * distance + vpeculiar
         R_y = np.array(
             [
@@ -202,6 +205,74 @@ class TestSPHSource:
             vxyz_g.dot(rotmat) + direction_vector.T * vsys,
         )
 
+    def test_init_skycoords_resets(self, s):
+        """
+        Check that particle coordinate arrays are reset after initialising skycoords.
+        """
+        initial_coords = s.coordinates_g
+        s._init_skycoords()
+        ax_equal = [
+            U.allclose(getattr(s.coordinates_g, ax), getattr(initial_coords, ax))
+            for ax in "xyz"
+        ]
+        assert all(ax_equal)
+        # make sure that it wasn't a no-op:
+        s._init_skycoords(_reset=False)
+        ax_equal = [
+            U.allclose(getattr(s.coordinates_g, ax), getattr(initial_coords, ax))
+            for ax in "xyz"
+        ]
+        assert not all(ax_equal)
+
+    def test_init_pixcoords(self):
+        """
+        Check that pixel coordinates are accurately calculated from angular positions and
+        velocity offsets.
+        """
+        # set distance so that 1kpc = 1arcsec
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        # line up particles 1 per 1kpc = 1arcsec interval in RA and Dec
+        # and 1 per 1 km / s interval in vlos
+        # set h=0 so that velocity stays centred at 0
+        source = SPHSource(
+            distance=distance,
+            h=0.0,
+            T_g=np.ones(5) * 1e4 * U.K,
+            mHI_g=np.ones(5) * 1e4 * U.Msun,
+            xyz_g=U.Quantity(
+                np.vstack(
+                    (
+                        np.zeros(6),
+                        np.linspace(-2.5, 2.5, 6),
+                        (np.linspace(-2.5, 2.5, 6)),
+                    )
+                ).T,
+                U.kpc,
+            ),
+            vxyz_g=U.Quantity(
+                np.vstack((np.linspace(-2.5, 2.5, 6), np.zeros(6), np.zeros(6))).T,
+                U.km / U.s,
+            ),
+            hsm_g=np.ones(6) * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=6,
+            n_px_y=6,
+            n_channels=6,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+        )
+        expected_coords = (
+            np.vstack((np.arange(6)[::-1], np.arange(6), np.arange(6))) * U.pix
+        )
+        source._init_skycoords()
+        source._init_pixcoords(datacube)
+        assert U.allclose(
+            source.pixcoords,
+            expected_coords,
+            atol=1e-4 * U.pix,
+        )
+
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     def test_sky_location(self, ra, dec):
@@ -214,9 +285,9 @@ class TestSPHSource:
         vxyz_g = np.zeros((1, 3)) * U.km / U.s
         mHI_g = np.zeros(1) * U.Msun
         s = SPHSource(xyz_g=xyz_g, vxyz_g=vxyz_g, ra=ra, dec=dec, mHI_g=mHI_g)
-        print(s.sky_coordinates.ra[0], Angle(ra).wrap_at(360 * U.deg))
-        assert U.isclose(s.sky_coordinates.ra[0], Angle(ra).wrap_at(360 * U.deg))
-        assert U.isclose(s.sky_coordinates.dec[0], Angle(dec).wrap_at(180 * U.deg))
+        s._init_skycoords()
+        assert U.isclose(s.skycoords.ra[0], Angle(ra).wrap_at(360 * U.deg))
+        assert U.isclose(s.skycoords.dec[0], Angle(dec).wrap_at(180 * U.deg))
 
     def test_apply_mask(self, s):
         """
@@ -290,7 +361,7 @@ class TestSPHSource:
             ]
         )
         vector_before = s.coordinates_g.get_xyz()[:, 0]
-        assert any(vector_before > 0)
+        assert any(np.abs(vector_before) > 0)
         s.rotate(rotmat=rotmat)
         assert U.allclose(
             s.coordinates_g.get_xyz()[:, 0], np.dot(rotmat, vector_before)

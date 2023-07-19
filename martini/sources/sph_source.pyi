@@ -1,5 +1,6 @@
 import astropy.units as U
 from astropy.coordinates import ICRS
+from martini.datacube import DataCube
 from numpy import ndarray
 import typing as T
 
@@ -40,6 +41,8 @@ class SPHSource:
         hsm_g: T.Optional[U.Quantity[U.kpc]] = ...,
         coordinate_axis: T.Optional[int] = ...,
     ) -> None: ...
+    def _init_skycoords(self, _reset: bool = ...) -> None: ...
+    def _init_pixcoords(self, datacube: DataCube, origin: int = ...) -> None: ...
     def apply_mask(self, mask: ndarray) -> None: ...
     def rotate(
         self,

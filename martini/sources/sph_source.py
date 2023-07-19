@@ -154,10 +154,16 @@ class SPHSource(object):
         self.dec = dec
         self.distance = distance
         self.vpeculiar = vpeculiar
+        self.vhubble = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
+        self.vsys = self.vhubble + self.vpeculiar
         self.current_rotation = np.eye(3)
         self.rotate(**rotation)
-        self.rotate(axis_angle=("y", -self.dec))
-        self.rotate(axis_angle=("z", self.ra))
+        self.skycoords = None
+        self.pixcoords = None
+        return
+
+    def _init_skycoords(self, _reset=True):
+        # _reset False only for unit testing
         direction_vector = np.array(
             [
                 np.cos(self.ra) * np.cos(self.dec),
@@ -166,12 +172,32 @@ class SPHSource(object):
             ]
         )
         distance_vector = direction_vector * self.distance
-        self.translate(distance_vector)
-        self.vhubble = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
-        self.vsys = self.vhubble + self.vpeculiar
         vsys_vector = direction_vector * self.vsys
+        self.rotate(axis_angle=("y", -self.dec))
+        self.rotate(axis_angle=("z", self.ra))
+        self.translate(distance_vector)
         self.boost(vsys_vector)
-        self.sky_coordinates = ICRS(self.coordinates_g)
+        self.skycoords = ICRS(self.coordinates_g, copy=True)
+        # pixels indexed from 0 (not like in FITS!) for better use with numpy
+        if _reset:
+            self.boost(-vsys_vector)
+            self.translate(-distance_vector)
+            self.rotate(axis_angle=("z", -self.ra))
+            self.rotate(axis_angle=("y", self.dec))
+        return
+
+    def _init_pixcoords(self, datacube, origin=0):
+        self.pixcoords = (
+            np.vstack(
+                datacube.wcs.sub(3).wcs_world2pix(
+                    self.skycoords.ra.to(datacube.units[0]),
+                    self.skycoords.dec.to(datacube.units[1]),
+                    self.skycoords.radial_velocity.to(datacube.units[2]),
+                    origin,
+                )
+            )
+            * U.pix
+        )
         return
 
     def apply_mask(self, mask):
@@ -196,7 +222,10 @@ class SPHSource(object):
         if not self.mHI_g.isscalar:
             self.mHI_g = self.mHI_g[mask]
         self.coordinates_g = self.coordinates_g[mask]
-        self.sky_coordinates = ICRS(self.coordinates_g)
+        if self.skycoords is not None:
+            self.skycoords = self.skycoords[mask]
+        if self.pixcoords is not None:
+            self.pixcoords = self.pixcoords[:, mask]
         if not self.hsm_g.isscalar:
             self.hsm_g = self.hsm_g[mask]
         return
