@@ -735,9 +735,9 @@ class Martini:
                 ).T
             )
             wgrid = self.datacube.wcs.all_pix2world(cgrid, origin)
-            ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[..., 0]
-            decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[..., 0]
-            chgrid = wgrid[:, 2].reshape(self.datacube._array.shape)[..., 0]
+            ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[s]
+            decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[s]
+            chgrid = wgrid[:, 2].reshape(self.datacube._array.shape)[s]
             f["RA"] = ragrid
             f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
             f["Dec"] = decgrid
