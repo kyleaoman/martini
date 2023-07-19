@@ -530,7 +530,7 @@ class Martini:
         header.append(("BUNIT", datacube_array_units.to_string("fits")))
         # header.append(('PCDEC', ???))
         # header.append(('LSTART', ???))
-        header.append(("MJD-OBS", Time.now().to_value("mjd")))
+        header.append(("DATE-OBS", Time.now().to_value("fits")))
         # header.append(('LTYPE', ???))
         # header.append(('PCRA', ???))
         # header.append(('CELLSCAL', ???))
