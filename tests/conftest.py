@@ -96,8 +96,8 @@ def m():
         n_channels=16,
         velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
-    beam = GaussianBeam()
-    noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.arcsec**-2, seed=0)
+    beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
+    noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
     sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
@@ -124,8 +124,8 @@ def m_init():
         n_channels=16,
         velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
-    beam = GaussianBeam()
-    noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.arcsec**-2, seed=0)
+    beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
+    noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
     sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
@@ -149,7 +149,7 @@ def m_nn():
         n_channels=16,
         velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
-    beam = GaussianBeam()
+    beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = None
     sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()

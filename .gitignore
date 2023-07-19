@@ -12,4 +12,5 @@ examples/RefL0025N0376/*
 examples/*.fits
 examples/*.hdf5
 examples/*.npy
+examples/*.tar
 examples/sql_cookies.txt

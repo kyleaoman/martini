@@ -312,12 +312,14 @@ class TestMartini:
         """
         assert (m_init.datacube._array.sum() == 0).all()
         assert m_init.noise.seed is not None
-        expected_noise = m_init.noise.generate(m_init.datacube)
+        expected_noise = m_init.noise.generate(m_init.datacube, m_init.beam)
         m_init.noise.reset_rng()
         m_init.add_noise()
         assert U.allclose(
             m_init.datacube._array,
             expected_noise.to(
+                U.Jy * U.arcsec**-2, equivalencies=[m_init.beam.arcsec_to_beam]
+            ).to(
                 m_init.datacube._array.unit,
                 equivalencies=[m_init.datacube.arcsec2_to_pix],
             ),

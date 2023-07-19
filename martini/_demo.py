@@ -85,7 +85,7 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
         bmaj=30.0 * U.arcsec, bmin=30.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
     )
 
-    noise = GaussianNoise(rms=3.0e-4 * U.Jy * U.arcsec**-2)
+    noise = GaussianNoise(rms=3.0e-5 * U.Jy * U.beam**-1)
 
     spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
