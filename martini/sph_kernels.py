@@ -159,7 +159,7 @@ class _BaseSPHKernel(object):
         datacube : martini.DataCube instance
             The datacube providing the pixel scale.
         """
-        self.sm_lengths = np.arctan(source.hsm_g / source.sky_coordinates.distance).to(
+        self.sm_lengths = np.arctan(source.hsm_g / source.skycoords.distance).to(
             U.pix, U.pixel_scale(datacube.px_size / U.pix)
         )
 

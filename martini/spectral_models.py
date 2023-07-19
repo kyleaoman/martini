@@ -61,8 +61,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         channel_edges = datacube.channel_edges
         channel_widths = np.diff(channel_edges).to(U.km * U.s**-1)
-        vmids = source.sky_coordinates.radial_velocity
-        A = source.mHI_g * np.power(source.sky_coordinates.distance.to(U.Mpc), -2)
+        vmids = source.skycoords.radial_velocity
+        A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
         MHI_Jy = (
             U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
             U.Jy,
@@ -165,7 +165,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
             k: np.tile(
                 v,
                 np.shape(datacube.channel_edges[:-1])
-                + (1,) * source.sky_coordinates.radial_velocity.ndim,
+                + (1,) * source.skycoords.radial_velocity.ndim,
             )
             .astype(self.spec_dtype)
             .T

@@ -24,23 +24,6 @@ else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
-def _gen_particle_coords(source, datacube):
-    # pixels indexed from 0 (not like in FITS!) for better use with numpy
-    origin = 0
-    skycoords = source.sky_coordinates
-    return (
-        np.vstack(
-            datacube.wcs.sub(3).wcs_world2pix(
-                skycoords.ra.to(datacube.units[0]),
-                skycoords.dec.to(datacube.units[1]),
-                skycoords.radial_velocity.to(datacube.units[2]),
-                origin,
-            )
-        )
-        * U.pix
-    )
-
-
 class Martini:
     """
     Creates synthetic HI data cubes from simulation data.
@@ -231,7 +214,10 @@ class Martini:
             self.beam.init_kernel(self.datacube)
             self.datacube.add_pad(self.beam.needs_pad())
 
-        self.sph_kernel._init_sm_lengths(source=source, datacube=datacube)
+        self.source._init_skycoords()
+        self.source._init_pixcoords(self.datacube)  # after datacube is padded
+
+        self.sph_kernel._init_sm_lengths(source=self.source, datacube=self.datacube)
         self.sph_kernel._init_sm_ranges()
         self._prune_particles()  # prunes both source, and kernel if applicable
 
@@ -312,23 +298,23 @@ class Martini:
                 f"Source module contained {self.source.npart} particles with total HI"
                 f" mass of {self.source.mHI_g.sum():.2e}."
             )
-        particle_coords = _gen_particle_coords(self.source, self.datacube)
         spectrum_half_width = (
             self.spectral_model.half_width(self.source) / self.datacube.channel_width
         )
         reject_conditions = (
             (
-                particle_coords[:2] + self.sph_kernel.sm_ranges[np.newaxis] < 0 * U.pix
+                self.source.pixcoords[:2] + self.sph_kernel.sm_ranges[np.newaxis]
+                < 0 * U.pix
             ).any(axis=0),
-            particle_coords[0] - self.sph_kernel.sm_ranges
+            self.source.pixcoords[0] - self.sph_kernel.sm_ranges
             > (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
-            particle_coords[1] - self.sph_kernel.sm_ranges
+            self.source.pixcoords[1] - self.sph_kernel.sm_ranges
             > (self.datacube.n_px_y + self.datacube.pady * 2) * U.pix,
-            particle_coords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
-            particle_coords[2] - 4 * spectrum_half_width * U.pix
+            self.source.pixcoords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
+            self.source.pixcoords[2] - 4 * spectrum_half_width * U.pix
             > self.datacube.n_channels * U.pix,
         )
-        reject_mask = np.zeros(particle_coords[0].shape)
+        reject_mask = np.zeros(self.source.pixcoords[0].shape)
         for condition in reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
@@ -362,7 +348,6 @@ class Martini:
 
         assert self.spectral_model.spectra is not None
 
-        particle_coords = _gen_particle_coords(self.source, self.datacube)
         self.sph_kernel.confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
         # pixel iteration
@@ -383,11 +368,11 @@ class Martini:
             ij_pxs = tqdm.tqdm(ij_pxs)
         for ij_px in ij_pxs:
             ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            mask = (np.abs(ij - particle_coords[:2]) <= self.sph_kernel.sm_ranges).all(
-                axis=0
-            )
+            mask = (
+                np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
+            ).all(axis=0)
             weights = self.sph_kernel.px_weight(
-                particle_coords[:2, mask] - ij, mask=mask
+                self.source.pixcoords[:2, mask] - ij, mask=mask
             )
             insertion_slice = (
                 np.s_[ij_px[0], ij_px[1], :, 0]
