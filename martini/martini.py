@@ -19,7 +19,7 @@ try:
         cwd=os.path.dirname(os.path.realpath(__file__)),
     )
 except (subprocess.CalledProcessError, FileNotFoundError):
-    pass
+    gc = b""
 else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
@@ -242,7 +242,8 @@ class Martini:
             )
         self.datacube.drop_pad()
         self.datacube._array = self.datacube._array.to(
-            U.Jy * U.beam**-1, equivalencies=[self.beam.arcsec_to_beam]
+            U.Jy * U.beam**-1,
+            equivalencies=U.beam_angular_area(self.beam.area),
         )
         if not self.quiet:
             print(
@@ -270,7 +271,7 @@ class Martini:
             self.noise.generate(self.datacube, self.beam)
             .to(
                 U.Jy * U.arcsec**-2,
-                equivalencies=[self.beam.arcsec_to_beam],
+                equivalencies=U.beam_angular_area(self.beam.area),
             )
             .to(self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix])
         )

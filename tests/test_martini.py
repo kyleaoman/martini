@@ -251,7 +251,8 @@ class TestMartini:
             m.datacube.padx : -m.datacube.padx, m.datacube.pady : -m.datacube.padx
         ]
         convolved_cube = convolved_cube.to(
-            U.Jy * U.beam**-1, equivalencies=[m.beam.arcsec_to_beam]
+            U.Jy * U.beam**-1,
+            equivalencies=U.beam_angular_area(m.beam.area),
         )
         m.convolve_beam()
         assert U.allclose(m.datacube._array, convolved_cube)
@@ -268,7 +269,8 @@ class TestMartini:
         assert U.allclose(
             m_init.datacube._array,
             expected_noise.to(
-                U.Jy * U.arcsec**-2, equivalencies=[m_init.beam.arcsec_to_beam]
+                U.Jy * U.arcsec**-2,
+                equivalencies=U.beam_angular_area(m_init.beam.area),
             ).to(
                 m_init.datacube._array.unit,
                 equivalencies=[m_init.datacube.arcsec2_to_pix],
