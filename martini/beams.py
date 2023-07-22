@@ -61,12 +61,7 @@ class _BaseBeam(object):
         # since bmaj, bmin are FWHM, need to include conversion to
         # gaussian-equivalent width (2sqrt(2log2)sigma = FWHM), and then
         # A = 2pi * sigma_maj * sigma_min = pi * b_maj * b_min / 4 / log2
-        self.arcsec_to_beam = (
-            U.Jy * U.arcsec**-2,
-            U.Jy * U.beam**-1,
-            lambda x: x * (np.pi * self.bmaj * self.bmin) / 4 / np.log(2),
-            lambda x: x / (np.pi * self.bmaj * self.bmin) * 4 * np.log(2),
-        )
+        self.area = (np.pi * self.bmaj * self.bmin) / 4 / np.log(2)
 
         return
 
