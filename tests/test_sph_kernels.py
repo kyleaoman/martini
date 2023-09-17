@@ -48,7 +48,7 @@ def total_kernel_weight(k, h, ngrid=50):
     xgrid, ygrid = np.meshgrid(np.r_[r[1:][::-1], r], np.r_[r[1:][::-1], r])
     dij = np.vstack((xgrid.flatten(), ygrid.flatten()))
     k.sm_lengths = np.ones(dij.shape[1]) * h * U.pix
-    return (dr**2 * np.sum(k.px_weight(dij * U.pix))).to_value(
+    return (dr**2 * np.sum(k._px_weight(dij * U.pix))).to_value(
         U.dimensionless_unscaled
     )
 
