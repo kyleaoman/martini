@@ -14,6 +14,7 @@ class TestGaussianSpectrum:
         Check that spectrum sums to expected flux.
         """
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
+        source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
@@ -49,6 +50,7 @@ class TestGaussianSpectrum:
         Check that spectral function gives a normalised spectrum.
         """
         source = single_particle_source()
+        source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
@@ -68,6 +70,7 @@ class TestGaussianSpectrum:
         Check that required extra data is loaded: velocity dispersions.
         """
         source = request.getfixturevalue(source)()
+        source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
@@ -87,6 +90,7 @@ class TestDiracDeltaSpectrum:
         Chec that spectrum sums to expected flux.
         """
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
+        source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
@@ -111,6 +115,7 @@ class TestDiracDeltaSpectrum:
         Check that spectral function returns normalised spectrum.
         """
         source = single_particle_source()
+        source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
@@ -127,6 +132,7 @@ class TestDiracDeltaSpectrum:
         Check that no extra data is loaded.
         """
         source = single_particle_source()
+        source._init_skycoords()
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
         )
@@ -144,6 +150,7 @@ class TestSpectrumPrecision:
         Check that spectral model can use specified precision.
         """
         source = single_particle_source()
+        source._init_skycoords()
         spectral_model = SpectralModel(spec_dtype=dtype)
         datacube = DataCube()
         spectral_model.init_spectra(source, datacube)

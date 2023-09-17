@@ -13,16 +13,7 @@ class _BaseBeam(metaclass=abc.ABCMeta):
     bpa: U.Quantity[U.deg]
     px_size: T.Optional[U.Quantity[U.arcsec]]
     kernel: T.Optional[U.Quantity[U.dimensionless_unscaled]]
-    arcsec_to_beam: T.Tuple[
-        U.Quantity[U.Jy * U.arcsec**-2],
-        U.Quantity[U.Jy * U.beam**-1],
-        T.Callable[
-            [U.Quantity[U.Jy * U.arcsec**-2]], U.Quantity[U.Jy * U.beam**-1]
-        ],
-        T.Callable[
-            [U.Quantity[U.Jy * U.beam**-1]], U.Quantity[U.Jy * U.arcsec**-2]
-        ],
-    ]
+    area: U.Quantity[U.arcsec**2]
 
     def __init__(
         self,
