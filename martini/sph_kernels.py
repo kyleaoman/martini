@@ -222,7 +222,7 @@ class _BaseSPHKernel(object):
         and the smoothing length is sufficiently large, or sufficiently small.
         This method should check these conditions and raise errors when
         appropriate. The smoothing lengths are provided normalized to the pixel
-        size. AdaptiveKernel needs to force errors not to raise, other classes
+        size. _AdaptiveKernel needs to force errors not to raise, other classes
         should just provide **kwargs.
 
         Parameters
@@ -353,7 +353,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels.WendlandC2Kernel.validate:\n"
+                "Martini.sph_kernels._WendlandC2Kernel.validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC2 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
@@ -571,7 +571,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels.WendlandC6Kernel.validate:\n"
+                "Martini.sph_kernels._WendlandC6Kernel.validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC6 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
@@ -735,7 +735,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels.CubicSplineKernel.validate:\n"
+                "Martini.sph_kernels._CubicSplineKernel.validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for CubicSplineKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
@@ -906,7 +906,7 @@ class _GaussianKernel(_BaseSPHKernel):
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels.GaussianKernel.validate:\n"
+                "Martini.sph_kernels._GaussianKernel.validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for GaussianKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
@@ -1045,7 +1045,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
     will be used to smooth the particle onto the pixel grid. Note that the
     initialized source and datacube instances are required as the smoothing
     lengths and pixel sizes must be known at initialization of the
-    AdaptiveKernel module. Note that if `skip_validation` is used, any
+    _AdaptiveKernel module. Note that if `skip_validation` is used, any
     particles with no valid kernel will default to the first kernel in the
     list.
 
@@ -1113,10 +1113,40 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         return
 
+    def eval_kernel(self, r, h):
+        """
+        Evaluate the kernel, handling array casting and rescaling.
+
+        Parameters
+        ----------
+        r : array_like or Quantity
+            Distance parameter, same units as h.
+        h : array_like or Quantity
+            Smoothing scale parameter (FWHM), same units as r.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at position(s) r / h.
+        """
+
+        return self.kernels[0].eval_kernel(r, h)
+
     def kernel(self, q):
-        raise NotImplementedError(
-            "AdaptiveKernel does not have an explicit kernel function."
-        )
+        """
+        Evaluate the kernel function of the preferred kernel.
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+        return self.kernels[0].kernel(q)
 
     def kernel_integral(self, dij, h, mask=np.s_[...]):
         """
@@ -1165,7 +1195,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
         valid = self.kernel_indices >= 0
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels.AdaptiveKernel.validate:\n"
+                "Martini.sph_kernels._AdaptiveKernel.validate:\n"
                 "Some particles have no kernel candidate for which "
                 "accuracy passes validation.\nThis check "
                 "may be disabled by calling "
@@ -1330,7 +1360,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels.QuarticSplineKernel.validate:\n"
+                "Martini.sph_kernels._QuarticSplineKernel.validate:\n"
                 "SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for QuarticSplineKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
@@ -1365,18 +1395,44 @@ class WendlandC2Kernel(_AdaptiveKernel):
         0 &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the DiracDeltaKernel and GaussianKernel when the
-    approximation used for the WendlandC2Kernel fails. To strictly use the
-    WendlandC2Kernel, use `martini.sph_kernels._WendlandC2Kernel` instead.
+    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
+    approximation used for the surface integral of the WendlandC2 kernel is not accurate
+    to within better than 1%. To strictly use the WendlandC2 kernel, use
+    `martini.sph_kernels._WendlandC2Kernel` instead.
     """
 
     def __init__(self):
         super().__init__(
-            (_WendlandC2Kernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+            (_WendlandC2Kernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
         self.size_in_fwhm = None  # initialized during Martini.__init__
         self._rescale = None  # initialized during Martini.__init__
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function of the WendlandC2 kernel.
+
+        The WendlandC2 kernel is here defined as:
+
+        .. math::
+            W(q) = \\begin{cases}
+            \\frac{21}{2\\pi}(1-q)^4(4q+1)
+            &{\\rm for}\\;0 \\leq q < 1\\\\
+            0 &{\\rm for}\\;q \\geq 1
+            \\end{cases}
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+        return super().kernel(q)
 
 
 class WendlandC6Kernel(_AdaptiveKernel):
@@ -1398,18 +1454,44 @@ class WendlandC6Kernel(_AdaptiveKernel):
         0 &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the DiracDeltaKernel and GaussianKernel when the
-    approximation used for the WendlandC6Kernel fails. To strictly use the
-    WendlandC6Kernel, use `martini.sph_kernels._WendlandC6Kernel` instead.
+    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
+    approximation used for the surface integral of the WendlandC6 kernel is not accurate
+    to within better than 1%. To strictly use the WendlandC6 kernel, use
+    `martini.sph_kernels._WendlandC6Kernel` instead.
     """
 
     def __init__(self):
         super().__init__(
-            (_WendlandC6Kernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+            (_WendlandC6Kernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
         self.size_in_fwhm = None  # initialized during Martini.__init__
         self._rescale = None  # initialized during Martini.__init__
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function of the WendlandC6 kernel.
+
+        The WendlandC6 kernel is here defined as:
+
+        .. math::
+            W(q) = \\begin{cases}
+            \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
+            &{\\rm for}\\;0 \\leq q < 1\\\\
+            0 &{\\rm for}\\;q \\geq 1
+            \\end{cases}
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+        return super().kernel(q)
 
 
 class CubicSplineKernel(_AdaptiveKernel):
@@ -1434,18 +1516,47 @@ class CubicSplineKernel(_AdaptiveKernel):
         &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the DiracDeltaKernel and GaussianKernel when the
-    approximation used for the CubicSplineKernel fails. To strictly use the
-    CubicSplineKernel, use `martini.sph_kernels._CubicSplineKernel` instead.
+    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
+    approximation used for the surface integral of the cubic spline kernel is not accurate
+    to within better than 1%. To strictly use the cubic spline kernel, use
+    `martini.sph_kernels._CubicSplineKernel` instead.
     """
 
     def __init__(self):
         super().__init__(
-            (_CubicSplineKernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+            (_CubicSplineKernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
         self.size_in_fwhm = None  # initialized during Martini.__init__
         self._rescale = None  # initialized during Martini.__init__
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function of the cubic spline kernel.
+
+        The cubic spline kernel is here defined as:
+
+        .. math ::
+            W(q) = \\frac{8}{\\pi}\\begin{cases}
+            (1 - 6q^2(1 - \\frac{q}{2}))
+            &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
+            2(1 - q)^3
+            &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
+            0
+            &{\\rm for}\\;q \\geq 1
+            \\end{cases}
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+        return super().kernel(q)
 
 
 class GaussianKernel(_AdaptiveKernel):
@@ -1470,9 +1581,10 @@ class GaussianKernel(_AdaptiveKernel):
     with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
     :math:`t` being the truncation radius.
 
-    This class falls back to the DiracDeltaKernel and GaussianKernel (with large
-    truncation) when the approximation used for the GaussianKernel fails. To strictly use
-    the GaussianKernel, use `martini.sph_kernels._GaussianKernel` instead.
+    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` with large
+    truncation) when the approximation used for the surface integral of the Gaussian
+    kernel is not accurate to within better than 1%. To strictly use the Gaussian kernel,
+    use `martini.sph_kernels._GaussianKernel` instead.
 
     Parameters
     ----------
@@ -1485,13 +1597,42 @@ class GaussianKernel(_AdaptiveKernel):
         super().__init__(
             (
                 _GaussianKernel(truncate=truncate),
-                DiracDeltaKernel,
+                DiracDeltaKernel(),
                 _GaussianKernel(truncate=6.0),
             )
         )
         self.size_in_fwhm = None  # initialized during Martini.__init__
         self._rescale = None  # initialized during Martini.__init__
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function of the Gaussian kernel.
+
+        The Gaussian kernel is here defined as:
+
+        .. math::
+            W(q) = \\begin{cases}
+            (\\sqrt{2\\pi}\\sigma)^{-3}
+            \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
+            &{\\rm for}\\;0 \\leq q < t\\\\
+            0 &{\\rm for}\\;q > t
+            \\end{cases}
+
+        with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
+        :math:`t` being the truncation radius.
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+        return super().kernel(q)
 
 
 class QuarticSplineKernel(_AdaptiveKernel):
@@ -1518,15 +1659,46 @@ class QuarticSplineKernel(_AdaptiveKernel):
         &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the DiracDeltaKernel and GaussianKernel when the
-    approximation used for the QuarticSplineKernel fails. To strictly use the
-    QuarticSplineKernel, use `martini.sph_kernels._QuarticSplineKernel` instead.
+    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
+    approximation used for the surface integral of the quartic spline kernel is not
+    accurate to within better than 1%. To strictly use the quartic spline kernel, use
+    `martini.sph_kernels._QuarticSplineKernel` instead.
     """
 
     def __init__(self):
         super().__init__(
-            (_QuarticSplineKernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+            (_QuarticSplineKernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
         self.size_in_fwhm = None  # initialized during Martini.__init__
         self._rescale = None  # initialized during Martini.__init__
         return
+
+    def kernel(self, q):
+        """
+        Evaluate the kernel function of the quartic spline kernel.
+
+        The quartic spline kernel is here defined as:
+
+        .. math ::
+            W(q) = \\frac{15625}{512\\pi}\\begin{cases}
+            (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
+            &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
+            (1 - q)^4 - 5(\\frac{3}{5} - q)^4
+            &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+            (1 - q)^4
+            &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+            0
+            &{\\rm for}\\;q \\geq 1
+            \\end{cases}
+
+        Parameters
+        ----------
+        q : array_like
+            Dimensionless distance parameter.
+
+        Returns
+        -------
+        out : array_like
+            Kernel value at positions q.
+        """
+        return super().kernel(q)

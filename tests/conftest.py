@@ -7,9 +7,9 @@ from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
 from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import _GaussianKernel
+from martini.sph_kernels import GaussianKernel
 
-_GaussianKernel.noFWHMwarn = True
+GaussianKernel.noFWHMwarn = True
 
 
 def sps_sourcegen(
@@ -32,6 +32,43 @@ def sps_sourcegen(
     from the source centroid, a peculiar velocity of 0 km/s, and will be placed
     in the Hubble flow assuming h = 0.7 at a distance of 3 Mpc. The particle has
     a 1 kpc smoothing length.
+    """
+    return SPHSource(
+        T_g=T_g,
+        mHI_g=mHI_g,
+        xyz_g=xyz_g,
+        vxyz_g=vxyz_g,
+        hsm_g=hsm_g,
+        distance=distance,
+        ra=ra,
+        dec=dec,
+        vpeculiar=vpeculiar,
+    )
+
+
+def adaptive_kernel_test_sourcegen(
+    T_g=np.ones(4) * 1.0e4 * U.K,
+    mHI_g=np.ones(4) * 1.0e4 * U.Msun,
+    xyz_g=np.ones((4, 3)) * 1.0e-3 * U.kpc,
+    vxyz_g=np.zeros((4, 3)) * U.km * U.s**-1,
+    hsm_g=np.array([3.0, 1.0, 0.55, 0.1]) * U.kpc,
+    distance=3 * U.Mpc,
+    ra=0 * U.deg,
+    dec=0 * U.deg,
+    vpeculiar=0 * U.km / U.s,
+):
+    """
+    Creates a 4-particle test source.
+
+    A simple test source consisting of 4 particles will be created. The
+    particles have a mass of 10^4 Msun, a temperature of 10^4 K, a position offset by
+    (x, y, z) = (1 pc, 1 pc, 1 pc) from the source centroid, a peculiar velocity of
+    0 km/s, and will be placed in the Hubble flow assuming h = 0.7 at a distance of
+    3 Mpc. The smoothing lengths are respectively: (4.0, 3.0, 1.0, 0.1) kpc. Normally
+    the first two should use the preferred kernel (except for very small GaussianKernel
+    truncations where only the first would work), the third should fall back to
+    a GaussianKernel with a large truncation radius, and the last should fall back to
+    a DiracDeltaKernel. Assumes 1kpc pixels, which is what we'll use for testing.
     """
     return SPHSource(
         T_g=T_g,
@@ -98,7 +135,7 @@ def m():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
-    sph_kernel = _GaussianKernel()
+    sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(
@@ -126,7 +163,7 @@ def m_init():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
-    sph_kernel = _GaussianKernel()
+    sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(
@@ -151,7 +188,7 @@ def m_nn():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = None
-    sph_kernel = _GaussianKernel()
+    sph_kernel = GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(
@@ -179,6 +216,19 @@ def dc(request):
 
     dc._array[...] = (
         np.random.rand(dc._array.size).reshape(dc._array.shape) * dc._array.unit
+    )
+
+    yield dc
+
+
+@pytest.fixture(scope="function")
+def adaptive_kernel_test_datacube():
+    dc = DataCube(
+        n_px_x=16,
+        n_px_y=16,
+        n_channels=16,
+        px_size=((1 * U.kpc) / (3 * U.Mpc)).to(U.arcsec, U.dimensionless_angles()),
+        velocity_centre=3 * 70 * U.km / U.s,
     )
 
     yield dc
@@ -233,3 +283,8 @@ def cross_source():
 @pytest.fixture(scope="function")
 def single_particle_source():
     yield sps_sourcegen
+
+
+@pytest.fixture(scope="function")
+def adaptive_kernel_test_source():
+    yield adaptive_kernel_test_sourcegen
