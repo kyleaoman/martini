@@ -116,7 +116,9 @@ Getting started
    
 See the help for |martini.Martini| for an example script to configure MARTINI and create a datacube. This example can be run by doing:
 
-  ``python -c "from martini import demo; demo()"``
+.. code-block:: python
+
+   python -c "from martini import demo; demo()"
 
 MARTINI has (so far) been successfully run on the output of these simulations:
 
