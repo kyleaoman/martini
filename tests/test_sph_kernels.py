@@ -9,8 +9,13 @@ from martini.sph_kernels import (
     _CubicSplineKernel,
     _QuarticSplineKernel,
     _WendlandC6Kernel,
-    _DiracDeltaKernel,
+    DiracDeltaKernel,
     _AdaptiveKernel,
+    WendlandC2Kernel,
+    GaussianKernel,
+    CubicSplineKernel,
+    QuarticSplineKernel,
+    WendlandC6Kernel,
 )
 from astropy import units as U
 
@@ -22,8 +27,16 @@ fwhm_kernels = (
     _GaussianKernel,
     _QuarticSplineKernel,
 )
-simple_kernels = fwhm_kernels + (_DiracDeltaKernel,)
-all_kernels = simple_kernels + (_AdaptiveKernel,)
+simple_kernels = fwhm_kernels + (DiracDeltaKernel,)
+adaptive_kernels = (
+    _AdaptiveKernel,
+    WendlandC2Kernel,
+    WendlandC6Kernel,
+    CubicSplineKernel,
+    GaussianKernel,
+    QuarticSplineKernel,
+)
+all_kernels = simple_kernels + adaptive_kernels
 
 for k in all_kernels:
     k.noFWHMwarn = True
@@ -131,7 +144,7 @@ class TestSPHKernels:
             total_kernel_weight(k, kernel.min_valid_size * 0.9), 1.0, rtol=1.0e-2
         )
 
-    @pytest.mark.parametrize("kernel", (_DiracDeltaKernel,))
+    @pytest.mark.parametrize("kernel", (DiracDeltaKernel,))
     def test_kernel_validation_maxsize(self, kernel):
         """
         Check that our kernel integral approximations hold within the stated
@@ -146,7 +159,7 @@ class TestSPHKernels:
             total_kernel_weight(k, kernel.max_valid_size * 0.999), 1.0, rtol=1.0e-2
         )
         # check that with a larger size is more than 1% from 1.0
-        if kernel not in (_DiracDeltaKernel,):
+        if kernel not in (DiracDeltaKernel,):
             # DiracDeltaKernel will still converge to right answer, but is
             # a poor approximation on geometric grounds
             assert not np.isclose(
@@ -190,7 +203,7 @@ class TestSPHKernels:
             (_WendlandC6Kernel, None),
             (_CubicSplineKernel, None),
             (_QuarticSplineKernel, None),
-            (_DiracDeltaKernel, None),
+            (DiracDeltaKernel, None),
         ),
     )
     def test_kernel_confirm_validation(self, kernel, kernel_args):
