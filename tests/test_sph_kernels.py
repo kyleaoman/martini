@@ -95,7 +95,7 @@ class TestSPHKernels:
             k.sm_lengths = h * np.ones(rgrid.shape)[eval_grid].flatten() * U.pix
             dij = np.vstack((xgrid[eval_grid], ygrid[eval_grid]))
             IKi = dr**2 * np.sum(
-                k.px_weight(
+                k._px_weight(
                     dij * U.pix,
                 )
             )
@@ -256,9 +256,9 @@ class TestSPHKernels:
             )
             if raises:
                 with pytest.raises(RuntimeError, match="use this with care"):
-                    m.sph_kernel.confirm_validation(quiet=True)
+                    m.sph_kernel._confirm_validation(quiet=True)
             else:
-                m.sph_kernel.confirm_validation(quiet=True)  # should not raise
+                m.sph_kernel._confirm_validation(quiet=True)  # should not raise
 
 
 class TestAdaptiveKernels:
