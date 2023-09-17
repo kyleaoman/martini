@@ -1702,3 +1702,13 @@ class QuarticSplineKernel(_AdaptiveKernel):
             Kernel value at positions q.
         """
         return super().kernel(q)
+
+
+class AdaptiveKernel(object):
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(
+            "New pre-configured adaptive kernels have been implemented in v2.0.3, see "
+            "the new SPH Kernels page in the documentation for details. You most likely "
+            "want to use WendlandC2Kernel(), WendlandC6Kernel(), CubicSplineKernel() or "
+            "QuarticSplineKernel() where you previously used AdaptiveKernel(...)."
+        )
