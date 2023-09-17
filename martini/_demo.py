@@ -2,7 +2,7 @@ from . import Martini, DataCube
 from .beams import GaussianBeam
 from .noise import GaussianNoise
 from .spectral_models import GaussianSpectrum
-from .sph_kernels import CubicSplineKernel
+from .sph_kernels import _CubicSplineKernel
 from .sources import SPHSource
 import astropy.units as U
 import numpy as np
@@ -89,7 +89,7 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
 
     spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
 
-    sph_kernel = CubicSplineKernel()
+    sph_kernel = _CubicSplineKernel()
 
     M = Martini(
         source=source,

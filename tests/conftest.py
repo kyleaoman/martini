@@ -7,9 +7,9 @@ from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
 from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import GaussianKernel
+from martini.sph_kernels import _GaussianKernel
 
-GaussianKernel.noFWHMwarn = True
+_GaussianKernel.noFWHMwarn = True
 
 
 def sps_sourcegen(
@@ -98,7 +98,7 @@ def m():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
-    sph_kernel = GaussianKernel()
+    sph_kernel = _GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(
@@ -126,7 +126,7 @@ def m_init():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
-    sph_kernel = GaussianKernel()
+    sph_kernel = _GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(
@@ -151,7 +151,7 @@ def m_nn():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = None
-    sph_kernel = GaussianKernel()
+    sph_kernel = _GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(

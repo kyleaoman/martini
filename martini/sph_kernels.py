@@ -240,7 +240,7 @@ class _BaseSPHKernel(object):
         pass
 
 
-class WendlandC2Kernel(_BaseSPHKernel):
+class _WendlandC2Kernel(_BaseSPHKernel):
     """
     Implementation of the Wendland C2 kernel integral.
 
@@ -344,6 +344,9 @@ class WendlandC2Kernel(_BaseSPHKernel):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
 
+        noraise : bool
+            If True, suppress kernel validation errors (default: False).
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -367,7 +370,7 @@ class WendlandC2Kernel(_BaseSPHKernel):
         return valid
 
 
-class WendlandC6Kernel(_BaseSPHKernel):
+class _WendlandC6Kernel(_BaseSPHKernel):
     """
     Implementation of the Wendland C6 kernel integral.
 
@@ -558,6 +561,9 @@ class WendlandC6Kernel(_BaseSPHKernel):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
 
+        noraise : bool
+            If True, suppress kernel validation errors (default: False).
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -581,7 +587,7 @@ class WendlandC6Kernel(_BaseSPHKernel):
         return valid
 
 
-class CubicSplineKernel(_BaseSPHKernel):
+class _CubicSplineKernel(_BaseSPHKernel):
     """
     Implementation of the cubic spline (M4) kernel integral.
 
@@ -719,6 +725,9 @@ class CubicSplineKernel(_BaseSPHKernel):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
 
+        noraise : bool
+            If True, suppress kernel validation errors (default: False).
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -742,7 +751,7 @@ class CubicSplineKernel(_BaseSPHKernel):
         return valid
 
 
-class GaussianKernel(_BaseSPHKernel):
+class _GaussianKernel(_BaseSPHKernel):
     """
     Implementation of a (truncated) Gaussian kernel integral.
 
@@ -888,6 +897,9 @@ class GaussianKernel(_BaseSPHKernel):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
 
+        noraise : bool
+            If True, suppress kernel validation errors (default: False).
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -996,6 +1008,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
 
+        noraise : bool
+            If True, suppress kernel validation errors (default: False).
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -1018,7 +1033,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         return valid
 
 
-class AdaptiveKernel(_BaseSPHKernel):
+class _AdaptiveKernel(_BaseSPHKernel):
     """
     Allows use of multiple kernels to adapt to sph kernel-to-pixel size ratio.
 
@@ -1039,15 +1054,6 @@ class AdaptiveKernel(_BaseSPHKernel):
     kernels : iterable, containing classes inheriting from _BaseSPHKernel
         Kernels to use, ordered by decreasing priority.
 
-    source : a martini.sources.SPHSource (or inheriting class) instance
-        The source to be used with this adaptive kernel.
-
-    datacube : a martini.DataCube instance
-        The datacube instance to be used with this adaptive kernel.
-
-    verbose : bool
-        Whether to print kernel validation reports for all kernels
-        (default: False).
     """
 
     def __init__(self, kernels):
@@ -1149,6 +1155,9 @@ class AdaptiveKernel(_BaseSPHKernel):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths (FWHM), in units of pixels.
 
+        noraise : bool
+            If True, suppress kernel validation errors (default: False).
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -1172,7 +1181,7 @@ class AdaptiveKernel(_BaseSPHKernel):
         return
 
 
-class QuarticSplineKernel(_BaseSPHKernel):
+class _QuarticSplineKernel(_BaseSPHKernel):
     """
     Implementation of the quartic spline kernel integral.
 
@@ -1311,6 +1320,9 @@ class QuarticSplineKernel(_BaseSPHKernel):
         sm_lengths : Quantity, with dimensions of pixels
             Particle smoothing lengths, in units of pixels.
 
+        noraise : bool
+            If True, suppress kernel validation errors (default: False).
+
         quiet : bool
             If True, suppress reports on smoothing lengths (default: False).
         """
@@ -1332,3 +1344,189 @@ class QuarticSplineKernel(_BaseSPHKernel):
                 quiet=quiet,
             )
         return valid
+
+
+class WendlandC2Kernel(_AdaptiveKernel):
+    """
+    Implementation of the Wendland C2 kernel integral.
+
+    The Wendland C2 kernel is used in the EAGLE code and derivatives (not in
+    Gadget/Gadget2!). The exact integral is usually too slow to be practical;
+    the implementation here approximates the kernel amplitude as constant
+    across the pixel, which converges to within 1% of the exact integral
+    provided the SPH smoothing lengths are at least 1.51 pixels in size.
+
+    The WendlandC2 kernel is here defined as:
+
+    .. math::
+        W(q) = \\begin{cases}
+        \\frac{21}{2\\pi}(1-q)^4(4q+1)
+        &{\\rm for}\\;0 \\leq q < 1\\\\
+        0 &{\\rm for}\\;q \\geq 1
+        \\end{cases}
+
+    This class falls back to the DiracDeltaKernel and GaussianKernel when the
+    approximation used for the WendlandC2Kernel fails. To strictly use the
+    WendlandC2Kernel, use `martini.sph_kernels._WendlandC2Kernel` instead.
+    """
+
+    def __init__(self):
+        super().__init__(
+            (_WendlandC2Kernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+        )
+        self.size_in_fwhm = None  # initialized during Martini.__init__
+        self._rescale = None  # initialized during Martini.__init__
+        return
+
+
+class WendlandC6Kernel(_AdaptiveKernel):
+    """
+    Implementation of the Wendland C6 kernel integral.
+
+    The Wendland C6 kernel is used in the Magneticum code (not in
+    Gadget/Gadget2!). The exact integral is usually too slow to be practical;
+    the implementation here approximates the kernel amplitude as constant
+    across the pixel, which converges to within 1% of the exact integral
+    provided the SPH smoothing lengths are at least 1.29 pixels in size.
+
+    The WendlandC6 kernel is here defined as:
+
+    .. math::
+        W(q) = \\begin{cases}
+        \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
+        &{\\rm for}\\;0 \\leq q < 1\\\\
+        0 &{\\rm for}\\;q \\geq 1
+        \\end{cases}
+
+    This class falls back to the DiracDeltaKernel and GaussianKernel when the
+    approximation used for the WendlandC6Kernel fails. To strictly use the
+    WendlandC6Kernel, use `martini.sph_kernels._WendlandC6Kernel` instead.
+    """
+
+    def __init__(self):
+        super().__init__(
+            (_WendlandC6Kernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+        )
+        self.size_in_fwhm = None  # initialized during Martini.__init__
+        self._rescale = None  # initialized during Martini.__init__
+        return
+
+
+class CubicSplineKernel(_AdaptiveKernel):
+    """
+    Implementation of the cubic spline (M4) kernel integral.
+
+    The cubic spline is the 'classic' SPH kernel. The exact integral is usually
+    too slow to be practical; the implementation here approximates the kernel
+    amplitude as constant across the pixel, which converges to within 1% of
+    the exact integral provided the SPH smoothing lengths are at least 1.16
+    pixels in size.
+
+    The cubic spline kernel is here defined as:
+
+    .. math ::
+        W(q) = \\frac{8}{\\pi}\\begin{cases}
+        (1 - 6q^2(1 - \\frac{q}{2}))
+        &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
+        2(1 - q)^3
+        &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
+        0
+        &{\\rm for}\\;q \\geq 1
+        \\end{cases}
+
+    This class falls back to the DiracDeltaKernel and GaussianKernel when the
+    approximation used for the CubicSplineKernel fails. To strictly use the
+    CubicSplineKernel, use `martini.sph_kernels._CubicSplineKernel` instead.
+    """
+
+    def __init__(self):
+        super().__init__(
+            (_CubicSplineKernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+        )
+        self.size_in_fwhm = None  # initialized during Martini.__init__
+        self._rescale = None  # initialized during Martini.__init__
+        return
+
+
+class GaussianKernel(_AdaptiveKernel):
+    """
+    Implementation of a (truncated) Gaussian kernel integral.
+
+    Calculates the kernel integral over a pixel. The 3 integrals (along dx,
+    dy, dz) are evaluated exactly, however the truncation is implemented
+    approximately, erring on the side of integrating slightly further than
+    the truncation radius.
+
+    The Gaussian kernel is here defined as:
+
+    .. math::
+        W(q) = \\begin{cases}
+        (\\sqrt{2\\pi}\\sigma)^{-3}
+        \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
+        &{\\rm for}\\;0 \\leq q < t\\\\
+        0 &{\\rm for}\\;q > t
+        \\end{cases}
+
+    with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
+    :math:`t` being the truncation radius.
+
+    This class falls back to the DiracDeltaKernel and GaussianKernel (with large
+    truncation) when the approximation used for the GaussianKernel fails. To strictly use
+    the GaussianKernel, use `martini.sph_kernels._GaussianKernel` instead.
+
+    Parameters
+    ----------
+    truncate : float, optional
+        Number of standard deviations at which to truncate kernel (default=3).
+        Truncation radii <2 would lead to large errors and are not permitted.
+    """
+
+    def __init__(self, truncate=3.0):
+        super().__init__(
+            (
+                _GaussianKernel(truncate=truncate),
+                DiracDeltaKernel,
+                _GaussianKernel(truncate=6.0),
+            )
+        )
+        self.size_in_fwhm = None  # initialized during Martini.__init__
+        self._rescale = None  # initialized during Martini.__init__
+        return
+
+
+class QuarticSplineKernel(_AdaptiveKernel):
+    """
+    Implementation of the quartic spline kernel integral.
+
+    The quartic spline (M5) kernel is used in the SPHENIX scheme (e.g. in Colibre). The
+    exact integral is usually too slow to be practical; the implementation here
+    approximates the kernel amplitude as constant across the pixel, which converges to
+    within 1% of the exact integral provided the SPH smoothing lengths are at least 1.2385
+    pixels in size.
+
+    The quartic spline kernel is here defined as:
+
+    .. math ::
+        W(q) = \\frac{15625}{512\\pi}\\begin{cases}
+        (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
+        &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
+        (1 - q)^4 - 5(\\frac{3}{5} - q)^4
+        &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+        (1 - q)^4
+        &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+        0
+        &{\\rm for}\\;q \\geq 1
+        \\end{cases}
+
+    This class falls back to the DiracDeltaKernel and GaussianKernel when the
+    approximation used for the QuarticSplineKernel fails. To strictly use the
+    QuarticSplineKernel, use `martini.sph_kernels._QuarticSplineKernel` instead.
+    """
+
+    def __init__(self):
+        super().__init__(
+            (_QuarticSplineKernel, DiracDeltaKernel, _GaussianKernel(truncate=6.0))
+        )
+        self.size_in_fwhm = None  # initialized during Martini.__init__
+        self._rescale = None  # initialized during Martini.__init__
+        return

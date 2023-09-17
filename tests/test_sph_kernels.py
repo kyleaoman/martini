@@ -4,26 +4,26 @@ from martini import Martini, DataCube
 from martini.spectral_models import GaussianSpectrum
 from martini.sources import SPHSource
 from martini.sph_kernels import (
-    WendlandC2Kernel,
-    GaussianKernel,
-    CubicSplineKernel,
-    QuarticSplineKernel,
-    WendlandC6Kernel,
-    DiracDeltaKernel,
-    AdaptiveKernel,
+    _WendlandC2Kernel,
+    _GaussianKernel,
+    _CubicSplineKernel,
+    _QuarticSplineKernel,
+    _WendlandC6Kernel,
+    _DiracDeltaKernel,
+    _AdaptiveKernel,
 )
 from astropy import units as U
 
 # kernels that have a well-defined FWHM, i.e. not dirac-delta, adaptive
 fwhm_kernels = (
-    WendlandC2Kernel,
-    WendlandC6Kernel,
-    CubicSplineKernel,
-    GaussianKernel,
-    QuarticSplineKernel,
+    _WendlandC2Kernel,
+    _WendlandC6Kernel,
+    _CubicSplineKernel,
+    _GaussianKernel,
+    _QuarticSplineKernel,
 )
-simple_kernels = fwhm_kernels + (DiracDeltaKernel,)
-all_kernels = simple_kernels + (AdaptiveKernel,)
+simple_kernels = fwhm_kernels + (_DiracDeltaKernel,)
+all_kernels = simple_kernels + (_AdaptiveKernel,)
 
 for k in all_kernels:
     k.noFWHMwarn = True
@@ -107,7 +107,12 @@ class TestSPHKernels:
 
     @pytest.mark.parametrize(
         "kernel",
-        (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, QuarticSplineKernel),
+        (
+            _WendlandC2Kernel,
+            _WendlandC6Kernel,
+            _CubicSplineKernel,
+            _QuarticSplineKernel,
+        ),
     )
     def test_kernel_validation_minsize(self, kernel):
         """
@@ -126,7 +131,7 @@ class TestSPHKernels:
             total_kernel_weight(k, kernel.min_valid_size * 0.9), 1.0, rtol=1.0e-2
         )
 
-    @pytest.mark.parametrize("kernel", (DiracDeltaKernel,))
+    @pytest.mark.parametrize("kernel", (_DiracDeltaKernel,))
     def test_kernel_validation_maxsize(self, kernel):
         """
         Check that our kernel integral approximations hold within the stated
@@ -141,7 +146,7 @@ class TestSPHKernels:
             total_kernel_weight(k, kernel.max_valid_size * 0.999), 1.0, rtol=1.0e-2
         )
         # check that with a larger size is more than 1% from 1.0
-        if kernel not in (DiracDeltaKernel,):
+        if kernel not in (_DiracDeltaKernel,):
             # DiracDeltaKernel will still converge to right answer, but is
             # a poor approximation on geometric grounds
             assert not np.isclose(
@@ -157,10 +162,10 @@ class TestSPHKernels:
         """
         if truncate < 2.0:
             with pytest.raises(RuntimeError, match="with truncation <2sigma"):
-                k = GaussianKernel(truncate=truncate)
+                k = _GaussianKernel(truncate=truncate)
             return
         else:
-            k = GaussianKernel(truncate=truncate)
+            k = _GaussianKernel(truncate=truncate)
         # check that a very well-sampled case gives 1.0
         assert np.isclose(total_kernel_weight(k, 20), 1.0, rtol=3.0e-3)
         # check that the minimum size gives 1.0 within 1%
@@ -176,16 +181,16 @@ class TestSPHKernels:
     @pytest.mark.parametrize(
         ("kernel", "kernel_args"),
         (
-            (GaussianKernel, (2,)),
-            (GaussianKernel, (3,)),
-            (GaussianKernel, (4,)),
-            (GaussianKernel, (5,)),
-            (GaussianKernel, (6,)),
-            (WendlandC2Kernel, None),
-            (WendlandC6Kernel, None),
-            (CubicSplineKernel, None),
-            (QuarticSplineKernel, None),
-            (DiracDeltaKernel, None),
+            (_GaussianKernel, (2,)),
+            (_GaussianKernel, (3,)),
+            (_GaussianKernel, (4,)),
+            (_GaussianKernel, (5,)),
+            (_GaussianKernel, (6,)),
+            (_WendlandC2Kernel, None),
+            (_WendlandC6Kernel, None),
+            (_CubicSplineKernel, None),
+            (_QuarticSplineKernel, None),
+            (_DiracDeltaKernel, None),
         ),
     )
     def test_kernel_confirm_validation(self, kernel, kernel_args):
