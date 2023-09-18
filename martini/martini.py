@@ -329,34 +329,29 @@ class Martini:
             )
         return
 
-    def _insert_source_segment(self, ij_pxs, progressbar=True):
-        if progressbar:
-            if self.quiet:
-                print(
-                    "To silence progress bar, set"
-                    " insert_source_in_cube(progressbar=False)"
-                )
-            ij_pxs = tqdm.tqdm(ij_pxs)
-        for ij_px in ij_pxs:
-            ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            mask = (
-                np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
-            ).all(axis=0)
-            weights = self.sph_kernel.px_weight(
-                self.source.pixcoords[:2, mask] - ij, mask=mask
-            )
-            insertion_slice = (
-                np.s_[ij_px[0], ij_px[1], :, 0]
-                if self.datacube.stokes_axis
-                else np.s_[ij_px[0], ij_px[1], :]
-            )
-            self.datacube._array[insertion_slice] = (
-                self.spectral_model.spectra[mask] * weights[..., np.newaxis]
-            ).sum(axis=-2)
+    def _evaluate_pixel_spectrum(self, ij_px):
+        ij = np.array(ij_px)[..., np.newaxis] * U.pix
+        mask = (
+            np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
+        ).all(axis=0)
+        weights = self.sph_kernel.px_weight(
+            self.source.pixcoords[:2, mask] - ij, mask=mask
+        )
+        insertion_slice = (
+            np.s_[ij_px[0], ij_px[1], :, 0]
+            if self.datacube.stokes_axis
+            else np.s_[ij_px[0], ij_px[1], :]
+        )
+        return insertion_slice, (
+            self.spectral_model.spectra[mask] * weights[..., np.newaxis]
+        ).sum(axis=-2)
 
-    def insert_source_in_cube(
-        self, skip_validation=False, progressbar=True, nthreads=1
-    ):
+    def _insert_pixel(self, insertion_slice_and_data):
+        insertion_slice, insertion_data = insertion_slice_and_data
+        self.datacube._array[insertion_slice] = insertion_data
+        return
+
+    def insert_source_in_cube(self, skip_validation=False, progressbar=True, ncpu=1):
         """
         Populates the DataCube with flux from the particles in the source.
 
@@ -373,8 +368,8 @@ class Martini:
         progressbar : bool, optional
             If True, a progress bar will be shown. (Default: True.)
 
-        nthreads : int
-            Number of cpu threads used in main source insertion loop. (Default: 1)
+        ncpu : int
+            Number of processes to use in main source insertion loop. (Default: 1)
 
         """
 
@@ -392,23 +387,31 @@ class Martini:
         if not self.quiet:
             print("Inserting source in cube.")
 
-        if nthreads == 1:
-            self._insert_source_segment(ij_pxs, progressbar=progressbar)
+        if ncpu == 1:
+            if progressbar:
+                if self.quiet:
+                    print(
+                        "To silence progress bar, set"
+                        " insert_source_in_cube(progressbar=False)"
+                    )
+                    ij_pxs = tqdm.tqdm(ij_pxs)
+                for ij_px in ij_pxs:
+                    insertion_slice, insertion_data = self._evaluate_pixel_spectrum(
+                        ij_px
+                    )
+                    self._insert_pixel((insertion_slice, insertion_data))
         else:
-            import threading
+            from multiprocessing import Pool
 
-            threads = [
-                threading.Thread(
-                    target=self._insert_source_segment,
-                    args=(ij_pxs[ithread::nthreads],),
-                    kwargs=dict(progressbar=progressbar),
-                )
-                for ithread in range(nthreads)
-            ]
-            for thread in threads:
-                thread.start()
-            for thread in threads:
-                thread.join()
+            with Pool(processes=ncpu) as pool:
+                result = pool.map_async(
+                    func=self._evaluate_pixel_spectrum,
+                    iterable=ij_pxs,
+                    callback=self._insert_pixel,
+                )  # chunksize
+                # results inserted as they arrive
+                # this just blocks until everything finished
+                result.wait(None)
 
         self.datacube._array = self.datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
