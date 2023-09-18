@@ -4,26 +4,39 @@ from martini import Martini, DataCube
 from martini.spectral_models import GaussianSpectrum
 from martini.sources import SPHSource
 from martini.sph_kernels import (
+    _WendlandC2Kernel,
+    _GaussianKernel,
+    _CubicSplineKernel,
+    _QuarticSplineKernel,
+    _WendlandC6Kernel,
+    DiracDeltaKernel,
+    _AdaptiveKernel,
     WendlandC2Kernel,
     GaussianKernel,
     CubicSplineKernel,
     QuarticSplineKernel,
     WendlandC6Kernel,
-    DiracDeltaKernel,
-    AdaptiveKernel,
 )
 from astropy import units as U
 
 # kernels that have a well-defined FWHM, i.e. not dirac-delta, adaptive
 fwhm_kernels = (
+    _WendlandC2Kernel,
+    _WendlandC6Kernel,
+    _CubicSplineKernel,
+    _GaussianKernel,
+    _QuarticSplineKernel,
+)
+simple_kernels = fwhm_kernels + (DiracDeltaKernel,)
+recommended_kernels = (
     WendlandC2Kernel,
     WendlandC6Kernel,
     CubicSplineKernel,
     GaussianKernel,
     QuarticSplineKernel,
 )
-simple_kernels = fwhm_kernels + (DiracDeltaKernel,)
-all_kernels = simple_kernels + (AdaptiveKernel,)
+adaptive_kernels = recommended_kernels + (_AdaptiveKernel,)
+all_kernels = simple_kernels + adaptive_kernels
 
 for k in all_kernels:
     k.noFWHMwarn = True
@@ -35,7 +48,7 @@ def total_kernel_weight(k, h, ngrid=50):
     xgrid, ygrid = np.meshgrid(np.r_[r[1:][::-1], r], np.r_[r[1:][::-1], r])
     dij = np.vstack((xgrid.flatten(), ygrid.flatten()))
     k.sm_lengths = np.ones(dij.shape[1]) * h * U.pix
-    return (dr**2 * np.sum(k.px_weight(dij * U.pix))).to_value(
+    return (dr**2 * np.sum(k._px_weight(dij * U.pix))).to_value(
         U.dimensionless_unscaled
     )
 
@@ -82,7 +95,7 @@ class TestSPHKernels:
             k.sm_lengths = h * np.ones(rgrid.shape)[eval_grid].flatten() * U.pix
             dij = np.vstack((xgrid[eval_grid], ygrid[eval_grid]))
             IKi = dr**2 * np.sum(
-                k.px_weight(
+                k._px_weight(
                     dij * U.pix,
                 )
             )
@@ -107,7 +120,12 @@ class TestSPHKernels:
 
     @pytest.mark.parametrize(
         "kernel",
-        (WendlandC2Kernel, WendlandC6Kernel, CubicSplineKernel, QuarticSplineKernel),
+        (
+            _WendlandC2Kernel,
+            _WendlandC6Kernel,
+            _CubicSplineKernel,
+            _QuarticSplineKernel,
+        ),
     )
     def test_kernel_validation_minsize(self, kernel):
         """
@@ -157,10 +175,10 @@ class TestSPHKernels:
         """
         if truncate < 2.0:
             with pytest.raises(RuntimeError, match="with truncation <2sigma"):
-                k = GaussianKernel(truncate=truncate)
+                k = _GaussianKernel(truncate=truncate)
             return
         else:
-            k = GaussianKernel(truncate=truncate)
+            k = _GaussianKernel(truncate=truncate)
         # check that a very well-sampled case gives 1.0
         assert np.isclose(total_kernel_weight(k, 20), 1.0, rtol=3.0e-3)
         # check that the minimum size gives 1.0 within 1%
@@ -176,15 +194,15 @@ class TestSPHKernels:
     @pytest.mark.parametrize(
         ("kernel", "kernel_args"),
         (
-            (GaussianKernel, (2,)),
-            (GaussianKernel, (3,)),
-            (GaussianKernel, (4,)),
-            (GaussianKernel, (5,)),
-            (GaussianKernel, (6,)),
-            (WendlandC2Kernel, None),
-            (WendlandC6Kernel, None),
-            (CubicSplineKernel, None),
-            (QuarticSplineKernel, None),
+            (_GaussianKernel, (2,)),
+            (_GaussianKernel, (3,)),
+            (_GaussianKernel, (4,)),
+            (_GaussianKernel, (5,)),
+            (_GaussianKernel, (6,)),
+            (_WendlandC2Kernel, None),
+            (_WendlandC6Kernel, None),
+            (_CubicSplineKernel, None),
+            (_QuarticSplineKernel, None),
             (DiracDeltaKernel, None),
         ),
     )
@@ -238,6 +256,82 @@ class TestSPHKernels:
             )
             if raises:
                 with pytest.raises(RuntimeError, match="use this with care"):
-                    m.sph_kernel.confirm_validation(quiet=True)
+                    m.sph_kernel._confirm_validation(quiet=True)
             else:
-                m.sph_kernel.confirm_validation(quiet=True)  # should not raise
+                m.sph_kernel._confirm_validation(quiet=True)  # should not raise
+
+
+class TestAdaptiveKernels:
+    @pytest.mark.parametrize(
+        "kernel",
+        (
+            WendlandC2Kernel,
+            WendlandC6Kernel,
+            CubicSplineKernel,
+            QuarticSplineKernel,
+        ),
+    )
+    def test_kernel_selection(
+        self, kernel, adaptive_kernel_test_source, adaptive_kernel_test_datacube
+    ):
+        """
+        Test that the kernel is chosen correctly from those available.
+
+        The smoothing lengths are respectively: (3.0, 1.0, 0.55, 0.1) kpc. Normally
+        the first two should use the preferred kernel, the third should fall back to
+        a `_GaussianKernel` with a large truncation radius, and the last should fall back
+        to a `DiracDeltaKernel`. Assumes 1kpc pixels, which is what we'll use for testing.
+        Note that the minimum valid size is compared to the smoothing length times the
+        rescaling parameter, so for example
+        `_WendlandC2Kernel.min_valid_size / _WendlandC2Kernel()._rescale` has a value of
+        0.9477, so with our 1kpc pixels, a value in the smoothing length array of
+        at least 0.9477kpc will use the preferred kernel, while less than 0.5kpc will
+        use the `DiracDeltaKernel` and between these two will use the `_GaussianKernel`
+        with truncation parameter of 6.
+        """
+        source = adaptive_kernel_test_source()
+        source._init_skycoords()
+        k = kernel()
+        k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
+        assert all(k.kernel_indices == np.array([0, 0, 2, 1]))
+
+    def test_kernel_selection_Gaussian(
+        self, adaptive_kernel_test_source, adaptive_kernel_test_datacube
+    ):
+        """
+        Test that the kernel is chosen correctly from those available.
+
+        The smoothing lengths are respectively (3.0, 1.0, 0.55, 0.1) kpc. For a
+        `GaussianKernel` with truncation parameter of 3, the first should use the
+        preferred kernel, the second and third should fall back to a `_GaussianKernel`
+        with a truncation parameter of 6, and the last should fall back to a
+        `DiracDeltaKernel`. The `_GaussianKernel` has a rescaling parameter of 1.
+        """
+        source = adaptive_kernel_test_source()
+        source._init_skycoords()
+        k = GaussianKernel(truncate=3.0)
+        k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
+        assert all(k.kernel_indices == np.array([0, 2, 2, 1]))
+
+    @pytest.mark.parametrize("kernel", recommended_kernels)
+    def test_raw_kernel_function(self, kernel):
+        """
+        Test that evaluating the `kernel` function gives the evaluation of the adaptive
+        kernel's preferred kernel's `kernel` function.
+        """
+        eval_at = np.linspace(0, 3, 51)
+        assert np.allclose(
+            kernel().kernel(eval_at), kernel().kernels[0].kernel(eval_at)
+        )
+
+    @pytest.mark.parametrize("kernel", recommended_kernels)
+    def test_eval_kernel_function(self, kernel):
+        """
+        Test that evaluating the `eval_kernel` function gives the evaluation of the
+        adaptive kernel's preferred kernel's `eval_kernel` function.
+        """
+        eval_at = np.linspace(0, 3, 51)
+        assert np.allclose(
+            kernel().eval_kernel(eval_at, np.ones(eval_at.shape)),
+            kernel().kernels[0].eval_kernel(eval_at, np.ones(eval_at.shape)),
+        )

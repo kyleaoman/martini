@@ -1,6 +1,6 @@
 import numpy as np
 from .sph_source import SPHSource
-from ..sph_kernels import CubicSplineKernel, find_fwhm
+from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from os.path import join
 from astropy import units as U, constants as C
 
@@ -131,7 +131,7 @@ class SimbaSource(SPHSource):
                 * a
                 / h
                 * U.kpc
-                * find_fwhm(CubicSplineKernel().kernel),
+                * find_fwhm(_CubicSplineKernel().kernel),
                 mHI_g=gas["Masses"][()] * fH * gas["GrackleHI"][()] * 1e10 / h * U.Msun,
             )
             del fH, fHe, xe
