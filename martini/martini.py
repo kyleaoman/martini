@@ -404,14 +404,14 @@ class Martini:
             from multiprocessing import Pool
 
             with Pool(processes=ncpu) as pool:
-                result = pool.map_async(
-                    func=self._evaluate_pixel_spectrum,
-                    iterable=ij_pxs,
+                pool.map_async(
+                    self._evaluate_pixel_spectrum,
+                    ij_pxs,
                     callback=self._insert_pixel,
+                    error_callback=lambda: print("err"),
                 )  # chunksize
-                # results inserted as they arrive
-                # this just blocks until everything finished
-                result.wait(None)
+                pool.close()
+                pool.join()
 
         self.datacube._array = self.datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
