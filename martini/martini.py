@@ -329,37 +329,7 @@ class Martini:
             )
         return
 
-    def insert_source_in_cube(self, skip_validation=False, progressbar=True):
-        """
-        Populates the DataCube with flux from the particles in the source.
-
-        Parameters
-        ----------
-        skip_validation : bool, optional
-            SPH kernel interpolation onto the DataCube is approximated for
-            increased speed. For some combinations of pixel size, distance
-            and SPH smoothing length, the approximation may break down. The
-            kernel class will check whether this will occur and raise a
-            RuntimeError if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter True. (Default: False.)
-
-        progressbar : bool, optional
-            If True, a progress bar will be shown. (Default: True.)
-        """
-
-        assert self.spectral_model.spectra is not None
-
-        self.sph_kernel.confirm_validation(noraise=skip_validation, quiet=self.quiet)
-
-        # pixel iteration
-        ij_pxs = list(
-            product(
-                np.arange(self.datacube._array.shape[0]),
-                np.arange(self.datacube._array.shape[1]),
-            )
-        )
-        if not self.quiet:
-            print("Inserting source in cube.")
+    def _insert_source_segment(self, ij_pxs, progressbar=True):
         if progressbar:
             if self.quiet:
                 print(
@@ -383,6 +353,62 @@ class Martini:
             self.datacube._array[insertion_slice] = (
                 self.spectral_model.spectra[mask] * weights[..., np.newaxis]
             ).sum(axis=-2)
+
+    def insert_source_in_cube(
+        self, skip_validation=False, progressbar=True, nthreads=1
+    ):
+        """
+        Populates the DataCube with flux from the particles in the source.
+
+        Parameters
+        ----------
+        skip_validation : bool, optional
+            SPH kernel interpolation onto the DataCube is approximated for
+            increased speed. For some combinations of pixel size, distance
+            and SPH smoothing length, the approximation may break down. The
+            kernel class will check whether this will occur and raise a
+            RuntimeError if so. This validation can be skipped (at the cost
+            of accuracy!) by setting this parameter True. (Default: False.)
+
+        progressbar : bool, optional
+            If True, a progress bar will be shown. (Default: True.)
+
+        nthreads : int
+            Number of cpu threads used in main source insertion loop. (Default: 1)
+
+        """
+
+        assert self.spectral_model.spectra is not None
+
+        self.sph_kernel.confirm_validation(noraise=skip_validation, quiet=self.quiet)
+
+        # pixel iteration
+        ij_pxs = list(
+            product(
+                np.arange(self.datacube._array.shape[0]),
+                np.arange(self.datacube._array.shape[1]),
+            )
+        )
+        if not self.quiet:
+            print("Inserting source in cube.")
+
+        if nthreads == 1:
+            self._insert_source_segment(ij_pxs, progressbar=progressbar)
+        else:
+            import threading
+
+            threads = [
+                threading.Thread(
+                    target=self._insert_source_segment,
+                    args=(ij_pxs[ithread::nthreads],),
+                    kwargs=dict(progressbar=progressbar),
+                )
+                for ithread in range(nthreads)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
 
         self.datacube._array = self.datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
