@@ -320,7 +320,7 @@ class Martini:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
         # most kernels ignore this line, but required by AdaptiveKernel
-        self.sph_kernel.apply_mask(np.logical_not(reject_mask))
+        self.sph_kernel._apply_mask(np.logical_not(reject_mask))
         if not self.quiet:
             print(
                 f"Pruned particles that will not contribute to data cube, "
@@ -349,7 +349,7 @@ class Martini:
 
         assert self.spectral_model.spectra is not None
 
-        self.sph_kernel.confirm_validation(noraise=skip_validation, quiet=self.quiet)
+        self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
         # pixel iteration
         ij_pxs = list(
@@ -372,7 +372,7 @@ class Martini:
             mask = (
                 np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
             ).all(axis=0)
-            weights = self.sph_kernel.px_weight(
+            weights = self.sph_kernel._px_weight(
                 self.source.pixcoords[:2, mask] - ij, mask=mask
             )
             insertion_slice = (

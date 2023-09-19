@@ -3,7 +3,6 @@ martini package
 
 .. automodule:: martini
    :members:
-   :undoc-members:
    :show-inheritance:
    :inherited-members:
 

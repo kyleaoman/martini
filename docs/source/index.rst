@@ -14,6 +14,7 @@ Overview
    :caption: Documentation contents
 
    getting_started/index
+   sph_kernels/index
    modules/index
 
 Citing Martini
