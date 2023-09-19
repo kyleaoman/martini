@@ -329,22 +329,33 @@ class Martini:
             )
         return
 
-    def _evaluate_pixel_spectrum(self, ij_px):
-        ij = np.array(ij_px)[..., np.newaxis] * U.pix
-        mask = (
-            np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
-        ).all(axis=0)
-        weights = self.sph_kernel.px_weight(
-            self.source.pixcoords[:2, mask] - ij, mask=mask
-        )
-        insertion_slice = (
-            np.s_[ij_px[0], ij_px[1], :, 0]
-            if self.datacube.stokes_axis
-            else np.s_[ij_px[0], ij_px[1], :]
-        )
-        return insertion_slice, (
-            self.spectral_model.spectra[mask] * weights[..., np.newaxis]
-        ).sum(axis=-2)
+    def _evaluate_pixel_spectrum(self, args, progressbar=True):
+        result = list()
+        position, ij_pxs = args
+        if progressbar:
+            ij_pxs = tqdm.tqdm(ij_pxs, position=position)
+        for ij_px in ij_pxs:
+            ij = np.array(ij_px)[..., np.newaxis] * U.pix
+            mask = (
+                np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
+            ).all(axis=0)
+            weights = self.sph_kernel.px_weight(
+                self.source.pixcoords[:2, mask] - ij, mask=mask
+            )
+            insertion_slice = (
+                np.s_[ij_px[0], ij_px[1], :, 0]
+                if self.datacube.stokes_axis
+                else np.s_[ij_px[0], ij_px[1], :]
+            )
+            result.append(
+                (
+                    insertion_slice,
+                    (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(
+                        axis=-2
+                    ),
+                )
+            )
+        return result
 
     def _insert_pixel(self, insertion_slice_and_data):
         insertion_slice, insertion_data = insertion_slice_and_data
@@ -387,30 +398,27 @@ class Martini:
         if not self.quiet:
             print("Inserting source in cube.")
 
+        if self.quiet:
+            print(
+                "To silence progress bar, set"
+                " insert_source_in_cube(progressbar=False)"
+            )
         if ncpu == 1:
-            if progressbar:
-                if self.quiet:
-                    print(
-                        "To silence progress bar, set"
-                        " insert_source_in_cube(progressbar=False)"
-                    )
-                ij_pxs = tqdm.tqdm(ij_pxs)
-            for ij_px in ij_pxs:
-                insertion_slice, insertion_data = self._evaluate_pixel_spectrum(ij_px)
+            for insertion_slice, insertion_data in self._evaluate_pixel_spectrum(
+                (0, ij_pxs), progressbar=progressbar
+            ):
                 self._insert_pixel((insertion_slice, insertion_data))
         else:
             # not multiprocessing, need serialization from dill not pickle
             from multiprocess import Pool
 
             with Pool(processes=ncpu) as pool:
-                pbar = tqdm.tqdm(total=len(ij_pxs))
                 for result in pool.imap_unordered(
-                    self._evaluate_pixel_spectrum,
-                    ij_pxs,
-                    chunksize=len(ij_pxs) // 500,
+                    lambda x: self._evaluate_pixel_spectrum(x, progressbar=progressbar),
+                    [(icpu, ij_pxs[icpu::ncpu]) for icpu in range(ncpu)],
                 ):
-                    self._insert_pixel(result)
-                    pbar.update()
+                    for insertion_slice, insertion_data in result:
+                        self._insert_pixel((insertion_slice, insertion_data))
 
         self.datacube._array = self.datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
