@@ -394,24 +394,23 @@ class Martini:
                         "To silence progress bar, set"
                         " insert_source_in_cube(progressbar=False)"
                     )
-                    ij_pxs = tqdm.tqdm(ij_pxs)
-                for ij_px in ij_pxs:
-                    insertion_slice, insertion_data = self._evaluate_pixel_spectrum(
-                        ij_px
-                    )
-                    self._insert_pixel((insertion_slice, insertion_data))
+                ij_pxs = tqdm.tqdm(ij_pxs)
+            for ij_px in ij_pxs:
+                insertion_slice, insertion_data = self._evaluate_pixel_spectrum(ij_px)
+                self._insert_pixel((insertion_slice, insertion_data))
         else:
-            from multiprocessing import Pool
+            # not multiprocessing, need serialization from dill not pickle
+            from multiprocess import Pool
 
             with Pool(processes=ncpu) as pool:
-                pool.map_async(
+                pbar = tqdm.tqdm(total=len(ij_pxs))
+                for result in pool.imap_unordered(
                     self._evaluate_pixel_spectrum,
                     ij_pxs,
-                    callback=self._insert_pixel,
-                    error_callback=lambda: print("err"),
-                )  # chunksize
-                pool.close()
-                pool.join()
+                    chunksize=len(ij_pxs) // 500,
+                ):
+                    self._insert_pixel(result)
+                    pbar.update()
 
         self.datacube._array = self.datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
