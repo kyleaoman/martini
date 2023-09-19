@@ -394,7 +394,7 @@ class TestParallel:
             datacube=dc_zeros,
             beam=GaussianBeam(),
             noise=None,
-            sph_kernel=GaussianKernel(),
+            sph_kernel=_GaussianKernel(),
             spectral_model=GaussianSpectrum(),
         )
 
