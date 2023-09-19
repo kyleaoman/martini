@@ -6,7 +6,7 @@ from martini.martini import Martini
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels
-from martini.sph_kernels import CubicSplineKernel, GaussianKernel
+from martini.sph_kernels import CubicSplineKernel, GaussianKernel, DiracDeltaKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from astropy import units as U
 from astropy.io import fits
@@ -17,7 +17,7 @@ class TestMartini:
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
     def test_mass_accuracy(
-        self, dc, sph_kernel, spectral_model, single_particle_source
+        self, dc_zeros, sph_kernel, spectral_model, single_particle_source
     ):
         """
         Check that the input mass in the particles gives the correct total mass in the
@@ -33,7 +33,7 @@ class TestMartini:
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         m = Martini(
             source=source,
-            datacube=dc,
+            datacube=dc_zeros,
             beam=GaussianBeam(),
             noise=None,
             spectral_model=spectral_model(),
@@ -367,3 +367,51 @@ class TestMartini:
         # check that can reset after doing nothing
         m_nn.reset()
         m_nn.reset()
+
+    def test_reset_preserves_shape(self, single_particle_source, dc_zeros):
+        m = Martini(
+            source=single_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            spectral_model=DiracDeltaSpectrum(),
+            sph_kernel=DiracDeltaKernel(),
+        )
+        expected_shape = m.datacube._array.shape
+        m.reset()
+        assert m.datacube._array.shape == expected_shape
+
+
+class TestParallel:
+    def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
+        """
+        Check that running the source insertion loop in parallel gives the same result
+        as running in serial.
+        """
+
+        m = Martini(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=GaussianKernel(),
+            spectral_model=GaussianSpectrum(),
+        )
+
+        m.insert_source_in_cube(ncpu=1, progressbar=False)
+        expected_result = m.datacube._array
+
+        # check that we're not testing on a zero array
+        assert m.datacube._array.sum() > 0
+
+        m.reset()
+
+        # check the reset was successful
+        assert np.allclose(
+            m.datacube._array.to_value(m.datacube._array.unit),
+            0.0,
+        )
+
+        m.insert_source_in_cube(ncpu=2, progressbar=False)
+
+        assert U.allclose(m.datacube._array, expected_result)

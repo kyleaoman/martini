@@ -30,8 +30,41 @@ def sps_sourcegen(
     particle has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a
     temperature of 10^4 K, a position offset by (x, y, z) = (1 pc, 1 pc, 1 pc)
     from the source centroid, a peculiar velocity of 0 km/s, and will be placed
-    in the Hubble flow assuming h = 0.7 at a distance of 3 Mpc. The particle has
-    a 1 kpc smoothing length.
+    in the Hubble flow assuming h = 0.7 at a distance of 3 Mpc.
+    """
+    return SPHSource(
+        T_g=T_g,
+        mHI_g=mHI_g,
+        xyz_g=xyz_g,
+        vxyz_g=vxyz_g,
+        hsm_g=hsm_g,
+        distance=distance,
+        ra=ra,
+        dec=dec,
+        vpeculiar=vpeculiar,
+    )
+
+
+def mps_sourcegen(
+    T_g=np.ones(100) * 1.0e4 * U.K,
+    mHI_g=np.ones(100) * 1.0e4 * U.Msun,
+    xyz_g=(np.random.rand(300).reshape((100, 3)) - 0.5) * 10 * U.kpc,
+    vxyz_g=(np.random.rand(300).reshape((100, 3)) - 0.5) * 40 * U.km * U.s**-1,
+    hsm_g=np.ones(100) * U.kpc,
+    distance=3 * U.Mpc,
+    ra=0 * U.deg,
+    dec=0 * U.deg,
+    vpeculiar=0 * U.km / U.s,
+):
+    """
+    Creates a 100-particle test source.
+
+    A simple test source consisting of 100 particles will be created. The
+    particles have a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a
+    temperature of 10^4 K, random positions between -5 and 5 kpc offset from the source
+    centroid along each axis, velocity offsets between -20 and 20 km/s around systemic,
+    a peculiar velocity of 0 km/s, and will be placed in the Hubble flow assuming
+    h = 0.7 at a distance of 3 Mpc.
     """
     return SPHSource(
         T_g=T_g,
@@ -168,7 +201,7 @@ def m_nn():
 
 
 @pytest.fixture(scope="function", params=[True, False])
-def dc(request):
+def dc_random(request):
     dc = DataCube(
         n_px_x=16,
         n_px_y=16,
@@ -179,6 +212,19 @@ def dc(request):
 
     dc._array[...] = (
         np.random.rand(dc._array.size).reshape(dc._array.shape) * dc._array.unit
+    )
+
+    yield dc
+
+
+@pytest.fixture(scope="function", params=[True, False])
+def dc_zeros(request):
+    dc = DataCube(
+        n_px_x=16,
+        n_px_y=16,
+        n_channels=16,
+        velocity_centre=3 * 70 * U.km / U.s,
+        stokes_axis=request.param,
     )
 
     yield dc
@@ -233,3 +279,8 @@ def cross_source():
 @pytest.fixture(scope="function")
 def single_particle_source():
     yield sps_sourcegen
+
+
+@pytest.fixture(scope="function")
+def many_particle_source():
+    yield mps_sourcegen

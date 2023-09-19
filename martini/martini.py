@@ -881,6 +881,7 @@ class Martini:
             velocity_centre=self.datacube.velocity_centre,
             ra=self.datacube.ra,
             dec=self.datacube.dec,
+            stokes_axis=self.datacube.stokes_axis,
         )
         self.datacube = DataCube(**init_kwargs)
         if self.beam is not None:
