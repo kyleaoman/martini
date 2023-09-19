@@ -320,7 +320,7 @@ class Martini:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
         # most kernels ignore this line, but required by AdaptiveKernel
-        self.sph_kernel.apply_mask(np.logical_not(reject_mask))
+        self.sph_kernel._apply_mask(np.logical_not(reject_mask))
         if not self.quiet:
             print(
                 f"Pruned particles that will not contribute to data cube, "
@@ -433,7 +433,7 @@ class Martini:
         if progressbar is None:
             progressbar = not self.quiet
 
-        self.sph_kernel.confirm_validation(noraise=skip_validation, quiet=self.quiet)
+        self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
         ij_pxs = list(
             product(
@@ -441,6 +441,7 @@ class Martini:
                 np.arange(self.datacube._array.shape[1]),
             )
         )
+
         if ncpu == 1:
             for insertion_slice, insertion_data in self._evaluate_pixel_spectrum(
                 (0, ij_pxs), progressbar=progressbar

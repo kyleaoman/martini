@@ -6,7 +6,7 @@ from martini.martini import Martini
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels
-from martini.sph_kernels import CubicSplineKernel, GaussianKernel, DiracDeltaKernel
+from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from astropy import units as U
 from astropy.io import fits
@@ -228,7 +228,7 @@ class TestMartini:
         )
         beam = GaussianBeam()
         noise = None
-        sph_kernel = GaussianKernel()
+        sph_kernel = _GaussianKernel()
         spectral_model = GaussianSpectrum()
 
         m = Martini(
@@ -332,7 +332,7 @@ class TestMartini:
         )
         # pad size will be 5, so datacube is 12x12 pixels
         beam = GaussianBeam(bmaj=1 * U.arcsec, bmin=1 * U.arcsec, truncate=4)
-        sph_kernel = CubicSplineKernel()
+        sph_kernel = _CubicSplineKernel()
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
         kwargs = dict(
             source=source,
