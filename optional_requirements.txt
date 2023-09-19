@@ -1,5 +1,6 @@
 six
 requests
+multiprocess
 h5py
 hdecompose
 pyread_eagle
