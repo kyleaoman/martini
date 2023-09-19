@@ -14,6 +14,7 @@ Overview
    :caption: Documentation contents
 
    getting_started/index
+   martini/index
    modules/index
 
 Citing Martini
