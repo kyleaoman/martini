@@ -63,6 +63,8 @@ The core loop in the source insertion function is embarassingly parallel. Parall
 
 Executing with `N` processes is almost exactly `N` times faster than using a single process (provided that `N` cpus are available and otherwise idle). There is a small overhead to create processes (usually a second or less per process), usually dwarfed by the actual calculation by the time parallelization becomes a concern!
 
+Progress bars work in principle in parallel mode, with one bar per process, although the formatting of the bars seems to occasionally get a bit glitchy.
+
 .. warning::
 
     `multiprocess` is not to be confused with `multiprocessing` - it is a fork of that package that, amongst other additional features, implements the object serialization used to pass data to/from processes with `dill` instead of `pickle`. This allows MARTINI's object-oriented elements to be passed to processes. With `multiprocessing`, lots of internal bits would need to be moved to module-level global variables/functions, largely defeating the purpose of an object-oriented design.
