@@ -7,9 +7,9 @@ from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
 from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import GaussianKernel
+from martini.sph_kernels import _GaussianKernel
 
-GaussianKernel.noFWHMwarn = True
+_GaussianKernel.noFWHMwarn = True
 
 
 def sps_sourcegen(
@@ -98,9 +98,9 @@ def adaptive_kernel_test_sourcegen(
     (x, y, z) = (1 pc, 1 pc, 1 pc) from the source centroid, a peculiar velocity of
     0 km/s, and will be placed in the Hubble flow assuming h = 0.7 at a distance of
     3 Mpc. The smoothing lengths are respectively: (4.0, 3.0, 1.0, 0.1) kpc. Normally
-    the first two should use the preferred kernel (except for very small GaussianKernel
+    the first two should use the preferred kernel (except for very small _GaussianKernel
     truncations where only the first would work), the third should fall back to
-    a GaussianKernel with a large truncation radius, and the last should fall back to
+    a _GaussianKernel with a large truncation radius, and the last should fall back to
     a DiracDeltaKernel. Assumes 1kpc pixels, which is what we'll use for testing.
     """
     return SPHSource(
@@ -168,7 +168,7 @@ def m():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
-    sph_kernel = GaussianKernel()
+    sph_kernel = _GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(
@@ -196,7 +196,7 @@ def m_init():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
-    sph_kernel = GaussianKernel()
+    sph_kernel = _GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(
@@ -221,7 +221,7 @@ def m_nn():
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = None
-    sph_kernel = GaussianKernel()
+    sph_kernel = _GaussianKernel()
     spectral_model = GaussianSpectrum()
 
     m = Martini(

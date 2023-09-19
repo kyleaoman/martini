@@ -369,7 +369,7 @@ class Martini:
             mask = (
                 np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
             ).all(axis=0)
-            weights = self.sph_kernel.px_weight(
+            weights = self.sph_kernel._px_weight(
                 self.source.pixcoords[:2, mask] - ij, mask=mask
             )
             insertion_slice = (
