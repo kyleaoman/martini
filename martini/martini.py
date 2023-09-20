@@ -329,7 +329,79 @@ class Martini:
             )
         return
 
-    def insert_source_in_cube(self, skip_validation=False, progressbar=True):
+    def _evaluate_pixel_spectrum(self, ranks_and_ij_pxs, progressbar=True):
+        """
+        Add up contributions of particles to the spectrum in a pixel.
+
+        This is the core loop of MARTINI. It is embarrassingly parallel. To support
+        parallel excecution we accept storing up to a copy of the entire (future) datacube
+        in one-pixel pieces. This avoids the need for concurrent access to the datacube
+        by parallel processes, which would in the simplest case duplicate a copy of the
+        datacube array per parallel process! In realistic use cases the memory overhead
+        from a the equivalent of a second datacube array should be minimal - memory-
+        limited applications should be limited by the memory consumed by particle data,
+        which is not duplicated in parallel execution.
+
+        The arguments that differ between parallel ranks must be bundled into one for
+        compatibility with `multiprocess`.
+
+        Parameters
+        ----------
+        rank_and_ij_pxs : tuple
+            A 2-tuple containing an integer (cpu "rank" in the case of parallel execution)
+            and a list of 2-tuples specifying the indices (i, j) of pixels in the grid.
+
+        Returns
+        -------
+        out : list
+            A list containing 2-tuples. Each 2-tuple contains and "insertion slice" that
+            is an index into the datacube._array instance held by this martini instance
+            where the pixel spectrum is to be placed, and a 1D array containing the
+            spectrum, whose length must match the length of the spectral axis of the
+            datacube.
+        """
+        result = list()
+        rank, ij_pxs = ranks_and_ij_pxs
+        if progressbar:
+            ij_pxs = tqdm.tqdm(ij_pxs, position=rank)
+        for ij_px in ij_pxs:
+            ij = np.array(ij_px)[..., np.newaxis] * U.pix
+            mask = (
+                np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
+            ).all(axis=0)
+            weights = self.sph_kernel._px_weight(
+                self.source.pixcoords[:2, mask] - ij, mask=mask
+            )
+            insertion_slice = (
+                np.s_[ij_px[0], ij_px[1], :, 0]
+                if self.datacube.stokes_axis
+                else np.s_[ij_px[0], ij_px[1], :]
+            )
+            result.append(
+                (
+                    insertion_slice,
+                    (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(
+                        axis=-2
+                    ),
+                )
+            )
+        return result
+
+    def _insert_pixel(self, insertion_slice, insertion_data):
+        """
+        Insert the spectrum for a single pixel into the datacube array.
+
+        Parameters
+        ----------
+        insertion_slice : integer, tuple or slice
+            Index into the datacube's _array specifying the insertion location.
+        insertion data : array-like
+            1D array containing the spectrum at the location specified by insertion_slice.
+        """
+        self.datacube._array[insertion_slice] = insertion_data
+        return
+
+    def insert_source_in_cube(self, skip_validation=False, progressbar=None, ncpu=1):
         """
         Populates the DataCube with flux from the particles in the source.
 
@@ -344,45 +416,48 @@ class Martini:
             of accuracy!) by setting this parameter True. (Default: False.)
 
         progressbar : bool, optional
-            If True, a progress bar will be shown. (Default: True.)
+            A progress bar is shown by default. Progress bars work, with perhaps
+            some visual glitches, in parallel. If martini was initialised with
+            `quiet` set to `True`, progress bars are switched off unless explicitly
+            turned on. (Default: None.)
+
+        ncpu : int
+            Number of processes to use in main source insertion loop. Using more than
+            one cpu requires the `multiprocess` module (n.b. not the same as
+            `multiprocessing`). (Default: 1)
+
         """
 
         assert self.spectral_model.spectra is not None
 
+        if progressbar is None:
+            progressbar = not self.quiet
+
         self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
-        # pixel iteration
         ij_pxs = list(
             product(
                 np.arange(self.datacube._array.shape[0]),
                 np.arange(self.datacube._array.shape[1]),
             )
         )
-        if not self.quiet:
-            print("Inserting source in cube.")
-        if progressbar:
-            if self.quiet:
-                print(
-                    "To silence progress bar, set"
-                    " insert_source_in_cube(progressbar=False)"
-                )
-            ij_pxs = tqdm.tqdm(ij_pxs)
-        for ij_px in ij_pxs:
-            ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            mask = (
-                np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
-            ).all(axis=0)
-            weights = self.sph_kernel._px_weight(
-                self.source.pixcoords[:2, mask] - ij, mask=mask
-            )
-            insertion_slice = (
-                np.s_[ij_px[0], ij_px[1], :, 0]
-                if self.datacube.stokes_axis
-                else np.s_[ij_px[0], ij_px[1], :]
-            )
-            self.datacube._array[insertion_slice] = (
-                self.spectral_model.spectra[mask] * weights[..., np.newaxis]
-            ).sum(axis=-2)
+
+        if ncpu == 1:
+            for insertion_slice, insertion_data in self._evaluate_pixel_spectrum(
+                (0, ij_pxs), progressbar=progressbar
+            ):
+                self._insert_pixel(insertion_slice, insertion_data)
+        else:
+            # not multiprocessing, need serialization from dill not pickle
+            from multiprocess import Pool
+
+            with Pool(processes=ncpu) as pool:
+                for result in pool.imap_unordered(
+                    lambda x: self._evaluate_pixel_spectrum(x, progressbar=progressbar),
+                    [(icpu, ij_pxs[icpu::ncpu]) for icpu in range(ncpu)],
+                ):
+                    for insertion_slice, insertion_data in result:
+                        self._insert_pixel(insertion_slice, insertion_data)
 
         self.datacube._array = self.datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
@@ -807,6 +882,7 @@ class Martini:
             velocity_centre=self.datacube.velocity_centre,
             ra=self.datacube.ra,
             dec=self.datacube.dec,
+            stokes_axis=self.datacube.stokes_axis,
         )
         self.datacube = DataCube(**init_kwargs)
         if self.beam is not None:

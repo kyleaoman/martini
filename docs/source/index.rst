@@ -15,6 +15,7 @@ Overview
 
    getting_started/index
    sph_kernels/index
+   martini/index
    modules/index
 
 Citing Martini
