@@ -607,7 +607,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
     .. math ::
         W(q) = \\frac{8}{\\pi}\\begin{cases}
-        (1 - 6q^2(1 - \\frac{q}{2}))
+        (1 - 6q^2(1 - q))
         &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
         2(1 - q)^3
         &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
@@ -634,7 +634,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
         .. math ::
             W(q) = \\frac{8}{\\pi}\\begin{cases}
-            (1 - 6q^2(1 - \\frac{q}{2}))
+            (1 - 6q^2(1 - q))
             &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
             2(1 - q)^3
             &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
