@@ -290,3 +290,46 @@ def loadHeader(basePath, snapNum):
         header = dict(f["Header"].attrs.items())
 
     return header
+
+
+def getSnapOffsets(basePath, snapNum, id, type):
+    """
+    Compute offsets within snapshot for a particular group/subgroup.
+    """
+    import h5py
+
+    r = {}
+
+    # old or new format
+    if "fof_subhalo" in gcPath(basePath, snapNum):
+        # use separate 'offsets_nnn.hdf5' files
+        with h5py.File(offsetPath(basePath, snapNum), "r") as f:
+            groupFileOffsets = f["FileOffsets/" + type][()]
+            r["snapOffsets"] = np.transpose(
+                f["FileOffsets/SnapByType"][()]
+            )  # consistency
+    else:
+        # load groupcat chunk offsets from header of first file
+        with h5py.File(gcPath(basePath, snapNum), "r") as f:
+            groupFileOffsets = f["Header"].attrs["FileOffsets_" + type]
+            r["snapOffsets"] = f["Header"].attrs["FileOffsets_Snap"]
+
+    # calculate target groups file chunk which contains this id
+    groupFileOffsets = int(id) - groupFileOffsets
+    fileNum = np.max(np.where(groupFileOffsets >= 0))
+    groupOffset = groupFileOffsets[fileNum]
+
+    # load the length (by type) of this group/subgroup from the group catalog
+    with h5py.File(gcPath(basePath, snapNum, fileNum), "r") as f:
+        r["lenType"] = f[type][type + "LenType"][groupOffset, :]
+
+    # old or new format: load the offset (by type) of this group/subgroup within the
+    # snapshot
+    if "fof_subhalo" in gcPath(basePath, snapNum):
+        with h5py.File(offsetPath(basePath, snapNum), "r") as f:
+            r["offsetType"] = f[type + "/SnapByType"][id, :]
+    else:
+        with h5py.File(gcPath(basePath, snapNum, fileNum), "r") as f:
+            r["offsetType"] = f["Offsets"][type + "_SnapByType"][groupOffset, :]
+
+    return r
