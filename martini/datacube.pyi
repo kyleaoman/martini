@@ -18,9 +18,11 @@ class DataCube:
     dec: U.Quantity[U.deg]
     padx: int
     pady: int
-    _array: U.Quantity[U.Jy * U.pix**-2] | U.Quantity[
-        U.Jy * U.arcsec**-2
-    ] | U.Quantity[U.Jy * U.beam**-1]
+    _array: (
+        U.Quantity[U.Jy * U.pix**-2]
+        | U.Quantity[U.Jy * U.arcsec**-2]
+        | U.Quantity[U.Jy * U.beam**-1]
+    )
     wcs: WCS
     units: T.Tuple[U.Quantity[U.deg], U.Quantity[U.deg], U.Quantity[U.m / U.s]]
     n_px_x: int

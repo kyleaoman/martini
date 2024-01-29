@@ -471,9 +471,7 @@ class Martini:
             if self.datacube.padx > 0 and self.datacube.pady > 0
             else np.s_[...]
         )
-        inserted_flux = (
-            self.datacube._array[pad_mask].sum() * self.datacube.px_size**2
-        )
+        inserted_flux = self.datacube._array[pad_mask].sum() * self.datacube.px_size**2
         inserted_mass = (
             2.36e5
             * U.Msun
