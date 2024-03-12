@@ -7,7 +7,8 @@ tags:
 authors: 
   - name: Kyle A. Oman
     orcid: 0000-0001-9857-7788
-    affiliation: 1,2
+    affiliation: "1, 2"
+    corresponding: true
 affiliations:
   - name: Institute for Computational Cosmology, Physics Department, Durham University
     index: 1
