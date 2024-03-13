@@ -22,6 +22,7 @@ bibliography: bibliography.bib
 
 # Summary
 
+MARTINI is a modular Python package for the creation of synthetic spatially-resolved observations of the 21-cm emission line of atomic hydrogen (data cubes), using smoothed-particle hydrodynamics simulations of galaxies as input. The various aspects of the mock-observing process are divided logically into sub-modules handling the data cube, source galaxy, telescope beam pattern, noise, spectral model and SPH kernel. MARTINI is object-oriented: each sub-module provides a class (or classes) which can be configured as desired. For most sub-modules, base classes are provided to allow for straightforward customization. Instances of each sub-module class are given as parameters to an instance of a main "Martini" class; a mock observation is then constructed by calling a handful of functions to execute the desired steps in the mock-observing process.
 
 # Background
 
