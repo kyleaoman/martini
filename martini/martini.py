@@ -234,6 +234,16 @@ class Martini:
             warn("Skipping beam convolution, no beam object provided to " "Martini.")
             return
 
+        minimum_padding = self.beam.needs_pad()
+        if (self.datacube.padx < minimum_padding[0]) or (
+            self.datacube.pady < minimum_padding[1]
+        ):
+            raise ValueError(
+                "datacube padding insufficient for beam convolution (perhaps you loaded a"
+                " datacube state with datacube.load_state that was previously initialized"
+                " by martini with a smaller beam?)"
+            )
+
         unit = self.datacube._array.unit
         for spatial_slice in self.datacube.spatial_slices():
             # use a view [...] to force in-place modification
@@ -471,7 +481,9 @@ class Martini:
             if self.datacube.padx > 0 and self.datacube.pady > 0
             else np.s_[...]
         )
-        inserted_flux = self.datacube._array[pad_mask].sum() * self.datacube.px_size**2
+        inserted_flux = (
+            self.datacube._array[pad_mask].sum() * self.datacube.px_size**2
+        )
         inserted_mass = (
             2.36e5
             * U.Msun
