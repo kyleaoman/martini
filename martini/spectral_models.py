@@ -25,6 +25,12 @@ class _BaseSpectrum(metaclass=ABCMeta):
     or martini.datacube.DataCube properties available internally. This is required because
     the source object is not accessible at class initialization.
 
+    Parameters
+    ----------
+    spec_dtype: type, optional
+        Data type of the arrays storing spectra of each particle, can be used to manage
+        memory usage by adjusting precision.
+
     See Also
     --------
     GaussianSpectrum (simple example of a derived class using source properties
@@ -190,6 +196,9 @@ class GaussianSpectrum(_BaseSpectrum):
         or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B
         is Boltzmann's constant, T is the particle temperature and m_p is the
         particle mass. (Default is 7 km/s.)
+    spec_dtype: type, optional
+        Data type of the arrays storing spectra of each particle, can be used to manage
+        memory usage by adjusting precision.
 
     See Also
     --------
@@ -281,6 +290,13 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
     The line is modelled as a Dirac-delta function, centered at the particle
     velocity.
+
+    Parameters
+    ----------
+    spec_dtype: type, optional
+        Data type of the arrays storing spectra of each particle, can be used to manage
+        memory usage by adjusting precision.
+
     """
 
     def __init__(self, spec_dtype=np.float64):
