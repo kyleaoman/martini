@@ -89,7 +89,7 @@ Since providing a beam is optional, so is actually performing the convolution op
 
     m.convolve_beam()
 
-This one is simple, with no parameters required or optional. You may notice that the datacube's units change from something like :math:`Jy arcsec^2` to :math:`Jy beam^{-1}` during this step. The padding region explained above is also discarded here.
+This one is simple, with no parameters required or optional. You may notice that the datacube's units change from something like :math:`\mathrm{Jy}\,\mathrm{arcsec}^2` to :math:`\mathrm{Jy}\,\mathrm{beam}^{-1}` during this step. The padding region explained above is also discarded here.
 
 All done!
 ---------
