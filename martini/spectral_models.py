@@ -54,9 +54,13 @@ class _BaseSpectrum(metaclass=ABCMeta):
         The spectral model defined in `spectral_function` is evaluated using
         the channel edges from the DataCube instance and the particle
         velocities of the SPHSource (or derived class) instance provided.
-        Initializes additional particle properties by calling
-        `init_spectral_function_extra_data` which then becomes accessible via
-        `spectral_function_extra_data`.
+
+        If the instance of this class was initialized with ncpu > 1 then a
+        process pool is created to distribute subsets of the calculation in
+        parallel. To minimize overhead form serializing large amounts of
+        data in multiprocess communications, each parallel process inherits the
+        entire line-of-sight velocity array (cheap because of copy-on-write
+        behaviour), then masks its copy to the subset to operate on.
 
         Parameters
         ----------
@@ -102,7 +106,26 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     def evaluate_spectra(self, source, datacube, parallel=None):
         """
-        TODO DOCSTRING
+        The main portion of the calculation of the spectra.
+
+        Separated in this function so that it can be called by a parallel
+        process pool. Initializes additional particle properties by calling
+        `init_spectral_function_extra_data` which then becomes accessible via
+        `spectral_function_extra_data`.
+
+        Parameters
+        ----------
+        source : martini.sources.SPHSource (or derived class) instance
+            Source object containing arrays of particle properties.
+
+        datacube : martini.DataCube instance
+            DataCube object defining the observational parameters, including
+            spectral channels.
+
+        parallel: int, optional
+            Rank of the parallel process, used to choose a segment of the source
+            line-of-sight velocity values to operate on. If None, the calculation
+            is done in serial. (Default: None)
         """
         mask = (
             np.s_[
