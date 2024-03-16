@@ -155,3 +155,21 @@ class TestSpectrumPrecision:
         datacube = DataCube()
         spectral_model.init_spectra(source, datacube)
         assert spectral_model.spectra.dtype == dtype
+
+
+class TestParallelSpectra:
+    @pytest.mark.parametrize("SpectralModel", spectral_models)
+    def test_parallel_spectra(self, SpectralModel, cross_source):
+        """
+        Check that spectra calculated in serial and parallel are consistent.
+        """
+        source = cross_source()
+        source._init_skycoords()
+        spectral_model_serial = SpectralModel()
+        spectral_model_parallel = SpectralModel(ncpu=2)
+        datacube = DataCube()
+        spectral_model_serial.init_spectra(source, datacube)
+        spectral_model_parallel.init_spectra(source, datacube)
+        assert U.allclose(
+            spectral_model_serial.spectra, spectral_model_parallel.spectra
+        )

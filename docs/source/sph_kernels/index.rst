@@ -19,11 +19,11 @@ MARTINI provides a module with classes corresponding to the most common SPH kern
 
 These can be imported as :class:`martini.sph_kernels.WendlandC2Kernel`, :class:`martini.sph_kernels.WendlandC6Kernel`, :class:`martini.sph_kernels.CubicSplineKernel` and :class:`martini.sph_kernels.QuarticSplineKernel`, respectively. The IllustrisTNG simulations are conspicuously not mentioned - see below for details.
 
-MARTINI also provides a :class:`martini.sph_kernels.GaussianKernel`. Gaussian kernels are not commonly used in SPH schemes, but they *are* sometimes convenient when projecting a spherical kernel onto a 2-dimensional image, which is the calculation needed in MARTINI.
+MARTINI also provides a :class:`martini.sph_kernels.GaussianKernel`. Gaussian kernels are not commonly used in SPH schemes, but they *are* sometimes convenient approximations when projecting a spherical kernel onto a 2-dimensional image, which is the calculation needed in MARTINI.
 
 Finally, there is a :class:`martini.sph_kernels.DiracDeltaKernel`. This can be useful when the SPH smoothing lengths are much smaller than the desired pixel scale: in this case any smoothing is ignored and each particle simply contributes flux to the pixel that its centre is enclosed in.
 
-The line integrals through the kernel functions commonly used in simulations that need to be evaluated to calculate the flux contributed by a particle to a pixel are in practice hideously complicated. SPH kernels are generally chosen for very nice mathematical properties in 3-dimensional space, their 2-dimensional projections are not a consideration. In MARTINI, rather than use (slow) numerical evaluation of the required integrals, the approach implemented is to use approximations of the integrals and guarantee that these will always result in a total flux from a particle within 1% of the exact calculation. This means that a mock data cube will always contain at least 99% of the flux (within the field of view and bandpass) the should be emitted by the simulation particles. In practice it is usually more than this: for most particles, the approximations used are better than 1% accurate.
+The line integrals through the kernel functions commonly used in simulations that need to be evaluated to calculate the flux contributed by a particle to a pixel are in practice hideously complicated. SPH kernels are generally chosen for very nice mathematical properties in 3-dimensional space, their 2-dimensional projections are not a consideration. In MARTINI, rather than use (slow) numerical evaluation of the required integrals, the approach implemented is to use approximations of the integrals and guarantee that these will always result in a total flux from a particle within 1% of the exact calculation. This means that a mock data cube will always contain at least 99% of the flux (within the field of view and bandpass) that should be emitted by the simulation particles. In practice it is usually more than this: for most particles, the approximations used are better than 1% accurate.
 
 Adaptive kernels in MARTINI (advanced usage)
 ++++++++++++++++++++++++++++++++++++++++++++
@@ -32,7 +32,7 @@ Adaptive kernels in MARTINI (advanced usage)
    
    New users can skip this subsection - it's enough to know that MARTINI guarantees that its kernel integral approximations are accurate within 1%.
 
-The way MARTINI achieves this depends on the size of the smoothing lengths compared to the size of the pixels. The smoothing lengths are usually given in physical length (like kpc), while the pixel size is usually given in angular units (arcsec or similar), so the comparison also involves the distance from the observer. There are 3 regimes:
+The way that MARTINI achieves this depends on the size of the smoothing lengths compared to the size of the pixels. The smoothing lengths are usually given in physical length (like kpc), while the pixel size is usually given in angular units (arcsec or similar), so the comparison also involves the distance from the observer. There are 3 regimes:
 
  - When the smoothing scale is much larger than a pixel (so a particle's flux will be distributed across many pixels) the approximate integrals are very accurate, so these are preferentially used.
  - When the smoothing scale is less than half a pixel (so a particle's flux will on average land entirely in one pixel), MARTINI assigns all the flux from a particle to the pixel that its centre is enclosed in.
