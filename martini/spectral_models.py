@@ -27,9 +27,11 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     Parameters
     ----------
-    ncpu: int, optional
-        Number of cpus to use for evaluation of particle spectra. (Default: 1)
-    spec_dtype: type, optional
+    ncpu : int, optional
+        Number of cpus to use for evaluation of particle spectra. Defaults to 1 if not
+        provided. (Default: None)
+
+    spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
 
@@ -40,8 +42,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
     DiracDeltaSpectrum
     """
 
-    def __init__(self, ncpu=1, spec_dtype=np.float64):
-        self.ncpu = ncpu
+    def __init__(self, ncpu=None, spec_dtype=np.float64):
+        self.ncpu = ncpu if ncpu is not None else 1
         self.spectral_function_extra_data = None
         self.spectra = None
         self.spec_dtype = spec_dtype
@@ -90,10 +92,21 @@ class _BaseSpectrum(metaclass=ABCMeta):
             with Pool(processes=self.ncpu) as pool:
                 raw_spectra = np.vstack(
                     pool.map(
-                        lambda icpu: self.evaluate_spectra(
-                            source, datacube, parallel=icpu
-                        ),
-                        range(self.ncpu),
+                        lambda mask: self.evaluate_spectra(source, datacube, mask=mask),
+                        [
+                            (
+                                np.s_[
+                                    icpu
+                                    * len(self.vmids)
+                                    // self.ncpu : (icpu + 1)
+                                    * len(self.vmids)
+                                    // self.ncpu
+                                ]
+                                if icpu is not None
+                                else np.s_[...]
+                            )
+                            for icpu in range(self.ncpu)
+                        ],
                     )
                 )
         self.spectra = (
@@ -104,7 +117,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         return
 
-    def evaluate_spectra(self, source, datacube, parallel=None):
+    def evaluate_spectra(self, source, datacube, mask=np.s_[...]):
         """
         The main portion of the calculation of the spectra.
 
@@ -122,24 +135,11 @@ class _BaseSpectrum(metaclass=ABCMeta):
             DataCube object defining the observational parameters, including
             spectral channels.
 
-        parallel: int, optional
-            Rank of the parallel process, used to choose a segment of the source
-            line-of-sight velocity values to operate on. If None, the calculation
-            is done in serial. (Default: None)
+        mask : slice, optional
+            Slice defining the subset of particles to operate on. (Default: np.s_[...])
         """
-        mask = (
-            np.s_[
-                parallel
-                * len(self.vmids)
-                // self.ncpu : (parallel + 1)
-                * len(self.vmids)
-                // self.ncpu
-            ]
-            if parallel is not None
-            else np.s_[...]
-        )
         vmids = self.vmids[mask]
-        self.init_spectral_function_extra_data(source, datacube, parallel=parallel)
+        self.init_spectral_function_extra_data(source, datacube, mask=mask)
         return self.spectral_function(
             (
                 np.tile(
@@ -204,7 +204,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         pass
 
-    def init_spectral_function_extra_data(self, source, datacube, parallel=None):
+    def init_spectral_function_extra_data(self, source, datacube, mask=np.s_[...]):
         """
         Initialize extra data needed by spectral function. Default is no extra data.
 
@@ -217,6 +217,13 @@ class _BaseSpectrum(metaclass=ABCMeta):
         source : martini.sources.SPHSource (or derived class) instance
             Source object, making particle properties available.
 
+        datacube : martini.DataCube instance
+            DataCube object defining the observational parameters, including
+            spectral channels.
+
+        mask : slice, optional
+            Slice defining the subset of particles to operate on. (Default: np.s_[...])
+
         See Also
         --------
         GaussianSpectrum.init_spectral_function_extra_data (for an example with extra
@@ -224,17 +231,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
         """
         if self.spectral_function_extra_data is None:
             self.spectral_function_extra_data = dict()
-        mask = (
-            np.s_[
-                parallel
-                * len(self.vmids)
-                // self.ncpu : (parallel + 1)
-                * len(self.vmids)
-                // self.ncpu
-            ]
-            if parallel is not None
-            else np.s_[...]
-        )
         self.spectral_function_extra_data = {
             k: np.tile(
                 v[mask],
@@ -264,9 +260,12 @@ class GaussianSpectrum(_BaseSpectrum):
         or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B
         is Boltzmann's constant, T is the particle temperature and m_p is the
         particle mass. (Default is 7 km/s.)
-    ncpu: int, optional
-        Number of cpus to use for evaluation of particle spectra. (Default: 1)
-    spec_dtype: type, optional
+
+    ncpu : int, optional
+        Number of cpus to use for evaluation of particle spectra. Defaults to 1 if not
+        provided. (Default: None)
+
+    spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
 
@@ -276,7 +275,7 @@ class GaussianSpectrum(_BaseSpectrum):
     DiracDeltaSpectrum
     """
 
-    def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=1, spec_dtype=np.float64):
+    def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64):
         self.sigma_mode = sigma
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
 
@@ -312,7 +311,7 @@ class GaussianSpectrum(_BaseSpectrum):
             - erf((a - vmids) / (np.sqrt(2.0) * sigma))
         )
 
-    def init_spectral_function_extra_data(self, source, datacube, parallel=None):
+    def init_spectral_function_extra_data(self, source, datacube, mask=np.s_[...]):
         """
         Helper function to expose particle velocity dispersions to `spectral_function`.
 
@@ -324,10 +323,13 @@ class GaussianSpectrum(_BaseSpectrum):
         datacube: martini.datacube.DataCube instance
             DataCube object.
 
+        mask : slice, optional
+            Slice defining the subset of particles to operate on. (Default: np.s_[...])
+
         """
 
         self.spectral_function_extra_data = dict(sigma=self.half_width(source))
-        super().init_spectral_function_extra_data(source, datacube, parallel=parallel)
+        super().init_spectral_function_extra_data(source, datacube, mask=mask)
         return
 
     def half_width(self, source):
@@ -363,15 +365,16 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
     Parameters
     ----------
-    ncpu: int, optional
-        Number of cpus to use for evaluation of particle spectra. (Default: 1)
-    spec_dtype: type, optional
+    ncpu : int, optional
+        Number of cpus to use for evaluation of particle spectra. Defaults to 1 if not
+        provided. (Default: None)
+
+    spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
-
     """
 
-    def __init__(self, ncpu=1, spec_dtype=np.float64):
+    def __init__(self, ncpu=None, spec_dtype=np.float64):
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
         return
 
