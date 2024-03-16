@@ -32,7 +32,7 @@ Adaptive kernels in MARTINI (advanced usage)
    
    New users can skip this subsection - it's enough to know that MARTINI guarantees that its kernel integral approximations are accurate within 1%.
 
-The way MARTINI achieves this depends on the size of the smoothing lengths compared to the size of the pixels. The smoothing lengths are usually given in physical length (like kpc), while the pixel size is usually given in angular units (arcsec or similar), so the comparison also involves the distance from the observer. There are 3 regimes:
+The way that MARTINI achieves this depends on the size of the smoothing lengths compared to the size of the pixels. The smoothing lengths are usually given in physical length (like kpc), while the pixel size is usually given in angular units (arcsec or similar), so the comparison also involves the distance from the observer. There are 3 regimes:
 
  - When the smoothing scale is much larger than a pixel (so a particle's flux will be distributed across many pixels) the approximate integrals are very accurate, so these are preferentially used.
  - When the smoothing scale is less than half a pixel (so a particle's flux will on average land entirely in one pixel), MARTINI assigns all the flux from a particle to the pixel that its centre is enclosed in.
