@@ -166,10 +166,10 @@ class TestParallelSpectra:
         source = cross_source()
         source._init_skycoords()
         spectral_model_serial = SpectralModel()
-        spectral_model_parallel = SpectralModel()
+        spectral_model_parallel = SpectralModel(ncpu=2)
         datacube = DataCube()
-        spectral_model_serial.init_spectra(source, datacube, ncpu=1)
-        spectral_model_parallel.init_spectra(source, datacube, ncpu=4)
+        spectral_model_serial.init_spectra(source, datacube)
+        spectral_model_parallel.init_spectra(source, datacube)
         assert U.allclose(
             spectral_model_serial.spectra, spectral_model_parallel.spectra
         )

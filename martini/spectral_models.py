@@ -233,7 +233,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
             self.spectral_function_extra_data = dict()
         self.spectral_function_extra_data = {
             k: np.tile(
-                v[mask],
+                v[mask] if not v.isscalar else v,
                 np.shape(datacube.channel_edges[:-1])
                 + (1,) * source.skycoords.radial_velocity.ndim,
             )
