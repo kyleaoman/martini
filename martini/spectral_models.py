@@ -27,6 +27,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     Parameters
     ----------
+    ncpu: int, optional
+        Number of cpus to use for evaluation of particle spectra. (Default: 1)
     spec_dtype: type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
@@ -38,7 +40,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
     DiracDeltaSpectrum
     """
 
-    def __init__(self, spec_dtype=np.float64):
+    def __init__(self, ncpu=1, spec_dtype=np.float64):
+        self.ncpu = ncpu
         self.spectral_function_extra_data = None
         self.spectra = None
         self.spec_dtype = spec_dtype
@@ -65,9 +68,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
             spectral channels.
         """
 
-        channel_edges = datacube.channel_edges
-        channel_widths = np.diff(channel_edges).to(U.km * U.s**-1)
-        vmids = source.skycoords.radial_velocity
+        self.channel_edges = datacube.channel_edges
+        channel_widths = np.diff(self.channel_edges).to(U.km * U.s**-1)
+        self.vmids = source.skycoords.radial_velocity
         A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
         MHI_Jy = (
             U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
@@ -75,30 +78,20 @@ class _BaseSpectrum(metaclass=ABCMeta):
             lambda x: (1 / 2.36e5) * x,
             lambda x: 2.36e5 * x,
         )
-        self.init_spectral_function_extra_data(source, datacube)
-        channel_edges_unit = channel_edges.unit
-        vmids_unit = vmids.unit
-        raw_spectra = self.spectral_function(
-            (
-                np.tile(
-                    channel_edges.to_value(channel_edges_unit)[:-1], vmids.shape + (1,)
+        if self.ncpu == 1:
+            raw_spectra = self.evaluate_spectra(source, datacube)
+        else:
+            from multiprocess.pool import Pool
+
+            with Pool(processes=self.ncpu) as pool:
+                raw_spectra = np.vstack(
+                    pool.map(
+                        lambda icpu: self.evaluate_spectra(
+                            source, datacube, parallel=icpu
+                        ),
+                        range(self.ncpu),
+                    )
                 )
-                * channel_edges.unit
-            ).astype(self.spec_dtype),
-            (
-                np.tile(
-                    channel_edges.to_value(channel_edges_unit)[1:], vmids.shape + (1,)
-                )
-                * channel_edges.unit
-            ).astype(self.spec_dtype),
-            (
-                np.tile(
-                    vmids.to_value(vmids_unit),
-                    np.shape(channel_edges[:-1]) + (1,) * vmids.ndim,
-                ).T
-                * vmids.unit
-            ).astype(self.spec_dtype),
-        ).to_value(U.dimensionless_unscaled)
         self.spectra = (
             A.astype(self.spec_dtype)[..., np.newaxis]
             * raw_spectra
@@ -106,6 +99,47 @@ class _BaseSpectrum(metaclass=ABCMeta):
         ).to(U.Jy, equivalencies=[MHI_Jy])
 
         return
+
+    def evaluate_spectra(self, source, datacube, parallel=None):
+        """
+        TODO DOCSTRING
+        """
+        mask = (
+            np.s_[
+                parallel
+                * len(self.vmids)
+                // self.ncpu : (parallel + 1)
+                * len(self.vmids)
+                // self.ncpu
+            ]
+            if parallel is not None
+            else np.s_[...]
+        )
+        vmids = self.vmids[mask]
+        self.init_spectral_function_extra_data(source, datacube, parallel=parallel)
+        return self.spectral_function(
+            (
+                np.tile(
+                    self.channel_edges.to_value(self.channel_edges.unit)[:-1],
+                    vmids.shape + (1,),
+                )
+                * self.channel_edges.unit
+            ).astype(self.spec_dtype),
+            (
+                np.tile(
+                    self.channel_edges.to_value(self.channel_edges.unit)[1:],
+                    vmids.shape + (1,),
+                )
+                * self.channel_edges.unit
+            ).astype(self.spec_dtype),
+            (
+                np.tile(
+                    vmids.to_value(vmids.unit),
+                    np.shape(self.channel_edges[:-1]) + (1,) * vmids.ndim,
+                ).T
+                * vmids.unit
+            ).astype(self.spec_dtype),
+        ).to_value(U.dimensionless_unscaled)
 
     @abstractmethod
     def half_width(self, source):
@@ -147,7 +181,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         pass
 
-    def init_spectral_function_extra_data(self, source, datacube):
+    def init_spectral_function_extra_data(self, source, datacube, parallel=None):
         """
         Initialize extra data needed by spectral function. Default is no extra data.
 
@@ -167,9 +201,20 @@ class _BaseSpectrum(metaclass=ABCMeta):
         """
         if self.spectral_function_extra_data is None:
             self.spectral_function_extra_data = dict()
+        mask = (
+            np.s_[
+                parallel
+                * len(self.vmids)
+                // self.ncpu : (parallel + 1)
+                * len(self.vmids)
+                // self.ncpu
+            ]
+            if parallel is not None
+            else np.s_[...]
+        )
         self.spectral_function_extra_data = {
             k: np.tile(
-                v,
+                v[mask],
                 np.shape(datacube.channel_edges[:-1])
                 + (1,) * source.skycoords.radial_velocity.ndim,
             )
@@ -196,6 +241,8 @@ class GaussianSpectrum(_BaseSpectrum):
         or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B
         is Boltzmann's constant, T is the particle temperature and m_p is the
         particle mass. (Default is 7 km/s.)
+    ncpu: int, optional
+        Number of cpus to use for evaluation of particle spectra. (Default: 1)
     spec_dtype: type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
@@ -206,9 +253,9 @@ class GaussianSpectrum(_BaseSpectrum):
     DiracDeltaSpectrum
     """
 
-    def __init__(self, sigma=7.0 * U.km * U.s**-1, spec_dtype=np.float64):
+    def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=1, spec_dtype=np.float64):
         self.sigma_mode = sigma
-        super().__init__(spec_dtype=spec_dtype)
+        super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
 
         return
 
@@ -242,7 +289,7 @@ class GaussianSpectrum(_BaseSpectrum):
             - erf((a - vmids) / (np.sqrt(2.0) * sigma))
         )
 
-    def init_spectral_function_extra_data(self, source, datacube):
+    def init_spectral_function_extra_data(self, source, datacube, parallel=None):
         """
         Helper function to expose particle velocity dispersions to `spectral_function`.
 
@@ -257,7 +304,7 @@ class GaussianSpectrum(_BaseSpectrum):
         """
 
         self.spectral_function_extra_data = dict(sigma=self.half_width(source))
-        super().init_spectral_function_extra_data(source, datacube)
+        super().init_spectral_function_extra_data(source, datacube, parallel=parallel)
         return
 
     def half_width(self, source):
@@ -293,14 +340,16 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
     Parameters
     ----------
+    ncpu: int, optional
+        Number of cpus to use for evaluation of particle spectra. (Default: 1)
     spec_dtype: type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
 
     """
 
-    def __init__(self, spec_dtype=np.float64):
-        super().__init__(spec_dtype=spec_dtype)
+    def __init__(self, ncpu=1, spec_dtype=np.float64):
+        super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
         return
 
     def spectral_function(self, a, b, vmids):
