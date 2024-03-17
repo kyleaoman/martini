@@ -440,7 +440,7 @@ class SPHSource(object):
             else 1.0
         )
         size = (
-            1e5 * (self.hsm_g[mask].to_value(U.kpc) / vlim) ** 2
+            3e4 * (self.hsm_g[mask].to_value(U.kpc) / lim) ** 2
             if point_scaling == "auto"
             else 10
         )
