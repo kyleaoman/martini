@@ -350,3 +350,120 @@ class SPHSource(object):
 
         np.savetxt(fname, self.current_rotation)
         return
+
+    def preview(self, max_points=500, fig=1, lim=None, vlim=None, title="", save=None):
+        """
+        Produce a figure showing the source particle coordinates and velocities.
+
+        Makes a 3-panel figure showing the projection of the source as it will appear in
+        the mock observation. The first panel shows the particles in the y-z plane,
+        coloured by the x-component of velocity (MARTINI projects the source along the
+        x-axis). The second and third panels are position-velocity diagrams showing the
+        x-component of velocity against the y and z coordinates, respectively.
+
+        Parameters
+        ----------
+        max_points : int, optional
+            Maximum number of points to draw per panel, the particles will be randomly
+            subsampled if the source has more. (Default: 500)
+
+        fig : int, optional
+            Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
+            (Default: 1)
+
+        lim : Quantity with dimensions of length, optional
+            The coordinate axes extend from -lim to lim. If unspecified, the maximum
+            absolute coordinate of particles in the source is used. (Default: None)
+
+        vlim : Quantity with dimensions of speed, optional
+            The velocity axes and colour bar extend from -vlim to vlim. If unspecified,
+            the maximum absolute velocity of particles in the source is used.
+            (Default: None)
+
+        title : str, optional
+            A title for the figure can be provided. (Default: "")
+
+        save : str, optional
+            If provided, the figure is saved using `plt.savefig(save)`. A `.png` or `.pdf`
+            suffix is recommended. (Default: None)
+
+        Returns
+        -------
+        out : matplotlib.figure instance
+            The preview figure.
+        """
+        import matplotlib.pyplot as plt
+
+        nparts = self.mHI_g.size
+        # every Nth particle to plot at most max_points, or all particles
+        mask = np.s_[:: max(nparts // max_points, 1)]
+        lim = max(
+            np.max(np.abs(self.coordinates_g.y.to_value(U.kpc))),
+            np.max(np.abs(self.coordinates_g.z.to_value(U.kpc))),
+        )
+        vlim = (
+            np.max(
+                np.abs(self.coordinates_g.differentials["s"].d_x.to_value(U.km / U.s))
+            )
+            if vlim is None
+            else vlim.to_value(U.km / U.s)
+        )
+        fig = plt.figure(fig, figsize=(12, 4))
+        fig.suptitle(title)
+        # ----- MOMENT 1 -----
+        sp1 = fig.add_subplot(1, 3, 1, aspect="equal")
+        sp1.set_xlim((-lim, lim))
+        sp1.set_ylim((-lim, lim))
+        scatter = sp1.scatter(
+            self.coordinates_g.y[mask].to_value(U.kpc),
+            self.coordinages_g.z[mask].to_value(U.kpc),
+            c=self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            marker="o",
+            s=1,
+            alpha=0.5,
+            vmin=-vlim,
+            vmax=vlim,
+            zorder=0,
+        )
+        sp1.plot([0], [0], marker="+", ls="None", mfc="grey", ms=2, zorder=1)
+        sp1.set_xlabel(r"$y\,[\mathrm{kpc}]$")
+        sp1.set_ylabel(r"$z\,[\mathrm{kpc}]$")
+        cb = sp1.colorbar(mappable=scatter)
+        cb.set_label(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+        # ----- PV Y -----
+        sp2 = fig.add_subplot(1, 3, 2)
+        sp2.set_xlim((-lim, lim))
+        sp2.set_ylim((-vlim, vlim))
+        sp2.scatter(
+            self.coordinates_g.y[mask].to_value(U.kpc),
+            self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            c="black",
+            marker="o",
+            s=1,
+            alpha=0.5,
+            zorder=0,
+        )
+        sp2.plot([0], [0], marker="+", ls="None", mfc="grey", ms=2, zorder=1)
+        sp2.set_xlabel(r"$y\,[\mathrm{kpc}]$")
+        sp2.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+
+        # ----- PV Z -----
+        sp3 = fig.add_subplot(1, 3, 3)
+        sp3.set_xlim((-lim, lim))
+        sp3.set_ylim((-vlim, vlim))
+        sp3.scatter(
+            self.coordinates_g.z[mask].to_value(U.kpc),
+            self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            c="black",
+            marker="o",
+            s=1,
+            alpha=0.5,
+            zorder=0,
+        )
+        sp3.plot([0], [0], marker="+", ls="None", mfc="grey", ms=2, zorder=1)
+        sp3.set_xlabel(r"$z\,[\mathrm{kpc}]$")
+        sp3.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+
+        if save is not None:
+            plt.savefig(save)
+        return fig
