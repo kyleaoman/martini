@@ -44,9 +44,11 @@ def demo_source():
     vz = (np.random.rand(N) * 2.0 - 1.0) * 5
     vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
     T_g = np.ones(N) * 8e3 * U.K
-    mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
-    # ~mean interparticle spacing smoothing
-    hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
+    # HI masses with some scatter
+    mHI_g = np.ones(N) + 0.2 * (np.random.rand(N) - 0.5)
+    mHI_g = mHI_g / mHI_g.sum() * 5.0e9 * U.Msun
+    # Smoothing lengths with some scatter
+    hsm_g = (2 * (np.ones(N) + 0.2 * (np.random.rand(N) - 0.5))) * U.kpc
     # ---------------------------------
 
     source = SPHSource(
