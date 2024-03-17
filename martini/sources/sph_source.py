@@ -351,7 +351,16 @@ class SPHSource(object):
         np.savetxt(fname, self.current_rotation)
         return
 
-    def preview(self, max_points=500, fig=1, lim=None, vlim=None, title="", save=None):
+    def preview(
+        self,
+        max_points=1000,
+        fig=1,
+        lim=None,
+        vlim=None,
+        point_scaling="auto",
+        title="",
+        save=None,
+    ):
         """
         Produce a figure showing the source particle coordinates and velocities.
 
@@ -365,7 +374,7 @@ class SPHSource(object):
         ----------
         max_points : int, optional
             Maximum number of points to draw per panel, the particles will be randomly
-            subsampled if the source has more. (Default: 500)
+            subsampled if the source has more. (Default: 1000)
 
         fig : int, optional
             Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
@@ -379,6 +388,14 @@ class SPHSource(object):
             The velocity axes and colour bar extend from -vlim to vlim. If unspecified,
             the maximum absolute velocity of particles in the source is used.
             (Default: None)
+
+        point_scaling : str, optional
+            By default points are scaled in size and transparency according to their HI
+            mass and the smoothing length (loosely proportional to their surface
+            densities, but with different scaling to achieve a visually useful plot). For
+            some sources the automatic scaling may not give useful results, using
+            point_scaling="fixed" will plot points of constant size without opacity.
+            (Default: "auto")
 
         title : str, optional
             A title for the figure can be provided. (Default: "")
@@ -408,28 +425,51 @@ class SPHSource(object):
             if vlim is None
             else vlim.to_value(U.km / U.s)
         )
+        alpha = (
+            (
+                (self.mHI_g[mask] / self.mHI_g.max()).to_value(U.dimensionless_unscaled)
+                * (
+                    1
+                    - (self.hsm_g[mask] / self.hsm_g.max()).to_value(
+                        U.dimensionless_unscaled
+                    )
+                )
+            )
+            ** 0.3
+            if point_scaling == "auto"
+            else 1.0
+        )
+        size = (
+            1e5 * (self.hsm_g[mask].to_value(U.kpc) / vlim) ** 2
+            if point_scaling == "auto"
+            else 10
+        )
         fig = plt.figure(fig, figsize=(12, 4))
         fig.suptitle(title)
+
         # ----- MOMENT 1 -----
         sp1 = fig.add_subplot(1, 3, 1, aspect="equal")
         sp1.set_xlim((-lim, lim))
         sp1.set_ylim((-lim, lim))
         scatter = sp1.scatter(
             self.coordinates_g.y[mask].to_value(U.kpc),
-            self.coordinages_g.z[mask].to_value(U.kpc),
+            self.coordinates_g.z[mask].to_value(U.kpc),
             c=self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
             marker="o",
-            s=1,
-            alpha=0.5,
+            cmap="coolwarm",
+            edgecolor="None",
+            s=size,
+            alpha=alpha,
             vmin=-vlim,
             vmax=vlim,
             zorder=0,
         )
-        sp1.plot([0], [0], marker="+", ls="None", mfc="grey", ms=2, zorder=1)
+        sp1.plot([0], [0], marker="+", ls="None", mec="grey", ms=6, zorder=1)
         sp1.set_xlabel(r"$y\,[\mathrm{kpc}]$")
         sp1.set_ylabel(r"$z\,[\mathrm{kpc}]$")
-        cb = sp1.colorbar(mappable=scatter)
+        cb = fig.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
         cb.set_label(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+
         # ----- PV Y -----
         sp2 = fig.add_subplot(1, 3, 2)
         sp2.set_xlim((-lim, lim))
@@ -438,12 +478,13 @@ class SPHSource(object):
             self.coordinates_g.y[mask].to_value(U.kpc),
             self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
             c="black",
+            edgecolors="None",
             marker="o",
-            s=1,
-            alpha=0.5,
+            s=size,
+            alpha=alpha,
             zorder=0,
         )
-        sp2.plot([0], [0], marker="+", ls="None", mfc="grey", ms=2, zorder=1)
+        sp2.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
         sp2.set_xlabel(r"$y\,[\mathrm{kpc}]$")
         sp2.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
@@ -455,15 +496,17 @@ class SPHSource(object):
             self.coordinates_g.z[mask].to_value(U.kpc),
             self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
             c="black",
+            edgecolors="None",
             marker="o",
-            s=1,
-            alpha=0.5,
+            s=size,
+            alpha=alpha,
             zorder=0,
         )
-        sp3.plot([0], [0], marker="+", ls="None", mfc="grey", ms=2, zorder=1)
+        sp3.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
         sp3.set_xlabel(r"$z\,[\mathrm{kpc}]$")
         sp3.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
+        fig.subplots_adjust(wspace=0.3)
         if save is not None:
             plt.savefig(save)
         return fig
