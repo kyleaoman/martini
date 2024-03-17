@@ -9,25 +9,15 @@ import numpy as np
 from scipy.optimize import fsolve
 
 
-def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"):
+def demo_source():
     """
-    Demonstrates basic usage of MARTINI.
+    Create a simple toy model of a galaxy.
 
-    Creates a (very!) crude toy model of a galaxy with a linearly rising
-    rotation curve, exponential disk profile, exponential vertical structure. A
-    basic configuration of MARTINI is initialized and used to create and output
-    a datacube and an image of the beam.
-
-    Parameters
-    ----------
-    cubefile : string
-        File to write demonstration datacube.
-
-    beamfile : string
-        File to write demonstration beam.
+    Returns
+    -------
+    out : martini.source.SPHSource
+        An initialized MARTINI source module containing a toy model of a galaxy.
     """
-
-    # ------make a toy galaxy----------
     N = 500
     phi = np.random.rand(N) * 2 * np.pi
     r = []
@@ -72,6 +62,28 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
         hsm_g=hsm_g,
     )
 
+    return source
+
+
+def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"):
+    """
+    Demonstrates basic usage of MARTINI.
+
+    Creates a (very!) crude toy model of a galaxy with a linearly rising
+    rotation curve, exponential disk profile, exponential vertical structure. A
+    basic configuration of MARTINI is initialized and used to create and output
+    a datacube and an image of the beam.
+
+    Parameters
+    ----------
+    cubefile : string
+        File to write demonstration datacube.
+
+    beamfile : string
+        File to write demonstration beam.
+    """
+    source = demo_source()
+
     datacube = DataCube(
         n_px_x=128,
         n_px_y=128,
@@ -112,5 +124,3 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
         print("h5py package not present, skipping hdf5 output demo.")
     else:
         print(f"Wrote demo hdf5 output to {hdf5file}.")
-
-    return
