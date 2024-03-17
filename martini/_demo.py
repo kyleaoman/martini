@@ -36,11 +36,11 @@ def demo_source():
     x = r * np.cos(phi)
     y = r * np.sin(phi)
     xyz_g = np.vstack((x, y, z)) * U.kpc
-    # linear rotation curve
-    vphi = 100 * r / 6.0
+    # arctan rotation curve
+    vphi = 50 * np.arctan(r)
     vx = -vphi * np.sin(phi)
     vy = vphi * np.cos(phi)
-    # small pure random z velocities
+    # small random z velocities
     vz = (np.random.rand(N) * 2.0 - 1.0) * 5
     vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
     T_g = np.ones(N) * 8e3 * U.K
@@ -48,7 +48,7 @@ def demo_source():
     mHI_g = np.ones(N) + 0.2 * (np.random.rand(N) - 0.5)
     mHI_g = mHI_g / mHI_g.sum() * 5.0e9 * U.Msun
     # Smoothing lengths with some scatter
-    hsm_g = (2 * (np.ones(N) + 0.2 * (np.random.rand(N) - 0.5))) * U.kpc
+    hsm_g = (4 / np.sqrt(N) * (np.ones(N) + 0.2 * (np.random.rand(N) - 0.5))) * U.kpc
     # ---------------------------------
 
     source = SPHSource(
