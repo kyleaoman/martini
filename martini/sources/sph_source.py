@@ -353,7 +353,7 @@ class SPHSource(object):
 
     def preview(
         self,
-        max_points=1000,
+        max_points=5000,
         fig=1,
         lim=None,
         vlim=None,
@@ -411,12 +411,14 @@ class SPHSource(object):
         """
         import matplotlib.pyplot as plt
 
-        nparts = self.mHI_g.size
         # every Nth particle to plot at most max_points, or all particles
-        mask = np.s_[:: max(nparts // max_points, 1)]
-        lim = max(
-            np.max(np.abs(self.coordinates_g.y.to_value(U.kpc))),
-            np.max(np.abs(self.coordinates_g.z.to_value(U.kpc))),
+        lim = (
+            max(
+                np.max(np.abs(self.coordinates_g.y.to_value(U.kpc))),
+                np.max(np.abs(self.coordinates_g.z.to_value(U.kpc))),
+            )
+            if lim is None
+            else lim.to_value(U.kpc)
         )
         vlim = (
             np.max(
@@ -425,22 +427,35 @@ class SPHSource(object):
             if vlim is None
             else vlim.to_value(U.km / U.s)
         )
+        cmask = np.logical_and.reduce(
+            (
+                np.abs(self.coordinates_g.y.to_value(U.kpc)) < lim,
+                np.abs(self.coordinates_g.z.to_value(U.kpc)) < lim,
+                np.abs(self.coordinates_g.differentials["s"].d_x.to_value(U.km / U.s))
+                < vlim,
+            )
+        )
+        nparts = cmask.sum()
+        mask = np.arange(self.mHI_g.size)[cmask][:: max(nparts // max_points, 1)]
         alpha = (
             (
-                (self.mHI_g[mask] / self.mHI_g.max()).to_value(U.dimensionless_unscaled)
+                (self.mHI_g[mask] / self.mHI_g[mask].max()).to_value(
+                    U.dimensionless_unscaled
+                )
+                ** 0
                 * (
                     1
-                    - (self.hsm_g[mask] / self.hsm_g.max()).to_value(
+                    - (self.hsm_g[mask] / self.hsm_g[mask].max()).to_value(
                         U.dimensionless_unscaled
                     )
+                    ** 0.1
                 )
             )
-            ** 0.3
             if point_scaling == "auto"
             else 1.0
         )
         size = (
-            3e4 * (self.hsm_g[mask].to_value(U.kpc) / lim) ** 2
+            300 * (self.hsm_g[mask].to_value(U.kpc) / lim)
             if point_scaling == "auto"
             else 10
         )
@@ -449,8 +464,7 @@ class SPHSource(object):
 
         # ----- MOMENT 1 -----
         sp1 = fig.add_subplot(1, 3, 1, aspect="equal")
-        sp1.set_xlim((-lim, lim))
-        sp1.set_ylim((-lim, lim))
+        sp1.set_facecolor("#222222")
         scatter = sp1.scatter(
             self.coordinates_g.y[mask].to_value(U.kpc),
             self.coordinates_g.z[mask].to_value(U.kpc),
@@ -467,17 +481,18 @@ class SPHSource(object):
         sp1.plot([0], [0], marker="+", ls="None", mec="grey", ms=6, zorder=1)
         sp1.set_xlabel(r"$y\,[\mathrm{kpc}]$")
         sp1.set_ylabel(r"$z\,[\mathrm{kpc}]$")
+        sp1.set_xlim((lim, -lim))
+        sp1.set_ylim((-lim, lim))
         cb = fig.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
         cb.set_label(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
         # ----- PV Y -----
         sp2 = fig.add_subplot(1, 3, 2)
-        sp2.set_xlim((-lim, lim))
-        sp2.set_ylim((-vlim, vlim))
+        sp2.set_facecolor("#222222")
         sp2.scatter(
             self.coordinates_g.y[mask].to_value(U.kpc),
             self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
-            c="black",
+            c="white",
             edgecolors="None",
             marker="o",
             s=size,
@@ -485,17 +500,18 @@ class SPHSource(object):
             zorder=0,
         )
         sp2.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
+        sp2.set_xlim((lim, -lim))
+        sp2.set_ylim((-vlim, vlim))
         sp2.set_xlabel(r"$y\,[\mathrm{kpc}]$")
         sp2.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
         # ----- PV Z -----
         sp3 = fig.add_subplot(1, 3, 3)
-        sp3.set_xlim((-lim, lim))
-        sp3.set_ylim((-vlim, vlim))
+        sp3.set_facecolor("#222222")
         sp3.scatter(
             self.coordinates_g.z[mask].to_value(U.kpc),
             self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
-            c="black",
+            c="white",
             edgecolors="None",
             marker="o",
             s=size,
@@ -503,6 +519,8 @@ class SPHSource(object):
             zorder=0,
         )
         sp3.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
+        sp3.set_xlim((-lim, lim))
+        sp3.set_ylim((-vlim, vlim))
         sp3.set_xlabel(r"$z\,[\mathrm{kpc}]$")
         sp3.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
