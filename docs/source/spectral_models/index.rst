@@ -24,8 +24,8 @@ The default is a constant 7 km/s line width, corresponding to a FWHM of about 16
 
 The :class:`~martini.spectral_models.DiracDeltaSpectrum` instead assigns all of the emission of a particle to the channel containing the particle's line-of-sight velocity. This is mostly intended as a debugging tool but can sometimes be useful to speed up a calculation in cases where a delta function is a good approximation (for instance if the channels are very wide).
 
-Using MARTINI's SPH kernel classes
-----------------------------------
+Using MARTINI's spectral model classes
+--------------------------------------
 
 Simply choose the class corresponding to your preferred line shape and initialise it, then pass it to the main :class:`~martini.martini.Martini` class, for example:
 

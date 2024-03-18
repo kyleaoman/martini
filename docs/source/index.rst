@@ -14,7 +14,9 @@ Overview
    :caption: Documentation contents
 
    getting_started/index
+   sources/index
    sph_kernels/index
+   spectral_models/index
    martini/index
    modules/index
 
