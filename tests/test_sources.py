@@ -449,6 +449,34 @@ class TestSPHSource:
                 os.remove(testfile)
         assert np.allclose(saved_rotmat, rotmat)
 
+    def test_preview(self, s):
+        """
+        Simply check that the preview visualisation runs without error.
+        """
+        # with default arguments
+        s.preview()
+        # with non-default arguments
+        s.preview(
+            max_points=1000,
+            fig=2,
+            lim=10 * U.kpc,
+            vlim=100 * U.km / U.s,
+            point_scaling="fixed",
+            title="test",
+        )
+
+    @pytest.mark.parametrize("ext", ("pdf", "png"))
+    def test_preview_save(self, s, ext):
+        """
+        Check that we can output pdf and png preview images.
+        """
+        testfile = f"preview.{ext}"
+        try:
+            s.preview(save=testfile)
+        finally:
+            if os.path.exists(testfile):
+                os.remove(testfile)
+
 
 class TestSOSource:
     @pytest.mark.xfail
