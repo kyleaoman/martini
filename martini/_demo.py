@@ -9,7 +9,7 @@ import numpy as np
 from scipy.optimize import fsolve
 
 
-def demo_source():
+def demo_source(N=500):
     """
     Create a simple toy model of a galaxy.
 
@@ -18,7 +18,6 @@ def demo_source():
     out : martini.source.SPHSource
         An initialized MARTINI source module containing a toy model of a galaxy.
     """
-    N = 500
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
