@@ -44,10 +44,10 @@ def demo_source(N=500):
     vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
     T_g = np.ones(N) * 8e3 * U.K
     # HI masses with some scatter
-    mHI_g = np.ones(N) + 0.2 * (np.random.rand(N) - 0.5)
+    mHI_g = np.ones(N) + 0.01 * (np.random.rand(N) - 0.5)
     mHI_g = mHI_g / mHI_g.sum() * 5.0e9 * U.Msun
     # Smoothing lengths with some scatter
-    hsm_g = (4 / np.sqrt(N) * (np.ones(N) + 0.2 * (np.random.rand(N) - 0.5))) * U.kpc
+    hsm_g = (40 / np.sqrt(N) * (np.ones(N) + 1.8 * (np.random.rand(N) - 0.5))) * U.kpc
     # ---------------------------------
 
     source = SPHSource(
