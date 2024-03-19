@@ -437,28 +437,27 @@ class SPHSource(object):
         )
         nparts = cmask.sum()
         mask = np.arange(self.mHI_g.size)[cmask][:: max(nparts // max_points, 1)]
-        alpha = (
-            (
-                (self.mHI_g[mask] / self.mHI_g[mask].max()).to_value(
-                    U.dimensionless_unscaled
-                )
-                ** 0
-                * (
-                    1
-                    - (self.hsm_g[mask] / self.hsm_g[mask].max()).to_value(
-                        U.dimensionless_unscaled
-                    )
-                    ** 0.1
-                )
+        mass_factor = (
+            1
+            if (self.mHI_g.isscalar or mask.size <= 1)
+            else (self.mHI_g[mask] / self.mHI_g[mask].max()).to_value(
+                U.dimensionless_unscaled
             )
-            if point_scaling == "auto"
-            else 1.0
         )
-        size = (
-            300 * (self.hsm_g[mask].to_value(U.kpc) / lim)
-            if point_scaling == "auto"
-            else 10
+        hsm_factor = (
+            1
+            if (self.hsm_g.isscalar or mask.size <= 1)
+            else (1 - (self.hsm_g[mask] / self.hsm_g[mask].max())).to_value(
+                U.dimensionless_unscaled
+            )
         )
+        alpha = (mass_factor**0 * hsm_factor**0.1) if point_scaling == "auto" else 1.0
+        size_scale = (
+            self.hsm_g.to_value(U.kpc) / lim
+            if (self.hsm_g.isscalar or mask.size <= 1)
+            else (self.hsm_g[mask].to_value(U.kpc) / lim)
+        )
+        size = 300 * size_scale if point_scaling == "auto" else 10
         fig = plt.figure(fig, figsize=(12, 4))
         fig.suptitle(title)
 
