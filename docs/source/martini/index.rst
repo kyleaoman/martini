@@ -26,7 +26,7 @@ Once all of the component modules are set up, creating an instance of :class:`~m
 	spectral_model=spectral_model,
     )
 
-The arguments to the various modules are omitted here (replaced with `...`), check the documentation pages of each module for details. The `source`, `datacube`, `sph_kernel` and `spectral_model` arguments are mandatory. The `beam` is optional in case you want an "intrinsic" observation of the source without convolution with a beam, and the `noise` is also optional in case you don't want any in your mock observation (or perhaps want to later insert your mock into an observed noise cube). There is one more optional argument `quiet` (defaulting to `False`) that can be switched on for batch jobs where you don't want any log messages.
+The arguments to the various modules are omitted here (replaced with ``...``), check the documentation pages of each module for details. The ``source``, ``datacube``, ``sph_kernel`` and ``spectral_model`` arguments are mandatory. The ``beam`` is optional in case you want an "intrinsic" observation of the source without convolution with a beam, and the ``noise`` is also optional in case you don't want any in your mock observation (or perhaps want to later insert your mock into an observed noise cube). There is one more optional argument ``quiet`` (defaulting to ``False``) that can be switched on for batch jobs where you don't want any log messages.
 
 A few things happen behind the scenes when the :class:`~martini.martini.Martini` object is initialized:
 
@@ -44,7 +44,7 @@ This is the crucial step in creating a mock observation - the flux from the simu
 
     m.insert_source_in_cube()
 
-Since this is the most computationally demanding step in MARTINI, a progress bar is displayed by default. This can be suppressed by passing the argument `progressbar=False` (or enabled with `progressbar=True` if :class:`~martini.martini.Martini` was initialized with `quiet=True`). There is another optional argument `skip_validation`. Setting this to `True` disables internal accuracy checks and is only intended for experimentation/prototyping and code development; it should never be used for science (and anyway doesn't have any benefit in terms of e.g. speed).
+Since this is the most computationally demanding step in MARTINI, a progress bar is displayed by default. This can be suppressed by passing the argument ``progressbar=False`` (or enabled with ``progressbar=True`` if :class:`~martini.martini.Martini` was initialized with ``quiet=True``). There is another optional argument ``skip_validation``. Setting this to ``True`` disables internal accuracy checks and is only intended for experimentation/prototyping and code development; it should never be used for science (and anyway doesn't have any benefit in terms of e.g. speed).
 
 Parallelization
 +++++++++++++++
@@ -53,7 +53,7 @@ Parallelization
 
    Available since `v2.0.4`.
 
-The core loop in the source insertion function is embarassingly parallel. Parallel execution is implemented using the `multiprocess`_ package. You may need to install this, for instance `pip install multiprocess` to install from PyPI. To make use of the parallelization simply specify the number of processes to use, for example:
+The core loop in the source insertion function is embarassingly parallel. Parallel execution is implemented using the `multiprocess`_ package. You may need to install this, for instance ``pip install multiprocess`` to install from PyPI. To make use of the parallelization simply specify the number of processes to use, for example:
 
 .. _multiprocess: https://pypi.org/project/multiprocess/
 
@@ -67,12 +67,12 @@ Progress bars work in principle in parallel mode, with one bar per process, alth
 
 .. warning::
 
-    `multiprocess` is not to be confused with `multiprocessing` - it is a fork of that package that, amongst other additional features, implements the object serialization used to pass data to/from processes with `dill` instead of `pickle`. This allows MARTINI's object-oriented elements to be passed to processes. With `multiprocessing`, lots of internal bits would need to be moved to module-level global variables/functions, largely defeating the purpose of an object-oriented design.
+    ``multiprocess`` is not to be confused with ``multiprocessing`` - it is a fork of that package that, amongst other additional features, implements the object serialization used to pass data to/from processes with ``dill`` instead of ``pickle``. This allows MARTINI's object-oriented elements to be passed to processes. With ``multiprocessing``, lots of internal bits would need to be moved to module-level global variables/functions, largely defeating the purpose of an object-oriented design.
 
 Adding noise
 ------------
 
-If you passed a noise module instance to :class:`~martini.martini.Martini`, this is the time to use it, after inserting the source into the cube. Simply call :meth:`~martini.martini.Martini.add_noise()`:
+If you passed a noise module instance to :class:`~martini.martini.Martini`, this is the time to use it, after inserting the source into the cube. Simply call :meth:`~martini.martini.Martini.add_noise`:
 
 .. code-block:: python
 
@@ -94,7 +94,7 @@ This one is simple, with no parameters required or optional. You may notice that
 All done!
 ---------
 
-Your mock observation is now complete! You probably want to write the output to a file - use :meth:`~martini.martini.Martini.write_fits` or :meth:`~martini.martini.Martini.write_hdf5` according to your preferred output format. If you want to save a beam image you can use :meth:`~martini.martini.Martini.write_beam_fits` (the beam image is included automatically in `hdf5`-format output).
+Your mock observation is now complete! You probably want to write the output to a file - use :meth:`~martini.martini.Martini.write_fits` or :meth:`~martini.martini.Martini.write_hdf5` according to your preferred output format. If you want to save a beam image you can use :meth:`~martini.martini.Martini.write_beam_fits` (the beam image is included automatically in hdf5-format output).
 
 Extra utilities
 +++++++++++++++
