@@ -217,3 +217,15 @@ The preview function scales the axes to enclose all particles in the source. In 
     :alt: Approximate moment 1 map and major & minor axis PV diagrams of TNG galaxy, zoomed in.
 
 Aha, an inclined disc within the hot halo. From here we could continue to adjust the orientation, if desired.
+
+Because the :mod:`~martini.sources.tng_source.TNGSource` module has automatically retrieved and loaded the particle arrays, we did not need to pass them in, and therefore never had a chance to do anything with them, if we desired to. The particle arrays are accessible as attributes, for example:
+
+.. code-block:: python
+
+    tng_source.xyz_g
+    tng_source.vxyz_g
+    tng_source.mHI_g
+    tng_source.T_g
+    tng_source.hsm_g
+
+The same attributes exist for all source modules available in MARTINI.
