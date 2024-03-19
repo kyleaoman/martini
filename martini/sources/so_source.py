@@ -39,7 +39,7 @@ class SOSource(SPHSource):
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
         momentum pole (rotation about 'x'), and inclined (rotation about \
         'y'). A 3-tuple may be provided instead, in which case the third \
-        value specifies the position angle on the sky (rotation about 'x'). \
+        value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
         (Default: identity rotation matrix.)
