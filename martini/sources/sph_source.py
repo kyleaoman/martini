@@ -48,7 +48,7 @@ class SPHSource(object):
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
         momentum pole (rotation about 'x'), and inclined (rotation about \
         'y'). A 3-tuple may be provided instead, in which case the third \
-        value specifies the position angle on the sky (rotation about 'x'). \
+        value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
         (Default: identity rotation matrix.)
@@ -255,7 +255,7 @@ class SPHSource(object):
             about its angular momentum pole (rotation about 'x'), and then
             inclined (rotation about 'y'). By default the position angle on the
             sky is 270 degrees, but if a third element is provided it sets the
-            position angle (rotation about 'z').
+            position angle (second rotation about 'x').
         """
 
         args_given = (axis_angle is not None, rotmat is not None, L_coords is not None)
