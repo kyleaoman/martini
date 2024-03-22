@@ -896,3 +896,233 @@ class Martini:
         if self.beam is not None:
             self.datacube.add_pad(self.beam.needs_pad())
         return
+
+    def preview(
+        self,
+        max_points=5000,
+        fig=1,
+        lim=None,
+        vlim=None,
+        point_scaling="auto",
+        title="",
+        save=None,
+    ):
+        """
+        Produce a figure showing the source particle coordinates and velocities, and the
+        datacube region.
+
+        Makes a 3-panel figure showing the projection of the source as it will appear in
+        the mock observation. The first panel shows the particles in the y-z plane,
+        coloured by the x-component of velocity (MARTINI projects the source along the
+        x-axis). The second and third panels are position-velocity diagrams showing the
+        x-component of velocity against the y and z coordinates, respectively. The red
+        boxes drawn on the panels show the datacube extent in position and velocity at the
+        distance and systemic velocity of the source.
+
+        Parameters
+        ----------
+        max_points : int, optional
+            Maximum number of points to draw per panel, the particles will be randomly
+            subsampled if the source has more. (Default: 1000)
+
+        fig : int, optional
+            Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
+            (Default: 1)
+
+        lim : Quantity with dimensions of length, optional
+            The coordinate axes extend from -lim to lim. If unspecified, the maximum
+            absolute coordinate of particles in the source is used. Whether specified
+            or not, the axes are expanded if necessary to contain the extent of the
+            data cube. Alternatively, the string "datacube" can be passed. In this case
+            the axis limits are set by the extent of the data cube. (Default: None)
+
+        vlim : Quantity with dimensions of speed, optional
+            The velocity axes and colour bar extend from -vlim to vlim. If unspecified,
+            the maximum absolute velocity of particles in the source is used. Whether
+            specified or not, the axes are expanded if necessary to contain the extent
+            of the data cube. Alternatively, the string "datacube" can be passed. In this
+            case the axis limits are set by the extent of the data cube. (Default: None)
+
+        point_scaling : str, optional
+            By default points are scaled in size and transparency according to their HI
+            mass and the smoothing length (loosely proportional to their surface
+            densities, but with different scaling to achieve a visually useful plot). For
+            some sources the automatic scaling may not give useful results, using
+            point_scaling="fixed" will plot points of constant size without opacity.
+            (Default: "auto")
+
+        title : str, optional
+            A title for the figure can be provided. (Default: "")
+
+        save : str, optional
+            If provided, the figure is saved using `plt.savefig(save)`. A `.png` or `.pdf`
+            suffix is recommended. (Default: None)
+
+        Returns
+        -------
+        out : matplotlib.figure instance
+            The preview figure.
+        """
+        import matplotlib.pyplot as plt
+
+        y_cube = (
+            (self.datacube.ra - self.source.ra)
+            / np.cos(self.source.dec)
+            * self.source.distance
+        ).to(U.kpc, U.dimensionless_angles())
+        z_cube = ((self.datacube.dec - self.source.dec) * self.source.distance).to(
+            U.kpc, U.dimensionless_angles()
+        )
+        v_cube = (self.datacube.velocity_centre - self.source.vsys).to(U.km / U.s)
+        dy_cube = 0.5 * (
+            self.datacube.px_size * self.datacube.n_px_x * self.source.distance
+        ).to(
+            U.kpc, U.dimensionless_angles()
+        )  # half-length
+        dz_cube = 0.5 * (
+            self.datacube.px_size * self.datacube.n_px_y * self.source.distance
+        ).to(
+            U.kpc, U.dimensionless_angles()
+        )  # half-length
+        dv_cube = 0.5 * (self.datacube.channel_width * self.datacube.n_channels).to(
+            U.km / U.s
+        )
+        # should issue some warnings if dRA or dDec > 5deg, or if dec within 5 deg of pole
+        clip_lim = lim == "datacube"
+        if clip_lim:
+            lim = max(
+                np.abs(
+                    U.Quantity(
+                        [
+                            y_cube - dy_cube,
+                            y_cube + dy_cube,
+                            z_cube - dz_cube,
+                            z_cube + dz_cube,
+                        ]
+                    )
+                )
+            )
+        clip_vlim = vlim == "datacube"
+        if clip_vlim:
+            clip_vlim = True
+            vlim = max(np.abs(U.Quantity([v_cube - dv_cube, v_cube + dv_cube])))
+        else:
+            clip_vlim = False
+        # pass through arguments, except save (which we will do later if desired)
+        fig = self.source.preview(
+            max_points=max_points,
+            fig=fig,
+            lim=lim,
+            vlim=vlim,
+            point_scaling=point_scaling,
+            title=title,
+            save=None,
+        )
+        sp1, cb, sp2, sp3 = fig.get_axes()
+        sp1.add_patch(
+            plt.Rectangle(
+                (
+                    (y_cube - dy_cube).to_value(U.kpc),
+                    (z_cube - dz_cube).to_value(U.kpc),
+                ),
+                2 * dy_cube.to_value(U.kpc),
+                2 * dz_cube.to_value(U.kpc),
+                linewidth=5,
+                edgecolor="red",
+                facecolor="None",
+            )
+        )
+        sp2.add_patch(
+            plt.Rectangle(
+                (
+                    (y_cube - dy_cube).to_value(U.kpc),
+                    (v_cube - dv_cube).to_value(U.km / U.s),
+                ),
+                2 * dy_cube.to_value(U.kpc),
+                2 * dv_cube.to_value(U.km / U.s),
+                linewidth=5,
+                edgecolor="red",
+                facecolor="None",
+            )
+        )
+        sp3.add_patch(
+            plt.Rectangle(
+                (
+                    (z_cube - dz_cube).to_value(U.kpc),
+                    (v_cube - dv_cube).to_value(U.km / U.s),
+                ),
+                2 * dz_cube.to_value(U.kpc),
+                2 * dv_cube.to_value(U.km / U.s),
+                linewidth=5,
+                edgecolor="red",
+                facecolor="None",
+            )
+        )
+        if clip_lim:
+            sp1.set_xlim(
+                (y_cube + dy_cube).to_value(U.kpc), (y_cube - dy_cube).to_value(U.kpc)
+            )
+            sp1.set_ylim(
+                (z_cube - dz_cube).to_value(U.kpc), (z_cube + dz_cube).to_value(U.kpc)
+            )
+            sp2.set_xlim(
+                (y_cube + dy_cube).to_value(U.kpc), (y_cube - dy_cube).to_value(U.kpc)
+            )
+            sp3.set_xlim(
+                (z_cube - dz_cube).to_value(U.kpc), (z_cube + dz_cube).to_value(U.kpc)
+            )
+        else:
+            if lim is None:
+                lim = sp1.get_xlim()[1] * U.kpc
+            sp1.set_xlim(
+                (
+                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
+                    max(1.1 * (y_cube + dy_cube), lim).to_value(U.kpc),
+                )
+            )
+            sp2.set_xlim(
+                (
+                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
+                    max(1.1 * (y_cube + dy_cube), lim).to_value(U.kpc),
+                )
+            )
+            sp1.set_ylim(
+                (
+                    min(1.1 * (z_cube - dz_cube), -lim).to_value(U.kpc),
+                    max(1.1 * (z_cube + dz_cube), lim).to_value(U.kpc),
+                )
+            )
+            sp3.set_xlim(
+                (
+                    min(1.1 * (z_cube - dz_cube), -lim).to_value(U.kpc),
+                    max(1.1 * (z_cube + dz_cube), lim).to_value(U.kpc),
+                )
+            )
+        if clip_vlim:
+            sp2.set_ylim(
+                (v_cube - dv_cube).to_value(U.km / U.s),
+                (v_cube + dv_cube).to_value(U.km / U.s),
+            )
+            sp3.set_ylim(
+                (v_cube - dv_cube).to_value(U.km / U.s),
+                (v_cube + dv_cube).to_value(U.km / U.s),
+            )
+        else:
+            if vlim is None:
+                vlim = sp2.get_ylim()[1] * U.km / U.s
+            sp2.set_ylim(
+                (
+                    min(1.1 * (v_cube - dv_cube), -vlim).to_value(U.km / U.s),
+                    max(1.1 * (v_cube + dv_cube), vlim).to_value(U.km / U.s),
+                )
+            )
+            sp3.set_ylim(
+                (
+                    min(1.1 * (v_cube - dv_cube), -vlim).to_value(U.km / U.s),
+                    max(1.1 * (v_cube + dv_cube), vlim).to_value(U.km / U.s),
+                )
+            )
+
+        if save is not None:
+            plt.savefig(save)
+        return fig
