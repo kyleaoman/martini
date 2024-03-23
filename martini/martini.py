@@ -1076,14 +1076,14 @@ class Martini:
                 lim = sp1.get_xlim()[1] * U.kpc
             sp1.set_xlim(
                 (
-                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
                     max(1.1 * (y_cube + dy_cube), lim).to_value(U.kpc),
+                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
                 )
             )
             sp2.set_xlim(
                 (
-                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
                     max(1.1 * (y_cube + dy_cube), lim).to_value(U.kpc),
+                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
                 )
             )
             sp1.set_ylim(
