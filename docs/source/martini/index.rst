@@ -35,6 +35,79 @@ A few things happen behind the scenes when the :class:`~martini.martini.Martini`
  - Next, the source is checked for particles that are guaranteed not to contribute to the datacube because they have no overlap with it in position (including their smoothing kernel and the padding region) and/or velocity (including spectral broadening). This speeds up later calculations, but you may notice that some particles have disappeared from your source object.
  - Finally, the spectra of all (remaining) particles are calculated on the spectral axis grid. For sources with many particles this can take a bit of time, but the calculation is vectorized and so scales efficiently to large numbers of particles.
 
+Mock observation preview
+++++++++++++++++++++++++
+
+Similar to the preview functionality of the :doc:`source module </sources/index>`, the :class:`~martini.martini.Martini` object has a preview function, but with the added feature that it can obtain information from the :class:`~martini.datacube.DataCube` member to draw the boundaries of the observation. The following example sets up a :class:`~martini.martini.Martini` instance similar to the one used in MARTINI's :func:`~martini._demo.demo` and generates a preview figure.
+
+.. code-block:: python
+
+    import numpy as np
+    import astropy.units as U
+    from martini import demo_source, DataCube, Martini
+    from martini.beams import GaussianBeam
+    from martini.noise import GaussianNoise
+    from martini.spectral_models import GaussianSpectrum
+    from martini.sph_kernels import CubicSplineKernel
+
+    source = demo_source(N=20000)  # create simple disc with 20000 particles
+    # a random rotation matrix:
+    rotmat = np.array(
+        [
+            [-0.20808178, -0.97804544, -0.01136216],
+            [0.02991471, -0.01797457, 0.99939083],
+            [0.97765387, -0.20761513, -0.03299812],
+        ]
+		)
+    # apply it so that the source has no particular orientation:
+    source.rotate(rotmat=rotmat)
+
+    datacube = DataCube(
+        n_px_x=128,
+        n_px_y=128,
+        n_channels=32,
+        px_size=10.0 * U.arcsec,
+        channel_width=10.0 * U.km * U.s**-1,
+        velocity_centre=source.vsys,
+    )
+
+    beam = GaussianBeam(
+        bmaj=30.0 * U.arcsec, bmin=30.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
+    )
+
+    noise = GaussianNoise(rms=3.0e-5 * U.Jy * U.beam**-1)
+
+    spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
+
+    sph_kernel = CubicSplineKernel()
+
+    m = Martini(
+        source=source,
+        datacube=datacube,
+        beam=beam,
+        noise=noise,
+        spectral_model=spectral_model,
+        sph_kernel=sph_kernel,
+    )
+
+    m.preview(fig=1)  # uses matplotlib `plt.figure(1)`
+
+.. image:: preview1.png
+    :width: 800
+    :alt: Approximate moment 1 map and major & minor axis PV diagrams, with datacube extent overlaid.
+    
+The red box marks the extent of the datacube in right ascension, declination and velocity. The axes limits can also be set to be equal to these extents by setting the keyword arguments ``lim="datacube"`` and ``vlim="datacube"``:
+
+.. code-block:: python
+
+    m.preview(fig=2, lim="datacube", vlim="datacube")
+
+.. image:: preview2.png
+    :width: 800
+    :alt: Approximate moment 1 map and major & minor axis PV diagrams, with axes clipped to datacube extent.
+
+Check the :doc:`source module documentation </sources/index>` for further usage examples. Analogous usage works with the :class:`~martini.martini.Martini` :func:`~martini.martini.Martini.preview` function (except that the extent of the data cube will be overlaid).
+
 Inserting the source
 --------------------
 

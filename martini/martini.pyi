@@ -5,6 +5,8 @@ from martini.noise import _BaseNoise
 from martini.sources.sph_source import SPHSource as SPHSource
 from martini.spectral_models import _BaseSpectrum
 from martini.sph_kernels import _BaseSPHKernel
+from matplotlib.figure import Figure
+import astropy.units as U
 
 gc: bytes
 
@@ -50,3 +52,13 @@ class Martini:
         compact: bool = ...,
     ) -> None: ...
     def reset(self) -> None: ...
+    def preview(
+        self,
+        max_points: int = ...,
+        fig: int = ...,
+        lim: T.Optional[T.Union[str, U.Quantity[U.kpc]]] = ...,
+        vlim: T.Optional[T.Union[str, U.Quantity[U.km / U.s]]] = ...,
+        point_scaling: str = ...,
+        title: str = ...,
+        save: T.Optional[str] = ...,
+    ) -> Figure: ...
