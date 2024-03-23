@@ -381,6 +381,22 @@ class TestMartini:
         m.reset()
         assert m.datacube._array.shape == expected_shape
 
+    def test_preview(self, m_init):
+        """
+        Simply check that the preview visualisation runs without error.
+        """
+        # with default arguments
+        m_init.preview()
+        # with non-default arguments
+        m_init.preview(
+            max_points=1000,
+            fig=2,
+            lim="datacube",
+            vlim="datacube",
+            point_scaling="fixed",
+            title="test",
+        )
+
 
 class TestParallel:
     def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
