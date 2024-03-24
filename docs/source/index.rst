@@ -15,6 +15,9 @@ Overview
 
    getting_started/index
    sources/index
+   datacube/index
+   beams/index
+   noise/index
    sph_kernels/index
    spectral_models/index
    martini/index
