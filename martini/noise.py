@@ -53,7 +53,7 @@ class GaussianNoise(_BaseNoise):
     ----------
     rms : Quantity, with dimensions of flux density per beam
         Desired root mean square amplitude of the noise field after convolution with the
-        beam.
+        beam. (Default: 1.0 * U.Jy * U.beam ** -2)
 
     seed : int or None
         Seed for random number generator. If None, results will be unpredictable,
