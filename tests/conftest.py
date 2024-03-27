@@ -9,8 +9,6 @@ from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import _GaussianKernel
 
-_GaussianKernel.noFWHMwarn = True
-
 
 def sps_sourcegen(
     T_g=np.ones(1) * 1.0e4 * U.K,

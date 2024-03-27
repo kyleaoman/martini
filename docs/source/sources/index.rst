@@ -53,7 +53,7 @@ The module :mod:`astropy.constants` provides a wide range of pre-defined physica
 Using MARTINI's source classes
 ------------------------------
 
-Quick overview here (including preview), details below
+The source module contains the simulation particle data and defines how these should be oriented in space and on the sky to be mock observed. This section details how particle data should be provided (either directly or through one of the simulation-specific classes) and how they can be manipulated and inspected before making the actual mock observation.
 
 Particle arrays
 +++++++++++++++
