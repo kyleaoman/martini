@@ -7,6 +7,7 @@ from martini.datacube import DataCube as DataCube
 from martini.beams import _BaseBeam
 from numpy.random._generator import Generator
 
+
 class _BaseNoise(metaclass=abc.ABCMeta):
     __metaclass__: Incomplete
     seed: int
@@ -17,11 +18,12 @@ class _BaseNoise(metaclass=abc.ABCMeta):
     def generate(self, datacube: DataCube, beam: _BaseBeam): ...
     def reset_rng(self) -> None: ...
 
+
 class GaussianNoise(_BaseNoise):
-    rms: U.Quantity[U.Jy * U.beam**-2]
+    rms: U.Quantity[U.Jy * U.beam**-1]
 
     def __init__(
-        self, rms: U.Quantity[U.Jy * U.beam**-2] = ..., seed: T.Optional[int] = ...
+        self, rms: U.Quantity[U.Jy * U.beam**-1] = ..., seed: T.Optional[int] = ...
     ) -> None: ...
     def generate(
         self, datacube: DataCube, beam: _BaseBeam
