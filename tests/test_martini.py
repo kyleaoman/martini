@@ -386,7 +386,7 @@ class TestMartini:
         Simply check that the preview visualisation runs without error.
         """
         # with default arguments
-        with pytest.warns(UserWarning, match="makes transformation singular"):
+        with pytest.warns(UserWarning, match="singular"):
             # warning: single-particle source is used, so axis limits try to be equal
             m_init.preview()
         # with non-default arguments
