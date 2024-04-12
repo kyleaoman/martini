@@ -464,3 +464,26 @@ class DataCube(object):
             Text representation of the DataCube._array contents.
         """
         return self._array.__repr__()
+
+
+class _GlobalProfileDataCube(DataCube):
+
+    def __init__(
+        self,
+        n_channels=64,
+        channel_width=4.0 * U.km * U.s**-1,
+        velocity_centre=0.0 * U.km * U.s**-1,
+    ):
+        super().__init__(
+            n_px_x=1,
+            n_px_y=1,
+            n_channels=n_channels,
+            px_size=1 * U.deg,  # must be >0, ignored for insertion, needed for units
+            channel_width=channel_width,
+            velocity_centre=velocity_centre,
+            ra=0.0 * U.deg,
+            dec=0.0 * U.deg,
+            stokes_axis=False,
+        )
+
+        return
