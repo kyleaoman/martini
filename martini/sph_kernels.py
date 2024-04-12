@@ -175,7 +175,7 @@ class _BaseSPHKernel(object):
         """
         Determine maximum number of pixels reached by kernel.
         """
-        self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm).astype(int)
+        self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm)
 
         return
 
@@ -940,16 +940,21 @@ class DiracDeltaKernel(_BaseSPHKernel):
         0 &{\\rm for}\\;q > 0
         \\end{cases}
 
+    Parameters
+    ----------
+    size_in_fwhm : float
+        In principle the width of a DiracDelta kernel is 0, but this would
+        lead to no particles contributing to any pixels. Ideally this would
+        be set to approximately the size of the pixel, but setting it to
+        the smoothing length (1.0) is acceptable. (Default: 1.0)
+
     """
 
     max_valid_size = 0.5
 
-    def __init__(self):
+    def __init__(self, size_in_fwhm=1.0):
         super().__init__()
-        # In principle the size for a DiracDelta kernel is 0, but this would
-        # lead to no particles being used. Ideally we would want ~the pixel
-        # size here, but the sph smoothing length is acceptable.
-        self.size_in_fwhm = 1
+        self.size_in_fwhm = size_in_fwhm
         self._rescale = 1  # need this to be present
         return
 
@@ -976,7 +981,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
             Kernel value at positions q.
         """
 
-        return np.where(q, np.inf * np.ones(q.shape), np.zeros(q.shape))
+        return np.where(q, np.zeros(q.shape), np.inf * np.ones(q.shape))
 
     def _kernel_integral(self, dij, h, mask=np.s_[...]):
         """
@@ -998,7 +1003,6 @@ class DiracDeltaKernel(_BaseSPHKernel):
         out : array_like
             Kernel integral over the pixel area.
         """
-
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
 
     def _validate(self, sm_lengths, noraise=False, quiet=False):
