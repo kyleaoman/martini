@@ -52,3 +52,11 @@ class DataCube:
     def save_state(self, filename: str, overwrite: bool = ...) -> None: ...
     @classmethod
     def load_state(cls, filename: str) -> "DataCube": ...
+
+class _GlobalProfileDataCube(DataCube):
+    def __init__(
+        self,
+        n_channels: int = ...,
+        channel_width: U.Quantity[U.arcsec] = ...,
+        velocity_centre: U.Quantity[U.km / U.s] = ...,
+    ) -> None: ...

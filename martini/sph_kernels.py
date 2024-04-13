@@ -175,6 +175,7 @@ class _BaseSPHKernel(object):
         """
         Determine maximum number of pixels reached by kernel.
         """
+        # store as float: use case for np.inf in GlobalProfile:
         self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm)
 
         return

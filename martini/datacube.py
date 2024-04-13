@@ -467,6 +467,22 @@ class DataCube(object):
 
 
 class _GlobalProfileDataCube(DataCube):
+    """
+    Helper class that configures a data cube with a single pixel to hold a spectrum.
+
+    Parameters
+    ----------
+    n_channels : int, optional
+        Number of channels along the spectral axis. (Default: 64.)
+
+    channel_width : Quantity, with dimensions of velocity or frequency, optional
+        Step size along the spectral axis. Can be provided as a velocity or a
+        frequency. (Default: 4 km/s.)
+
+    velocity_centre : Quantity, with dimensions of velocity or frequency, optional
+        Velocity (or frequency) of the centre along the spectral axis.
+        (Default: 0 km/s.)
+    """
 
     def __init__(
         self,

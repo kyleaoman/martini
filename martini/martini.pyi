@@ -1,3 +1,4 @@
+from numpy import ndarray
 import typing as T
 from martini.beams import _BaseBeam
 from martini.datacube import DataCube as DataCube
@@ -10,7 +11,7 @@ import astropy.units as U
 
 gc: bytes
 
-class Martini:
+class _BaseMartini:
     source: SPHSource
     datacube: DataCube
     beam: _BaseBeam
@@ -27,20 +28,28 @@ class Martini:
         noise: T.Optional[_BaseNoise] = ...,
         sph_kernel: T.Optional[_BaseSPHKernel] = ...,
         spectral_model: T.Optional[_BaseSpectrum] = ...,
+        prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
         quiet: T.Optional[bool] = ...,
     ) -> None: ...
-    def convolve_beam(self) -> None: ...
-    def add_noise(self) -> None: ...
-    def insert_source_in_cube(
+    def _prune_particles(
+        self, spatial: bool = ..., spectral: bool = ..., obj_type_str: str = ...
+    ) -> None: ...
+    def _evaluate_pixel_spectrum(
+        self,
+        ranks_and_ij_pxs: T.Tuple[int, T.List[T.Tuple[int, int]]],
+        progressbar: bool = ...,
+    ) -> T.Tuple[slice, U.Quantity[U.Jy / U.arcsec**2]]: ...
+    def _insert_pixel(
+        self, insertion_slice: T.Union[int, T.Tuple, slice], insertion_data: ndarray
+    ) -> None: ...
+    def _insert_source_in_cube(
         self,
         skip_validation: bool = ...,
         progressbar: T.Optional[bool] = ...,
         ncpu: int = ...,
+        quiet: T.Optional[bool] = ...,
     ) -> None: ...
     def write_fits(
-        self, filename: str, channels: str = ..., overwrite: bool = ...
-    ) -> None: ...
-    def write_beam_fits(
         self, filename: str, channels: str = ..., overwrite: bool = ...
     ) -> None: ...
     def write_hdf5(
@@ -62,3 +71,45 @@ class Martini:
         title: str = ...,
         save: T.Optional[str] = ...,
     ) -> Figure: ...
+
+class Martini:
+    def __init__(
+        self,
+        source: T.Optional[SPHSource] = ...,
+        datacube: T.Optional[DataCube] = ...,
+        beam: T.Optional[_BaseBeam] = ...,
+        noise: T.Optional[_BaseNoise] = ...,
+        sph_kernel: T.Optional[_BaseSPHKernel] = ...,
+        spectral_model: T.Optional[_BaseSpectrum] = ...,
+        quiet: T.Optional[bool] = ...,
+    ) -> None: ...
+    def insert_source_in_cube(
+        self,
+        skip_validation: bool = ...,
+        progressbar: T.Optional[bool] = ...,
+        ncpu: int = ...,
+    ) -> None: ...
+    def convolve_beam(self) -> None: ...
+    def add_noise(self) -> None: ...
+    def write_beam_fits(
+        self, filename: str, channels: str = ..., overwrite: bool = ...
+    ) -> None: ...
+
+class GlobalProfile(_BaseMartini):
+    def __init__(
+        self,
+        source: T.Optional[SPHSource] = ...,
+        spectral_model: T.Optional[_BaseSpectrum] = ...,
+        n_channels: int = ...,
+        channel_width: U.Quantity[U.km / U.s] = ...,
+        velocity_centre: U.Quantity[U.km / U.s] = ...,
+        quiet: bool = ...,
+    ) -> None: ...
+    def add_noise(self) -> None: ...
+    def insert_source_in_spectrum(self) -> None: ...
+    @property
+    def spectrum(self) -> U.Quantity[U.Jy]: ...
+    @property
+    def channel_edges(self) -> U.Quantity[U.Jy]: ...
+    @property
+    def channel_mids(self) -> U.Quantity[U.Jy]: ...
