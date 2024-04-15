@@ -117,3 +117,10 @@ class GlobalProfile(_BaseMartini):
     def channel_mids(self) -> T.Union[U.Quantity[U.Hz], U.Quantity[U.km / U.s]]: ...
     @property
     def channel_width(self) -> U.Quantity[U.km / U.s]: ...
+    def plot_spectrum(
+        self,
+        fig: int = ...,
+        title: str = ...,
+        show_vsys: bool = ...,
+        save: T.Optional[str] = ...,
+    ) -> Figure: ...

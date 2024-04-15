@@ -10,7 +10,7 @@ from astropy import __version__ as astropy_version
 from itertools import product
 from .__version__ import __version__ as martini_version
 from warnings import warn
-from martini.datacube import DataCube, _GlobalProfileDataCube
+from martini.datacube import DataCube, _GlobalProfileDataCube, HIfreq
 from martini.sph_kernels import DiracDeltaKernel
 
 try:
@@ -1454,6 +1454,7 @@ class GlobalProfile(_BaseMartini):
             raise ValueError(
                 'GlobalProfile: `channels` must be "velocity" or "frequency".'
             )
+        self.channels = channels
         self.source.pixcoords[:2] = 0
 
         return
@@ -1542,3 +1543,67 @@ class GlobalProfile(_BaseMartini):
         if hasattr(self, "_spectrum"):
             del self._spectrum
         return
+
+    def plot_spectrum(
+        self,
+        fig=1,
+        title="",
+        show_vsys=True,
+        save=None,
+    ):
+        """
+        Produce a figure showing the spectrum.
+
+        Parameters
+        ----------
+        fig : int, optional
+            Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
+            (Default: 1)
+
+        title : str, optional
+            A title for the figure can be provided. (Default: "")
+
+        show_vsys : bool, optional
+            If True, draw a vertical line at the source systemic velocity. (Default: True)
+
+        save : str, optional
+            If provided, the figure is saved using `plt.savefig(save)`. A `.png` or `.pdf`
+            suffix is recommended. (Default: None)
+
+        Returns
+        -------
+        out : matplotlib.figure instance
+            The spectrum figure.
+        """
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure(fig, figsize=(4, 3))
+        fig.clf()
+        fig.suptitle(title)
+
+        xunit = dict(velocity=U.km * U.s**-1, frequency=U.GHz)[self.channels]
+
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(
+            self.channel_mids.to_value(xunit),
+            self.spectrum.to_value(U.Jy),
+            ls="solid",
+            color="black",
+            lw=2,
+        )
+        if show_vsys:
+            ax.axvline(
+                self.source.vsys.to_value(xunit, equivalencies=U.doppler_radio(HIfreq)),
+                linestyle="dotted",
+                lw=1.5,
+                color="black",
+            )
+        ax.set_ylabel(r"Flux density $[\mathrm{Jy}]$")
+        if self.channels == "velocity":
+            ax.set_xlabel(r"Velocity $[\mathrm{km}\,\mathrm{s}^{-1}]$")
+        elif self.channels == "frequency":
+            ax.set_xlabel(r"Frequency $[\mathrm{GHz}]$")
+
+        if save is not None:
+            plt.savefig(save)
+        return fig

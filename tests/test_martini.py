@@ -599,6 +599,9 @@ class TestGlobalProfile:
 
     @pytest.mark.parametrize("channels", ("frequency", "velocity"))
     def test_channel_modes(self, single_particle_source, channels):
+        """
+        Check that channels have expected units in both modes (frequency, velocity).
+        """
         source = single_particle_source()
         m = GlobalProfile(
             source=source,
@@ -609,5 +612,15 @@ class TestGlobalProfile:
             channels=channels,
         )
         expected_units = dict(frequency=U.Hz, velocity=U.km * U.s**-1)[channels]
+        # these will raise if there's a problem:
         m.channel_edges.to(expected_units)
         m.channel_mids.to(expected_units)
+
+    def test_view_spectrum(self, gp):
+        """
+        Simply check that plotting spectrum runs without error.
+        """
+        # with default arguments
+        gp.plot_spectrum()
+        # with non-default arguments
+        gp.plot_spectrum(fig=2, title="test", show_vsys=False)
