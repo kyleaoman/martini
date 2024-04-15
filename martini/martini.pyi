@@ -11,9 +11,10 @@ import astropy.units as U
 
 gc: bytes
 
+
 class _BaseMartini:
     source: SPHSource
-    datacube: DataCube
+    _datacube: DataCube
     beam: _BaseBeam
     noise: _BaseNoise
     sph_kernel: _BaseSPHKernel
@@ -28,7 +29,7 @@ class _BaseMartini:
         noise: T.Optional[_BaseNoise] = ...,
         sph_kernel: T.Optional[_BaseSPHKernel] = ...,
         spectral_model: T.Optional[_BaseSpectrum] = ...,
-        prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
+        _prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
         quiet: T.Optional[bool] = ...,
     ) -> None: ...
     def _prune_particles(
@@ -49,17 +50,6 @@ class _BaseMartini:
         ncpu: int = ...,
         quiet: T.Optional[bool] = ...,
     ) -> None: ...
-    def write_fits(
-        self, filename: str, channels: str = ..., overwrite: bool = ...
-    ) -> None: ...
-    def write_hdf5(
-        self,
-        filename: str,
-        channels: str = ...,
-        overwrite: bool = ...,
-        memmap: bool = ...,
-        compact: bool = ...,
-    ) -> None: ...
     def reset(self) -> None: ...
     def preview(
         self,
@@ -72,6 +62,7 @@ class _BaseMartini:
         save: T.Optional[str] = ...,
     ) -> Figure: ...
 
+
 class Martini:
     def __init__(
         self,
@@ -83,6 +74,8 @@ class Martini:
         spectral_model: T.Optional[_BaseSpectrum] = ...,
         quiet: T.Optional[bool] = ...,
     ) -> None: ...
+    @property
+    def datacube(self) -> DataCube: ...
     def insert_source_in_cube(
         self,
         skip_validation: bool = ...,
@@ -91,9 +84,21 @@ class Martini:
     ) -> None: ...
     def convolve_beam(self) -> None: ...
     def add_noise(self) -> None: ...
+    def write_fits(
+        self, filename: str, channels: str = ..., overwrite: bool = ...
+    ) -> None: ...
     def write_beam_fits(
         self, filename: str, channels: str = ..., overwrite: bool = ...
     ) -> None: ...
+    def write_hdf5(
+        self,
+        filename: str,
+        channels: str = ...,
+        overwrite: bool = ...,
+        memmap: bool = ...,
+        compact: bool = ...,
+    ) -> None: ...
+
 
 class GlobalProfile(_BaseMartini):
     def __init__(
@@ -103,9 +108,9 @@ class GlobalProfile(_BaseMartini):
         n_channels: int = ...,
         channel_width: U.Quantity[U.km / U.s] = ...,
         velocity_centre: U.Quantity[U.km / U.s] = ...,
+        channels: str = ...,
         quiet: bool = ...,
     ) -> None: ...
-    def add_noise(self) -> None: ...
     def insert_source_in_spectrum(self) -> None: ...
     @property
     def spectrum(self) -> U.Quantity[U.Jy]: ...

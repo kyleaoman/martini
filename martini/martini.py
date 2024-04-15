@@ -26,6 +26,59 @@ else:
 
 
 class _BaseMartini:
+    """
+    Common methods for the core Martini class and related classes.
+
+    Parameters
+    ----------
+    source : an instance of a class derived from martini.sources.SPHSource
+        A description of the HI emitting object, including position, geometry
+        and an interface to the simulation data (SPH particle masses,
+        positions, etc.). Sources leveraging the simobj package for reading
+        simulation data (github.com/kyleaoman/simobj) and a few test sources
+        (e.g. single particle) are provided, creation of customized sources,
+        for instance to leverage other interfaces to simulation data, is
+        straightforward. See sub-module documentation.
+
+    datacube : martini.DataCube instance
+        A description of the datacube to create, including pixels, channels,
+        sky position. See sub-module documentation.
+
+    beam : an instance of a class derived from beams._BaseBeam, optional
+        A description of the beam for the simulated telescope. Given a
+        description, either mathematical or as an image, the creation of a
+        custom beam is straightforward. See sub-module documentation.
+
+    noise : an instance of a class derived from noise._BaseNoise, optional
+        A description of the simulated noise. A simple Gaussian noise model is
+        provided; implementation of other noise models is straightforward. See
+        sub-module documentation.
+
+    sph_kernel : an instance of a class derived from sph_kernels._BaseSPHKernel
+        A description of the SPH smoothing kernel. Check simulation
+        documentation for the kernel used in a particular simulation, and
+        SPH kernel submodule documentation for guidance.
+
+    spectral_model : an instance of a class derived from \
+    spectral_models._BaseSpectrum
+        A description of the HI line produced by a particle of given
+        properties. A Dirac-delta spectrum, and both fixed-width and
+        temperature-dependent Gaussian line models are provided; implementing
+        other models is straightforward. See sub-module documentation.
+
+    quiet : bool
+        If True, suppress output to stdout. (Default: False)
+
+    See Also
+    --------
+    martini.sources.sph_source.SPHSource
+    martini.datacube.DataCube
+    martini.beams
+    martini.noise
+    martini.sph_kernels
+    martini.spectral_models
+    martini.martini.GlobalProfile
+    """
 
     def __init__(
         self,
@@ -35,7 +88,7 @@ class _BaseMartini:
         noise=None,
         sph_kernel=None,
         spectral_model=None,
-        prune_kwargs=dict(),
+        _prune_kwargs=dict(),
         quiet=False,
     ):
         self.quiet = quiet
@@ -44,7 +97,7 @@ class _BaseMartini:
         else:
             raise ValueError("A source instance is required.")
         if datacube is not None:
-            self.datacube = datacube
+            self._datacube = datacube
         else:
             raise ValueError("A datacube instance is required.")
         self.beam = beam
@@ -59,19 +112,19 @@ class _BaseMartini:
             raise ValueError("A spectral model instance is required.")
 
         if self.beam is not None:
-            self.beam.init_kernel(self.datacube)
-            self.datacube.add_pad(self.beam.needs_pad())
+            self.beam.init_kernel(self._datacube)
+            self._datacube.add_pad(self.beam.needs_pad())
 
         self.source._init_skycoords()
-        self.source._init_pixcoords(self.datacube)  # after datacube is padded
+        self.source._init_pixcoords(self._datacube)  # after datacube is padded
 
-        self.sph_kernel._init_sm_lengths(source=self.source, datacube=self.datacube)
+        self.sph_kernel._init_sm_lengths(source=self.source, datacube=self._datacube)
         self.sph_kernel._init_sm_ranges()
         self._prune_particles(
-            **prune_kwargs
+            **_prune_kwargs
         )  # prunes both source, and kernel if applicable
 
-        self.spectral_model.init_spectra(self.source, self.datacube)
+        self.spectral_model.init_spectra(self.source, self._datacube)
 
         return
 
@@ -100,7 +153,7 @@ class _BaseMartini:
                 f" mass of {self.source.mHI_g.sum():.2e}."
             )
         spectrum_half_width = (
-            self.spectral_model.half_width(self.source) / self.datacube.channel_width
+            self.spectral_model.half_width(self.source) / self._datacube.channel_width
         )
         spatial_reject_conditions = (
             (
@@ -109,9 +162,9 @@ class _BaseMartini:
                     < 0 * U.pix
                 ).any(axis=0),
                 self.source.pixcoords[0] - self.sph_kernel.sm_ranges
-                > (self.datacube.n_px_x + self.datacube.padx * 2) * U.pix,
+                > (self._datacube.n_px_x + self._datacube.padx * 2) * U.pix,
                 self.source.pixcoords[1] - self.sph_kernel.sm_ranges
-                > (self.datacube.n_px_y + self.datacube.pady * 2) * U.pix,
+                > (self._datacube.n_px_y + self._datacube.pady * 2) * U.pix,
             )
             if spatial
             else tuple()
@@ -120,7 +173,7 @@ class _BaseMartini:
             (
                 self.source.pixcoords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
                 self.source.pixcoords[2] - 4 * spectrum_half_width * U.pix
-                > self.datacube.n_channels * U.pix,
+                > self._datacube.n_channels * U.pix,
             )
             if spectral
             else tuple()
@@ -184,7 +237,7 @@ class _BaseMartini:
             )
             insertion_slice = (
                 np.s_[ij_px[0], ij_px[1], :, 0]
-                if self.datacube.stokes_axis
+                if self._datacube.stokes_axis
                 else np.s_[ij_px[0], ij_px[1], :]
             )
             result.append(
@@ -205,10 +258,11 @@ class _BaseMartini:
         ----------
         insertion_slice : integer, tuple or slice
             Index into the datacube's _array specifying the insertion location.
+
         insertion data : array-like
             1D array containing the spectrum at the location specified by insertion_slice.
         """
-        self.datacube._array[insertion_slice] = insertion_data
+        self._datacube._array[insertion_slice] = insertion_data
         return
 
     def _insert_source_in_cube(
@@ -252,8 +306,8 @@ class _BaseMartini:
 
         ij_pxs = list(
             product(
-                np.arange(self.datacube._array.shape[0]),
-                np.arange(self.datacube._array.shape[1]),
+                np.arange(self._datacube._array.shape[0]),
+                np.arange(self._datacube._array.shape[1]),
             )
         )
 
@@ -274,335 +328,62 @@ class _BaseMartini:
                     for insertion_slice, insertion_data in result:
                         self._insert_pixel(insertion_slice, insertion_data)
 
-        self.datacube._array = self.datacube._array.to(
-            U.Jy / U.arcsec**2, equivalencies=[self.datacube.arcsec2_to_pix]
+        self._datacube._array = self._datacube._array.to(
+            U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )
         pad_mask = (
             np.s_[
-                self.datacube.padx : -self.datacube.padx,
-                self.datacube.pady : -self.datacube.pady,
+                self._datacube.padx : -self._datacube.padx,
+                self._datacube.pady : -self._datacube.pady,
                 ...,
             ]
-            if self.datacube.padx > 0 and self.datacube.pady > 0
+            if self._datacube.padx > 0 and self._datacube.pady > 0
             else np.s_[...]
         )
         inserted_flux_density = (
-            self.datacube._array[pad_mask].sum() * self.datacube.px_size**2
+            self._datacube._array[pad_mask].sum() * self._datacube.px_size**2
         ).to(U.Jy)
         inserted_mass = (
             2.36e5
             * U.Msun
             * self.source.distance.to_value(U.Mpc) ** 2
             * inserted_flux_density.to_value(U.Jy)
-            * self.datacube.channel_width.to_value(U.km / U.s)
+            * self._datacube.channel_width.to_value(U.km / U.s)
         )
         if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
             print(
                 "Source inserted.",
                 f"  Flux density in cube: {inserted_flux_density:.2e}",
-                f"  Mass in cube (assuming distance {self.source.distance:.2f}):"
+                f"  Mass in cube (assuming distance {self.source.distance:.2f} and a"
+                f" spatially resolved source):"
                 f" {inserted_mass:.2e}",
                 f"    [{inserted_mass / self.source.input_mass * 100:.0f}%"
                 f" of initial source mass]",
-                f"  Maximum pixel: {self.datacube._array.max():.2e}",
+                f"  Maximum pixel: {self._datacube._array.max():.2e}",
                 "  Median non-zero pixel:"
-                f" {np.median(self.datacube._array[self.datacube._array > 0]):.2e}",
+                f" {np.median(self._datacube._array[self._datacube._array > 0]):.2e}",
                 sep="\n",
             )
         return
-
-    def write_fits(
-        self,
-        filename,
-        channels="frequency",
-        overwrite=True,
-    ):
-        """
-        Output the DataCube to a FITS-format file.
-
-        Parameters
-        ----------
-        filename : string
-            Name of the file to write. '.fits' will be appended if not already
-            present.
-
-        channels : {'frequency', 'velocity'}, optional
-            Type of units used along the spectral axis in output file.
-            (Default: 'frequency'.)
-
-        overwrite: bool, optional
-            Whether to allow overwriting existing files. (Default: True.)
-        """
-
-        self.datacube.drop_pad()
-        if channels == "frequency":
-            self.datacube.freq_channels()
-        elif channels == "velocity":
-            self.datacube.velocity_channels()
-        else:
-            raise ValueError(
-                "Martini.write_fits: Unknown 'channels' value "
-                "(use 'frequency' or 'velocity')."
-            )
-
-        filename = filename if filename[-5:] == ".fits" else filename + ".fits"
-
-        wcs_header = self.datacube.wcs.to_header()
-        wcs_header.rename_keyword("WCSAXES", "NAXIS")
-
-        header = fits.Header()
-        header.append(("SIMPLE", "T"))
-        header.append(("BITPIX", 16))
-        header.append(("NAXIS", wcs_header["NAXIS"]))
-        header.append(("NAXIS1", self.datacube.n_px_x))
-        header.append(("NAXIS2", self.datacube.n_px_y))
-        header.append(("NAXIS3", self.datacube.n_channels))
-        if self.datacube.stokes_axis:
-            header.append(("NAXIS4", 1))
-        header.append(("EXTEND", "T"))
-        header.append(("CDELT1", wcs_header["CDELT1"]))
-        header.append(("CRPIX1", wcs_header["CRPIX1"]))
-        header.append(("CRVAL1", wcs_header["CRVAL1"]))
-        header.append(("CTYPE1", wcs_header["CTYPE1"]))
-        header.append(("CUNIT1", wcs_header["CUNIT1"]))
-        header.append(("CDELT2", wcs_header["CDELT2"]))
-        header.append(("CRPIX2", wcs_header["CRPIX2"]))
-        header.append(("CRVAL2", wcs_header["CRVAL2"]))
-        header.append(("CTYPE2", wcs_header["CTYPE2"]))
-        header.append(("CUNIT2", wcs_header["CUNIT2"]))
-        header.append(("CDELT3", wcs_header["CDELT3"]))
-        header.append(("CRPIX3", wcs_header["CRPIX3"]))
-        header.append(("CRVAL3", wcs_header["CRVAL3"]))
-        header.append(("CTYPE3", wcs_header["CTYPE3"]))
-        header.append(("CUNIT3", wcs_header["CUNIT3"]))
-        if self.datacube.stokes_axis:
-            header.append(("CDELT4", wcs_header["CDELT4"]))
-            header.append(("CRPIX4", wcs_header["CRPIX4"]))
-            header.append(("CRVAL4", wcs_header["CRVAL4"]))
-            header.append(("CTYPE4", wcs_header["CTYPE4"]))
-            header.append(("CUNIT4", "PAR"))
-        header.append(("EPOCH", 2000))
-        header.append(("INSTRUME", "MARTINI", martini_version))
-        # header.append(('BLANK', -32768)) #only for integer data
-        header.append(("BSCALE", 1.0))
-        header.append(("BZERO", 0.0))
-        datacube_array_units = self.datacube._array.unit
-        header.append(
-            ("DATAMAX", np.max(self.datacube._array.to_value(datacube_array_units)))
-        )
-        header.append(
-            ("DATAMIN", np.min(self.datacube._array.to_value(datacube_array_units)))
-        )
-        header.append(("ORIGIN", "astropy v" + astropy_version))
-        # long names break fits format, don't let the user set this
-        header.append(("OBJECT", "MOCK"))
-        if self.beam is not None:
-            header.append(("BPA", self.beam.bpa.to_value(U.deg)))
-        header.append(("OBSERVER", "K. Oman"))
-        # header.append(('NITERS', ???))
-        # header.append(('RMS', ???))
-        # header.append(('LWIDTH', ???))
-        # header.append(('LSTEP', ???))
-        header.append(("BUNIT", datacube_array_units.to_string("fits")))
-        # header.append(('PCDEC', ???))
-        # header.append(('LSTART', ???))
-        header.append(("DATE-OBS", Time.now().to_value("fits")))
-        # header.append(('LTYPE', ???))
-        # header.append(('PCRA', ???))
-        # header.append(('CELLSCAL', ???))
-        if self.beam is not None:
-            header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
-            header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
-        header.append(("BTYPE", "Intensity"))
-        header.append(("SPECSYS", wcs_header["SPECSYS"]))
-
-        # flip axes to write
-        hdu = fits.PrimaryHDU(
-            header=header, data=self.datacube._array.to_value(datacube_array_units).T
-        )
-        hdu.writeto(filename, overwrite=overwrite)
-
-        if channels == "frequency":
-            self.datacube.velocity_channels()
-        return
-
-    def write_hdf5(
-        self,
-        filename,
-        channels="frequency",
-        overwrite=True,
-        memmap=False,
-        compact=False,
-    ):
-        """
-        Output the DataCube and Beam to a HDF5-format file. Requires the h5py
-        package.
-
-        Parameters
-        ----------
-        filename : string
-            Name of the file to write. '.hdf5' will be appended if not already
-            present.
-
-        channels : {'frequency', 'velocity'}, optional
-            Type of units used along the spectral axis in output file.
-            (Default: 'frequency'.)
-
-        overwrite: bool, optional
-            Whether to allow overwriting existing files. (Default: True.)
-
-        memmap: bool, optional
-            If True, create a file-like object in memory and return it instead
-            of writing file to disk. (Default: False.)
-
-        compact: bool, optional
-            If True, omit pixel coordinate arrays to save disk space. In this
-            case pixel coordinates can still be reconstructed from FITS-style
-            keywords stored in the FluxCube attributes. (Default: False.)
-        """
-
-        import h5py
-
-        self.datacube.drop_pad()
-        if channels == "frequency":
-            self.datacube.freq_channels()
-        elif channels == "velocity":
-            pass
-        else:
-            raise ValueError(
-                "Martini.write_fits: Unknown 'channels' value "
-                "(use 'frequency' or 'velocity')."
-            )
-
-        filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
-
-        wcs_header = self.datacube.wcs.to_header()
-
-        mode = "w" if overwrite else "x"
-        driver = "core" if memmap else None
-        h5_kwargs = {"backing_store": False} if memmap else dict()
-        f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
-        datacube_array_units = self.datacube._array.unit
-        s = np.s_[..., 0] if self.datacube.stokes_axis else np.s_[...]
-        f["FluxCube"] = self.datacube._array.to_value(datacube_array_units)[s]
-        c = f["FluxCube"]
-        origin = 0  # index from 0 like numpy, not from 1
-        if not compact:
-            xgrid, ygrid, vgrid = np.meshgrid(
-                np.arange(self.datacube._array.shape[0]),
-                np.arange(self.datacube._array.shape[1]),
-                np.arange(self.datacube._array.shape[2]),
-            )
-            cgrid = (
-                np.vstack(
-                    (
-                        xgrid.flatten(),
-                        ygrid.flatten(),
-                        vgrid.flatten(),
-                        np.zeros(vgrid.shape).flatten(),
-                    )
-                ).T
-                if self.datacube.stokes_axis
-                else np.vstack(
-                    (
-                        xgrid.flatten(),
-                        ygrid.flatten(),
-                        vgrid.flatten(),
-                    )
-                ).T
-            )
-            wgrid = self.datacube.wcs.all_pix2world(cgrid, origin)
-            ragrid = wgrid[:, 0].reshape(self.datacube._array.shape)[s]
-            decgrid = wgrid[:, 1].reshape(self.datacube._array.shape)[s]
-            chgrid = wgrid[:, 2].reshape(self.datacube._array.shape)[s]
-            f["RA"] = ragrid
-            f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
-            f["Dec"] = decgrid
-            f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
-            f["channel_mids"] = chgrid
-            f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
-        c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
-        c.attrs["FluxCubeUnit"] = str(self.datacube._array.unit)
-        c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
-        c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
-        c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
-        c.attrs["RAUnit"] = wcs_header["CUNIT1"]
-        c.attrs["RAProjType"] = wcs_header["CTYPE1"]
-        c.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
-        c.attrs["Dec0_in_px"] = wcs_header["CRPIX2"] - 1
-        c.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
-        c.attrs["DecUnit"] = wcs_header["CUNIT2"]
-        c.attrs["DecProjType"] = wcs_header["CTYPE2"]
-        c.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
-        c.attrs["V0_in_px"] = wcs_header["CRPIX3"] - 1
-        c.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
-        c.attrs["VUnit"] = wcs_header["CUNIT3"]
-        c.attrs["VProjType"] = wcs_header["CTYPE3"]
-        if self.beam is not None:
-            c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
-            c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
-            c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
-        c.attrs["DateCreated"] = str(Time.now())
-        c.attrs["MartiniVersion"] = martini_version
-        c.attrs["AstropyVersion"] = astropy_version
-        if self.beam is not None:
-            if self.beam.kernel is None:
-                raise ValueError(
-                    "Martini.write_hdf5: Called with beam present but beam kernel"
-                    " uninitialized."
-                )
-            beam_kernel_units = self.beam.kernel.unit
-            f["Beam"] = self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis]
-            b = f["Beam"]
-            b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
-            b.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
-            b.attrs["RA0_in_px"] = self.beam.kernel.shape[0] // 2
-            b.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
-            b.attrs["RAUnit"] = wcs_header["CUNIT1"]
-            b.attrs["RAProjType"] = wcs_header["CTYPE1"]
-            b.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
-            b.attrs["Dec0_in_px"] = self.beam.kernel.shape[1] // 2
-            b.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
-            b.attrs["DecUnit"] = wcs_header["CUNIT2"]
-            b.attrs["DecProjType"] = wcs_header["CTYPE2"]
-            b.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
-            b.attrs["V0_in_px"] = 0
-            b.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
-            b.attrs["VUnit"] = wcs_header["CUNIT3"]
-            b.attrs["VProjType"] = wcs_header["CTYPE3"]
-            b.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
-            b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
-            b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
-            b.attrs["DateCreated"] = str(Time.now())
-            b.attrs["MartiniVersion"] = martini_version
-            b.attrs["AstropyVersion"] = astropy_version
-
-        if channels == "frequency":
-            self.datacube.velocity_channels()
-        if memmap:
-            return f
-        else:
-            f.close()
-            return
 
     def reset(self):
         """
         Re-initializes the DataCube with zero-values.
         """
         init_kwargs = dict(
-            n_px_x=self.datacube.n_px_x,
-            n_px_y=self.datacube.n_px_y,
-            n_channels=self.datacube.n_channels,
-            px_size=self.datacube.px_size,
-            channel_width=self.datacube.channel_width,
-            velocity_centre=self.datacube.velocity_centre,
-            ra=self.datacube.ra,
-            dec=self.datacube.dec,
-            stokes_axis=self.datacube.stokes_axis,
+            n_px_x=self._datacube.n_px_x,
+            n_px_y=self._datacube.n_px_y,
+            n_channels=self._datacube.n_channels,
+            px_size=self._datacube.px_size,
+            channel_width=self._datacube.channel_width,
+            velocity_centre=self._datacube.velocity_centre,
+            ra=self._datacube.ra,
+            dec=self._datacube.dec,
+            stokes_axis=self._datacube.stokes_axis,
         )
-        self.datacube = DataCube(**init_kwargs)
+        self._datacube = DataCube(**init_kwargs)
         if self.beam is not None:
-            self.datacube.add_pad(self.beam.needs_pad())
+            self._datacube.add_pad(self.beam.needs_pad())
         return
 
     def preview(
@@ -674,25 +455,25 @@ class _BaseMartini:
         import matplotlib.pyplot as plt
 
         y_cube = (
-            (self.datacube.ra - self.source.ra)
+            (self._datacube.ra - self.source.ra)
             / np.cos(self.source.dec)
             * self.source.distance
         ).to(U.kpc, U.dimensionless_angles())
-        z_cube = ((self.datacube.dec - self.source.dec) * self.source.distance).to(
+        z_cube = ((self._datacube.dec - self.source.dec) * self.source.distance).to(
             U.kpc, U.dimensionless_angles()
         )
-        v_cube = (self.datacube.velocity_centre - self.source.vsys).to(U.km / U.s)
+        v_cube = (self._datacube.velocity_centre - self.source.vsys).to(U.km / U.s)
         dy_cube = 0.5 * (
-            self.datacube.px_size * self.datacube.n_px_x * self.source.distance
+            self._datacube.px_size * self._datacube.n_px_x * self.source.distance
         ).to(
             U.kpc, U.dimensionless_angles()
         )  # half-length
         dz_cube = 0.5 * (
-            self.datacube.px_size * self.datacube.n_px_y * self.source.distance
+            self._datacube.px_size * self._datacube.n_px_y * self.source.distance
         ).to(
             U.kpc, U.dimensionless_angles()
         )  # half-length
-        dv_cube = 0.5 * (self.datacube.channel_width * self.datacube.n_channels).to(
+        dv_cube = 0.5 * (self._datacube.channel_width * self._datacube.n_channels).to(
             U.km / U.s
         )
         # should issue some warnings if dRA or dDec > 5deg, or if dec within 5 deg of pole
@@ -849,7 +630,7 @@ class Martini(_BaseMartini):
 
     Parameters
     ----------
-    source : an instance of a class derived from martini.source._BaseSource
+    source : an instance of a class derived from martini.sources.sph_source.SPHSource
         A description of the HI emitting object, including position, geometry
         and an interface to the simulation data (SPH particle masses,
         positions, etc.). Sources leveraging the simobj package for reading
@@ -889,12 +670,13 @@ class Martini(_BaseMartini):
 
     See Also
     --------
-    martini.sources
-    martini.DataCube
+    martini.sources.sph_source.SPHSource
+    martini.datacube.DataCube
     martini.beams
     martini.noise
     martini.sph_kernels
     martini.spectral_models
+    martini.martini.GlobalProfile
 
     Examples
     --------
@@ -1014,6 +796,13 @@ class Martini(_BaseMartini):
 
         return
 
+    @property
+    def datacube(self):
+        """
+        The `martini.datacube.DataCube` object for this mock observation.
+        """
+        return self._datacube
+
     def insert_source_in_cube(self, skip_validation=False, progressbar=None, ncpu=1):
         """
         Populates the DataCube with flux from the particles in the source.
@@ -1057,8 +846,8 @@ class Martini(_BaseMartini):
             return
 
         minimum_padding = self.beam.needs_pad()
-        if (self.datacube.padx < minimum_padding[0]) or (
-            self.datacube.pady < minimum_padding[1]
+        if (self._datacube.padx < minimum_padding[0]) or (
+            self._datacube.pady < minimum_padding[1]
         ):
             raise ValueError(
                 "datacube padding insufficient for beam convolution (perhaps you loaded a"
@@ -1066,14 +855,14 @@ class Martini(_BaseMartini):
                 " by martini with a smaller beam?)"
             )
 
-        unit = self.datacube._array.unit
-        for spatial_slice in self.datacube.spatial_slices():
+        unit = self._datacube._array.unit
+        for spatial_slice in self._datacube.spatial_slices():
             # use a view [...] to force in-place modification
             spatial_slice[...] = (
                 fftconvolve(spatial_slice, self.beam.kernel, mode="same") * unit
             )
-        self.datacube.drop_pad()
-        self.datacube._array = self.datacube._array.to(
+        self._datacube.drop_pad()
+        self._datacube._array = self._datacube._array.to(
             U.Jy * U.beam**-1,
             equivalencies=U.beam_angular_area(self.beam.area),
         )
@@ -1081,10 +870,10 @@ class Martini(_BaseMartini):
             print(
                 "Beam convolved.",
                 "  Data cube RMS after beam convolution:"
-                f" {np.std(self.datacube._array):.2e}",
-                f"  Maximum pixel: {self.datacube._array.max():.2e}",
+                f" {np.std(self._datacube._array):.2e}",
+                f"  Maximum pixel: {self._datacube._array.max():.2e}",
                 "  Median non-zero pixel:"
-                f" {np.median(self.datacube._array[self.datacube._array > 0]):.2e}",
+                f" {np.median(self._datacube._array[self._datacube._array > 0]):.2e}",
                 sep="\n",
             )
         return
@@ -1100,22 +889,140 @@ class Martini(_BaseMartini):
 
         # this unit conversion means noise can be added before or after source insertion:
         noise_cube = (
-            self.noise.generate(self.datacube, self.beam)
+            self.noise.generate(self._datacube, self.beam)
             .to(
                 U.Jy * U.arcsec**-2,
                 equivalencies=U.beam_angular_area(self.beam.area),
             )
-            .to(self.datacube._array.unit, equivalencies=[self.datacube.arcsec2_to_pix])
+            .to(
+                self._datacube._array.unit,
+                equivalencies=[self._datacube.arcsec2_to_pix],
+            )
         )
-        self.datacube._array = self.datacube._array + noise_cube
+        self._datacube._array = self._datacube._array + noise_cube
         if not self.quiet:
             print(
                 "Noise added.",
                 f"  Noise cube RMS: {np.std(noise_cube):.2e} (before beam convolution).",
                 "  Data cube RMS after noise addition (before beam convolution): "
-                f"{np.std(self.datacube._array):.2e}",
+                f"{np.std(self._datacube._array):.2e}",
                 sep="\n",
             )
+        return
+
+    def write_fits(
+        self,
+        filename,
+        channels="frequency",
+        overwrite=True,
+    ):
+        """
+        Output the DataCube to a FITS-format file.
+
+        Parameters
+        ----------
+        filename : string
+            Name of the file to write. '.fits' will be appended if not already
+            present.
+
+        channels : {'frequency', 'velocity'}, optional
+            Type of units used along the spectral axis in output file.
+            (Default: 'frequency'.)
+
+        overwrite: bool, optional
+            Whether to allow overwriting existing files. (Default: True.)
+        """
+
+        self._datacube.drop_pad()
+        if channels == "frequency":
+            self._datacube.freq_channels()
+        elif channels == "velocity":
+            self._datacube.velocity_channels()
+        else:
+            raise ValueError(
+                "Martini.write_fits: Unknown 'channels' value "
+                "(use 'frequency' or 'velocity')."
+            )
+
+        filename = filename if filename[-5:] == ".fits" else filename + ".fits"
+
+        wcs_header = self._datacube.wcs.to_header()
+        wcs_header.rename_keyword("WCSAXES", "NAXIS")
+
+        header = fits.Header()
+        header.append(("SIMPLE", "T"))
+        header.append(("BITPIX", 16))
+        header.append(("NAXIS", wcs_header["NAXIS"]))
+        header.append(("NAXIS1", self._datacube.n_px_x))
+        header.append(("NAXIS2", self._datacube.n_px_y))
+        header.append(("NAXIS3", self._datacube.n_channels))
+        if self._datacube.stokes_axis:
+            header.append(("NAXIS4", 1))
+        header.append(("EXTEND", "T"))
+        header.append(("CDELT1", wcs_header["CDELT1"]))
+        header.append(("CRPIX1", wcs_header["CRPIX1"]))
+        header.append(("CRVAL1", wcs_header["CRVAL1"]))
+        header.append(("CTYPE1", wcs_header["CTYPE1"]))
+        header.append(("CUNIT1", wcs_header["CUNIT1"]))
+        header.append(("CDELT2", wcs_header["CDELT2"]))
+        header.append(("CRPIX2", wcs_header["CRPIX2"]))
+        header.append(("CRVAL2", wcs_header["CRVAL2"]))
+        header.append(("CTYPE2", wcs_header["CTYPE2"]))
+        header.append(("CUNIT2", wcs_header["CUNIT2"]))
+        header.append(("CDELT3", wcs_header["CDELT3"]))
+        header.append(("CRPIX3", wcs_header["CRPIX3"]))
+        header.append(("CRVAL3", wcs_header["CRVAL3"]))
+        header.append(("CTYPE3", wcs_header["CTYPE3"]))
+        header.append(("CUNIT3", wcs_header["CUNIT3"]))
+        if self._datacube.stokes_axis:
+            header.append(("CDELT4", wcs_header["CDELT4"]))
+            header.append(("CRPIX4", wcs_header["CRPIX4"]))
+            header.append(("CRVAL4", wcs_header["CRVAL4"]))
+            header.append(("CTYPE4", wcs_header["CTYPE4"]))
+            header.append(("CUNIT4", "PAR"))
+        header.append(("EPOCH", 2000))
+        header.append(("INSTRUME", "MARTINI", martini_version))
+        # header.append(('BLANK', -32768)) #only for integer data
+        header.append(("BSCALE", 1.0))
+        header.append(("BZERO", 0.0))
+        datacube_array_units = self._datacube._array.unit
+        header.append(
+            ("DATAMAX", np.max(self._datacube._array.to_value(datacube_array_units)))
+        )
+        header.append(
+            ("DATAMIN", np.min(self._datacube._array.to_value(datacube_array_units)))
+        )
+        header.append(("ORIGIN", "astropy v" + astropy_version))
+        # long names break fits format, don't let the user set this
+        header.append(("OBJECT", "MOCK"))
+        if self.beam is not None:
+            header.append(("BPA", self.beam.bpa.to_value(U.deg)))
+        header.append(("OBSERVER", "K. Oman"))
+        # header.append(('NITERS', ???))
+        # header.append(('RMS', ???))
+        # header.append(('LWIDTH', ???))
+        # header.append(('LSTEP', ???))
+        header.append(("BUNIT", datacube_array_units.to_string("fits")))
+        # header.append(('PCDEC', ???))
+        # header.append(('LSTART', ???))
+        header.append(("DATE-OBS", Time.now().to_value("fits")))
+        # header.append(('LTYPE', ???))
+        # header.append(('PCRA', ???))
+        # header.append(('CELLSCAL', ???))
+        if self.beam is not None:
+            header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
+            header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
+        header.append(("BTYPE", "Intensity"))
+        header.append(("SPECSYS", wcs_header["SPECSYS"]))
+
+        # flip axes to write
+        hdu = fits.PrimaryHDU(
+            header=header, data=self._datacube._array.to_value(datacube_array_units).T
+        )
+        hdu.writeto(filename, overwrite=overwrite)
+
+        if channels == "frequency":
+            self._datacube.velocity_channels()
         return
 
     def write_beam_fits(self, filename, channels="frequency", overwrite=True):
@@ -1150,9 +1057,9 @@ class Martini(_BaseMartini):
             )
         assert self.beam.kernel is not None
         if channels == "frequency":
-            self.datacube.freq_channels()
+            self._datacube.freq_channels()
         elif channels == "velocity":
-            self.datacube.velocity_channels()
+            self._datacube.velocity_channels()
         else:
             raise ValueError(
                 "Martini.write_beam_fits: Unknown 'channels' "
@@ -1161,7 +1068,7 @@ class Martini(_BaseMartini):
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"
 
-        wcs_header = self.datacube.wcs.to_header()
+        wcs_header = self._datacube.wcs.to_header()
 
         beam_kernel_units = self.beam.kernel.unit
         header = fits.Header()
@@ -1214,11 +1121,303 @@ class Martini(_BaseMartini):
         hdu.writeto(filename, overwrite=True)
 
         if channels == "frequency":
-            self.datacube.velocity_channels()
+            self._datacube.velocity_channels()
         return
+
+    def write_hdf5(
+        self,
+        filename,
+        channels="frequency",
+        overwrite=True,
+        memmap=False,
+        compact=False,
+    ):
+        """
+        Output the DataCube and Beam to a HDF5-format file. Requires the h5py
+        package.
+
+        Parameters
+        ----------
+        filename : string
+            Name of the file to write. '.hdf5' will be appended if not already
+            present.
+
+        channels : {'frequency', 'velocity'}, optional
+            Type of units used along the spectral axis in output file.
+            (Default: 'frequency'.)
+
+        overwrite: bool, optional
+            Whether to allow overwriting existing files. (Default: True.)
+
+        memmap: bool, optional
+            If True, create a file-like object in memory and return it instead
+            of writing file to disk. (Default: False.)
+
+        compact: bool, optional
+            If True, omit pixel coordinate arrays to save disk space. In this
+            case pixel coordinates can still be reconstructed from FITS-style
+            keywords stored in the FluxCube attributes. (Default: False.)
+        """
+
+        import h5py
+
+        self._datacube.drop_pad()
+        if channels == "frequency":
+            self._datacube.freq_channels()
+        elif channels == "velocity":
+            pass
+        else:
+            raise ValueError(
+                "Martini.write_fits: Unknown 'channels' value "
+                "(use 'frequency' or 'velocity')."
+            )
+
+        filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
+
+        wcs_header = self._datacube.wcs.to_header()
+
+        mode = "w" if overwrite else "x"
+        driver = "core" if memmap else None
+        h5_kwargs = {"backing_store": False} if memmap else dict()
+        f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
+        datacube_array_units = self._datacube._array.unit
+        s = np.s_[..., 0] if self._datacube.stokes_axis else np.s_[...]
+        f["FluxCube"] = self._datacube._array.to_value(datacube_array_units)[s]
+        c = f["FluxCube"]
+        origin = 0  # index from 0 like numpy, not from 1
+        if not compact:
+            xgrid, ygrid, vgrid = np.meshgrid(
+                np.arange(self._datacube._array.shape[0]),
+                np.arange(self._datacube._array.shape[1]),
+                np.arange(self._datacube._array.shape[2]),
+            )
+            cgrid = (
+                np.vstack(
+                    (
+                        xgrid.flatten(),
+                        ygrid.flatten(),
+                        vgrid.flatten(),
+                        np.zeros(vgrid.shape).flatten(),
+                    )
+                ).T
+                if self._datacube.stokes_axis
+                else np.vstack(
+                    (
+                        xgrid.flatten(),
+                        ygrid.flatten(),
+                        vgrid.flatten(),
+                    )
+                ).T
+            )
+            wgrid = self._datacube.wcs.all_pix2world(cgrid, origin)
+            ragrid = wgrid[:, 0].reshape(self._datacube._array.shape)[s]
+            decgrid = wgrid[:, 1].reshape(self._datacube._array.shape)[s]
+            chgrid = wgrid[:, 2].reshape(self._datacube._array.shape)[s]
+            f["RA"] = ragrid
+            f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
+            f["Dec"] = decgrid
+            f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
+            f["channel_mids"] = chgrid
+            f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
+        c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
+        c.attrs["FluxCubeUnit"] = str(self._datacube._array.unit)
+        c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+        c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
+        c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+        c.attrs["RAUnit"] = wcs_header["CUNIT1"]
+        c.attrs["RAProjType"] = wcs_header["CTYPE1"]
+        c.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+        c.attrs["Dec0_in_px"] = wcs_header["CRPIX2"] - 1
+        c.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+        c.attrs["DecUnit"] = wcs_header["CUNIT2"]
+        c.attrs["DecProjType"] = wcs_header["CTYPE2"]
+        c.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+        c.attrs["V0_in_px"] = wcs_header["CRPIX3"] - 1
+        c.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+        c.attrs["VUnit"] = wcs_header["CUNIT3"]
+        c.attrs["VProjType"] = wcs_header["CTYPE3"]
+        if self.beam is not None:
+            c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+            c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+            c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
+        c.attrs["DateCreated"] = str(Time.now())
+        c.attrs["MartiniVersion"] = martini_version
+        c.attrs["AstropyVersion"] = astropy_version
+        if self.beam is not None:
+            if self.beam.kernel is None:
+                raise ValueError(
+                    "Martini.write_hdf5: Called with beam present but beam kernel"
+                    " uninitialized."
+                )
+            beam_kernel_units = self.beam.kernel.unit
+            f["Beam"] = self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis]
+            b = f["Beam"]
+            b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
+            b.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+            b.attrs["RA0_in_px"] = self.beam.kernel.shape[0] // 2
+            b.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+            b.attrs["RAUnit"] = wcs_header["CUNIT1"]
+            b.attrs["RAProjType"] = wcs_header["CTYPE1"]
+            b.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+            b.attrs["Dec0_in_px"] = self.beam.kernel.shape[1] // 2
+            b.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+            b.attrs["DecUnit"] = wcs_header["CUNIT2"]
+            b.attrs["DecProjType"] = wcs_header["CTYPE2"]
+            b.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+            b.attrs["V0_in_px"] = 0
+            b.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+            b.attrs["VUnit"] = wcs_header["CUNIT3"]
+            b.attrs["VProjType"] = wcs_header["CTYPE3"]
+            b.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+            b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+            b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
+            b.attrs["DateCreated"] = str(Time.now())
+            b.attrs["MartiniVersion"] = martini_version
+            b.attrs["AstropyVersion"] = astropy_version
+
+        if channels == "frequency":
+            self._datacube.velocity_channels()
+        if memmap:
+            return f
+        else:
+            f.close()
+            return
 
 
 class GlobalProfile(_BaseMartini):
+    """
+    A simplified version of the main Martini class to just produce a spectrum.
+
+    Sometimes only the spatially integrated spectrum of a source is wanted, which makes
+    many parts of the standard Martini process unnecessary. This class streamlines the
+    process of producing a spatially-integrated spectrum, or "global profile", with some
+    specific assumptions:
+
+     - The `GlobalProfile` class does not assume any spatial aperture, instead every
+       particle in the source contributes to the spectrum (unless it falls outside of
+       the spectral bandwidth).
+     - The positions of particles are still used to calculate the line-of-sight vector
+       and the velocity along this direction.
+
+    There is therefore no need or way to specify a beam or SPH kernel as with the main
+    Martini class. It is also not possible to use Martini's noise modules with this class.
+    If these restrictions are found to be too limiting (for example, if the spectrum
+    within a spatial mask defined by a signal-to-noise or other cut is desired), the best
+    course of action is to produce a spatially-resolved mock observation and derive the
+    spectrum from those data as would be done with "real" observations. This class is
+    mainly intended to efficiently provide a "quick look" at the spectrum, or a reference
+    "ideal" spectrum.
+
+    Parameters
+    ----------
+    source : an instance of a class derived from martini.sources.sph_source.SPHSource
+        A description of the HI emitting object, including position, geometry
+        and an interface to the simulation data (SPH particle masses,
+        positions, etc.). Sources leveraging the simobj package for reading
+        simulation data (github.com/kyleaoman/simobj) and a few test sources
+        (e.g. single particle) are provided, creation of customized sources,
+        for instance to leverage other interfaces to simulation data, is
+        straightforward. See sub-module documentation.
+
+    spectral_model : an instance of a class derived from \
+    spectral_models._BaseSpectrum
+        A description of the HI line produced by a particle of given
+        properties. A Dirac-delta spectrum, and both fixed-width and
+        temperature-dependent Gaussian line models are provided; implementing
+        other models is straightforward. See sub-module documentation.
+
+    n_channels : int, optional
+        Number of channels along the spectral axis. (Default: 64.)
+
+    channel_width : Quantity, with dimensions of velocity or frequency, optional
+        Step size along the spectral axis. Can be provided as a velocity or a
+        frequency. (Default: 4 km/s.)
+
+    velocity_centre : Quantity, with dimensions of velocity or frequency, optional
+        Velocity (or frequency) of the centre along the spectral axis.
+        (Default: 0 km/s.)
+
+    channels : {"frequency", "velocity"}, optional
+            Type of units used along the spectral axis. (Default: "frequency")
+
+    quiet : bool
+        If True, suppress output to stdout. (Default: False)
+
+    Examples
+    --------
+    ::
+
+        # ------make a toy galaxy----------
+        N = 500
+        phi = np.random.rand(N) * 2 * np.pi
+        r = []
+        for L in np.random.rand(N):
+
+            def f(r):
+                return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
+
+            r.append(fsolve(f, 1.0)[0])
+        r = np.array(r)
+        # exponential disk
+        r *= 3 / np.sort(r)[N // 2]
+        z = -np.log(np.random.rand(N))
+        # exponential scale height
+        z *= 0.5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - 0.5)
+        x = r * np.cos(phi)
+        y = r * np.sin(phi)
+        xyz_g = np.vstack((x, y, z)) * U.kpc
+        # linear rotation curve
+        vphi = 100 * r / 6.0
+        vx = -vphi * np.sin(phi)
+        vy = vphi * np.cos(phi)
+        # small pure random z velocities
+        vz = (np.random.rand(N) * 2.0 - 1.0) * 5
+        vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
+        T_g = np.ones(N) * 8e3 * U.K
+        mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
+        # ~mean interparticle spacing smoothing
+        hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
+        # ---------------------------------
+
+        source = SPHSource(
+            distance=3.0 * U.Mpc,
+            rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+            ra=0.0 * U.deg,
+            dec=0.0 * U.deg,
+            h=0.7,
+            T_g=T_g,
+            mHI_g=mHI_g,
+            xyz_g=xyz_g,
+            vxyz_g=vxyz_g,
+            hsm_g=hsm_g,
+        )
+
+        spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
+
+        M = GlobalProfile(
+            source=source,
+            spectral_model=spectral_model,
+            n_channels=32,
+            channel_width=10 * U.km * U.s**-1,
+            velocity_centre=source.vsys,
+            channels="frequency",
+        )
+
+        # spectrum and channel edges and centres can be accessed as:
+        M.spectrum  # spectrum is evaluated at first access if not already done
+        M.channel_edges
+        M.channel_mids
+
+        # the spectrum can be explicitly evaluated with:
+        M.insert_source_in_spectrum()
+
+    See Also
+    --------
+    martini.sources.sph_source.SPHSource
+    martini.spectral_models
+    martini.martini.Martini
+
+    """
 
     def __init__(
         self,
@@ -1227,6 +1426,7 @@ class GlobalProfile(_BaseMartini):
         n_channels=64,
         channel_width=4 * U.km * U.s**-1,
         velocity_centre=0 * U.km * U.s**-1,
+        channels="frequency",
         quiet=False,
     ):
         super().__init__(
@@ -1247,37 +1447,53 @@ class GlobalProfile(_BaseMartini):
             ),
             quiet=quiet,
         )
+        if channels == "velocity":
+            self._datacube.velocity_channels
+        elif channels == "frequency":
+            self._datacube.frequency_channels
+        else:
+            raise ValueError(
+                'GlobalProfile: `channels` must be "velocity" or "frequency".'
+            )
         self.source.pixcoords[:2] = 0
 
         return
 
-    def add_noise(self):
-        # implement this and make abstractmethod in _BaseMartini?
-        raise NotImplementedError
-
     def insert_source_in_spectrum(self):
         """
         Populates the DataCube with flux from the particles in the source.
+
+        For the `GlobalProfile` class we assume that every particle in the source
+        contributes (if it falls in the spectral bandwidth) regardless of position on the
+        sky. The line-of-sight vector still depends on the particle positions, so the
+        direction to the individual particles is still taken into account.
         """
-        # ncpu=1 since we have 1 pixel and source insertion is parallel over pixels
-        # no progressbar since there's only 1 pixel of progress
+        # skip_validation=True: all particles can contribute their kernel to the pixel;
+        # ncpu=1 since we have 1 pixel and source insertion is parallel over pixels;
+        # no progressbar since there's only 1 pixel of progress;
+        # quiet=True because messages assume a resolved source, replace with new ones
         super()._insert_source_in_cube(
             skip_validation=True, progressbar=False, ncpu=1, quiet=True
         )
+        # The datacube in Jy/arcsec^2 is a bit misleading because the source is
+        # (presumably) completely unresolved so extrapolating its surface brightness
+        # across the entire pixel is incorrect. Correctly integrate out spatial
+        # information and convert to Jy:
         self._spectrum = (
-            (self.datacube._array.squeeze()).to(
-                U.Jy / U.pix**2, equivalencies=[self.datacube.arcsec2_to_pix]
+            (self._datacube._array.squeeze()).to(
+                U.Jy / U.pix**2, equivalencies=[self._datacube.arcsec2_to_pix]
             )
             * U.pix**2
         ).to(U.Jy)
         if not self.quiet:
+            # Need a slightly different calculation for a completely unresolved source.
             inserted_flux_density = self.spectrum.sum()
             inserted_mass = (
                 2.36e5
                 * U.Msun
                 * self.source.distance.to_value(U.Mpc) ** 2
                 * inserted_flux_density.to_value(U.Jy)
-                * self.datacube.channel_width.to_value(U.km / U.s)
+                * self._datacube.channel_width.to_value(U.km / U.s)
             )
             print(
                 "Source inserted.",
@@ -1291,14 +1507,26 @@ class GlobalProfile(_BaseMartini):
 
     @property
     def spectrum(self):
+        """
+        The spectrum of the source with spatial information integrated out.
+
+        The spectrum is calculated when this property is accessed if this hasn't already
+        been done.
+        """
         if not hasattr(self, "_spectrum"):
             self.insert_source_in_spectrum()
         return self._spectrum
 
     @property
     def channel_edges(self):
-        return self.datacube.channel_edges
+        """
+        The edges of the channels for the spectrum.
+        """
+        return self._datacube.channel_edges
 
     @property
     def channel_mids(self):
-        return self.datacube.channel_mids
+        """
+        The centres of the channels for the spectrum.
+        """
+        return self._datacube.channel_mids

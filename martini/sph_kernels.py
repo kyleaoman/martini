@@ -947,7 +947,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
         In principle the width of a DiracDelta kernel is 0, but this would
         lead to no particles contributing to any pixels. Ideally this would
         be set to approximately the size of the pixel, but setting it to
-        the smoothing length (1.0) is acceptable. (Default: 1.0)
+        the smoothing length (1.0) is acceptable given the validation condition.
+        (Default: 1.0)
 
     """
 
