@@ -2,7 +2,7 @@ import os
 import pytest
 import numpy as np
 import h5py
-from martini.martini import Martini
+from martini.martini import Martini, GlobalProfile, _BaseMartini
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels
@@ -307,14 +307,32 @@ class TestMartini:
             (-7 * U.km / U.s, False),
         ),
     )
+    @pytest.mark.parametrize("spatial", (True, False))
+    @pytest.mark.parametrize("spectral", (True, False))
     def test_prune_particles(
-        self, ra_off, ra_in, dec_off, dec_in, v_off, v_in, single_particle_source
+        self,
+        ra_off,
+        ra_in,
+        dec_off,
+        dec_in,
+        v_off,
+        v_in,
+        single_particle_source,
+        spatial,
+        spectral,
     ):
         """
         Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
         the cube as expected.
         """
-        expect_particle = all((ra_in, dec_in, v_in))
+        if spatial and spectral:
+            expect_particle = all((ra_in, dec_in, v_in))
+        elif spatial and not spectral:
+            expect_particle = all((ra_in, dec_in))
+        elif spectral and not spatial:
+            expect_particle = v_in
+        elif not spectral and not spatial:
+            expect_particle = True
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         source = single_particle_source(
@@ -334,6 +352,7 @@ class TestMartini:
         beam = GaussianBeam(bmaj=1 * U.arcsec, bmin=1 * U.arcsec, truncate=4)
         sph_kernel = _CubicSplineKernel()
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
+        # need to use _BaseMartini below to manipulate _prune_kwargs
         kwargs = dict(
             source=source,
             datacube=datacube,
@@ -341,6 +360,7 @@ class TestMartini:
             noise=None,
             sph_kernel=sph_kernel,
             spectral_model=spectral_model,
+            _prune_kwargs=dict(spatial=spatial, spectral=spectral),
         )
         # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
@@ -348,9 +368,9 @@ class TestMartini:
             with pytest.raises(
                 RuntimeError, match="No source particles in target region."
             ):
-                Martini(**kwargs)
+                _BaseMartini(**kwargs)
         else:
-            assert Martini(**kwargs).source.npart == 1
+            assert _BaseMartini(**kwargs).source.npart == 1
 
     def test_reset(self, m_nn):
         """
@@ -433,3 +453,161 @@ class TestParallel:
         m.insert_source_in_cube(ncpu=2, progressbar=False)
 
         assert U.allclose(m.datacube._array, expected_result)
+
+
+class TestGlobalProfile:
+    @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
+    @pytest.mark.parametrize("ra", (0 * U.deg, 180 * U.deg))
+    def test_mass_accuracy(self, spectral_model, single_particle_source, ra):
+        """
+        Check that the input mass in the particles gives the correct total mass in the
+        spectrum, by checking the conversion back to total mass. Covers testing
+        GlobalProfile.insert_source_in_spectrum.
+        """
+
+        # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
+        # we test both ra=0deg and ra=180deg to make sure all particles included
+        source = single_particle_source(ra=ra)
+        m = GlobalProfile(
+            source=source,
+            spectral_model=spectral_model(),
+            n_channels=32,
+            channel_width=10 * U.km * U.s**-1,
+            velocity_centre=source.vsys,
+        )
+
+        m.insert_source_in_spectrum()
+
+        # flux
+        F = m.spectrum.sum()  # Jy
+
+        # distance
+        D = m.source.distance
+
+        # channel width
+        dv = m.channel_width
+
+        # HI mass
+        MHI = (
+            2.36e5
+            * U.Msun
+            * D.to_value(U.Mpc) ** 2
+            * F.to_value(U.Jy)
+            * dv.to_value(U.km / U.s)
+        ).to(U.Msun)
+
+        # demand accuracy within 1% after source insertion
+        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+    @pytest.mark.parametrize(
+        ("ra_off", "ra_in"),
+        (
+            (0 * U.arcsec, True),
+            (3 * U.arcsec, True),
+            (5 * U.deg, False),  # global profile uses 1 deg pixel
+            (-3 * U.arcsec, True),
+            (-5 * U.deg, False),  # global profile uses 1 deg pixel
+        ),
+    )
+    @pytest.mark.parametrize(
+        ("dec_off", "dec_in"),
+        (
+            (0 * U.arcsec, True),
+            (3 * U.arcsec, True),
+            (5 * U.deg, False),  # global profile uses 1 deg pixel
+            (-3 * U.arcsec, True),
+            (-5 * U.deg, False),  # global profile uses 1 deg pixel
+        ),
+    )
+    @pytest.mark.parametrize(
+        ("v_off", "v_in"),
+        (
+            (0 * U.km / U.s, True),
+            (3 * U.km / U.s, True),
+            (7 * U.km / U.s, False),
+            (-3 * U.km / U.s, True),
+            (-7 * U.km / U.s, False),
+        ),
+    )
+    def test_prune_particles(
+        self, ra_off, ra_in, dec_off, dec_in, v_off, v_in, single_particle_source
+    ):
+        """
+        Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
+        the cube as expected. GlobalProfile should ignore RA, Dec when pruning.
+        """
+        # GlobalProfile should ignore RA, Dec when pruning:
+        expect_particle = v_in
+        # set distance so that 1kpc = 1arcsec
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        source = single_particle_source(
+            distance=distance, ra=ra_off, dec=dec_off, vpeculiar=v_off
+        )
+        spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
+        kwargs = dict(
+            source=source,
+            spectral_model=spectral_model,
+            n_channels=2,
+            channel_width=1 * U.km / U.s,
+            velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        )
+        # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
+        if not expect_particle:
+            with pytest.raises(
+                RuntimeError, match="No source particles in target region."
+            ):
+                GlobalProfile(**kwargs)
+        else:
+            assert GlobalProfile(**kwargs).source.npart == 1
+
+    def test_reset(self, gp):
+        """
+        Check that resetting global profile instance zeros out datacube and spectrum.
+        """
+        cube_array = gp._datacube._array
+        assert gp._datacube._array.sum() > 0
+        spectrum = gp.spectrum
+        assert spectrum.sum() > 0
+        gp.reset()
+        assert gp._datacube._array.sum() == 0
+        assert not hasattr(gp, "_spectrum")
+        # check that can start over and get the same result w/o errors
+        gp.insert_source_in_spectrum()
+        assert U.allclose(cube_array, gp._datacube._array)
+        assert U.allclose(spectrum, gp.spectrum)
+        # check that can reset after doing nothing
+        gp.reset()
+        gp.reset()
+
+    def test_preview(self, gp):
+        """
+        Simply check that the preview visualisation runs without error.
+        """
+        # with default arguments
+        with pytest.warns(UserWarning, match="singular"):
+            # warning: single-particle source is used, so axis limits try to be equal
+            gp.preview()
+        # with non-default arguments
+        gp.preview(
+            max_points=1000,
+            fig=2,
+            lim="datacube",
+            vlim="datacube",
+            point_scaling="fixed",
+            title="test",
+        )
+
+    @pytest.mark.parametrize("channels", ("frequency", "velocity"))
+    def test_channel_modes(self, single_particle_source, channels):
+        source = single_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(sigma="thermal"),
+            n_channels=32,
+            channel_width=10 * U.km * U.s**-1,
+            velocity_centre=source.vsys,
+            channels=channels,
+        )
+        expected_units = dict(frequency=U.Hz, velocity=U.km * U.s**-1)[channels]
+        m.channel_edges.to(expected_units)
+        m.channel_mids.to(expected_units)

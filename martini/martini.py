@@ -182,7 +182,6 @@ class _BaseMartini:
         for condition in spatial_reject_conditions + spectral_reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
-        # most kernels ignore this line, but required by AdaptiveKernel
         self.sph_kernel._apply_mask(np.logical_not(reject_mask))
         if not self.quiet:
             print(
@@ -1440,7 +1439,7 @@ class GlobalProfile(_BaseMartini):
             noise=None,
             sph_kernel=DiracDeltaKernel(size_in_fwhm=np.inf),
             spectral_model=spectral_model,
-            prune_kwargs=dict(
+            _prune_kwargs=dict(
                 spatial=False,
                 spectral=True,
                 obj_type_str="spectrum",
@@ -1448,9 +1447,9 @@ class GlobalProfile(_BaseMartini):
             quiet=quiet,
         )
         if channels == "velocity":
-            self._datacube.velocity_channels
+            self._datacube.velocity_channels()
         elif channels == "frequency":
-            self._datacube.frequency_channels
+            self._datacube.freq_channels()
         else:
             raise ValueError(
                 'GlobalProfile: `channels` must be "velocity" or "frequency".'
@@ -1530,3 +1529,16 @@ class GlobalProfile(_BaseMartini):
         The centres of the channels for the spectrum.
         """
         return self._datacube.channel_mids
+
+    @property
+    def channel_width(self):
+        """
+        The width of the channels for the spectrum.
+        """
+        return self._datacube.channel_width
+
+    def reset(self):
+        super().reset()
+        if hasattr(self, "_spectrum"):
+            del self._spectrum
+        return
