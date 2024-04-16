@@ -21,6 +21,7 @@ Overview
    sph_kernels/index
    spectral_models/index
    martini/index
+   global_profile/index
    modules/index
 
 Citing Martini
