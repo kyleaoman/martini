@@ -7,7 +7,7 @@ on:
 
 jobs:
   check-code-quality:
-    uses: ./.github/workflows/code-quality.yml
+    uses: ./.github/workflows/code_quality.yml
   pypi-publish:
     name: Upload release to PyPI
     needs: [check-code-quality]
