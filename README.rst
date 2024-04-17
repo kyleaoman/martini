@@ -169,9 +169,9 @@ Example notebooks_ are available for supported simulations.
 
 .. QUICKSTART_END_LABEL
 
-.. |martini.Martini| replace:: `martini.Martini <https://martini.readthedocs.io/en/latest/modules/martini.martini.html#martini.martini.Martini>`_
-.. |martini.sources.EAGLESource| replace:: `martini.sources.EAGLESource <https://martini.readthedocs.io/en/latest/modules/martini.sources.eagle_source.html#martini.sources.eagle_source.EAGLESource>`_
-.. |martini.sources.TNGSource| replace:: `martini.sources.TNGSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.tng_source.html#martini.sources.tng_source.TNGSource>`_
-.. |martini.sources.MagneticumSource| replace:: `martini.sources.MagneticumSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.magneticum_source.html#martini.sources.magneticum_source.MagneticumSource>`_
-.. |martini.sources.SimbaSource| replace:: `martini.sources.SimbaSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource>`_
-.. |martini.sources.SOSource| replace:: `martini.sources.SOSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource>`_
+.. |martini.Martini| replace:: `martini.Martini <https://martini.readthedocs.io/en/latest/modules/martini.martini.html#martini.martini.Martini>`__
+.. |martini.sources.EAGLESource| replace:: `martini.sources.EAGLESource <https://martini.readthedocs.io/en/latest/modules/martini.sources.eagle_source.html#martini.sources.eagle_source.EAGLESource>`__
+.. |martini.sources.TNGSource| replace:: `martini.sources.TNGSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.tng_source.html#martini.sources.tng_source.TNGSource>`__
+.. |martini.sources.MagneticumSource| replace:: `martini.sources.MagneticumSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.magneticum_source.html#martini.sources.magneticum_source.MagneticumSource>`__
+.. |martini.sources.SimbaSource| replace:: `martini.sources.SimbaSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource>`__
+.. |martini.sources.SOSource| replace:: `martini.sources.SOSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource>`__
