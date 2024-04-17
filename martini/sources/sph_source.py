@@ -459,6 +459,7 @@ class SPHSource(object):
         )
         size = 300 * size_scale if point_scaling == "auto" else 10
         fig = plt.figure(fig, figsize=(12, 4))
+        fig.clf()
         fig.suptitle(title)
 
         # ----- MOMENT 1 -----
