@@ -91,9 +91,15 @@ Installation Notes
 
 MARTINI works with ``python3`` (version ``3.7`` or higher), and does not support ``python2``.
 
-Stable releases are available via PyPI_ (``pip install astromartini``) and the numbered releases (starting from 2.0.0) on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github issues or kyle.a.oman@durham.ac.uk.
+Stable releases are available via PyPI_:
 
-.. _PyPI: https://pypi.org/
+.. code-block::
+
+    python3 -m pip install astromartini 
+
+and the numbered releases (starting from ``2.0.0``) on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github issues or kyle.a.oman@durham.ac.uk.
+
+.. _PyPI: https://pypi.org/project/astromartini/
 .. _kyle.a.oman@durham.ac.uk: mailto:kyle.a.oman@durham.ac.uk
 
 The easiest way to install MARTINI is from PyPI by doing ``python3 -m pip install astromartini``. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. Other optional features require additional dependencies hosted on PyPI. In particular, EAGLE, Illustris/TNG and Simba users who wish to use the custom source modules for those simulations in MARTINI can automatically install the optional dependencies with ``python3 -m pip install astromartini[eaglesource]``, or ``[simbasource]`` or ``[tngsource]``.
