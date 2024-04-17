@@ -1,4 +1,4 @@
-.. image:: martini_banner.png
+.. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
 |Build status| |Documentation status|
 
