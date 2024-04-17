@@ -6,8 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  check-code-quality:
+    uses: ./.github/workflows/code-quality.yml
   pypi-publish:
     name: Upload release to PyPI
+    needs: [check-code-quality]
     runs-on: ubuntu-latest
     environment:
       name: pypi
