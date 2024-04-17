@@ -41,9 +41,57 @@ The arguments to the other modules are omitted here (replaced with ``...``), che
 Inserting the source
 --------------------
 
-Bla.
+The spectrum can be accessed through the ``spectrum`` attribute:
+
+.. code-block:: python
+
+    gp.spectrum
+
+If it has not yet been calculated, it will be calculated when accessed. The calculation can be explicitly forced with:
+
+.. code-block:: python
+
+    gp.insert_source_in_spectrum()
+
+but this is not usually necessary. In addition to the spectrum itself, the centres and edges of the channels are available as:
+
+.. code-block:: python
+
+    gp.channel_mids
+    gp.channel_edges
+
+respectively. These arrays will have dimensions of frequency or velocity depending on the ``channels`` argument passed to :class:`~martini.martini.GlobalProfile` on initialization.
 
 Parallelization
 +++++++++++++++
 
 The core loop in the source insertion function is a loop over pixels. Since parallelization is implemented for this loop, and for a :class:`~martini.martini.GlobalProfile` there is a single pixel, parallelization is not available in this mode.
+
+Quick plot of the spectrum
+--------------------------
+
+As a convenience, a function is provided to make a quick plot showing the spectrum. Whether the systemic velocity of the source (as reported by ``source.vsys``) is shown by a vertical dotted line is controlled by the ``show_vsys`` argument.
+
+.. code-block:: python
+
+    from martini import demo_source, GlobalProfile
+    from martini.spectral_models import GaussianSpectrum
+
+    source = demo_source(N=20000)  # create a simple disc with 20000 particles
+    gp = GlobalProfile(
+        source=source,
+	spectral_model=GaussianSpectrum(sigma=7 * U.km * U.s**-1),
+	n_channels=128,
+	channel_width=2.5 * U.km * U.s**-1,
+	velocity_centre=source.vsys,
+	channels="velocity",
+    )
+    gp.plot_spectrum(
+        show_vsys=True,
+    )
+
+The resulting figure is returned by the function, or can be directly saved to file with the ``save`` argument (e.g. ``save="myplot.png"`` or ``save="myplot.pdf"``). This example looks like:
+
+.. image:: spectrum1.png
+    :width: 350
+    :alt: Example spectrum of a simple rotating disc source.
