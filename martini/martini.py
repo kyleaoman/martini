@@ -423,7 +423,7 @@ class _BaseMartini:
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
             (Default: ``1``)
 
-        lim : Quantity, optional
+        lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity` with dimensions of length.
             The coordinate axes extend from ``-lim`` to ``lim``. If unspecified, the
             maximum absolute coordinate of particles in the source is used. Whether
@@ -432,7 +432,7 @@ class _BaseMartini:
             case the axis limits are set by the extent of the data cube.
             (Default: ``None``)
 
-        vlim : Quantity, optional
+        vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity` with dimensions of speed.
             The velocity axes and colour bar extend from ``-vlim`` to ``vlim``. If
             unspecified, the maximum absolute velocity of particles in the source is
@@ -1343,12 +1343,12 @@ class GlobalProfile(_BaseMartini):
     n_channels : int, optional
         Number of channels along the spectral axis. (Default: ``64``)
 
-    channel_width : Quantity, optional
+    channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
         frequency. (Default: ``4 * U.km / U.s``)
 
-    velocity_centre : Quantity, optional
+    velocity_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
         (Default: ``0 * U.km / U.s``)
@@ -1534,7 +1534,7 @@ class GlobalProfile(_BaseMartini):
 
         Returns
         -------
-        out : Quantity
+        out : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of flux density.
             Spatially-integrated spectrum of the source.
         """
@@ -1549,7 +1549,7 @@ class GlobalProfile(_BaseMartini):
 
         Returns
         -------
-        out : Quantity
+        out : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity.
             Edges of the channels with units depending on
             :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
@@ -1567,7 +1567,7 @@ class GlobalProfile(_BaseMartini):
 
         Returns
         -------
-        out : Quantity
+        out : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity.
             Edges of the channels with units depending on
             :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
@@ -1585,7 +1585,7 @@ class GlobalProfile(_BaseMartini):
 
         Returns
         -------
-        out : Quantity
+        out : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimentions of frequency or velocity.
             Width of the channels with units depending on
             :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
