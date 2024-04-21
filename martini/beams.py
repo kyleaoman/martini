@@ -8,36 +8,42 @@ class _BaseBeam(object):
     """
     Abstract base class for classes implementing a radio telescope beam model.
 
-    Classes inheriting from _BaseBeam must implement three methods: `f_kernel`,
-    `kernel_size_px` and `init_beam_header`.
+    Classes inheriting from _BaseBeam must implement three methods:
+    :meth:`~martini.beams._BaseBeam.f_kernel`,
+    :meth:`~martini.beams._BaseBeam.kernel_size_px` and
+    :meth:`~martini.beams._BaseBeam.init_beam_header`.
 
-    `f_kernel` should return a function accepting two arguments, the RA and Dec
-    offsets from the beam centroid (provided with units of arcsec), and
-    returning the beam amplitude at that location.
+    :meth:`~martini.beams._BaseBeam.f_kernel` should return a function accepting
+    two arguments, the RA and Dec offsets from the beam centroid (provided with
+    units of arcsec), and returning the beam amplitude at that location.
 
-    `kernel_px_size` should return a 2-tuple containing the half-size (x, y) of
-    the beam image that will be initialized, in pixels.
+    :meth:`~martini.beams._BaseBeam.kernel_px_size` should return a 2-tuple
+    containing the half-size (x, y) of the beam image that will be initialized,
+    in pixels.
 
-    `init_beam_header` should be defined if the major/minor axis FWHM of the
-    beam and its position angle are not defined when the beam object is
-    initialized, for instance if modelling a particular telescope this function
-    can be used to set the (constant) parameters of the beam of that particular
-    facility.
+    :meth:`~martini.beams._BaseBeam.init_beam_header` should be defined if the
+    major/minor axis FWHM of the beam and its position angle are not defined when
+    the beam object is initialized, for instance if modelling a particular telescope
+    this function can be used to set the (constant) parameters of the beam of that
+    particular facility.
 
     Parameters
     ----------
-    bmaj : Quantity, with dimensions of angle
+    bmaj : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
         Beam major axis (FWHM) angular size.
 
-    bmin : Quantity, with dimensions of angle
+    bmin : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
         Beam minor axis (FWHM) angular size.
 
-    bpa : Quantity, with dimesions of angle
+    bpa : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimesions of angle.
         Beam position angle (East from North).
 
     See Also
     --------
-    GaussianBeam
+    ~martini.beams.GaussianBeam
     """
 
     __metaclass__ = ABCMeta
@@ -72,7 +78,8 @@ class _BaseBeam(object):
 
         Returns
         -------
-        out : 2-tuple, each element an integer
+        out : tuple
+            2-tuple, each element an integer, containing pad dimensions (x, y).
         """
 
         if self.kernel is None:
@@ -81,12 +88,12 @@ class _BaseBeam(object):
 
     def init_kernel(self, datacube):
         """
-        Calculate the required size of the beam image
+        Calculate the required size of the beam image.
 
         Parameters
         ----------
-        datacube : martini.DataCube instance
-            Datacube to use, cube size is required for pixel size, position &
+        datacube : ~martini.datacube.DataCube
+            Data cube to use, cube size is required for pixel size, position &
             velocity centroids.
         """
 
@@ -146,7 +153,7 @@ class _BaseBeam(object):
 
         The function returned by this method should accept two parameters, the
         RA and Dec offset from the beam centroid, and return the beam amplitude
-        at that position. The offsets are provided as astropy.units.Quantity
+        at that position. The offsets are provided as :class:`~astropy.units.Quantity`
         objects with dimensions of angle (arcsec).
         """
 
@@ -167,7 +174,7 @@ class _BaseBeam(object):
         Abstract method; sets beam major/minor axis lengths and position angle.
 
         This method is optional, and only needs to be defined if these
-        parameters are not specified in the call to the __init__ method of the
+        parameters are not specified in the call to the ``__init__`` method of the
         derived class.
         """
 
@@ -176,17 +183,20 @@ class _BaseBeam(object):
 
 class GaussianBeam(_BaseBeam):
     """
-    Class implementing a Gaussiam beam model.
+    Class implementing a Gaussian beam model.
 
     Parameters
     ----------
-    bmaj : Quantity, with dimensions of angle
+    bmaj : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
         Beam major axis (FWHM) angular size.
 
-    bmin : Quantity, with dimensions of angle
+    bmin : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
         Beam minor axis (FWHM) angular size.
 
-    bpa : Quantity, with dimensions of angle
+    bpa : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
         Beam position angle (East of North).
 
     truncate : float
@@ -211,14 +221,14 @@ class GaussianBeam(_BaseBeam):
         Returns a function defining the beam amplitude as a function of
         position.
 
-        The model implemented is a 2D Gaussian with FWHM's specified by bmaj
-        and bmin and orientation by bpa.
+        The model implemented is a 2D Gaussian with FWHM's specified by ``bmaj``
+        and ``bmin`` and orientation by ``bpa``.
 
         Returns
         -------
         out : callable
-            Accepts 2 arguments (both array_like) and return an
-            array_like of corresponding size.
+            Accepts 2 arguments (both ``array_like``) and return an
+            ``array_like`` of corresponding size.
         """
 
         def fwhm_to_sigma(fwhm):
@@ -250,7 +260,8 @@ class GaussianBeam(_BaseBeam):
 
         Returns
         -------
-        out : 2-tuple, each element an integer.
+        out : tuple
+            2-tuple, each element an integer, specifying the kernel size (x, y) in pixels.
         """
         size = np.ceil(
             (self.bmaj * self.truncate).to_value(
