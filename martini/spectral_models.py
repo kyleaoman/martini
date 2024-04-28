@@ -9,27 +9,31 @@ class _BaseSpectrum(metaclass=ABCMeta):
     """
     Abstract base class for implementions of spectral models to inherit from.
 
-    Classes inheriting from _BaseSpectrum must implement two methods:
-    `half_width` and `spectral_function`.
+    Classes inheriting from :class:`~martini.spectral_models._BaseSpectrum` must implement
+    two methods: :meth:`~martini.spectral_models._BaseSpectrum.half_width` and
+    :meth:`~martini.spectral_models._BaseSpectrum.spectral_function`.
 
-    `half_width` should define a characteristic width for the model, measured
-    from the peak to the characteristic location. Note that particles whose
-    spectra within +/- 4 half-widths of the peak do not intersect the DataCube
-    bandpass will be discarded to speed computation.
+    :meth:`~martini.spectral_models._Base_spectrum.half_width` should define a
+    characteristic width for the model, measured from the peak to the characteristic
+    location. Note that particles whose spectra within +/- 4 half-widths of the peak do
+    not intersect the data cube bandpass will be discarded to speed computation.
 
-    `spectral_function` should define the model spectrum. The spectrum should integrate to
-    1, the amplitude is handled separately.
+    :meth:`~martini.spectral_models._BaseSpectrum.spectral_function` should define the
+    model spectrum. The spectrum should integrate to 1, the amplitude is handled
+    separately.
 
-    They may also override the function `init_spectral_function_extra_data` to make
-    information that depends on the martini.sources.SPHSource (or derived class)
-    or martini.datacube.DataCube properties available internally. This is required because
-    the source object is not accessible at class initialization.
+    They may also override the method
+    :meth:`~martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data` to
+    make information that depends on the :class:`~martini.sources.sph_source.SPHSource`
+    (or derived class) or :class:`~martini.datacube.DataCube` properties available
+    internally. This is required because the source object is not accessible at class
+    initialization.
 
     Parameters
     ----------
     ncpu : int, optional
-        Number of cpus to use for evaluation of particle spectra. Defaults to 1 if not
-        provided. (Default: None)
+        Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
+        provided. (Default: ``None``)
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -37,9 +41,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     See Also
     --------
-    GaussianSpectrum (simple example of a derived class using source properties
-                      in spectral_function)
-    DiracDeltaSpectrum
+    martini.spectral_models.GaussianSpectrum
+    martini.spectral_models.DiracDeltaSpectrum
     """
 
     def __init__(self, ncpu=None, spec_dtype=np.float64):
@@ -53,25 +56,27 @@ class _BaseSpectrum(metaclass=ABCMeta):
         """
         Pre-compute the spectrum of each particle.
 
-        The spectral model defined in `spectral_function` is evaluated using
-        the channel edges from the DataCube instance and the particle
-        velocities of the SPHSource (or derived class) instance provided.
+        The spectral model defined in
+        :meth:`~martini.spectral_models._BaseSpectrum.spectral_function` is evaluated
+        using the channel edges from the :class:`~martini.datacube.DataCube` instance and
+        the particle velocities of the :class:`~martini.sources.sph_source.SPHSource` (or
+        derived class) instance provided.
 
-        If the instance of this class was initialized with ncpu > 1 then a
+        If the instance of this class was initialized with ``ncpu > 1`` then a
         process pool is created to distribute subsets of the calculation in
         parallel. To minimize overhead form serializing large amounts of
-        data in multiprocess communications, each parallel process inherits the
+        data in :mod:`multiprocess` communications, each parallel process inherits the
         entire line-of-sight velocity array (cheap because of copy-on-write
         behaviour), then masks its copy to the subset to operate on.
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or derived class) instance
+        source : martini.sources.sph_source.SPHSource
             Source object containing arrays of particle properties.
 
-        datacube : martini.DataCube instance
-            DataCube object defining the observational parameters, including
-            spectral channels.
+        datacube : martini.datacube.DataCube
+            :class:`~martini.datacube.DataCube` object defining the observational
+            parameters, including spectral channels.
         """
 
         self.channel_edges = datacube.channel_edges
@@ -121,22 +126,24 @@ class _BaseSpectrum(metaclass=ABCMeta):
         """
         The main portion of the calculation of the spectra.
 
-        Separated in this function so that it can be called by a parallel
+        Separated into this function so that it can be called by a parallel
         process pool. Initializes additional particle properties by calling
-        `init_spectral_function_extra_data` which then becomes accessible via
-        `spectral_function_extra_data`.
+        :meth:`~martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data`
+        which then becomes accessible via
+        :attr:`~martini.spectral_models._BaseSpectrum.spectral_function_extra_data`.
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or derived class) instance
+        source : martini.sources.sph_source.SPHSource
             Source object containing arrays of particle properties.
 
-        datacube : martini.DataCube instance
-            DataCube object defining the observational parameters, including
-            spectral channels.
+        datacube : martini.datacube.DataCube
+            :class:`~martini.datacube.DataCube` object defining the observational
+            parameters, including spectral channels.
 
         mask : slice, optional
-            Slice defining the subset of particles to operate on. (Default: np.s_[...])
+            Slice defining the subset of particles to operate on.
+            (Default: ``np.s_[...]``)
         """
         vmids = self.vmids[mask]
         self.init_spectral_function_extra_data(source, datacube, mask=mask)
@@ -167,12 +174,12 @@ class _BaseSpectrum(metaclass=ABCMeta):
     @abstractmethod
     def half_width(self, source):
         """
-        Abstract method; calculate the half-width of the spectrum, either
-        globally or per-particle.
+        Abstract method; calculate the half-width of the spectrum, either globally or
+        per-particle.
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or derived class) instance
+        source : martini.sources.sph_source.SPHSource
             The source object will be provided to allow access to particle
             properties.
         """
@@ -184,22 +191,25 @@ class _BaseSpectrum(metaclass=ABCMeta):
         Abstract method; implementation of the spectral model.
 
         Should calculate the flux in each spectral channel, calculation should
-        be vectorized (numpy).
+        be vectorized (with :mod:`numpy`).
 
         Parameters
         ----------
-        a : Quantity, with dimensions of velocity
+        a : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Lower spectral channel edge(s).
 
-        b : Quantity, with dimensions of velocity
+        b : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Upper spectral channel edge(s).
 
-        vmids : Quantity, with dimensions of velocity
+        vmids : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Particle velocities along the line of sight.
 
         See Also
         --------
-        init_spectral_function_extra_data
+        ~martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data
         """
 
         pass
@@ -209,25 +219,26 @@ class _BaseSpectrum(metaclass=ABCMeta):
         Initialize extra data needed by spectral function. Default is no extra data.
 
         Derived classes should override this function, if needed, to populate the dict
-        with any information from the source that is required by the spectral_function,
-        then call super().init_spectral_function_extra_data.
+        with any information from the source that is required by the
+        :meth:`~martini.spectral_models._BaseSpectrum.spectral_function`,
+        then call ``super().init_spectral_function_extra_data``.
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or derived class) instance
+        source : ~martini.sources.sph_source.SPHSource
             Source object, making particle properties available.
 
-        datacube : martini.DataCube instance
-            DataCube object defining the observational parameters, including
-            spectral channels.
+        datacube : ~martini.datacube.DataCube
+            :class:`~martini.datacube.DataCube` object defining the observational
+            parameters, including spectral channels.
 
         mask : slice, optional
-            Slice defining the subset of particles to operate on. (Default: np.s_[...])
+            Slice defining the subset of particles to operate on.
+            (Default: ``np.s_[...]``)
 
         See Also
         --------
-        GaussianSpectrum.init_spectral_function_extra_data (for an example with extra
-                                                            data)
+        ~martini.spectral_models.GaussianSpectrum.init_spectral_function_extra_data
         """
         if self.spectral_function_extra_data is None:
             self.spectral_function_extra_data = dict()
@@ -249,21 +260,22 @@ class GaussianSpectrum(_BaseSpectrum):
     Class implementing a Gaussian model for the spectrum of the HI line.
 
     The line is modelled as a Gaussian of either fixed width, or of width
-    scaling with the particle temperature as sqrt(k_B * T / m_p), centered
+    scaling with the particle temperature as :math:`\\sqrt{k_B T / m_p}`, centered
     at the particle velocity.
 
     Parameters
     ----------
-    sigma : Quantity, with dimensions of velocity, or string {'thermal'}, \
-    optional
+    sigma : ~astropy.units.Quantity or str, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity, or string
+        ``"thermal"``.
         Width of the Gaussian modelling the line (constant for all particles),
-        or specify 'thermal' for width equal to sqrt(k_B * T / m_p) where k_B
-        is Boltzmann's constant, T is the particle temperature and m_p is the
-        particle mass. (Default is 7 km/s.)
+        or specify ``"thermal"`` for width equal to :math:`\\sqrt{k_B T / m_p}` where
+        :math:`k_B` is Boltzmann's constant, :math:`T` is the particle temperature and
+        :math:`m_p` is the particle mass. (Default: ``7 U.km * U.s**-1``)
 
     ncpu : int, optional
-        Number of cpus to use for evaluation of particle spectra. Defaults to 1 if not
-        provided. (Default: None)
+        Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
+        provided. (Default: ``None``)
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -271,8 +283,8 @@ class GaussianSpectrum(_BaseSpectrum):
 
     See Also
     --------
-    _BaseSpectrum
-    DiracDeltaSpectrum
+    ~martini.spectral_models._BaseSpectrum
+    ~martini.spectral_models.DiracDeltaSpectrum
     """
 
     def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64):
@@ -283,24 +295,27 @@ class GaussianSpectrum(_BaseSpectrum):
 
     def spectral_function(self, a, b, vmids):
         """
-        Evaluate a Gaussian integral in a channel. Requires sigma to be available
-        from `spectral_function_extra_data`.
+        Evaluate a Gaussian integral in a channel. Requires sigma to be available from
+        :attr:`~martini.spectral_models.GaussianSpectrum.spectral_function_extra_data`.
 
         Parameters
         ----------
-        a : Quantity, with dimensions of velocity
+        a : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Lower spectral channel edge(s).
 
-        b : Quantity, with dimensions of velocity
+        b : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Upper spectral channel edge(s).
 
-        vmids : Quantity, with dimensions of velocity
+        vmids : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Particle velocities along the line of sight.
 
         Returns
         -------
-        out : Quantity, dimensionless
-            The evaluated spectral model.
+        out : ~astropy.units.Quantity
+            The evaluated spectral model (dimensionless).
         """
 
         assert self.spectral_function_extra_data is not None
@@ -313,19 +328,20 @@ class GaussianSpectrum(_BaseSpectrum):
 
     def init_spectral_function_extra_data(self, source, datacube, mask=np.s_[...]):
         """
-        Helper function to expose particle velocity dispersions to `spectral_function`.
+        Helper function to expose particle velocity dispersions to
+        :meth:`~martini.spectral_models.GaussianSpectrum.spectral_function`.
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or derived class) instance
+        source : ~martini.sources.sph_source.SPHSource
             Source object.
 
-        datacube: martini.datacube.DataCube instance
-            DataCube object.
+        datacube: ~martini.datacube.DataCube
+            :class:`~martini.datacube.DataCube` object.
 
         mask : slice, optional
-            Slice defining the subset of particles to operate on. (Default: np.s_[...])
-
+            Slice defining the subset of particles to operate on.
+            (Default: ``np.s_[...]``)
         """
 
         self.spectral_function_extra_data = dict(sigma=self.half_width(source))
@@ -339,12 +355,13 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or derived class) instance
+        source : martini.sources.sph_source.SPHSource
             Source object, making particle properties available.
 
         Returns
         -------
-        out : Quantity, with dimensions of velocity
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Velocity dispersion (constant, or per particle).
         """
 
@@ -366,8 +383,8 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     Parameters
     ----------
     ncpu : int, optional
-        Number of cpus to use for evaluation of particle spectra. Defaults to 1 if not
-        provided. (Default: None)
+        Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
+        provided. (Default: ``None``)
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -384,19 +401,22 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        a : Quantity, with dimensions of velocity
+        a : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Lower spectral channel edge(s).
 
-        b : Quantity, with dimensions of velocity
+        b : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Upper spectral channel edge(s).
 
-        vmids : Quantity, with dimensions of velocity
+        vmids : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Particle velocities along the line of sight.
 
         Returns
         -------
-        out : Quantity, dimesionless
-            The evaluated spectral model.
+        out : ~astropy.units.Quantity
+            The evaluated spectral model (dimensionless).
         """
 
         return np.heaviside(vmids - a, 1.0) * np.heaviside(b - vmids, 0.0)
@@ -407,13 +427,14 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or derived class) instance
+        source : martini.sources.sph_source.SPHSource
             Source object, making particle properties available.
 
         Returns
         -------
-        out : Quantity
-            Velocity dispersion of 0 km/s.
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of velocity.
+            Velocity dispersion of ``0 * U.km * U.s**-1``.
         """
 
         return 0 * U.km * U.s**-1

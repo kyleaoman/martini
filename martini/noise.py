@@ -54,7 +54,7 @@ class GaussianNoise(_BaseNoise):
 
     Parameters
     ----------
-    rms : astropy.units.Quantity
+    rms : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of flux density per beam.
         Desired root mean square amplitude of the noise field after convolution with the
         beam. (Default: ``1.0 * U.Jy * U.beam ** -1``)
@@ -84,12 +84,12 @@ class GaussianNoise(_BaseNoise):
 
         Parameters
         ----------
-        datacube : martini.datacube.DataCube
+        datacube : ~martini.datacube.DataCube
             This method will be called passing the :class:`~martini.datacube.DataCube`
             instance as an argument; its attributes can thus be accessed here.
             ``datacube._array.shape`` is particularly relevant.
 
-        beam : martini.beams._BaseBeam
+        beam : ~martini.beams._BaseBeam
             This method will be called passing the object derived from
             :class:`~martini.beams._BaseBeam` (for example a
             :class:`~martini.beams.GaussianBeam`) as an argument. Its attributes can thus
@@ -98,7 +98,7 @@ class GaussianNoise(_BaseNoise):
 
         Returns
         -------
-        out : astropy.units.Quantity
+        out : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of flux density.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
