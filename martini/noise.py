@@ -7,14 +7,15 @@ class _BaseNoise(object):
     """
     Abstract base class to inherit for classes implementing a noise model.
 
-    Classes inheriting from _BaseNoise must implement a method 'generate'
-    which receives one argument, a martini.DataCube instance. This method
-    should return an astropy.units.Quantity array with the same shape as the
+    Classes inheriting from :class:`~martini.noise._BaseNoise` must implement a
+    method :meth:`~martini.noise._BaseNoise.generate` which receives one argument,
+    a :class:`~martini.datacube.DataCube` instance. This method
+    should return an :class:`~astropy.units.Quantity` array with the same shape as the
     datacube array, and units of Jy (or compatible).
 
     See Also
     --------
-    GaussianNoise (simple example implementing a Gaussian noise model)
+    ~martini.noise.GaussianNoise
     """
 
     __metaclass__ = ABCMeta
@@ -29,7 +30,8 @@ class _BaseNoise(object):
         """
         Abstract method; create a cube containing noise.
 
-        Any random number generation should use the self.rng generator.
+        Any random number generation should use the :attr:`~martini.noise._BaseNoise.rng`
+        generator.
         """
         pass
 
@@ -37,7 +39,7 @@ class _BaseNoise(object):
         """
         Reset the random number generator to its initial state.
 
-        If the seed is None (the default value), this has no effect.
+        If the seed is ``None`` (the default value), this has no effect.
         """
         self.rng = np.random.default_rng(seed=self.seed)
         return
@@ -47,17 +49,19 @@ class GaussianNoise(_BaseNoise):
     """
     Implementation of a simple Gaussian noise model.
 
-    Provides a `generate` method producing a cube of Gaussian noise.
+    Provides a :meth:`~martini.noise.GaussianNoise.generate` method producing a cube of
+    Gaussian noise.
 
     Parameters
     ----------
-    rms : Quantity, with dimensions of flux density per beam
+    rms : astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of flux density per beam.
         Desired root mean square amplitude of the noise field after convolution with the
-        beam. (Default: 1.0 * U.Jy * U.beam ** -1)
+        beam. (Default: ``1.0 * U.Jy * U.beam ** -1``)
 
-    seed : int or None
-        Seed for random number generator. If None, results will be unpredictable,
-        if an integer is given results will be repeatable. (Default: None)
+    seed : int, optional
+        Seed for random number generator. If ``None``, results will be unpredictable,
+        if an integer is given results will be repeatable. (Default: ``None``)
     """
 
     def __init__(
@@ -75,25 +79,29 @@ class GaussianNoise(_BaseNoise):
         """
         Create a cube containing Gaussian noise.
 
-        Some numpy functions such as np.random.normal strip units, so need to
+        Some numpy functions such as :func:`numpy.random.normal` strip units, so need to
         handle them explicitly.
 
         Parameters
         ----------
-        datacube : martini.DataCube instance
-            This method will be called passing the martini.DataCube instance as
-            an argument; its attributes can thus be accessed here.
-            datacube._array.shape is particularly relevant.
+        datacube : martini.datacube.DataCube
+            This method will be called passing the :class:`~martini.datacube.DataCube`
+            instance as an argument; its attributes can thus be accessed here.
+            ``datacube._array.shape`` is particularly relevant.
 
-        beam : instance of a class from martini.beams
-            This method will be called passing the martini.beam instance as an argument;
-            its attributes can thus be accessed here. The beam size is needed to estimate
-            the pre-convolution rms required to obtain the desired post-convolution rms.
+        beam : martini.beams._BaseBeam
+            This method will be called passing the object derived from
+            :class:`~martini.beams._BaseBeam` (for example a
+            :class:`~martini.beams.GaussianBeam`) as an argument. Its attributes can thus
+            be accessed here. The beam size is needed to estimate the pre-convolution rms
+            required to obtain the desired post-convolution rms.
 
         Returns
         -------
-        out : Quantity, with dimensions of flux density
-            Noise realization with size matching the DataCube._array.
+        out : astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of flux density.
+            Noise realization with size matching the
+            :attr:`~martini.datacube.DataCube._array`.
         """
 
         sig_maj = (beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
