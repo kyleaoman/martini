@@ -1,6 +1,6 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Python version| |Tests| |Documentation status|
+|Python version| |PyPI version| |Repostatus| |Tests| |Documentation status|
 
 .. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
     :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
@@ -8,9 +8,14 @@
 .. |Documentation status| image:: https://readthedocs.org/projects/martini/badge/?version=latest
     :target: https://martini.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation status
-
 .. |Python version| image:: https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkyleaoman%2Fmartini%2Fmain%2Fpyproject.toml
    :alt: Python Version from PEP 621 TOML
+.. |PyPI version| image:: https://img.shields.io/pypi/v/astromartini
+   :target: https://pypi.org/project/astromartini/
+   :alt: PyPI - Version
+.. |Repostatus| image:: https://www.repostatus.org/badges/latest/active.svg
+   :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
+   :target: https://www.repostatus.org/#active
 	   
 Overview
 ========
