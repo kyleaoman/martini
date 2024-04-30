@@ -31,53 +31,57 @@ class _BaseMartini:
 
     Parameters
     ----------
-    source : an instance of a class derived from martini.sources.SPHSource
+    source : SPHSource
+        An instance of a class derived from :class:`martini.sources.SPHSource`.
         A description of the HI emitting object, including position, geometry
         and an interface to the simulation data (SPH particle masses,
-        positions, etc.). Sources leveraging the simobj package for reading
-        simulation data (github.com/kyleaoman/simobj) and a few test sources
-        (e.g. single particle) are provided, creation of customized sources,
-        for instance to leverage other interfaces to simulation data, is
-        straightforward. See sub-module documentation.
+        positions, etc.). See :doc:`sub-module documentation </sources/index>`.
 
-    datacube : martini.DataCube instance
+    datacube : DataCube
+        A :class:`~martini.datacube.DataCube` instance.
         A description of the datacube to create, including pixels, channels,
-        sky position. See sub-module documentation.
+        sky position. See :doc:`sub-module documentation </datacube/index>`.
 
-    beam : an instance of a class derived from beams._BaseBeam, optional
+    beam : _BaseBeam, optional
+        An instance of a class derived from `~martini.beams._BaseBeam`.
         A description of the beam for the simulated telescope. Given a
         description, either mathematical or as an image, the creation of a
-        custom beam is straightforward. See sub-module documentation.
+        custom beam is straightforward. See
+        :doc:`sub-module documentation </beams/index>`.
 
-    noise : an instance of a class derived from noise._BaseNoise, optional
+    noise : _BaseNoise, optional
+        An instance of a class derived from :class:`~martini.noise._BaseNoise`.
         A description of the simulated noise. A simple Gaussian noise model is
         provided; implementation of other noise models is straightforward. See
-        sub-module documentation.
+        :doc:`sub-module documentation </noise/index>`.
 
-    sph_kernel : an instance of a class derived from sph_kernels._BaseSPHKernel
+    sph_kernel : _BaseSPHKernel
+        An instance of a class derived from :class:`~martini.sph_kernels._BaseSPHKernel`.
         A description of the SPH smoothing kernel. Check simulation
         documentation for the kernel used in a particular simulation, and
-        SPH kernel submodule documentation for guidance.
+        :doc:`SPH kernel sub-module documentation </sph_kernels/index>` for guidance.
 
-    spectral_model : an instance of a class derived from \
-    spectral_models._BaseSpectrum
+    spectral_model : _BaseSpectrum
+        An instance of a class derived from
+        :class:`~martini.spectral_models._BaseSpectrum`.
         A description of the HI line produced by a particle of given
         properties. A Dirac-delta spectrum, and both fixed-width and
         temperature-dependent Gaussian line models are provided; implementing
-        other models is straightforward. See sub-module documentation.
+        other models is straightforward. See
+        :doc:`sub-module documentation </spectral_models/index>`.
 
     quiet : bool
-        If True, suppress output to stdout. (Default: False)
+        If True, suppress output to stdout. (Default: ``False``)
 
     See Also
     --------
-    martini.sources.sph_source.SPHSource
-    martini.datacube.DataCube
+    ~martini.sources.sph_source.SPHSource
+    ~martini.datacube.DataCube
     martini.beams
     martini.noise
     martini.sph_kernels
     martini.spectral_models
-    martini.martini.GlobalProfile
+    ~martini.martini.GlobalProfile
     """
 
     def __init__(
@@ -139,12 +143,13 @@ class _BaseMartini:
         ----------
         spatial : bool
             If True, prune particles that fall outside the spatial aperture.
-            (Default: True)
+            (Default: ``True``)
         spectral : bool
             If True, prune particles that fall outside the spectral bandwidth.
-            (Default: True)
+            (Default: ``True``)
         obj_type_str : str
-            String describing the object to be pruned for messages. (Default: "data cube")
+            String describing the object to be pruned for messages.
+            (Default: ``"data cube"``)
         """
 
         if not self.quiet:
@@ -268,7 +273,8 @@ class _BaseMartini:
         self, skip_validation=False, progressbar=None, ncpu=1, quiet=None
     ):
         """
-        Populates the DataCube with flux from the particles in the source.
+        Populates the :class:`~martini.datacube.DataCube` with flux from the
+        particles in the source.
 
         Parameters
         ----------
@@ -278,22 +284,22 @@ class _BaseMartini:
             and SPH smoothing length, the approximation may break down. The
             kernel class will check whether this will occur and raise a
             RuntimeError if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter True. (Default: False.)
+            of accuracy!) by setting this parameter True. (Default: ``False``)
 
         progressbar : bool, optional
             A progress bar is shown by default. Progress bars work, with perhaps
             some visual glitches, in parallel. If martini was initialised with
             `quiet` set to `True`, progress bars are switched off unless explicitly
-            turned on. (Default: None.)
+            turned on. (Default: ``None``)
 
         ncpu : int
             Number of processes to use in main source insertion loop. Using more than
             one cpu requires the `multiprocess` module (n.b. not the same as
-            `multiprocessing`). (Default: 1)
+            `multiprocessing`). (Default: ``1``)
 
         quiet : bool, optional
             If True, suppress output to stdout. If specified, takes precedence over
-            quiet parameter of class. (Default: None)
+            quiet parameter of class. (Default: ``None``)
         """
 
         assert self.spectral_model.spectra is not None
@@ -367,7 +373,7 @@ class _BaseMartini:
 
     def reset(self):
         """
-        Re-initializes the DataCube with zero-values.
+        Re-initializes the :class:`~martini.datacube.DataCube` with zero-values.
         """
         init_kwargs = dict(
             n_px_x=self._datacube.n_px_x,
@@ -397,59 +403,63 @@ class _BaseMartini:
     ):
         """
         Produce a figure showing the source particle coordinates and velocities, and the
-        datacube region.
+        data cube region.
 
         Makes a 3-panel figure showing the projection of the source as it will appear in
         the mock observation. The first panel shows the particles in the y-z plane,
         coloured by the x-component of velocity (MARTINI projects the source along the
         x-axis). The second and third panels are position-velocity diagrams showing the
         x-component of velocity against the y and z coordinates, respectively. The red
-        boxes drawn on the panels show the datacube extent in position and velocity at the
-        distance and systemic velocity of the source.
+        boxes drawn on the panels show the data cube extent in position and velocity at
+        the distance and systemic velocity of the source.
 
         Parameters
         ----------
         max_points : int, optional
             Maximum number of points to draw per panel, the particles will be randomly
-            subsampled if the source has more. (Default: 1000)
+            subsampled if the source has more. (Default: ``1000``)
 
         fig : int, optional
-            Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
-            (Default: 1)
+            Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
+            (Default: ``1``)
 
-        lim : Quantity with dimensions of length, optional
-            The coordinate axes extend from -lim to lim. If unspecified, the maximum
-            absolute coordinate of particles in the source is used. Whether specified
-            or not, the axes are expanded if necessary to contain the extent of the
-            data cube. Alternatively, the string "datacube" can be passed. In this case
-            the axis limits are set by the extent of the data cube. (Default: None)
+        lim : ~astropy.units.Quantity, optional
+            :class:`~astropy.units.Quantity` with dimensions of length.
+            The coordinate axes extend from ``-lim`` to ``lim``. If unspecified, the
+            maximum absolute coordinate of particles in the source is used. Whether
+            specified or not, the axes are expanded if necessary to contain the extent of
+            the data cube. Alternatively, the string ``"datacube"`` can be passed. In this
+            case the axis limits are set by the extent of the data cube.
+            (Default: ``None``)
 
-        vlim : Quantity with dimensions of speed, optional
-            The velocity axes and colour bar extend from -vlim to vlim. If unspecified,
-            the maximum absolute velocity of particles in the source is used. Whether
-            specified or not, the axes are expanded if necessary to contain the extent
-            of the data cube. Alternatively, the string "datacube" can be passed. In this
-            case the axis limits are set by the extent of the data cube. (Default: None)
+        vlim : ~astropy.units.Quantity, optional
+            :class:`~astropy.units.Quantity` with dimensions of speed.
+            The velocity axes and colour bar extend from ``-vlim`` to ``vlim``. If
+            unspecified, the maximum absolute velocity of particles in the source is
+            used. Whether specified or not, the axes are expanded if necessary to contain
+            the extent of the data cube. Alternatively, ``"datacube"`` can be
+            passed. In this case the axis limits are set by the extent of the data cube.
+            (Default: ``None``)
 
         point_scaling : str, optional
             By default points are scaled in size and transparency according to their HI
             mass and the smoothing length (loosely proportional to their surface
             densities, but with different scaling to achieve a visually useful plot). For
             some sources the automatic scaling may not give useful results, using
-            point_scaling="fixed" will plot points of constant size without opacity.
-            (Default: "auto")
+            ``point_scaling="fixed"`` will plot points of constant size without opacity.
+            (Default: ``"auto"``)
 
         title : str, optional
-            A title for the figure can be provided. (Default: "")
+            A title for the figure can be provided. (Default: ``""``)
 
         save : str, optional
-            If provided, the figure is saved using `plt.savefig(save)`. A `.png` or `.pdf`
-            suffix is recommended. (Default: None)
+            If provided, the figure is saved using ``plt.savefig(save)``. A `.png` or
+            `.pdf` suffix is recommended. (Default: ``None``)
 
         Returns
         -------
-        out : matplotlib.figure instance
-            The preview figure.
+        out : Figure
+            The preview :class:`~matplotlib.figure.Figure`.
         """
         import matplotlib.pyplot as plt
 
@@ -621,68 +631,72 @@ class Martini(_BaseMartini):
     Creates synthetic HI data cubes from simulation data.
 
     Usual use of martini involves first creating instances of classes from each
-    of the required and optional sub-modules, then creating a Martini with
-    these instances as arguments. The object can then be used to create
-    synthetic observations, usually by calling `insert_source_in_cube`,
-    (optionally) `add_noise`, (optionally) `convolve_beam` and `write_fits` in
-    order.
+    of the required and optional sub-modules, then creating a
+    :class:`~martini.martini.Martini` with these instances as arguments. The object can
+    then be used to create synthetic observations, usually by calling
+    :meth:`~martini.martini.Martini.insert_source_in_cube`,
+    (optionally) :meth:`~martini.martini.Martini.add_noise`, (optionally)
+    :meth:`~martini.martini.Martini.convolve_beam` and
+    :meth:`~martini.martini.Martini.write_fits` in order.
 
     Parameters
     ----------
-    source : an instance of a class derived from martini.sources.sph_source.SPHSource
+    source : SPHSource
+        An instance of a class derived from
+        :class:`~martini.sources.sph_source.SPHSource`.
         A description of the HI emitting object, including position, geometry
         and an interface to the simulation data (SPH particle masses,
-        positions, etc.). Sources leveraging the simobj package for reading
-        simulation data (github.com/kyleaoman/simobj) and a few test sources
-        (e.g. single particle) are provided, creation of customized sources,
-        for instance to leverage other interfaces to simulation data, is
-        straightforward. See sub-module documentation.
+        positions, etc.). See :doc:`sub-module documentation </sources/index>`.
 
-    datacube : martini.DataCube instance
+    datacube : DataCube
+        A :class:`~martini.datacube.DataCube` instance.
         A description of the datacube to create, including pixels, channels,
-        sky position. See sub-module documentation.
+        sky position. See :doc:`sub-module documentation </datacube/index>`.
 
-    beam : an instance of a class derived from beams._BaseBeam, optional
+    beam : _BaseBeam, optional
+        An instance of a class derived from `~martini.beams._BaseBeam`.
         A description of the beam for the simulated telescope. Given a
         description, either mathematical or as an image, the creation of a
-        custom beam is straightforward. See sub-module documentation.
+        custom beam is straightforward. See
+        :doc:`sub-module documentation </beams/index>`.
 
-    noise : an instance of a class derived from noise._BaseNoise, optional
+    noise : _BaseNoise, optional
+        An instance of a class derived from :class:`~martini.noise._BaseNoise`.
         A description of the simulated noise. A simple Gaussian noise model is
         provided; implementation of other noise models is straightforward. See
-        sub-module documentation.
+        :doc:`sub-module documentation </noise/index>`.
 
-    sph_kernel : an instance of a class derived from sph_kernels._BaseSPHKernel
+    sph_kernel : _BaseSPHKernel
+        An instance of a class derived from :class:`~martini.sph_kernels._BaseSPHKernel`.
         A description of the SPH smoothing kernel. Check simulation
         documentation for the kernel used in a particular simulation, and
-        SPH kernel submodule documentation for guidance.
+        :doc:`SPH kernel sub-module documentation </sph_kernels/index>` for guidance.
 
-    spectral_model : an instance of a class derived from \
-    spectral_models._BaseSpectrum
+    spectral_model : _BaseSpectrum
+        An instance of a class derived from
+        :class:`~martini.spectral_models._BaseSpectrum`.
         A description of the HI line produced by a particle of given
         properties. A Dirac-delta spectrum, and both fixed-width and
         temperature-dependent Gaussian line models are provided; implementing
-        other models is straightforward. See sub-module documentation.
-
-    quiet : bool
-        If True, suppress output to stdout. (Default: False)
+        other models is straightforward. See
+        :doc:`sub-module documentation </spectral_models/index>`.
 
     See Also
     --------
-    martini.sources.sph_source.SPHSource
-    martini.datacube.DataCube
+    ~martini.sources.sph_source.SPHSource
+    ~martini.datacube.DataCube
     martini.beams
     martini.noise
     martini.sph_kernels
     martini.spectral_models
-    martini.martini.GlobalProfile
+    ~martini.martini.GlobalProfile
 
     Examples
     --------
     More detailed examples can be found in the examples directory in the github
     distribution of the package.
 
-    The following example illustrates basic use of martini, using a (very!)
+    The following example illustrates basic use of MARTINI, using a (very!)
     crude model of a gas disk. This example can be run by doing
     'from martini import demo; demo()'::
 
@@ -798,7 +812,7 @@ class Martini(_BaseMartini):
     @property
     def datacube(self):
         """
-        The `martini.datacube.DataCube` object for this mock observation.
+        The :class:`~martini.datacube.DataCube` object for this mock observation.
         """
         return self._datacube
 
@@ -809,23 +823,23 @@ class Martini(_BaseMartini):
         Parameters
         ----------
         skip_validation : bool, optional
-            SPH kernel interpolation onto the DataCube is approximated for
-            increased speed. For some combinations of pixel size, distance
-            and SPH smoothing length, the approximation may break down. The
+            SPH kernel interpolation onto the :class:`~martini.datacube.DataCube`
+            is approximated for increased speed. For some combinations of pixel size,
+            distance and SPH smoothing length, the approximation may break down. The
             kernel class will check whether this will occur and raise a
-            RuntimeError if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter True. (Default: False.)
+            ``RuntimeError`` if so. This validation can be skipped (at the cost
+            of accuracy!) by setting this parameter ``True``. (Default: ``False``)
 
         progressbar : bool, optional
             A progress bar is shown by default. Progress bars work, with perhaps
-            some visual glitches, in parallel. If martini was initialised with
-            `quiet` set to `True`, progress bars are switched off unless explicitly
-            turned on. (Default: None.)
+            some visual glitches, in parallel. If :class:`~martini.martini.Martini` was
+            initialised with ``quiet`` set to ``True``, progress bars are switched off
+            unless explicitly turned on. (Default: ``None``)
 
         ncpu : int
             Number of processes to use in main source insertion loop. Using more than
-            one cpu requires the `multiprocess` module (n.b. not the same as
-            `multiprocessing`). (Default: 1)
+            one cpu requires the :mod:`multiprocess` module (n.b. not the same as
+            ``multiprocessing``). (Default: ``1``)
 
         """
 
@@ -837,11 +851,11 @@ class Martini(_BaseMartini):
 
     def convolve_beam(self):
         """
-        Convolve the beam and DataCube.
+        Convolve the beam and data cube.
         """
 
         if self.beam is None:
-            warn("Skipping beam convolution, no beam object provided to " "Martini.")
+            warn("Skipping beam convolution, no beam object provided to Martini.")
             return
 
         minimum_padding = self.beam.needs_pad()
@@ -879,7 +893,7 @@ class Martini(_BaseMartini):
 
     def add_noise(self):
         """
-        Insert noise into the DataCube.
+        Insert noise into the data cube.
         """
 
         if self.noise is None:
@@ -916,20 +930,20 @@ class Martini(_BaseMartini):
         overwrite=True,
     ):
         """
-        Output the DataCube to a FITS-format file.
+        Output the data cube to a FITS-format file.
 
         Parameters
         ----------
-        filename : string
-            Name of the file to write. '.fits' will be appended if not already
+        filename : str
+            Name of the file to write. ``'.fits'`` will be appended if not already
             present.
 
-        channels : {'frequency', 'velocity'}, optional
-            Type of units used along the spectral axis in output file.
-            (Default: 'frequency'.)
+        channels : str, optional
+            Type of units (``"velocity"`` or ``"frequency"``) used along the spectral axis
+            in output file. (Default: ``"frequency"``)
 
         overwrite: bool, optional
-            Whether to allow overwriting existing files. (Default: True.)
+            Whether to allow overwriting existing files. (Default: ``True``)
         """
 
         self._datacube.drop_pad()
@@ -1029,25 +1043,25 @@ class Martini(_BaseMartini):
         Output the beam to a FITS-format file.
 
         The beam is written to file, with pixel sizes, coordinate system, etc.
-        similar to those used for the DataCube.
+        similar to those used for the :class:`~martini.datacube.DataCube`.
 
         Parameters
         ----------
-        filename : string
-            Name of the file to write. '.fits' will be appended if not already
+        filename : str
+            Name of the file to write. ``".fits"`` will be appended if not already
             present.
 
-        channels : {'frequency', 'velocity'}, optional
-            Type of units used along the spectral axis in output file.
-            (Default: 'frequency'.)
+        channels : str, optional
+            Type of units (``"velocity"`` or ``"frequency"``) used along the spectral axis
+            in output file. (Default: ``"frequency"``)
 
         overwrite: bool, optional
-            Whether to allow overwriting existing files. (Default: True.)
+            Whether to allow overwriting existing files. (Default: ``True``)
 
         Raises
         ------
         ValueError
-            If Martini was initialized without a beam.
+            If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
 
         if self.beam is None:
@@ -1132,30 +1146,30 @@ class Martini(_BaseMartini):
         compact=False,
     ):
         """
-        Output the DataCube and Beam to a HDF5-format file. Requires the h5py
+        Output the data cube and beam to a HDF5-format file. Requires the :mod:`h5py`
         package.
 
         Parameters
         ----------
-        filename : string
-            Name of the file to write. '.hdf5' will be appended if not already
+        filename : str
+            Name of the file to write. ``'.hdf5'`` will be appended if not already
             present.
 
-        channels : {'frequency', 'velocity'}, optional
-            Type of units used along the spectral axis in output file.
-            (Default: 'frequency'.)
+        channels : str, optional
+            Type of units (``"velocity"`` or ``"frequency"``) used along the spectral axis
+            in output file. (Default: ``"frequency"``)
 
         overwrite: bool, optional
-            Whether to allow overwriting existing files. (Default: True.)
+            Whether to allow overwriting existing files. (Default: ``True``)
 
         memmap: bool, optional
-            If True, create a file-like object in memory and return it instead
-            of writing file to disk. (Default: False.)
+            If ``True``, create a file-like object in memory and return it instead
+            of writing file to disk. (Default: ``False``)
 
         compact: bool, optional
-            If True, omit pixel coordinate arrays to save disk space. In this
+            If ``True``, omit pixel coordinate arrays to save disk space. In this
             case pixel coordinates can still be reconstructed from FITS-style
-            keywords stored in the FluxCube attributes. (Default: False.)
+            keywords stored in the FluxCube attributes. (Default: ``False``)
         """
 
         import h5py
@@ -1285,62 +1299,66 @@ class Martini(_BaseMartini):
 
 class GlobalProfile(_BaseMartini):
     """
-    A simplified version of the main Martini class to just produce a spectrum.
+    A simplified version of the main :class:`~martini.martini.Martini` class to just
+    produce a spectrum.
 
     Sometimes only the spatially integrated spectrum of a source is wanted, which makes
-    many parts of the standard Martini process unnecessary. This class streamlines the
+    many parts of the standard MARTINI process unnecessary. This class streamlines the
     process of producing a spatially-integrated spectrum, or "global profile", with some
     specific assumptions:
 
-     - The `GlobalProfile` class does not assume any spatial aperture, instead every
-       particle in the source contributes to the spectrum (unless it falls outside of
-       the spectral bandwidth).
+     - The :class:`~martini.martini.GlobalProfile` class does not assume any spatial
+       aperture, instead every particle in the source contributes to the spectrum (unless
+       it falls outside of the spectral bandwidth).
      - The positions of particles are still used to calculate the line-of-sight vector
        and the velocity along this direction.
 
     There is therefore no need or way to specify a beam or SPH kernel as with the main
-    Martini class. It is also not possible to use Martini's noise modules with this class.
-    If these restrictions are found to be too limiting (for example, if the spectrum
-    within a spatial mask defined by a signal-to-noise or other cut is desired), the best
-    course of action is to produce a spatially-resolved mock observation and derive the
-    spectrum from those data as would be done with "real" observations. This class is
-    mainly intended to efficiently provide a "quick look" at the spectrum, or a reference
-    "ideal" spectrum.
+    :class:`~martini.martini.Martini` class. It is also not possible to use MARTINI's
+    noise modules with this class. If these restrictions are found to be too limiting
+    (for example, if the spectrum within a spatial mask defined by a signal-to-noise or
+    other cut is desired), the best course of action is to produce a spatially-resolved
+    mock observation and derive the spectrum from those data as would be done with "real"
+    observations. This class is mainly intended to efficiently provide a "quick look" at
+    the spectrum, or a reference "ideal" spectrum.
 
     Parameters
     ----------
-    source : an instance of a class derived from martini.sources.sph_source.SPHSource
+    source : SPHSource
+        An instance of a class derived from
+        :class:`~martini.sources.sph_source.SPHSource`.
         A description of the HI emitting object, including position, geometry
         and an interface to the simulation data (SPH particle masses,
-        positions, etc.). Sources leveraging the simobj package for reading
-        simulation data (github.com/kyleaoman/simobj) and a few test sources
-        (e.g. single particle) are provided, creation of customized sources,
-        for instance to leverage other interfaces to simulation data, is
-        straightforward. See sub-module documentation.
+        positions, etc.). See :doc:`sub-module documentation </sources/index>`.
 
-    spectral_model : an instance of a class derived from \
-    spectral_models._BaseSpectrum
+    spectral_model : _BaseSpectrum
+        An instance of a class derived from
+        :class:`~martini.spectral_models._BaseSpectrum`.
         A description of the HI line produced by a particle of given
         properties. A Dirac-delta spectrum, and both fixed-width and
         temperature-dependent Gaussian line models are provided; implementing
-        other models is straightforward. See sub-module documentation.
+        other models is straightforward. See
+        :doc:`sub-module documentation </spectral_models/index>`.
 
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: 64.)
+        Number of channels along the spectral axis. (Default: ``64``)
 
-    channel_width : Quantity, with dimensions of velocity or frequency, optional
+    channel_width : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: 4 km/s.)
+        frequency. (Default: ``4 * U.km / U.s``)
 
-    velocity_centre : Quantity, with dimensions of velocity or frequency, optional
+    velocity_centre : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: 0 km/s.)
+        (Default: ``0 * U.km / U.s``)
 
-    channels : {"frequency", "velocity"}, optional
-            Type of units used along the spectral axis. (Default: "frequency")
+    channels : str, optional
+        Type of units (``"velocity"`` or ``"frequency"``) used along the spectral
+        axis. (Default: ``"frequency"``)
 
     quiet : bool
-        If True, suppress output to stdout. (Default: False)
+        If ``True``, suppress output to stdout. (Default: ``False``)
 
     Examples
     --------
@@ -1412,10 +1430,9 @@ class GlobalProfile(_BaseMartini):
 
     See Also
     --------
-    martini.sources.sph_source.SPHSource
+    ~martini.sources.sph_source.SPHSource
     martini.spectral_models
-    martini.martini.Martini
-
+    ~martini.martini.Martini
     """
 
     def __init__(
@@ -1461,12 +1478,14 @@ class GlobalProfile(_BaseMartini):
 
     def insert_source_in_spectrum(self):
         """
-        Populates the DataCube with flux from the particles in the source.
+        Populates the :class:`~martini.datacube.DataCube` with flux from the particles
+        in the source.
 
-        For the `GlobalProfile` class we assume that every particle in the source
-        contributes (if it falls in the spectral bandwidth) regardless of position on the
-        sky. The line-of-sight vector still depends on the particle positions, so the
-        direction to the individual particles is still taken into account.
+        For the :class:`~martini.martini.GlobalProfile` class we assume that every
+        particle in the source contributes (if it falls in the spectral bandwidth)
+        regardless of  position on the sky. The line-of-sight vector still depends on
+        the particle positions, so the direction to the individual particles is still
+        taken into account.
         """
         # skip_validation=True: all particles can contribute their kernel to the pixel;
         # ncpu=1 since we have 1 pixel and source insertion is parallel over pixels;
@@ -1512,6 +1531,12 @@ class GlobalProfile(_BaseMartini):
 
         The spectrum is calculated when this property is accessed if this hasn't already
         been done.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of flux density.
+            Spatially-integrated spectrum of the source.
         """
         if not hasattr(self, "_spectrum"):
             self.insert_source_in_spectrum()
@@ -1521,6 +1546,17 @@ class GlobalProfile(_BaseMartini):
     def channel_edges(self):
         """
         The edges of the channels for the spectrum.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency or velocity.
+            Edges of the channels with units depending on
+            :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
+
+        See Also
+        --------
+        ~martini.martini.GlobalProfile.channel_mids
         """
         return self._datacube.channel_edges
 
@@ -1528,6 +1564,17 @@ class GlobalProfile(_BaseMartini):
     def channel_mids(self):
         """
         The centres of the channels for the spectrum.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency or velocity.
+            Edges of the channels with units depending on
+            :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
+
+        See Also
+        --------
+        ~martini.martini.GlobalProfile.channel_edges
         """
         return self._datacube.channel_mids
 
@@ -1535,10 +1582,20 @@ class GlobalProfile(_BaseMartini):
     def channel_width(self):
         """
         The width of the channels for the spectrum.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimentions of frequency or velocity.
+            Width of the channels with units depending on
+            :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
         """
         return self._datacube.channel_width
 
     def reset(self):
+        """
+        Re-initializes the spectrum with zero-values.
+        """
         super().reset()
         if hasattr(self, "_spectrum"):
             del self._spectrum
@@ -1557,23 +1614,24 @@ class GlobalProfile(_BaseMartini):
         Parameters
         ----------
         fig : int, optional
-            Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
-            (Default: 1)
+            Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
+            (Default: ``1``)
 
         title : str, optional
-            A title for the figure can be provided. (Default: "")
+            A title for the figure can be provided. (Default: ``""``)
 
         show_vsys : bool, optional
-            If True, draw a vertical line at the source systemic velocity. (Default: True)
+            If ``True``, draw a vertical line at the source systemic velocity.
+            (Default: ``True``)
 
         save : str, optional
-            If provided, the figure is saved using `plt.savefig(save)`. A `.png` or `.pdf`
-            suffix is recommended. (Default: None)
+            If provided, the figure is saved using ``plt.savefig(save)``. A `.png` or
+            `.pdf` suffix is recommended. (Default: ``None``)
 
         Returns
         -------
-        out : matplotlib.figure instance
-            The spectrum figure.
+        out : Figure
+            The spectrum :class:`~matplotlib.figure.Figure`.
         """
         import matplotlib.pyplot as plt
 

@@ -23,25 +23,27 @@ class SPHSource(object):
 
     Parameters
     ----------
-    distance : Quantity, with dimensions of length, optional
+    distance : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: 3 Mpc.)
+        (Default: ``3 * U.Mpc``)
 
-    vpeculiar : Quantity, with dimensions of velocity, optional
+    vpeculiar : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity, added to the velocity from Hubble's law.
-        (Default: 0 km/s.)
+        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
-        Must have a single key, which must be one of `axis_angle`, `rotmat` or
-        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
+        ``L_coords``. Note that the 'y-z' plane will be the one eventually placed in the
         plane of the "sky". The corresponding value must be:
 
-        - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element a Quantity with \
+        - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
         dimensions of angle, indicating the angle to rotate through.
-        - `rotmat` : A (3, 3) numpy.array specifying a rotation.
-        - `L_coords` : A 2-tuple containing an inclination and an azimuthal \
-        angle (both Quantity instances with dimensions of \
+        - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
+        - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
+        angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
         angle). The routine will first attempt to identify a preferred plane \
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
@@ -51,35 +53,43 @@ class SPHSource(object):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: identity rotation matrix.)
+        (Default: ``np.eye(3)``)
 
-    ra : Quantity, with dimensions of angle, optional
-        Right ascension for the source centroid. (Default: 0 deg.)
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension for the source centroid. (Default: ``0 * U.deg``)
 
-    dec : Quantity, with dimensions of angle, optional
-        Declination for the source centroid. (Default: 0 deg.)
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Declination for the source centroid. (Default: ``0 * U.deg``)
 
     h : float, optional
-        Dimensionless hubble constant, H0 = h * 100 km / s / Mpc.
-        (Default: 0.7)
+        Dimensionless hubble constant,
+        :math:`H_0 = h (100\\,\\mathrm{km}\\,\\mathrm{s}^{-1}\\,\\mathrm{Mpc}^{-1})`.
+        (Default: ``0.7``)
 
-    T_g : Quantity, with dimensions of temperature
+    T_g : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of temperature.
         Particle temperature.
 
-    mHI_g : Quantity, with dimensions of mass
+    mHI_g : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of mass.
         Particle HI mass.
 
-    xyz_g : Quantity, with dimensions of length
+    xyz_g : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity` , with dimensions of length.
         Particle position offset from source centroid. Note that the 'y-z'
         plane is that eventually placed in the plane of the "sky"; 'x' is
         the axis corresponding to the "line of sight".
 
-    vxyz_g : Quantity, with dimensions of velocity
+    vxyz_g : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Particle velocity offset from source centroid. Note that the 'y-z'
         plane is that eventually placed in the plane of the "sky"; 'x' is
         the axis corresponding to the "line of sight".
 
-    hsm_g : Quantity, with dimensions of length
+    hsm_g : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of length.
         Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
         Smoothing lengths are variously defined in the literature as the radius where
         the kernel amplitude reaches 0, or some rational fraction of this radius (and
@@ -89,9 +99,9 @@ class SPHSource(object):
 
     coordinate_axis: int, optional
         Rank of axis corresponding to position or velocity of a single
-        particle. I.e. coordinate_axis=0 if shape is (3, N), or 1 if (N, 3).
-        Usually prefer to omit this as it can be determined automatically.
-        (Default: None.)
+        particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
+        Usually prefer to omit this as it can be determined automatically, but is
+        ambiguous for sources with exactly 3 particles. (Default: ``None``)
     """
 
     def __init__(
@@ -206,9 +216,9 @@ class SPHSource(object):
 
         Parameters
         ----------
-        mask : array_like, with boolean-like dtype
-            Remove particles with indices corresponding to False values from
-            the source arrays.
+        mask : ~numpy.typing.ArrayLike
+            Boolean mask. Remove particles with indices corresponding to
+            ``False`` values from the source arrays.
         """
 
         if mask.size != self.npart:
@@ -239,15 +249,15 @@ class SPHSource(object):
 
         Parameters
         ----------
-        axis_angle : 2-tuple
-            First element one of {'x', 'y', 'z'} for the axis to rotate about,
-            second element a Quantity with dimensions of angle, indicating the
-            angle to rotate through (right-handed rotation).
-        rotmat : array_like with shape (3, 3)
-            Rotation matrix.
-        L_coords : 2-tuple or 3-tuple
+        axis_angle : tuple
+            First element one of {``"x"``, ``"y"``, ``"z"``} for the axis to rotate about,
+            second element a :class:`~astropy.units.Quantity` with dimensions of angle,
+            indicating the angle to rotate through (right-handed rotation).
+        rotmat : ~numpy.typing.ArrayLike
+            Rotation matrix with shape (3, 3).
+        L_coords : tuple
             First element containing an inclination, second element an
-            azimuthal angle (both Quantity instances with
+            azimuthal angle (both :class:`~astropy.units.Quantity` instances with
             dimensions of angle). The routine will first attempt to identify
             a preferred plane based on the angular momenta of the central 1/3
             of particles in the source. This plane will then be rotated to lie
@@ -307,8 +317,8 @@ class SPHSource(object):
 
         Parameters
         ----------
-        translation_vector : Quantity with shape (3, ), with dimensions of \
-        length
+        translation_vector : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of length.
             Vector by which to offset the source particle coordinates.
         """
 
@@ -323,8 +333,9 @@ class SPHSource(object):
 
         Parameters
         ----------
-        translation_vector : Quantity with shape (3, ), with dimensions of \
-        velocity
+        translation_vector : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of
+            velocity.
             Vector by which to offset the source particle velocities.
         """
 
@@ -339,13 +350,13 @@ class SPHSource(object):
 
         This includes the rotations applied for RA and Dec. The rotation matrix can be
         applied to astropy coordinates (e.g. a
-        :class:`~astropy.coordinates.CartesianRepresentation`) as
-        `coordinates.transform(np.loadtxt(fname))`.
+        :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation`) as
+        ``coordinates.transform(np.loadtxt(fname))``.
 
         Parameters
         ----------
-        fname : str, or file handle
-            File in which to save rotation matrix.
+        fname : str
+            File in which to save rotation matrix. A file handle can also be passed.
         """
 
         np.savetxt(fname, self.current_rotation)
@@ -374,39 +385,41 @@ class SPHSource(object):
         ----------
         max_points : int, optional
             Maximum number of points to draw per panel, the particles will be randomly
-            subsampled if the source has more. (Default: 1000)
+            subsampled if the source has more. (Default: ``1000``)
 
         fig : int, optional
-            Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
-            (Default: 1)
+            Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
+            (Default: ``1``)
 
-        lim : Quantity with dimensions of length, optional
+        lim : ~astropy.units.Quantity, optional
+            :class:`~astropy.units.Quantity`, with dimensions of length.
             The coordinate axes extend from -lim to lim. If unspecified, the maximum
             absolute coordinate of particles in the source is used. (Default: None)
 
-        vlim : Quantity with dimensions of speed, optional
-            The velocity axes and colour bar extend from -vlim to vlim. If unspecified,
-            the maximum absolute velocity of particles in the source is used.
-            (Default: None)
+        vlim : ~astropy.units.Quantity, optional
+            :class:`~astropy.units.Quantity`, with dimensions of speed.
+            The velocity axes and colour bar extend from ``-vlim`` to ``vlim``. If
+            unspecified, the maximum absolute velocity of particles in the source is used.
+            (Default: ``None``)
 
         point_scaling : str, optional
             By default points are scaled in size and transparency according to their HI
             mass and the smoothing length (loosely proportional to their surface
             densities, but with different scaling to achieve a visually useful plot). For
             some sources the automatic scaling may not give useful results, using
-            point_scaling="fixed" will plot points of constant size without opacity.
-            (Default: "auto")
+            ``point_scaling="fixed"`` will plot points of constant size without opacity.
+            (Default: ``"auto"``)
 
         title : str, optional
-            A title for the figure can be provided. (Default: "")
+            A title for the figure can be provided. (Default: ``""``)
 
         save : str, optional
-            If provided, the figure is saved using `plt.savefig(save)`. A `.png` or `.pdf`
-            suffix is recommended. (Default: None)
+            If provided, the figure is saved using ``plt.savefig(save)``. A ``.png`` or
+            ``.pdf`` suffix is recommended. (Default: ``None``)
 
         Returns
         -------
-        out : matplotlib.figure instance
+        out : ~matplotlib.figure.Figure
             The preview figure.
         """
         import matplotlib.pyplot as plt

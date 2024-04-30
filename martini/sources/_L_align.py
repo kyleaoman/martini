@@ -9,6 +9,35 @@ import astropy.units as U
 
 
 def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
+    """
+    Determine the rotation matrix to align with the angular momentum vector of particles.
+
+    Parameters
+    ----------
+    xyz : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Particle coordinates.
+
+    vxyz : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Particle velocities.
+
+    m : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of mass.
+        Particle masses.
+
+    frac : float, optional
+        Fraction of particles with smallest radii to use in calculation.
+        (Default: ``0.3``)
+
+    saverot : str, optional
+        If not ``None``, name of file in which to save the rotation matrix. Uses
+        :func:`numpy.save`, so a ``.npy`` extension is recommended.
+
+    Laxis : str, optional
+        One of ``"x"``, ``"y"``, ``"z"``, specifying the axis to which the angular
+        momentum should be aligned. (Default: ``"z"``)
+    """
     transposed = False
     if xyz.ndim != 2:
         raise ValueError(

@@ -11,45 +11,51 @@ class DataCube(object):
 
     Basic usage simply involves initializing with the parameters listed below.
     More advanced usage might arise if designing custom classes for other sub-
-    modules, especially beams. To initialize a DataCube from a saved state, see
-    DataCube.load_state.
+    modules, especially beams. To initialize a :class:`~martini.datacube.DataCube`
+    from a saved state, see :meth:`~martini.datacube.DataCube.load_state`.
 
     Parameters
     ----------
     n_px_x : int, optional
         Pixel count along the x (RA) axis. Even integers strongly preferred.
-        (Default: 256.)
+        (Default: ``256``)
 
     n_px_y : int, optional
         Pixel count along the y (Dec) axis. Even integers strongly preferred.
-        (Default: 256.)
+        (Default: ``256``)
 
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: 64.)
+        Number of channels along the spectral axis. (Default: ``64``)
 
-    px_size : Quantity, with dimensions of angle, optional
-        Angular scale of one pixel. (Default: 15 arcsec.)
+    px_size : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Angular scale of one pixel. (Default: ``15 * U.arcsec``)
 
-    channel_width : Quantity, with dimensions of velocity or frequency, optional
+    channel_width : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: 4 km/s.)
+        frequency. (Default: ``4 * U.km * U.s**-1``)
 
-    velocity_centre : Quantity, with dimensions of velocity or frequency, optional
+    velocity_centre : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: 0 km/s.)
+        (Default: ``0 * U.km * U.s**-1``)
 
-    ra : Quantity, with dimensions of angle, optional
-        Right ascension of the cube centroid. (Default: 0 deg.)
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension of the cube centroid. (Default: ``0 * U.deg``)
 
-    dec : Quantity, with dimensions of angle, optional
-        Declination of the cube centroid. (Default: 0 deg.)
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` with dimensions of angle.
+        Declination of the cube centroid. (Default: ``0 * U.deg``)
 
     stokes_axis : bool, optional
-        Whether the datacube should be initialized with a Stokes' axis. (Default: False.)
+        Whether the datacube should be initialized with a Stokes' axis.
+        (Default: ``False``)
 
     See Also
     --------
-    load_state
+    ~martini.datacube.DataCube.load_state
     """
 
     def __init__(
@@ -106,6 +112,9 @@ class DataCube(object):
         return
 
     def _init_wcs(self):
+        """
+        Initialize the World Coordinate System (WCS).
+        """
         self.wcs = wcs.WCS(naxis=3)
         self.wcs.wcs.crpix = [
             self.n_px_x / 2.0 + 0.5,
@@ -261,12 +270,13 @@ class DataCube(object):
 
         Parameters
         ----------
-        pad : 2-tuple (or other sequence)
-            Number of pixels to add in the x (RA) and y (Dec) directions.
+        pad : tuple
+            2-tuple (or other sequence) containing the number of pixels to add in the
+            x (RA) and y (Dec) directions.
 
         See Also
-        ----------
-        drop_pad
+        --------
+        ~martini.datacube.DataCube.drop_pad
         """
 
         if self.padx > 0 or self.pady > 0:
@@ -289,14 +299,14 @@ class DataCube(object):
 
     def drop_pad(self):
         """
-        Remove the padding added using add_pad.
+        Remove the padding added using :meth:`~martini.datacube.DataCube.add_pad`.
 
-        After convolution, the pad region contains meaningless information and
-        can be discarded.
+        After convolution, the pad region contains meaningless information and can be
+        discarded.
 
         See Also
         --------
-        add_pad
+        ~martini.datacube.DataCube.add_pad
         """
 
         if (self.padx == 0) and (self.pady == 0):
@@ -311,15 +321,15 @@ class DataCube(object):
 
     def copy(self):
         """
-        Produce a copy of the DataCube.
+        Produce a copy of the :class:`~martini.datacube.DataCube`.
 
-        May be especially useful to create multiple datacubes with differing
-        intermediate steps.
+        May be especially useful to create multiple datacubes with differing intermediate
+        steps.
 
         Returns
         -------
-        out : DataCube
-            Copy of the DataCube object.
+        out : martini.datacube.DataCube
+            Copy of the :class:`~martini.datacube.DataCube` object.
         """
         in_freq_channel_mode = self._freq_channel_mode
         if in_freq_channel_mode:
@@ -344,10 +354,11 @@ class DataCube(object):
 
     def save_state(self, filename, overwrite=False):
         """
-        Write a file from which the current DataCube state can be
-        re-initialized (see DataCube.load_state). Note that h5py must be
-        installed for use. NOT for outputting mock observations, for this
-        see Martini.write_fits and Martini.write_hdf5.
+        Write a file from which the current :class:`~martini.datacube.DataCube`
+        state can be re-initialized (see :meth:`~martini.datacube.DataCube.load_state`).
+        Note that :mod:`h5py` must be installed for use. NOT for outputting mock
+        observations, for this see :meth:`~martini.martini.Martini.write_fits` and
+        :meth:`~martini.martini.Martini.write_hdf5`.
 
         Parameters
         ----------
@@ -355,11 +366,11 @@ class DataCube(object):
             File to write.
 
         overwrite : bool
-            Whether to allow overwriting existing files (default: False).
+            Whether to allow overwriting existing files. (default: ``False``)
 
         See Also
         --------
-        load_state
+        ~martini.datacube.DataCube.load_state
         """
         import h5py
 
@@ -399,10 +410,10 @@ class DataCube(object):
     @classmethod
     def load_state(cls, filename):
         """
-        Initialize a DataCube from a state saved using DataCube.save_state.
-        Note that h5py must be installed for use. Note that ONLY the DataCube
-        state is restored, other modules and their configurations are not
-        affected.
+        Initialize a :class:`~martini.datacube.DataCube` from a state saved using
+        :meth:`~martini.datacube.DataCube.save_state`. Note that :mod:`h5py` must be
+        installed for use. Note that ONLY the :class:`~martini.datacube.DataCube`
+        state is restored, other modules and their configurations are not affected.
 
         Parameters
         ----------
@@ -411,12 +422,12 @@ class DataCube(object):
 
         Returns
         -------
-        out : martini.DataCube
-            A suitably initialized DataCube object.
+        out : martini.datacube.DataCube
+            A suitably initialized :class:`~martini.datacube.DataCube` object.
 
         See Also
         --------
-        save_state
+        ~martini.datacube.DataCube.save_state
         """
         import h5py
 
@@ -461,7 +472,7 @@ class DataCube(object):
         Returns
         -------
         out : str
-            Text representation of the DataCube._array contents.
+            Text representation of the :attr:`~martini.datacube.DataCube._array` contents.
         """
         return self._array.__repr__()
 
@@ -473,15 +484,17 @@ class _GlobalProfileDataCube(DataCube):
     Parameters
     ----------
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: 64.)
+        Number of channels along the spectral axis. (Default: ``64``)
 
-    channel_width : Quantity, with dimensions of velocity or frequency, optional
+    channel_width : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: 4 km/s.)
+        frequency. (Default: ``4 U.km * U.s**-1``)
 
-    velocity_centre : Quantity, with dimensions of velocity or frequency, optional
+    velocity_centre : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: 0 km/s.)
+        (Default: ``0 * U.km * U.s**-1``)
     """
 
     def __init__(

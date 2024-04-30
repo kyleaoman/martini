@@ -8,6 +8,25 @@ from ..sph_kernels import _CubicSplineKernel, find_fwhm
 
 
 def api_get(path, params=None, api_key=None):
+    """
+    Make a request to the TNG web API service.
+
+    Parameters
+    ----------
+    path : str
+        The request to submit to the API.
+
+    params : dict, optional
+        Additional options for the API request. (Default: ``None``)
+
+    api_key : str
+        API key to authenticate to the TNG web API service. (Default: ``None``)
+
+    Returns
+    -------
+    out : str
+        Response from the API, a JSON-encoded string.
+    """
     import requests
 
     baseUrl = "http://www.tng-project.org/api/"
@@ -19,6 +38,25 @@ def api_get(path, params=None, api_key=None):
 
 
 def cutout_file(simulation, snapNum, haloID):
+    """
+    Helper to generate a string identifying a cutout file.
+
+    Parameters
+    ----------
+    simulation : str
+        Identifier of the simulation.
+
+    snapNum : int
+        Snapshot identifier.
+
+    haloID : int
+        Halo identifier.
+
+    Returns
+    -------
+    out : str
+        A string to use for a cutout file.
+    """
     return f"martini-cutout-{simulation}-{snapNum}-{haloID}.hdf5"
 
 
@@ -35,12 +73,12 @@ class TNGSource(SPHSource):
     https://www.tng-project.org/users/login/ or register at
     https://www.tng-project.org/users/register/ then obtain your API
     key from https://www.tng-project.org/users/profile/ and pass to TNGSource as the
-    api_key parameter. An API key is not required if logged into the TNG JupyterLab.
+    ``api_key`` parameter. An API key is not required if logged into the TNG JupyterLab.
 
     Parameters
     ----------
     simulation : str
-        Simulation identifier string, for example "TNG100-1", see
+        Simulation identifier string, for example ``"TNG100-1"``, see
         https://www.tng-project.org/data/docs/background/
 
     snapNum : int
@@ -63,7 +101,7 @@ class TNGSource(SPHSource):
         https://www.tng-project.org/users/login/ or register at
         https://www.tng-project.org/users/register/ then obtain your API
         key from https://www.tng-project.org/users/profile/ and provide as a string. An
-        API key is not required if logged into the TNG JupyterLab. (Default: None.)
+        API key is not required if logged into the TNG JupyterLab. (Default: ``None``)
 
     cutout_dir: str, optional
         Ignored if running on the TNG JupyterLab. Directory in which to search for and
@@ -73,27 +111,29 @@ class TNGSource(SPHSource):
         data will always be downloaded. If a `cutout_dir` is provided, it will first be
         searched for the required data. If the data are found, the local copy is used,
         otherwise the data are downloaded and a local copy is saved in `cutout_dir` for
-        future use. (Default: None.)
+        future use. (Default: ``None``)
 
-    distance : Quantity, with dimensions of length, optional
+    distance : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: 3 Mpc.)
+        (Default: ``3 * U.Mpc``)
 
-    vpeculiar : Quantity, with dimensions of velocity, optional
+    vpeculiar : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity, added to the velocity from Hubble's law.
-        (Default: 0 km/s.)
+        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
-        Must have a single key, which must be one of `axis_angle`, `rotmat` or
-        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
+        ``L_coords``. Note that the 'y-z' plane will be the one eventually placed in the
         plane of the "sky". The corresponding value must be:
 
-        - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element a Quantity with \
+        - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
         dimensions of angle, indicating the angle to rotate through.
-        - `rotmat` : A (3, 3) numpy.array specifying a rotation.
-        - `L_coords` : A 2-tuple containing an inclination and an azimuthal \
-        angle (both Quantity instances with dimensions of \
+        - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
+        - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
+        angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
         angle). The routine will first attempt to identify a preferred plane \
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
@@ -103,13 +143,16 @@ class TNGSource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: identity rotation matrix.)
+        (Default: ``np.eye(3)``)
 
-    ra : Quantity, with dimensions of angle, optional
-        Right ascension for the source centroid. (Default: 0 deg.)
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension for the source centroid. (Default: ``0 * U.deg``)
 
-    dec : Quantity, with dimensions of angle, optional
-        Declination for the source centroid. (Default: 0 deg.)
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Declination for the source centroid. (Default: ``0 * U.deg``)
+
     """
 
     def __init__(

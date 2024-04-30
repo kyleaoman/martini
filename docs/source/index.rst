@@ -2,6 +2,10 @@
 
 In a hurry? :doc:`Quick-start <getting_started/index>`.
 
+Browse repository_ on GitHub.
+
+.. _repository: https://github.com/kyleaoman/martini
+
 Overview
 ========
 
