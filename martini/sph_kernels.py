@@ -1545,7 +1545,7 @@ class WendlandC6Kernel(_AdaptiveKernel):
         0 &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and 
+    This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
     :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
     surface integral of the WendlandC6 kernel is not accurate to within better than 1%.
     To strictly use the WendlandC6 kernel, use
