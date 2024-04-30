@@ -1,10 +1,10 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Build status| |Documentation status|
+|Tests| |Documentation status|
 
-.. |Build status| image:: https://github.com/kyleaoman/martini/actions/workflows/code_quality.yml/badge.svg
-    :target: https://github.com/kyleaoman/martini/actions/workflows/code_quality.yml
-    :alt: Build Status
+.. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
+    :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
+    :alt: Tests
 .. |Documentation status| image:: https://readthedocs.org/projects/martini/badge/?version=latest
     :target: https://martini.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation status
