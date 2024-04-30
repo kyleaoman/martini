@@ -6,6 +6,22 @@ from scipy.optimize import fsolve
 
 
 def find_fwhm(f):
+    """
+    Solve for the FWHM of the input function.
+
+    Intended for SPH kernels and therefore assumes maximum occurs at :math:`f(0)` and
+    symmetry around :math:`f(0)`.
+
+    Parameters
+    ----------
+    f : callable
+        Function for which to find the FWHM.
+
+    Returns
+    -------
+    out : float
+        FWHM of the input function.
+    """
     return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, 0.5)[0]
 
 
@@ -13,21 +29,24 @@ class _BaseSPHKernel(object):
     """
     Abstract base class for classes implementing SPH kernels to inherit from.
 
-    Classes inheriting from _BaseSPHKernel must implement three methods:
-    `kernel`, `_kernel_integral` and `_validate`.
+    Classes inheriting from :class:`~martini.sph_kernels._BaseSPHKernel` must implement
+    three methods: :meth:`~martini.sph_kernels._BaseSPHKernel.kernel`,
+    :meth:`martini.sph_kernels._BaseSPHKernel._kernel_integral` and
+    :meth:`~martini.sph_kernels._BaseSPHKernel_validate`.
 
-    `kernel` should define the kernel function, normalized such that its volume
-    integral is 1.
+    :meth:`~martini.sph_kernels._BaseSPHKernel.kernel` should define the kernel function,
+    normalized such that its volume integral is ``1``.
 
-    `_kernel_integral` should define the integral of the kernel over a pixel
-    given the distance between the pixel centre and the particle centre, and
-    the smoothing length (both in units of pixels). The integral should be
-    normalized so that evaluated over the entire kernel it is equal to 1.
+    :meth:`~martini.sph_kernels._BaseSPHKernel._kernel_integral` should define the
+    integral of the kernel over a pixel given the distance between the pixel centre and
+    the particle centre, and the smoothing length (both in units of pixels). The integral
+    should be normalized so that evaluated over the entire kernel it is equal to ``1``.
 
-    `_validate` should check whether any approximations converge to sufficient
-    accuracy (for instance, depending on the ratio of the pixel size and
-    smoothing length), and raise an error if not. It should return a boolean
-    array with True for particles which pass validation, and False otherwise.
+    :meth:`~martini.sph_kernels._BaseSPHKernel._validate` should check whether any
+    approximations converge to sufficient accuracy (for instance, depending on the
+    ratio of the pixel size and smoothing length), and raise an error if not. It should
+    return a boolean array with ``True`` for particles which pass validation, and
+    ``False`` otherwise.
     """
 
     __metaclass__ = ABCMeta
@@ -41,16 +60,19 @@ class _BaseSPHKernel(object):
         Calculate kernel integral using scaled smoothing lengths.
 
         This is the method that should be called by other modules in
-        martini, rather than '_kernel_integral'.
+        :mod:`martini`, rather than
+        :meth:`~martini.sph_kernels._BaseSPHKernel._kernel_integral`.
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
 
         Returns
         -------
-        out : Quantity, with dimensions of pixels^-2
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels^-2.
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
         if mask is not None:
@@ -68,20 +90,41 @@ class _BaseSPHKernel(object):
         Verify kernel accuracy using scaled smoothing lengths.
 
         This is the method that should be called by other modules in
-        martini, rather than '_validate'.
+        :mod:`martini`, rather than :meth:`~martini.sph_kernels._BaseSPHKernel._validate`.
 
         Parameters
         ----------
         noraise : bool
-            If True, don't raise error if validation fails (default: False).
+            If ``True``, don't raise error if validation fails. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
 
         return self._validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
     def _validate_error(self, msg, sm_lengths, valid, noraise=False, quiet=False):
+        """
+        Function managing handling of kernel validation errors.
+
+        Parameters
+        ----------
+        msg : str
+            Error message.
+
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
+            Particle smoothing lengths in pixel units.
+
+        valid : ~numpy.typing.ArrayLike
+            Boolean array specifying which particles fail validation.
+
+        noraise : bool
+            If ``True``, don't raise error if validation fails. (Default: ``False``)
+
+        quiet : bool
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+        """
         if not quiet:
             print(f"    ---------{self.__class__.__name__} VALIDATION---------")
             print("    Median smoothing length: ", np.median(sm_lengths), "px")
@@ -117,15 +160,15 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        r : array_like or Quantity
-            Distance parameter, same units as h.
-        h : array_like or Quantity
-            Smoothing scale parameter (FWHM), same units as r.
+        r : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+            Distance parameter, same units (if applicable) as ``h``.
+        h : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+            Smoothing scale parameter (FWHM), same units (if applicable) as ``r``.
 
         Returns
         -------
-        out : array_like
-            Kernel value at position(s) r / h.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at position(s) ``r / h``.
         """
 
         q = np.array(r / h / self._rescale)
@@ -145,8 +188,8 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        mask : array_like containing booleans
-            Mask to apply to any maskable attributes.
+        mask : ~numpy.typing.ArrayLike
+            Boolean mask to apply to any maskable attributes.
         """
         self.sm_lengths = self.sm_lengths[mask]
         self.sm_ranges = self.sm_ranges[mask]
@@ -159,10 +202,10 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or inheriting class) instance
+        source : ~martini.sources.sph_source.SPHSource
             The source providing the kernel sizes.
 
-        datacube : martini.DataCube instance
+        datacube : martini.datacube.DataCube
             The datacube providing the pixel scale.
         """
         self.sm_lengths = np.arctan(source.hsm_g / source.skycoords.distance).to(
@@ -187,13 +230,13 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
         pass
 
@@ -204,16 +247,20 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : array_like, containing boolean array or slice
-            If the kernel has other internal properties to mask, it may use this.
+        mask : ~numpy.typing.ArrayLike or slice
+            Boolean array, or slice. If the kernel has other internal properties to
+            mask, it may use this.
 
         Returns
         -------
-        out : Quantity, with dimensions of pixels^-2
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels^-2.
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
 
@@ -229,19 +276,20 @@ class _BaseSPHKernel(object):
         and the smoothing length is sufficiently large, or sufficiently small.
         This method should check these conditions and raise errors when
         appropriate. The smoothing lengths are provided normalized to the pixel
-        size. _AdaptiveKernel needs to force errors not to raise, other classes
-        should just provide **kwargs.
+        size. :class:`~martini.sph_kernels._AdaptiveKernel` needs to force errors
+        not to raise, other classes should just define ``**kwargs`` in the signature.
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in units of pixels.
 
-        noraise: bool
-            If True, suppress exceptions.
+        noraise : bool
+            If ``True``, suppress exceptions. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
 
         pass
@@ -293,13 +341,13 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
 
         W = np.where(q < 1, np.power(1 - q, 4) * (4 * q + 1), np.zeros(q.shape))
@@ -316,16 +364,19 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : array_like, containing boolean array or slice
-            If the kernel has other internal properties to mask, it may use this.
+        mask : ~numpy.typing.ArrayLike or slice
+            Boolean array, or slice. If the kernel has other internal properties to mask,
+            it may use this.
 
         Returns
         -------
-        out : array_like
+        out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
 
@@ -348,24 +399,25 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If True, suppress kernel validation errors (default: False).
+            If ``True``, suppress kernel validation errors. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels._WendlandC2Kernel._validate:\n"
+                "martini.sph_kernels._WendlandC2Kernel._validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC2 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
-                "Martini.Martini.insert_source_in_cube with "
+                "martini.martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
                 "care.\n",
                 sm_lengths,
@@ -422,13 +474,13 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
 
         W = np.where(
@@ -450,16 +502,19 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in pixels.
-        mask : array_like, containing boolean array or slice
-            If the kernel has other internal properties to mask, it may use this.
+        mask : ~numpy.typing.ArrayLike or slice
+            Boolean array, or slice. If the kernel has other internal properties to mask,
+            it may use this.
 
         Returns
         -------
-        out : array_like
+        out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
 
@@ -565,25 +620,26 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If True, suppress kernel validation errors (default: False).
+            If ``True``, suppress kernel validation errors. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
 
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels._WendlandC6Kernel._validate:\n"
+                "martini.sph_kernels._WendlandC6Kernel._validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for WendlandC6 kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
-                "Martini.Martini.insert_source_in_cube with "
+                "martini.martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
                 "care.",
                 sm_lengths,
@@ -645,13 +701,13 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
 
         W = np.where(
@@ -671,16 +727,19 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels
             Particle smoothing lengths, in pixels.
-        mask : array_like, containing boolean array or slice
-            If the kernel has other internal properties to mask, it may use this.
+        mask : ~numpy.typing.ArrayLike or slice
+            Boolean array, or slice. If the kernel has other internal properties to mask,
+            it may use this.
 
         Returns
         -------
-        out : array_like
+        out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
 
@@ -729,25 +788,26 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If True, suppress kernel validation errors (default: False).
+            If ``True``, suppress kernel validation errors. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
 
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels._CubicSplineKernel._validate:\n"
+                "martini.sph_kernels._CubicSplineKernel._validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for CubicSplineKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
-                "Martini.Martini.insert_source_in_cube with "
+                "martini.martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
                 "care.",
                 sm_lengths,
@@ -783,8 +843,9 @@ class _GaussianKernel(_BaseSPHKernel):
     Parameters
     ----------
     truncate : float, optional
-        Number of standard deviations at which to truncate kernel (default=3).
+        Number of standard deviations at which to truncate kernel.
         Truncation radii <2 would lead to large errors and are not permitted.
+        (Default: ``3``)
     """
 
     def __init__(self, truncate=3.0):
@@ -831,13 +892,13 @@ class _GaussianKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
 
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
@@ -855,22 +916,25 @@ class _GaussianKernel(_BaseSPHKernel):
         """
         Calculate the kernel integral over a pixel.
 
-        The 3 integrals (along dx, dy, dz) are evaluated exactly, however the
-        truncation is implemented approximately, erring on the side of
+        The 3 integrals (along :math:`dx`, :math:`dy`, :math:`dz`) are evaluated exactly,
+        however the truncation is implemented approximately, erring on the side of
         integrating slightly further than the truncation radius.
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : array_like, containing boolean array or slice
-            If the kernel has other internal properties to mask, it may use this.
+        mask : ~numpy.typing.ArrayLike or slice
+            Boolean array, or slice. If the kernel has other internal properties to mask,
+            it may use this.
 
         Returns
         -------
-        out : array_like
+        out : ~numpy.typing.ArrayLike
             Kernel integral over the pixel area.
         """
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
@@ -901,24 +965,25 @@ class _GaussianKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If True, suppress kernel validation errors (default: False).
+            If ``True``, suppress kernel validation errors. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels._GaussianKernel._validate:\n"
+                "martini.sph_kernels._GaussianKernel._validate:\n"
                 f"SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for GaussianKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
-                "Martini.Martini.insert_source_in_cube with "
+                "martini.martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
                 "care. Note that the minimum size depends on the kernel truncation.",
                 sm_lengths,
@@ -944,7 +1009,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
     Parameters
     ----------
     size_in_fwhm : float
-        In principle the width of a DiracDelta kernel is 0, but this would
+        In principle the width of a Dirac-delta kernel is 0, but this would
         lead to no particles contributing to any pixels. Ideally this would
         be set to approximately the size of the pixel, but setting it to
         the smoothing length (1.0) is acceptable given the validation condition.
@@ -974,13 +1039,13 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
 
         return np.where(q, np.zeros(q.shape), np.inf * np.ones(q.shape))
@@ -995,14 +1060,16 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
 
         Returns
         -------
-        out : array_like
+        out : ~numpy.typing.ArrayLike
             Kernel integral over the pixel area.
         """
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
@@ -1017,24 +1084,25 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If True, suppress kernel validation errors (default: False).
+            If ``True``, suppress kernel validation errors. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
 
         valid = sm_lengths <= self.max_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels.DiracDeltaKernel._validate:\n"
+                "martini.sph_kernels.DiracDeltaKernel._validate:\n"
                 f"provided smoothing scale (FWHM) must be <= {self.max_valid_size:f} "
                 "px in size for DiracDelta kernel to be a "
                 "reasonable approximation. Call "
-                "Martini.Martini.insert_source_in_cube with "
+                "martini.martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True' to override at the "
                 "cost of accuracy, but use this with care.",
                 sm_lengths,
@@ -1057,13 +1125,15 @@ class _AdaptiveKernel(_BaseSPHKernel):
     will be used to smooth the particle onto the pixel grid. Note that the
     initialized source and datacube instances are required as the smoothing
     lengths and pixel sizes must be known at initialization of the
-    _AdaptiveKernel module. Note that if `skip_validation` is used, any
-    particles with no valid kernel will default to the first kernel in the
+    :class:`~martini.sph_kernels._AdaptiveKernel` class. Note that if ``skip_validation``
+    is used, any particles with no valid kernel will default to the first kernel in the
     list.
 
     Parameters
     ----------
-    kernels : iterable, containing classes inheriting from _BaseSPHKernel
+    kernels : iterable
+        An iterable containing classes inheriting from
+        :class:`~martini.sph_kernels._BaseSPHKernel`.
         Kernels to use, ordered by decreasing priority.
 
     """
@@ -1081,10 +1151,10 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        source : martini.sources.SPHSource (or inheriting class) instance
+        source : ~martini.sources.sph_source.SPHSource
             The source providing the kernel sizes.
 
-        datacube : martini.DataCube instance
+        datacube : martini.datacube.DataCube
             The datacube providing the pixel scale.
         """
 
@@ -1115,8 +1185,8 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        mask : array_like containing booleans
-            Mask to apply to any maskable attributes.
+        mask : ~numpy.typing.ArrayLike
+            Boolean mask to apply to any maskable attributes.
         """
         self.size_in_fwhm = self.size_in_fwhm[mask]
         self._rescale = self._rescale[mask]
@@ -1131,15 +1201,15 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        r : array_like or Quantity
-            Distance parameter, same units as h.
-        h : array_like or Quantity
-            Smoothing scale parameter (FWHM), same units as r.
+        r : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+            Distance parameter, same units as ``h``.
+        h : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+            Smoothing scale parameter (FWHM), same units as ``r``.
 
         Returns
         -------
-        out : array_like
-            Kernel value at position(s) r / h.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at position(s) ``r / h``.
         """
 
         return self.kernels[0].eval_kernel(r, h)
@@ -1150,13 +1220,13 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
         return self.kernels[0].kernel(q)
 
@@ -1168,16 +1238,19 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : array_like, containing boolean array or slice
-            If the kernel has other internal properties to mask, it may use this.
+        mask : ~numpy.typing.ArrayLike or slice
+            Boolean array, or slice. If the kernel has other internal properties to mask,
+            it may use this.
 
         Returns
         -------
-        out : array_like
+        out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
 
@@ -1194,24 +1267,25 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If True, suppress kernel validation errors (default: False).
+            If ``True``, suppress kernel validation errors. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
 
         valid = self.kernel_indices >= 0
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels._AdaptiveKernel._validate:\n"
+                "martini.sph_kernels._AdaptiveKernel._validate:\n"
                 "Some particles have no kernel candidate for which "
                 "accuracy passes validation.\nThis check "
                 "may be disabled by calling "
-                "Martini.Martini.insert_source_in_cube with "
+                "martini.martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
                 "care.\n",
                 sm_lengths,
@@ -1278,13 +1352,13 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
 
         W = np.zeros(q.shape)
@@ -1311,16 +1385,19 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        dij : Quantity, with dimensions of pixels
+        dij : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
-        h : Quantity, with dimensions of pixels
+        h : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in pixels.
-        mask : array_like, containing boolean array or slice
-            If the kernel has other internal properties to mask, it may use this.
+        mask : ~numpy.typing.ArrayLike or slice
+            Boolean array, or slice. If the kernel has other internal properties to mask,
+            it may use this.
 
         Returns
         -------
-        out : array_like
+        out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
 
@@ -1359,25 +1436,26 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        sm_lengths : Quantity, with dimensions of pixels
+        sm_lengths : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If True, suppress kernel validation errors (default: False).
+            If ``True``, suppress kernel validation errors. (Default: ``False``)
 
         quiet : bool
-            If True, suppress reports on smoothing lengths (default: False).
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
 
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
-                "Martini.sph_kernels._QuarticSplineKernel._validate:\n"
+                "martini.sph_kernels._QuarticSplineKernel._validate:\n"
                 "SPH smoothing lengths must be >= {self.min_valid_size:f} px in "
                 "size for QuarticSplineKernel kernel integral "
                 "approximation accuracy within 1%.\nThis check "
                 "may be disabled by calling "
-                "Martini.Martini.insert_source_in_cube with "
+                "martini.martini.Martini.insert_source_in_cube with "
                 "'skip_validation=True', but use this with "
                 "care.",
                 sm_lengths,
@@ -1407,10 +1485,11 @@ class WendlandC2Kernel(_AdaptiveKernel):
         0 &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
-    approximation used for the surface integral of the WendlandC2 kernel is not accurate
-    to within better than 1%. To strictly use the WendlandC2 kernel, use
-    `martini.sph_kernels._WendlandC2Kernel` instead.
+    This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
+    :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
+    surface integral of the WendlandC2 kernel is not accurate to within better than 1%.
+    To strictly use the WendlandC2 kernel, use
+    :class:`~martini.sph_kernels._WendlandC2Kernel` instead.
     """
 
     def __init__(self):
@@ -1436,13 +1515,13 @@ class WendlandC2Kernel(_AdaptiveKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
         return super().kernel(q)
 
@@ -1466,10 +1545,11 @@ class WendlandC6Kernel(_AdaptiveKernel):
         0 &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
-    approximation used for the surface integral of the WendlandC6 kernel is not accurate
-    to within better than 1%. To strictly use the WendlandC6 kernel, use
-    `martini.sph_kernels._WendlandC6Kernel` instead.
+    This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and 
+    :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
+    surface integral of the WendlandC6 kernel is not accurate to within better than 1%.
+    To strictly use the WendlandC6 kernel, use
+    :class:`~martini.sph_kernels._WendlandC6Kernel` instead.
     """
 
     def __init__(self):
@@ -1495,13 +1575,13 @@ class WendlandC6Kernel(_AdaptiveKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
         return super().kernel(q)
 
@@ -1528,10 +1608,11 @@ class CubicSplineKernel(_AdaptiveKernel):
         &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
-    approximation used for the surface integral of the cubic spline kernel is not accurate
-    to within better than 1%. To strictly use the cubic spline kernel, use
-    `martini.sph_kernels._CubicSplineKernel` instead.
+    This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
+    :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
+    surface integral of the cubic spline kernel is not accurate to within better than 1%.
+    To strictly use the cubic spline kernel, use
+    :class:`~martini.sph_kernels._CubicSplineKernel` instead.
     """
 
     def __init__(self):
@@ -1560,13 +1641,13 @@ class CubicSplineKernel(_AdaptiveKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
         return super().kernel(q)
 
@@ -1575,8 +1656,8 @@ class GaussianKernel(_AdaptiveKernel):
     """
     Implementation of a (truncated) Gaussian kernel integral.
 
-    Calculates the kernel integral over a pixel. The 3 integrals (along dx,
-    dy, dz) are evaluated exactly, however the truncation is implemented
+    Calculates the kernel integral over a pixel. The 3 integrals (along :math:`dx`,
+    :math:`dy`, :math:`dz`) are evaluated exactly, however the truncation is implemented
     approximately, erring on the side of integrating slightly further than
     the truncation radius.
 
@@ -1593,16 +1674,18 @@ class GaussianKernel(_AdaptiveKernel):
     with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
     :math:`t` being the truncation radius.
 
-    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` with large
-    truncation) when the approximation used for the surface integral of the Gaussian
-    kernel is not accurate to within better than 1%. To strictly use the Gaussian kernel,
-    use `martini.sph_kernels._GaussianKernel` instead.
+    This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
+    :class:`~martini.sph_kernels.GaussianKernel` (with large truncation) when the
+    approximation used for the surface integral of the Gaussian kernel is not accurate to
+    within better than 1%. To strictly use the Gaussian kernel, use
+    :class:`~martini.sph_kernels._GaussianKernel` instead.
 
     Parameters
     ----------
     truncate : float, optional
-        Number of standard deviations at which to truncate kernel (default=3).
+        Number of standard deviations at which to truncate kernel.
         Truncation radii <2 would lead to large errors and are not permitted.
+        (Default: ``3``)
     """
 
     def __init__(self, truncate=3.0):
@@ -1636,13 +1719,13 @@ class GaussianKernel(_AdaptiveKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
         return super().kernel(q)
 
@@ -1671,10 +1754,11 @@ class QuarticSplineKernel(_AdaptiveKernel):
         &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
-    This class falls back to the `DiracDeltaKernel` and `GaussianKernel` when the
-    approximation used for the surface integral of the quartic spline kernel is not
-    accurate to within better than 1%. To strictly use the quartic spline kernel, use
-    `martini.sph_kernels._QuarticSplineKernel` instead.
+    This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
+    :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
+    surface integral of the quartic spline kernel is not accurate to within better
+    than 1%. To strictly use the quartic spline kernel, use
+    :class:`~martini.sph_kernels._QuarticSplineKernel` instead.
     """
 
     def __init__(self):
@@ -1705,13 +1789,13 @@ class QuarticSplineKernel(_AdaptiveKernel):
 
         Parameters
         ----------
-        q : array_like
+        q : ~numpy.typing.ArrayLike
             Dimensionless distance parameter.
 
         Returns
         -------
-        out : array_like
-            Kernel value at positions q.
+        out : ~numpy.typing.ArrayLike
+            Kernel value at positions ``q``.
         """
         return super().kernel(q)
 

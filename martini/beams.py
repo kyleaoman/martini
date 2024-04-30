@@ -227,8 +227,8 @@ class GaussianBeam(_BaseBeam):
         Returns
         -------
         out : callable
-            Accepts 2 arguments (both ``array_like``) and return an
-            ``array_like`` of corresponding size.
+            Accepts 2 arguments (both ``ArrayLike``) and return an
+            ``ArrayLike`` of corresponding size.
         """
 
         def fwhm_to_sigma(fwhm):
