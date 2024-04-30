@@ -54,15 +54,15 @@ class SOSource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
-    SO_args : dict
+    SO_args : dict, optional
         Dictionary of keyword arguments to pass to a call to
         :class:`simobj.simobj.SimObj`.
         Arguments are: ``obj_id``, ``snap_id``, ``mask_type``, ``mask_args``,
         ``mask_kwargs``, ``configfile``, ``simfiles_configfile``, ``ncpu``.
         See :mod:`simobj` package documentation for details. Provide ``SO_args`` or
-`       ``SO_instance``, not both.
+        ``SO_instance``, not both.
 
-    SO_instance : simobj.simobj.SimObj
+    SO_instance : simobj.simobj.SimObj, optional
         An initialized :class:`simobj.simobj.SimObj` object. Provide ``SO_instance``
         or ``SO_args``, not both.
     """
