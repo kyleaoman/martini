@@ -9,8 +9,8 @@
     :target: https://martini.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation status
 
-.. |Python version| image:: https://img.shields.io/pypi/pyversions/astromartini
-   :alt: PyPI - Python Version
+.. |Python version| image:: https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkyleaoman%2Fmartini%2Fmain%2Fpyproject.toml
+   :alt: Python Version from PEP 621 TOML
 	   
 Overview
 ========
