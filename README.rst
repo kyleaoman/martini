@@ -1,6 +1,6 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Tests| |Documentation status|
+|Python version| |Tests| |Documentation status|
 
 .. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
     :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
@@ -8,6 +8,9 @@
 .. |Documentation status| image:: https://readthedocs.org/projects/martini/badge/?version=latest
     :target: https://martini.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation status
+
+.. |Python version| image:: https://img.shields.io/pypi/pyversions/astromartini
+   :alt: PyPI - Python Version
 	   
 Overview
 ========
