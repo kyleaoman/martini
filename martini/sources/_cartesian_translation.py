@@ -1,16 +1,20 @@
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 
 """
-Functions which can be used to extend the CartesianRepresentation and
-CartesianDifferential classes from astropy.coordinates. These should be
-imported, then use:
+Functions which can be used to extend the
+:class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation` and
+:class:`~astropy.coordinates.representation.cartesian.CartesianDifferential` classes from
+:mod:`astropy.coordinates`. These should be imported, then use:
 
-# Extend CartesianRepresentation to allow coordinate translation
-setattr(CartesianRepresentation, 'translate', translate)
+.. code-block:: python
 
-# Extend CartesianDifferential to allow velocity (or other differential)
-# translation
-setattr(CartesianDifferential, 'translate', translate_d)
+    # Extend CartesianRepresentation to allow coordinate translation
+    setattr(CartesianRepresentation, 'translate', translate)
+
+    # Extend CartesianDifferential to allow velocity (or other differential)
+    # translation
+    setattr(CartesianDifferential, 'translate', translate_d)
+
 """
 
 # copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
@@ -26,16 +30,19 @@ def translate(cls, translation_vector):
 
     Parameters
     ----------
-    cls : astropy.coordinates.CartesianRepresentation
-        Equivalent to the 'self' argument for methods.
+    cls : ~astropy.coordinates.representation.cartesian.CartesianRepresentation
+        Equivalent to the ``self`` argument for methods.
 
-    translation_vector : astropy.units.Quantity, with dimensions of length
+    translation_vector : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of length.
         3-vector by which to translate.
 
     Returns
     -------
-    out : astropy.coordinates.CartesianRepresentation
-        A new CartesianRepresentation instance with translation applied.
+    out : ~astropy.coordinates.representation.cartesian.CartesianRepresentation
+        A new
+        :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation`
+        instance with translation applied.
     """
 
     return CartesianRepresentation(
@@ -50,17 +57,19 @@ def translate_d(cls, translation_vector):
 
     Parameters
     ----------
-    cls : astropy.coordinates.CartesianDifferential
-        Equivalent to the 'self' argument for methods.
+    cls : ~astropy.coordinates.representation.cartesian.CartesianDifferential
+        Equivalent to the ``self`` argument for methods.
 
-    translation_vector : astropy.units.Quantity, with dimensions of velocity
-                         (or other differential)
-        3-vector by which to translate.
+    translation_vector : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity` with dimensions of velocity (or other
+        differential) 3-vector by which to translate.
 
     Returns
     -------
-    out : astropy.coordinates.CartesianDifferential
-        A new CartesianDifferential instance with translation applied.
+    out : ~astropy.coordinates.representation.cartesian.CartesianDifferential
+        A new
+        :class:~astropy.coordinates.representation.cartesian.CartesianDifferential`
+        instance with translation applied.
     """
 
     return CartesianDifferential(

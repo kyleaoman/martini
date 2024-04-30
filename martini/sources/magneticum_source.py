@@ -9,81 +9,78 @@ class MagneticumSource(SPHSource):
     Class abstracting HI sources designed to work with Magneticum snapshot
     + group fies.
 
+    Provide either:
+
+     - ``haloPosition``, ``haloVelocity`` and ``haloRadius``;
+     - or ``groupFile`` and ``haloID`` or ``subhaloID`` (not both).
+
     Parameters
     ----------
     snapBase : str
         Path to snapshot file, omitting the portion numbering the snapshot
-        pieces, e.g. /path/snap_136.0 becomes /path/snap_136
+        pieces, e.g. ``/path/snap_136.0`` becomes ``/path/snap_136``.
 
-    haloPosition : array_like, with shape (3, )
-        Location of source centre in simulation units. Provide either
-        arguments haloPosition, haloVelocity and haloRadius, or arguments
-        groupFile, (haloID | subhaloID), not both.
+    haloPosition : ~numpy.typing.ArrayLike
+        Array with shape ``(3, )``.
+        Location of source centre in simulation units.
 
-    haloVelocity : array_like, with shape (3, )
+    haloVelocity : ~numpy.typing.ArrayLike
+        Array with shape ``(3, )``.
         Velocity of halo in the simulation box frame, in simulation units.
-        Provide either arguments haloPosition, haloVelocity and
-        haloRadius, or arguments groupFile, (haloID | subhaloID), not
-        both.
 
     haloRadius : float
         Aperture within which to select particles around the source
-        centre, in simulation units. Provide either arguments
-        haloPosition, haloVelocity and haloRadius, or arguments groupFile,
-        (haloID | subhaloID), not both.
+        centre, in simulation units.
 
     groupFile : str
-        Path to group file (e.g. /path/to/groups_136). Provide either
-        arguments haloPosition, haloVelocity and haloRadius, or arguments
-        groupFile, (haloID | subhaloID), not both.
+        Path to group file (e.g. ``/path/to/groups_136``).
 
     haloID : int
-        ID of FOF group to use as source. Provice either arguments
-        haloPosition, haloVelocity and haloRadius, or arguments groupFile,
-        (haloID | subhaloID), not both.
+        ID of FOF group to use as source.
 
     subhaloID : int
-        ID of subhalo to use as source. Provide either arguments haloPostion,
-        haloVelocity and haloRadius, or arguments groupFile, (haloID |
-        subhaloID), not both.
+        ID of subhalo to use as source.
 
     xH : float
-        Primordial hydrogen fraction (default: 0.76).
+        Primordial hydrogen fraction. (Default: ``0.76``)
 
-    Lbox : astropy.units.Quantity, with dimensions of length
+    Lbox : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of length.
         Comoving box side length, without factor h.
 
     internal_units : dict
         Specify the system of units used in the snapshot file. The dict keys
-        should be 'L' (length), 'M' (mass), 'V' (velocity), 'T' (temperature).
-        The values should use astropy.units.Quantity. (Default:
-        dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K).)
+        should be ``L`` (length), ``M`` (mass), ``V`` (velocity), ``T`` (temperature).
+        The values should use :class:`~astropy.units.Quantity`.
+        (Default: ``dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K)``)
 
     rescaleRadius : float
         Factor by which to multiply the haloRadius to define the aperture
         within which particles are selected. Useful in conjunction with
-        arguments groupFile, (haloID | subhaloID): by default the aperture
+        arguments ``groupFile`` and ``haloID`` or ``subhaloID``: by default the aperture
         will be the halo virial radius, use this argument to adjust as needed.
 
-    distance : Quantity, with dimensions of length, optional
+    distance : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: 3 Mpc.)
+        (Default: ``3 * U.Mpc``)
 
-    vpeculiar : Quantity, with dimensions of velocity, optional
+    vpeculiar : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity, added to the velocity from Hubble's law.
-        (Default: 0 km/s.)
+        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
-        Must have a single key, which must be one of `axis_angle`, `rotmat` or
-        `L_coords`. Note that the 'y-z' plane will be the one eventually placed in the
+        Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
+        ``L_coords``. Note that the 'y-z' plane will be the one eventually placed in the
         plane of the "sky". The corresponding value must be:
 
-        - `axis_angle` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element a Quantity with \
+        - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
+        axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
         dimensions of angle, indicating the angle to rotate through.
-        - `rotmat` : A (3, 3) numpy.array specifying a rotation.
-        - `L_coords` : A 2-tuple containing an inclination and an azimuthal \
-        angle (both Quantity instances with dimensions of \
+        - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
+        - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
+        angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
         angle). The routine will first attempt to identify a preferred plane \
         based on the angular momenta of the central 1/3 of particles in the \
         source. This plane will then be rotated to lie in the plane of the \
@@ -93,13 +90,16 @@ class MagneticumSource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: identity rotation matrix.)
+        (Default: ``np.eye(3)``)
 
-    ra : Quantity, with dimensions of angle, optional
-        Right ascension for the source centroid. (Default: 0 deg.)
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension for the source centroid. (Default: ``0 * U.deg``)
 
-    dec : Quantity, with dimensions of angle, optional
-        Declination for the source centroid. (Default: 0 deg.)
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Declination for the source centroid. (Default: ``0 * U.deg``)
+
     """
 
     def __init__(
