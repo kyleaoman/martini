@@ -119,7 +119,7 @@ Installing from github
 
 .. GITHUB_INSTALLATION_NOTES_START_LABEL
 
-Choose a branch_. Unless you want to install the latest (possibly buggy) main branch, installing with PyPI should usually be preferred. From the branch page (e.g. ``https://github.com/kyleaoman/martini/tree/2.0.X``), click the green 'Code' button and follow instructions to obtain the files. Unpack the zip file if necessary. You should then be able to do ``python3 -m pip install martini/[optional]``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``pyproject.toml`` file for MARTINI. The currently available options are:
+You can browse releases_ that correspond to versions on PyPI (starting from 2.0.0) and download the source code. Unpack the zip file if necessary. If you're feeling adventurous or looking for a feature under development you can so browse branches_ and choose one to clone. In either case you should then be able to do ``python3 -m pip install martini/[optional]``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``pyproject.toml`` file for MARTINI. The currently available options are:
 
 - ``hdf5_output``: Supports output to hdf5 files via the h5py package. Since h5py is hosted on PyPI, this option may be used when installing via PyPI.
 - ``eaglesource``: Dependencies for the |martini.sources.EAGLESource| module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions. Also installs `my python-only version`_ of John Helly's `read_eagle`_ package for quick extraction of particles in a simulation sub-volume. h5py is also required.
@@ -127,7 +127,8 @@ Choose a branch_. Unless you want to install the latest (possibly buggy) main br
 - ``magneticumsource``: Dependencies for the |martini.sources.MagneticumSource| module, which supports the Magneticum simulations via `my fork`_ of the `g3t`_ package by Antonio Ragagnin.
 - ``sosource``: Dependencies for the |martini.sources.SOSource| module, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may contact_ me for further information.
 
-.. _branch: https://github.com/kyleaoman/martini/branches
+.. _releases: https://github.com/kyleaoman/martini/releases
+.. _branches: https://github.com/kyleaoman/martini/branches
 .. _Hdecompose: https://github.com/kyleaoman/Hdecompose
 .. _`Rahmati et al. (2013)`: https://ui.adsabs.harvard.edu/abs/2013MNRAS.430.2427R/abstract
 .. _`Blitz & Rosolowsky (2006)`: https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract
