@@ -26,6 +26,10 @@ MARTINI is a modular package for the creation of synthetic resolved HI line obse
 
 .. INTRO_END_LABEL
 
+Full documentation_ can be found on ReadTheDocs.
+
+.. _documentation: https://martini.readthedocs.io/en/latest/
+
 Citing MARTINI
 --------------
 
