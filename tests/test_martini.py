@@ -1,7 +1,6 @@
 import os
 import pytest
 import numpy as np
-import h5py
 from martini.martini import Martini, GlobalProfile, _BaseMartini
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
@@ -12,18 +11,39 @@ from astropy import units as U
 from astropy.io import fits
 from scipy.signal import fftconvolve
 
+try:
+    import multiprocess
+except ImportError:
+    have_multiprocess = False
+else:
+    have_multiprocess = True
+
+try:
+    import matplotlib
+except ImportError:
+    have_matplotlib = False
+else:
+    have_matplotlib = True
+
 
 class TestMartini:
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
+    @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
     def test_mass_accuracy(
-        self, dc_zeros, sph_kernel, spectral_model, single_particle_source
+        self, dc_zeros, sph_kernel, spectral_model, single_particle_source, out_mode
     ):
         """
         Check that the input mass in the particles gives the correct total mass in the
         datacube, by checking the conversion back to total mass. Covers testing
         Martini.insert_source_in_cube.
         """
+
+        if out_mode == "hdf5":
+            try:
+                import h5py
+            except ImportError:
+                pytest.skip()
 
         hsm_g = (
             0.1 * U.kpc if sph_kernel.__name__ == "DiracDeltaKernel" else 1.0 * U.kpc
@@ -92,128 +112,132 @@ class TestMartini:
         # demand accuracy within 1% after beam convolution
         assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
-        for channel_mode in ("velocity", "frequency"):
-            filename = f"cube_{channel_mode}.fits"
-            try:
-                m.write_fits(filename, channels=channel_mode)
-                with fits.open(filename) as f:
-                    # distance
-                    D = m.source.distance
+        if out_mode == "fits":
+            for channel_mode in ("velocity", "frequency"):
+                filename = f"cube_{channel_mode}.fits"
+                try:
+                    m.write_fits(filename, channels=channel_mode)
+                    with fits.open(filename) as f:
+                        # distance
+                        D = m.source.distance
 
-                    # radiant intensity
-                    Irad = U.Quantity(f[0].data.sum(), unit=f[0].header["BUNIT"])
+                        # radiant intensity
+                        Irad = U.Quantity(f[0].data.sum(), unit=f[0].header["BUNIT"])
 
-                    A = (
-                        np.pi
-                        * (f[0].header["BMAJ"] * U.deg)
-                        * (f[0].header["BMIN"] * U.deg)
-                        / 4
-                        / np.log(2)
-                        / U.beam
-                    )
-                    dchannel = np.abs(
-                        U.Quantity(f[0].header["CDELT3"], unit=f[0].header["CUNIT3"])
-                    )
-                    if channel_mode == "velocity":
-                        dv = dchannel
-                    elif channel_mode == "frequency":
-                        channelmid = U.Quantity(
-                            f[0].header["CRVAL3"], unit=f[0].header["CUNIT3"]
+                        A = (
+                            np.pi
+                            * (f[0].header["BMAJ"] * U.deg)
+                            * (f[0].header["BMIN"] * U.deg)
+                            / 4
+                            / np.log(2)
+                            / U.beam
                         )
-                        dv = (channelmid - 0.5 * dchannel).to(
-                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                        ) - (channelmid + 0.5 * dchannel).to(
-                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                        dchannel = np.abs(
+                            U.Quantity(
+                                f[0].header["CDELT3"], unit=f[0].header["CUNIT3"]
+                            )
                         )
-                    px_area = U.Quantity(
-                        np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
-                    ) * U.Quantity(
-                        np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"]
-                    )
+                        if channel_mode == "velocity":
+                            dv = dchannel
+                        elif channel_mode == "frequency":
+                            channelmid = U.Quantity(
+                                f[0].header["CRVAL3"], unit=f[0].header["CUNIT3"]
+                            )
+                            dv = (channelmid - 0.5 * dchannel).to(
+                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                            ) - (channelmid + 0.5 * dchannel).to(
+                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                            )
+                        px_area = U.Quantity(
+                            np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
+                        ) * U.Quantity(
+                            np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"]
+                        )
 
-                    # flux
-                    F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+                        # flux
+                        F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
 
-                    # HI mass
-                    MHI = (
-                        2.36e5
-                        * U.Msun
-                        * D.to_value(U.Mpc) ** 2
-                        * F.to_value(U.Jy)
-                        * dv.to_value(U.km / U.s)
-                    ).to(U.Msun)
+                        # HI mass
+                        MHI = (
+                            2.36e5
+                            * U.Msun
+                            * D.to_value(U.Mpc) ** 2
+                            * F.to_value(U.Jy)
+                            * dv.to_value(U.km / U.s)
+                        ).to(U.Msun)
 
-                # demand accuracy within 1% in output fits file
-                assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+                    # demand accuracy within 1% in output fits file
+                    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
-            finally:
-                if os.path.exists(filename):
-                    os.remove(filename)
+                finally:
+                    if os.path.exists(filename):
+                        os.remove(filename)
 
-        for channel_mode in ("velocity", "frequency"):
-            filename = f"cube_{channel_mode}.hdf5"
-            try:
-                m.write_hdf5(filename, channels=channel_mode)
-                with h5py.File(filename, "r") as f:
-                    # distance
-                    D = m.source.distance
+        if out_mode == "hdf5":
+            for channel_mode in ("velocity", "frequency"):
+                filename = f"cube_{channel_mode}.hdf5"
+                try:
+                    m.write_hdf5(filename, channels=channel_mode)
+                    with h5py.File(filename, "r") as f:
+                        # distance
+                        D = m.source.distance
 
-                    # radiant intensity
-                    Irad = U.Quantity(
-                        f["FluxCube"][()].sum(),
-                        unit=f["FluxCube"].attrs["FluxCubeUnit"],
-                    )
+                        # radiant intensity
+                        Irad = U.Quantity(
+                            f["FluxCube"][()].sum(),
+                            unit=f["FluxCube"].attrs["FluxCubeUnit"],
+                        )
 
-                    A = (
-                        np.pi
-                        * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
-                        * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
-                        / 4
-                        / np.log(2)
-                        / U.beam
-                    )
-                    dchannel = U.Quantity(
-                        np.abs(f["FluxCube"].attrs["deltaV_in_VUnit"]),
-                        unit=f["FluxCube"].attrs["VUnit"],
-                    )
-                    if channel_mode == "velocity":
-                        dv = dchannel
-                    elif channel_mode == "frequency":
-                        channelmid = U.Quantity(
-                            f["FluxCube"].attrs["V0_in_VUnit"],
+                        A = (
+                            np.pi
+                            * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
+                            * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
+                            / 4
+                            / np.log(2)
+                            / U.beam
+                        )
+                        dchannel = U.Quantity(
+                            np.abs(f["FluxCube"].attrs["deltaV_in_VUnit"]),
                             unit=f["FluxCube"].attrs["VUnit"],
                         )
-                        dv = (channelmid - 0.5 * dchannel).to(
-                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                        ) - (channelmid + 0.5 * dchannel).to(
-                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                        if channel_mode == "velocity":
+                            dv = dchannel
+                        elif channel_mode == "frequency":
+                            channelmid = U.Quantity(
+                                f["FluxCube"].attrs["V0_in_VUnit"],
+                                unit=f["FluxCube"].attrs["VUnit"],
+                            )
+                            dv = (channelmid - 0.5 * dchannel).to(
+                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                            ) - (channelmid + 0.5 * dchannel).to(
+                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                            )
+                        px_area = U.Quantity(
+                            np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
+                            unit=f["FluxCube"].attrs["RAUnit"],
+                        ) * U.Quantity(
+                            np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
+                            unit=f["FluxCube"].attrs["DecUnit"],
                         )
-                    px_area = U.Quantity(
-                        np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
-                        unit=f["FluxCube"].attrs["RAUnit"],
-                    ) * U.Quantity(
-                        np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
-                        unit=f["FluxCube"].attrs["DecUnit"],
-                    )
 
-                    # flux
-                    F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+                        # flux
+                        F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
 
-                    # HI mass
-                    MHI = (
-                        2.36e5
-                        * U.Msun
-                        * D.to_value(U.Mpc) ** 2
-                        * F.to_value(U.Jy)
-                        * dv.to_value(U.km / U.s)
-                    ).to(U.Msun)
+                        # HI mass
+                        MHI = (
+                            2.36e5
+                            * U.Msun
+                            * D.to_value(U.Mpc) ** 2
+                            * F.to_value(U.Jy)
+                            * dv.to_value(U.km / U.s)
+                        ).to(U.Msun)
 
-                # demand accuracy within 1% in output hdf5 file
-                assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+                    # demand accuracy within 1% in output hdf5 file
+                    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
-            finally:
-                if os.path.exists(filename):
-                    os.remove(filename)
+                finally:
+                    if os.path.exists(filename):
+                        os.remove(filename)
 
     def test_convolve_beam(self, single_particle_source):
         """
@@ -401,6 +425,9 @@ class TestMartini:
         m.reset()
         assert m.datacube._array.shape == expected_shape
 
+    @pytest.mark.skipif(
+        not have_matplotlib, reason="matplotlib (optional dependency) not available."
+    )
     def test_preview(self, m_init):
         """
         Simply check that the preview visualisation runs without error.
@@ -420,6 +447,9 @@ class TestMartini:
         )
 
 
+@pytest.mark.skipif(
+    not have_multiprocess, reason="multiprocess (optional dependency) not available"
+)
 class TestParallel:
     def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
         """
@@ -579,6 +609,9 @@ class TestGlobalProfile:
         gp.reset()
         gp.reset()
 
+    @pytest.mark.skipif(
+        not have_matplotlib, reason="matplotlib (optional dependency) not available."
+    )
     def test_preview(self, gp):
         """
         Simply check that the preview visualisation runs without error.
@@ -616,6 +649,9 @@ class TestGlobalProfile:
         m.channel_edges.to(expected_units)
         m.channel_mids.to(expected_units)
 
+    @pytest.mark.skipif(
+        not have_matplotlib, reason="matplotlib (optional dependency) not available."
+    )
     def test_view_spectrum(self, gp):
         """
         Simply check that plotting spectrum runs without error.

@@ -5,6 +5,13 @@ from astropy import units as U
 from martini import DataCube
 from martini.datacube import HIfreq
 
+try:
+    import h5py
+except ImportError:
+    have_h5py = False
+else:
+    have_h5py = True
+
 
 class TestDataCube:
     def test_datacube_dimensions(self):
@@ -175,6 +182,9 @@ class TestDataCube:
             assert U.allclose(getattr(dc_random, attr), getattr(copy, attr))
         assert str(dc_random.wcs) == str(copy.wcs)
 
+    @pytest.mark.skipif(
+        not have_h5py, reason="h5py (optional dependency) not available."
+    )
     @pytest.mark.parametrize("with_fchannels", (False, True))
     @pytest.mark.parametrize("with_pad", (False, True))
     def test_save_and_load_state(self, dc_random, with_fchannels, with_pad):

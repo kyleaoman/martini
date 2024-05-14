@@ -9,6 +9,13 @@ from martini.sources._cartesian_translation import translate, translate_d
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 
+try:
+    import matplotlib
+except ImportError:
+    have_matplotlib = False
+else:
+    have_matplotlib = True
+
 
 class TestSourceUtilities:
     def test_L_align(self):
@@ -449,6 +456,9 @@ class TestSPHSource:
                 os.remove(testfile)
         assert np.allclose(saved_rotmat, rotmat)
 
+    @pytest.mark.skipif(
+        not have_matplotlib, reason="matplotlib (optional dependency) not available."
+    )
     def test_preview(self, s):
         """
         Simply check that the preview visualisation runs without error.
@@ -465,6 +475,9 @@ class TestSPHSource:
             title="test",
         )
 
+    @pytest.mark.skipif(
+        not have_matplotlib, reason="matplotlib (optional dependency) not available."
+    )
     @pytest.mark.parametrize("ext", ("pdf", "png"))
     def test_preview_save(self, s, ext):
         """
