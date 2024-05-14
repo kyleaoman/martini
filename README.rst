@@ -1,6 +1,6 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Python version| |PyPI version| |Repostatus| |Tests| |Documentation status|
+|Python version| |PyPI version| |Repostatus| |Zenodo| |Tests| |Documentation status|
 
 .. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
     :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
@@ -16,6 +16,9 @@
 .. |Repostatus| image:: https://www.repostatus.org/badges/latest/active.svg
    :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
    :target: https://www.repostatus.org/#active
+.. |Zenodo| image:: https://zenodo.org/badge/107552631.svg
+   :alt: Zenodo DOI
+   :target: https://zenodo.org/doi/10.5281/zenodo.11193206
 	   
 Overview
 ========
