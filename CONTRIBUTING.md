@@ -23,7 +23,7 @@ You can install the `black` formatter with `pip install black`. To check your co
 Flake8 style guide enforcement
 ------------------------------
 
-You can install the `flake8` style guide compliance checker with `pip install flake8`. Contributions will be checked on github on python versions `3.7` to `3.12`. To check your copy of the repository for compliance with the [PEP8](https://peps.python.org/pep-0008/) style guide, run `flake8` in the `pyproject.toml` file. No message indicates success (if unsure, you can check the return code with `flake8;echo $?`, in this case a value of 0 indicates success). In case of failure, any errors and warnings will be printed. In general these should be addressed by editing the code to be compliant (running `black` will resolve most issues automatically). In some rare cases it may be appropriate to ignore an error by editing the `/.flake8` file. Note that the maximum line length for the project is set to 90 characters.
+You can install the `flake8` style guide compliance checker with `pip install flake8`. Contributions will be checked on github on python versions `3.8` to `3.12`. To check your copy of the repository for compliance with the [PEP8](https://peps.python.org/pep-0008/) style guide, run `flake8` in the `pyproject.toml` file. No message indicates success (if unsure, you can check the return code with `flake8;echo $?`, in this case a value of 0 indicates success). In case of failure, any errors and warnings will be printed. In general these should be addressed by editing the code to be compliant (running `black` will resolve most issues automatically). In some rare cases it may be appropriate to ignore an error by editing the `/.flake8` file. Note that the maximum line length for the project is set to 90 characters.
 
 MyPy type checking
 ------------------
@@ -38,7 +38,7 @@ The `stubtest` utility is included in `mypy` (see above). It is used to check th
 Pytest unit testing
 -------------------
 
-You can install the `pytest` unit testing toolkit with `pip install pytest`. Running the full test suite requires the dependencies in `requirements.txt` and also those in `optional_requirements.txt`. You can then run `pytest` in the same directory as the `pyproject.toml` file to run the existing unit tests. Any test failures will report detailed debugging information. Note that the tests on github are run with python versions `3.7`, `3.8`, `3.9`, `3.10`, `3.11` and `3.12` and the latest PyPI releases of the relevant dependencies (`astropy`, etc.). To run only tests in a specific file, you can do e.g. `pytest tests/test_creation.py`. The tests to be run can be further narrowed down with the `-k` argument to `pytest` (see `pytest --help`).
+You can install the `pytest` unit testing toolkit with `pip install pytest`. Running the full test suite requires the dependencies in `requirements.txt` and also those in `optional_requirements.txt`. You can then run `pytest` in the same directory as the `pyproject.toml` file to run the existing unit tests. Any test failures will report detailed debugging information. Note that the tests on github are run with python versions `3.8`, `3.9`, `3.10`, `3.11` and `3.12` and the latest PyPI releases of the relevant dependencies (`astropy`, etc.). To run only tests in a specific file, you can do e.g. `pytest tests/test_creation.py`. The tests to be run can be further narrowed down with the `-k` argument to `pytest` (see `pytest --help`).
 
 Documentation
 -------------
