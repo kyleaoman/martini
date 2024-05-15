@@ -9,3 +9,4 @@ eaglesqltools
 swiftsimio
 swiftgalaxy
 g3t
+pytest-cov
