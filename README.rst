@@ -1,6 +1,6 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Python version| |PyPI version| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov|
+|Python version| |PyPI version| |PyOpenSci| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov|
 
 .. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
     :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
@@ -22,6 +22,9 @@
 .. |CodeCov| image:: https://codecov.io/gh/kyleaoman/martini/graph/badge.svg?token=05OA3Y8889 
    :alt: Tests code coverage
    :target: https://codecov.io/gh/kyleaoman/martini
+.. |PyOpenSci| image:: https://tinyurl.com/y22nb8up
+   :alt: PyOpenSci
+   :target: https://github.com/pyOpenSci/software-review/issues/164
 	   
 Overview
 ========
