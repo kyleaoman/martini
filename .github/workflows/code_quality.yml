@@ -5,6 +5,7 @@ on:
     - cron: '19 3 * * 1-5'
   push:
   pull_request:
+  workflow_call:  
 
 jobs:
 
@@ -12,14 +13,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Run Black
         uses: psf/black@stable
         with:
           options: "--check --verbose"
           jupyter: true
       - name: Set up Python environment
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
       - name: Run flake8
@@ -47,13 +48,13 @@ jobs:
         python-version: [3.7, 3.8, 3.9, "3.10"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Cache pip
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         # This path is specific to Ubuntu
         path: ~/.cache/pip

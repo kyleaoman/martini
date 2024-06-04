@@ -1,6 +1,6 @@
-from .martini import Martini
+from .martini import Martini, GlobalProfile
 from .datacube import DataCube
-from ._demo import demo
+from ._demo import demo, demo_source
 from .__version__ import __version__
 
 __doc__ = """

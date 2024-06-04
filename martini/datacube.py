@@ -464,3 +464,42 @@ class DataCube(object):
             Text representation of the DataCube._array contents.
         """
         return self._array.__repr__()
+
+
+class _GlobalProfileDataCube(DataCube):
+    """
+    Helper class that configures a data cube with a single pixel to hold a spectrum.
+
+    Parameters
+    ----------
+    n_channels : int, optional
+        Number of channels along the spectral axis. (Default: 64.)
+
+    channel_width : Quantity, with dimensions of velocity or frequency, optional
+        Step size along the spectral axis. Can be provided as a velocity or a
+        frequency. (Default: 4 km/s.)
+
+    velocity_centre : Quantity, with dimensions of velocity or frequency, optional
+        Velocity (or frequency) of the centre along the spectral axis.
+        (Default: 0 km/s.)
+    """
+
+    def __init__(
+        self,
+        n_channels=64,
+        channel_width=4.0 * U.km * U.s**-1,
+        velocity_centre=0.0 * U.km * U.s**-1,
+    ):
+        super().__init__(
+            n_px_x=1,
+            n_px_y=1,
+            n_channels=n_channels,
+            px_size=1 * U.deg,  # must be >0, ignored for insertion, needed for units
+            channel_width=channel_width,
+            velocity_centre=velocity_centre,
+            ra=0.0 * U.deg,
+            dec=0.0 * U.deg,
+            stokes_axis=False,
+        )
+
+        return

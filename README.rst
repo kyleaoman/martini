@@ -1,4 +1,4 @@
-.. image:: martini_banner.png
+.. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
 |Build status| |Documentation status|
 
@@ -27,44 +27,60 @@ If your use of MARTINI leads to a publication, please acknowledge this and link 
 
 .. code-block:: bibtex
 
-   @MISC{2019ascl.soft11005O,
-        author = {{Oman}, Kyle A.},
-         title = "{MARTINI: Mock spatially resolved spectral line observations of simulated galaxies}",
-      keywords = {Software},
-  howpublished = {Astrophysics Source Code Library, record ascl:1911.005},
-          year = 2019,
-         month = nov,
-           eid = {ascl:1911.005},
-         pages = {ascl:1911.005},
- archivePrefix = {ascl},
+    @MISC{
+        2019ascl.soft11005O,
+     	author = {{Oman}, Kyle A.},
+        title = "{MARTINI: Mock spatially resolved spectral line observations of simulated galaxies}",
+        keywords = {Software},
+        howpublished = {Astrophysics Source Code Library, record ascl:1911.005},
+        year = 2019,
+        month = nov,
+        eid = {ascl:1911.005},
+        pages = {ascl:1911.005},
+        archivePrefix = {ascl},
         eprint = {1911.005},
         adsurl = {https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O},
-       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
-    }
-   
-   @ARTICLE{2019MNRAS.482..821O,
-        author = {{Oman}, Kyle A. and {Marasco}, Antonino and {Navarro}, Julio F. and {Frenk}, Carlos S. and {Schaye}, Joop and {Ben{\'\i}tez-Llambay}, Alejandro},
-         title = "{Non-circular motions and the diversity of dwarf galaxy rotation curves}",
-       journal = {\mnras},
-      keywords = {ISM: kinematics and dynamics, galaxies: haloes, galaxies: structure, dark matter, Astrophysics - Astrophysics of Galaxies, Astrophysics - Cosmology and Nongalactic Astrophysics},
-          year = 2019,
-         month = jan,
-        volume = {482},
-        number = {1},
-         pages = {821-847},
-           doi = {10.1093/mnras/sty2687},
- archivePrefix = {arXiv},
-        eprint = {1706.07478},
-  primaryClass = {astro-ph.GA},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O},
-       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
     }
 
+    @ARTICLE{
+        2019MNRAS.482..821O,
+        author = {{Oman}, Kyle A. and {Marasco}, Antonino and {Navarro}, Julio F. and {Frenk}, Carlos S. and {Schaye}, Joop and {Ben{\'\i}tez-Llambay}, Alejandro},
+        title = "{Non-circular motions and the diversity of dwarf galaxy rotation curves}",
+        journal = {\mnras},
+        keywords = {ISM: kinematics and dynamics, galaxies: haloes, galaxies: structure, dark matter, Astrophysics - Astrophysics of Galaxies, Astrophysics - Cosmology and Nongalactic Astrophysics},
+        year = 2019,
+        month = jan,
+        volume = {482},
+        number = {1},
+        pages = {821-847},
+        doi = {10.1093/mnras/sty2687},
+        archivePrefix = {arXiv},
+        eprint = {1706.07478},
+        primaryClass = {astro-ph.GA},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O},
+        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+    }
+
+Work that has used MARTINI includes: `Oman et al. (2019)`_, `Mancera Piña et al. (2019)`_, `Chauhan et al. (2019)`_, `Mancera Piña et al. (2020)`_, `Santos-Santos et al. (2020)`_, `Glowacki et al. (2021)`_, `Bilimogga et al. (2022)`_, `Glowacki et al. (2022)`_, `Roper et al. (2023)`_ and `Oman et al. (2024)`_. The ALMASim_ package (`Guglielmetti et al. 2023`_) builds on some of MARTINI's functionality. If your work has used MARTINI and is not listed here, please let me know (by email_ or github issue).
 
 .. _MARTINI entry: https://ascl.net/1911.005
 .. _ASCL: https://ascl.net
 .. _indexed on ADS: https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O/abstract
 .. _original paper: https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O/abstract
+.. _Oman et al. (2019): https://doi.org/10.1093/mnras/sty2687
+.. _Mancera Piña et al. (2019): https://doi.org/10.3847/2041-8213/ab40c7
+.. _Chauhan et al. (2019): https://doi.org/10.1093/mnras/stz2069
+.. _Mancera Piña et al. (2020): https://doi.org/10.1093/mnras/staa1256
+.. _Santos-Santos et al. (2020): https://doi.org/10.1093/mnras/staa1072
+.. _Glowacki et al. (2021): https://doi.org/10.1093/mnras/stab2279
+.. _Bilimogga et al. (2022): https://doi.org/10.1093/mnras/stac1213
+.. _Glowacki et al. (2022): https://doi.org/10.1093/mnras/stac2684
+.. _Roper et al. (2023): https://doi.org/10.1093/mnras/stad549
+.. _Oman et al. (2024): https://doi.org/10.48550/arXiv.2401.11878
+.. _ALMASim: https://github.com/MicheleDelliVeneri/ALMASim
+.. _Guglielmetti et al. 2023: https://doi.org/10.48550/arXiv.2311.10657
+.. _email: mailto:kyle.a.oman@durham.ac.uk
 
 .. CITING_END_LABEL
 
@@ -75,12 +91,18 @@ Installation Notes
 
 MARTINI works with ``python3`` (version ``3.7`` or higher), and does not support ``python2``.
 
-Stable releases are available via PyPI_ (``pip install astromartini``) and the numbered releases (starting from 2.0.0) on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github or kyle.a.oman@durham.ac.uk.
+Stable releases are available via PyPI_:
 
-.. _PyPI: https://pypi.org/
+.. code-block::
+
+    python3 -m pip install astromartini 
+
+and the numbered releases (starting from ``2.0.0``) on github. The github main branch is actively developed: things will change, bugs will happen. Any feedback is greatly appreciated via github issues or kyle.a.oman@durham.ac.uk.
+
+.. _PyPI: https://pypi.org/project/astromartini/
 .. _kyle.a.oman@durham.ac.uk: mailto:kyle.a.oman@durham.ac.uk
 
-The easiest way to install martini is from PyPI by doing ``python3 -m pip install astromartini``. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. Other optional features require additional dependencies hosted on PyPI. In particular, EAGLE, Illustris/TNG and Simba users who wish to use the custom source modules for those simulations in MARTINI can automatically install the optional dependencies with ``python3 -m pip install astromartini[eaglesource]``, or ``[simbasource]`` or ``[tngsource]``.
+The easiest way to install MARTINI is from PyPI by doing ``python3 -m pip install astromartini``. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install astromartini[hdf5_output]`` instead. This will also handle the installation of the required dependencies. Other optional features require additional dependencies hosted on PyPI. In particular, EAGLE, Illustris/TNG and Simba users who wish to use the custom source modules for those simulations in MARTINI can automatically install the optional dependencies with ``python3 -m pip install astromartini[eaglesource]``, or ``[simbasource]`` or ``[tngsource]``.
 
 .. INSTALLATION_NOTES_END_LABEL
 
@@ -147,20 +169,9 @@ Example notebooks_ are available for supported simulations.
 
 .. QUICKSTART_END_LABEL
 
-.. |martini.Martini| replace:: martini.Martini_
-.. _martini.Martini: https://martini.readthedocs.io/en/latest/modules/martini.martini.html#martini.martini.Martini
-
-.. |martini.sources.EAGLESource| replace:: martini.sources.EAGLESource_
-.. _martini.sources.EAGLESource: https://martini.readthedocs.io/en/latest/modules/martini.sources.eagle_source.html#martini.sources.eagle_source.EAGLESource
-
-.. |martini.sources.TNGSource| replace:: martini.sources.TNGSource_
-.. _martini.sources.TNGSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.tng_source.html#martini.sources.tng_source.TNGSource
-
-.. |martini.sources.MagneticumSource| replace:: martini.sources.MagneticumSource_
-.. _martini.sources.MagneticumSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.magneticum_source.html#martini.sources.magneticum_source.MagneticumSource
-
-.. |martini.sources.SimbaSource| replace:: martini.sources.SimbaSource_
-.. _martini.sources.SimbaSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource
-
-.. |martini.sources.SOSource| replace:: martini.sources.SOSource_
-.. _martini.sources.SOSource: https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource
+.. |martini.Martini| replace:: `martini.Martini <https://martini.readthedocs.io/en/latest/modules/martini.martini.html#martini.martini.Martini>`__
+.. |martini.sources.EAGLESource| replace:: `martini.sources.EAGLESource <https://martini.readthedocs.io/en/latest/modules/martini.sources.eagle_source.html#martini.sources.eagle_source.EAGLESource>`__
+.. |martini.sources.TNGSource| replace:: `martini.sources.TNGSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.tng_source.html#martini.sources.tng_source.TNGSource>`__
+.. |martini.sources.MagneticumSource| replace:: `martini.sources.MagneticumSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.magneticum_source.html#martini.sources.magneticum_source.MagneticumSource>`__
+.. |martini.sources.SimbaSource| replace:: `martini.sources.SimbaSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource>`__
+.. |martini.sources.SOSource| replace:: `martini.sources.SOSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource>`__

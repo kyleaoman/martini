@@ -9,26 +9,15 @@ import numpy as np
 from scipy.optimize import fsolve
 
 
-def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"):
+def demo_source(N=500):
     """
-    Demonstrates basic usage of MARTINI.
+    Create a simple toy model of a galaxy.
 
-    Creates a (very!) crude toy model of a galaxy with a linearly rising
-    rotation curve, exponential disk profile, exponential vertical structure. A
-    basic configuration of MARTINI is initialized and used to create and output
-    a datacube and an image of the beam.
-
-    Parameters
-    ----------
-    cubefile : string
-        File to write demonstration datacube.
-
-    beamfile : string
-        File to write demonstration beam.
+    Returns
+    -------
+    out : martini.source.SPHSource
+        An initialized MARTINI source module containing a toy model of a galaxy.
     """
-
-    # ------make a toy galaxy----------
-    N = 500
     phi = np.random.rand(N) * 2 * np.pi
     r = []
     for L in np.random.rand(N):
@@ -46,17 +35,19 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
     x = r * np.cos(phi)
     y = r * np.sin(phi)
     xyz_g = np.vstack((x, y, z)) * U.kpc
-    # linear rotation curve
-    vphi = 100 * r / 6.0
+    # arctan rotation curve
+    vphi = 50 * np.arctan(r)
     vx = -vphi * np.sin(phi)
     vy = vphi * np.cos(phi)
-    # small pure random z velocities
+    # small random z velocities
     vz = (np.random.rand(N) * 2.0 - 1.0) * 5
     vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
     T_g = np.ones(N) * 8e3 * U.K
-    mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
-    # ~mean interparticle spacing smoothing
-    hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
+    # HI masses with some scatter
+    mHI_g = np.ones(N) + 0.01 * (np.random.rand(N) - 0.5)
+    mHI_g = mHI_g / mHI_g.sum() * 5.0e9 * U.Msun
+    # Smoothing lengths with some scatter
+    hsm_g = (40 / np.sqrt(N) * (np.ones(N) + 1.8 * (np.random.rand(N) - 0.5))) * U.kpc
     # ---------------------------------
 
     source = SPHSource(
@@ -71,6 +62,28 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
         vxyz_g=vxyz_g,
         hsm_g=hsm_g,
     )
+
+    return source
+
+
+def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"):
+    """
+    Demonstrates basic usage of MARTINI.
+
+    Creates a (very!) crude toy model of a galaxy with a linearly rising
+    rotation curve, exponential disk profile, exponential vertical structure. A
+    basic configuration of MARTINI is initialized and used to create and output
+    a datacube and an image of the beam.
+
+    Parameters
+    ----------
+    cubefile : string
+        File to write demonstration datacube.
+
+    beamfile : string
+        File to write demonstration beam.
+    """
+    source = demo_source()
 
     datacube = DataCube(
         n_px_x=128,
@@ -112,5 +125,3 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
         print("h5py package not present, skipping hdf5 output demo.")
     else:
         print(f"Wrote demo hdf5 output to {hdf5file}.")
-
-    return

@@ -1,15 +1,13 @@
 import pytest
 import numpy as np
 from astropy import units as U
-from martini.martini import Martini
+from martini.martini import Martini, GlobalProfile
 from martini.datacube import DataCube
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
 from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import _GaussianKernel
-
-_GaussianKernel.noFWHMwarn = True
 
 
 def sps_sourcegen(
@@ -339,3 +337,18 @@ def many_particle_source():
 @pytest.fixture(scope="function")
 def adaptive_kernel_test_source():
     yield adaptive_kernel_test_sourcegen
+
+
+@pytest.fixture(scope="function")
+def gp():
+    source = sps_sourcegen()
+    spectral_model = GaussianSpectrum()
+
+    m = GlobalProfile(
+        source=source,
+        spectral_model=spectral_model,
+        n_channels=16,
+        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+    )
+    m.insert_source_in_spectrum()
+    yield m

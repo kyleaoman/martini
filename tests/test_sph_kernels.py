@@ -38,9 +38,6 @@ recommended_kernels = (
 adaptive_kernels = recommended_kernels + (_AdaptiveKernel,)
 all_kernels = simple_kernels + adaptive_kernels
 
-for k in all_kernels:
-    k.noFWHMwarn = True
-
 
 def total_kernel_weight(k, h, ngrid=50):
     r = np.arange(0, ngrid)

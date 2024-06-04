@@ -48,7 +48,7 @@ class SPHSource(object):
         "sky" ('y-z'), rotated by the azimuthal angle about its angular \
         momentum pole (rotation about 'x'), and inclined (rotation about \
         'y'). A 3-tuple may be provided instead, in which case the third \
-        value specifies the position angle on the sky (rotation about 'x'). \
+        value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
         (Default: identity rotation matrix.)
@@ -255,7 +255,7 @@ class SPHSource(object):
             about its angular momentum pole (rotation about 'x'), and then
             inclined (rotation about 'y'). By default the position angle on the
             sky is 270 degrees, but if a third element is provided it sets the
-            position angle (rotation about 'z').
+            position angle (second rotation about 'x').
         """
 
         args_given = (axis_angle is not None, rotmat is not None, L_coords is not None)
@@ -350,3 +350,181 @@ class SPHSource(object):
 
         np.savetxt(fname, self.current_rotation)
         return
+
+    def preview(
+        self,
+        max_points=5000,
+        fig=1,
+        lim=None,
+        vlim=None,
+        point_scaling="auto",
+        title="",
+        save=None,
+    ):
+        """
+        Produce a figure showing the source particle coordinates and velocities.
+
+        Makes a 3-panel figure showing the projection of the source as it will appear in
+        the mock observation. The first panel shows the particles in the y-z plane,
+        coloured by the x-component of velocity (MARTINI projects the source along the
+        x-axis). The second and third panels are position-velocity diagrams showing the
+        x-component of velocity against the y and z coordinates, respectively.
+
+        Parameters
+        ----------
+        max_points : int, optional
+            Maximum number of points to draw per panel, the particles will be randomly
+            subsampled if the source has more. (Default: 1000)
+
+        fig : int, optional
+            Number of the figure in matplotlib, it will be created as `plt.figure(fig)`.
+            (Default: 1)
+
+        lim : Quantity with dimensions of length, optional
+            The coordinate axes extend from -lim to lim. If unspecified, the maximum
+            absolute coordinate of particles in the source is used. (Default: None)
+
+        vlim : Quantity with dimensions of speed, optional
+            The velocity axes and colour bar extend from -vlim to vlim. If unspecified,
+            the maximum absolute velocity of particles in the source is used.
+            (Default: None)
+
+        point_scaling : str, optional
+            By default points are scaled in size and transparency according to their HI
+            mass and the smoothing length (loosely proportional to their surface
+            densities, but with different scaling to achieve a visually useful plot). For
+            some sources the automatic scaling may not give useful results, using
+            point_scaling="fixed" will plot points of constant size without opacity.
+            (Default: "auto")
+
+        title : str, optional
+            A title for the figure can be provided. (Default: "")
+
+        save : str, optional
+            If provided, the figure is saved using `plt.savefig(save)`. A `.png` or `.pdf`
+            suffix is recommended. (Default: None)
+
+        Returns
+        -------
+        out : matplotlib.figure instance
+            The preview figure.
+        """
+        import matplotlib.pyplot as plt
+
+        # every Nth particle to plot at most max_points, or all particles
+        lim = (
+            max(
+                np.max(np.abs(self.coordinates_g.y.to_value(U.kpc))),
+                np.max(np.abs(self.coordinates_g.z.to_value(U.kpc))),
+            )
+            if lim is None
+            else lim.to_value(U.kpc)
+        )
+        vlim = (
+            np.max(
+                np.abs(self.coordinates_g.differentials["s"].d_x.to_value(U.km / U.s))
+            )
+            if vlim is None
+            else vlim.to_value(U.km / U.s)
+        )
+        cmask = np.logical_and.reduce(
+            (
+                np.abs(self.coordinates_g.y.to_value(U.kpc)) < lim,
+                np.abs(self.coordinates_g.z.to_value(U.kpc)) < lim,
+                np.abs(self.coordinates_g.differentials["s"].d_x.to_value(U.km / U.s))
+                < vlim,
+            )
+        )
+        nparts = cmask.sum()
+        mask = np.arange(self.mHI_g.size)[cmask][:: max(nparts // max_points, 1)]
+        # mass_factor = (
+        #     1
+        #     if (self.mHI_g.isscalar or mask.size <= 1)
+        #     else (self.mHI_g[mask] / self.mHI_g[mask].max()).to_value(
+        #         U.dimensionless_unscaled
+        #     )
+        # )
+        hsm_factor = (
+            1
+            if (self.hsm_g.isscalar or mask.size <= 1)
+            else (1 - (self.hsm_g[mask] / self.hsm_g[mask].max()) ** 0.1).to_value(
+                U.dimensionless_unscaled
+            )
+        )
+        alpha = hsm_factor if point_scaling == "auto" else 1.0
+        size_scale = (
+            self.hsm_g.to_value(U.kpc) / lim
+            if (self.hsm_g.isscalar or mask.size <= 1)
+            else (self.hsm_g[mask].to_value(U.kpc) / lim)
+        )
+        size = 300 * size_scale if point_scaling == "auto" else 10
+        fig = plt.figure(fig, figsize=(12, 4))
+        fig.clf()
+        fig.suptitle(title)
+
+        # ----- MOMENT 1 -----
+        sp1 = fig.add_subplot(1, 3, 1, aspect="equal")
+        sp1.set_facecolor("#222222")
+        scatter = sp1.scatter(
+            self.coordinates_g.y[mask].to_value(U.kpc),
+            self.coordinates_g.z[mask].to_value(U.kpc),
+            c=self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            marker="o",
+            cmap="coolwarm",
+            edgecolor="None",
+            s=size,
+            alpha=alpha,
+            vmin=-vlim,
+            vmax=vlim,
+            zorder=0,
+        )
+        sp1.plot([0], [0], marker="+", ls="None", mec="grey", ms=6, zorder=1)
+        sp1.set_xlabel(r"$y\,[\mathrm{kpc}]$")
+        sp1.set_ylabel(r"$z\,[\mathrm{kpc}]$")
+        sp1.set_xlim((lim, -lim))
+        sp1.set_ylim((-lim, lim))
+        cb = fig.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
+        cb.set_label(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+
+        # ----- PV Y -----
+        sp2 = fig.add_subplot(1, 3, 2)
+        sp2.set_facecolor("#222222")
+        sp2.scatter(
+            self.coordinates_g.y[mask].to_value(U.kpc),
+            self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            c="white",
+            edgecolors="None",
+            marker="o",
+            s=size,
+            alpha=alpha,
+            zorder=0,
+        )
+        sp2.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
+        sp2.set_xlim((lim, -lim))
+        sp2.set_ylim((-vlim, vlim))
+        sp2.set_xlabel(r"$y\,[\mathrm{kpc}]$")
+        sp2.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+
+        # ----- PV Z -----
+        sp3 = fig.add_subplot(1, 3, 3)
+        sp3.set_facecolor("#222222")
+        sp3.scatter(
+            self.coordinates_g.z[mask].to_value(U.kpc),
+            self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            c="white",
+            edgecolors="None",
+            marker="o",
+            s=size,
+            alpha=alpha,
+            zorder=0,
+        )
+        sp3.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
+        sp3.set_xlim((-lim, lim))
+        sp3.set_ylim((-vlim, vlim))
+        sp3.set_xlabel(r"$z\,[\mathrm{kpc}]$")
+        sp3.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+
+        fig.subplots_adjust(wspace=0.3)
+        if save is not None:
+            plt.savefig(save)
+        return fig

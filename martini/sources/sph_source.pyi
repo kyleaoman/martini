@@ -3,6 +3,7 @@ from astropy.coordinates import ICRS
 from martini.datacube import DataCube
 from numpy import ndarray
 import typing as T
+from matplotlib.figure import Figure
 
 class SPHSource:
     h: float
@@ -56,3 +57,13 @@ class SPHSource:
     def translate(self, translation_vector: U.Quantity[U.kpc]) -> None: ...
     def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None: ...
     def save_current_rotation(self, fname: str) -> None: ...
+    def preview(
+        self,
+        max_points: int = ...,
+        fig: int = ...,
+        lim: T.Optional[U.Quantity[U.kpc]] = ...,
+        vlim: T.Optional[U.Quantity[U.km / U.s]] = ...,
+        point_scaling: str = ...,
+        title: str = ...,
+        save: T.Optional[str] = ...,
+    ) -> Figure: ...
