@@ -16,9 +16,9 @@
 .. |Repostatus| image:: https://www.repostatus.org/badges/latest/active.svg
    :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
    :target: https://www.repostatus.org/#active
-.. |Zenodo| image:: https://zenodo.org/badge/107552631.svg
+.. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.11198185.svg
    :alt: Zenodo DOI
-   :target: https://zenodo.org/doi/10.5281/zenodo.11193206
+   :target: https://zenodo.org/records/11198185
 .. |CodeCov| image:: https://codecov.io/gh/kyleaoman/martini/graph/badge.svg?token=05OA3Y8889 
    :alt: Tests code coverage
    :target: https://codecov.io/gh/kyleaoman/martini
@@ -50,23 +50,23 @@ Citing MARTINI
 
 .. CITING_START_LABEL
    
-If your use of MARTINI leads to a publication, please acknowledge this and link to the github page, ideally specifying the version used (git commit ID or version number). Please cite the `MARTINI entry`_ in the ASCL_ (`indexed on ADS`_), and the `original paper`_:
+If your use of MARTINI leads to a publication, please cite the `JOSS paper`_ (`ADS listing`_) and the `original paper`_ (`also on ADS`_). You may also cite the `MARTINI entry`_ in the ASCL_ (`indexed on ADS`_). Ideally specify the version used (`Zenodo DOI`_, git commit ID and/or version number) and link to the github repository.
 
 .. code-block:: bibtex
 
-    @MISC{
-        2019ascl.soft11005O,
-     	author = {{Oman}, Kyle A.},
-        title = "{MARTINI: Mock spatially resolved spectral line observations of simulated galaxies}",
-        keywords = {Software},
-        howpublished = {Astrophysics Source Code Library, record ascl:1911.005},
-        year = 2019,
-        month = nov,
-        eid = {ascl:1911.005},
-        pages = {ascl:1911.005},
-        archivePrefix = {ascl},
-        eprint = {1911.005},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O},
+    @ARTICLE{2024JOSS....9.6860O,
+        author = {{Oman}, Kyle A.},
+        title = "{MARTINI: Mock Array Radio Telescope Interferometry of the Neutral ISM}",
+        journal = {The Journal of Open Source Software},
+        keywords = {astronomy, simulations},
+        year = 2024,
+        month = jun,
+        volume = {9},
+        number = {98},
+        eid = {6860},
+        pages = {6860},
+        doi = {10.21105/joss.06860},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2024JOSS....9.6860O},
         adsnote = {Provided by the SAO/NASA Astrophysics Data System}
     }
 
@@ -89,12 +89,32 @@ If your use of MARTINI leads to a publication, please acknowledge this and link 
         adsnote = {Provided by the SAO/NASA Astrophysics Data System}
     }
 
+    @MISC{
+        2019ascl.soft11005O,
+     	author = {{Oman}, Kyle A.},
+        title = "{MARTINI: Mock spatially resolved spectral line observations of simulated galaxies}",
+        keywords = {Software},
+        howpublished = {Astrophysics Source Code Library, record ascl:1911.005},
+        year = 2019,
+        month = nov,
+        eid = {ascl:1911.005},
+        pages = {ascl:1911.005},
+        archivePrefix = {ascl},
+        eprint = {1911.005},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O},
+        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+    }
+
 Work that has used MARTINI includes: `Oman et al. (2019)`_, `Mancera Piña et al. (2019)`_, `Chauhan et al. (2019)`_, `Mancera Piña et al. (2020)`_, `Santos-Santos et al. (2020)`_, `Glowacki et al. (2021)`_, `Bilimogga et al. (2022)`_, `Glowacki et al. (2022)`_, `Roper et al. (2023)`_ and `Oman et al. (2024)`_. The ALMASim_ package (`Guglielmetti et al. 2023`_) builds on some of MARTINI's functionality. If your work has used MARTINI and is not listed here, please let me know (by email_ or github issue).
 
+.. _JOSS paper: https://doi.org/10.21105/joss.06860
+.. _ADS listing: https://ui.adsabs.harvard.edu/abs/2024JOSS....9.6860O
+.. _original paper: https://doi.org/10.1093/mnras/sty2687
+.. _also on ADS: https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O/abstract
 .. _MARTINI entry: https://ascl.net/1911.005
 .. _ASCL: https://ascl.net
 .. _indexed on ADS: https://ui.adsabs.harvard.edu/abs/2019ascl.soft11005O/abstract
-.. _original paper: https://ui.adsabs.harvard.edu/abs/2019MNRAS.482..821O/abstract
+.. _Zenodo DOI: https://zenodo.org/records/11198185
 .. _Oman et al. (2019): https://doi.org/10.1093/mnras/sty2687
 .. _Mancera Piña et al. (2019): https://doi.org/10.3847/2041-8213/ab40c7
 .. _Chauhan et al. (2019): https://doi.org/10.1093/mnras/stz2069
