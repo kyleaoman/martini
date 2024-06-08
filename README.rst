@@ -1,6 +1,6 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Python version| |PyPI version| |PyOpenSci| |ASCL| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov|
+|Python version| |PyPI version| |JOSS| |PyOpenSci| |ASCL| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov|
 
 .. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
     :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
@@ -28,6 +28,9 @@
 .. |ASCL| image:: https://img.shields.io/badge/ascl-1911.005-blue.svg?colorB=262255
    :alt: ascl:1911.005
    :target: https://ascl.net/1911.005
+.. |JOSS| image:: https://joss.theoj.org/papers/f46e9c0a37c70331703069f190c21c09/status.svg
+   :alt: JOSS doi:10.21105/joss.06860
+   :target: https://joss.theoj.org/papers/f46e9c0a37c70331703069f190c21c09
 	   
 Overview
 ========
