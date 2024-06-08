@@ -14,3 +14,4 @@ examples/*.hdf5
 examples/*.npy
 examples/*.tar
 examples/sql_cookies.txt
+.coverage
