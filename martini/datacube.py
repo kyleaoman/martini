@@ -111,6 +111,67 @@ class DataCube(object):
 
         return
 
+    @classmethod
+    def from_fits_as_template(cls, fitsfile):
+        from astropy.io import fits
+
+        init_args = dict(
+            n_px_x=None,
+            n_px_y=None,
+            n_channels=None,
+            px_size=None,
+            channel_width=None,
+            velocity_centre=None,
+            ra=None,
+            dec=None,
+            stokes_axis=None,
+        )
+        with fits.open(fitsfile) as f:
+            hdr_wcs = wcs.WCS(f[0].header)
+        for i, world_axis_physical_type in enumerate(hdr_wcs.world_axis_physical_types):
+            if world_axis_physical_type.endswith(".stokes"):
+                hdr_wcs = hdr_wcs.dropaxis(i)
+                init_args["stokes_axis"] = True
+        if init_args["stokes_axis"] is None:
+            init_args["stokes_axis"] = False
+        # HERE SHOULD TRY TO CONVERT THE WCS TO THE FRAME THAT MARTINI ASSUMES?
+        # OR WE INITIALIZE WITH DUMMY VALUES AND THEN INIT THE MARTINI WCS WITH THIS ONE?
+        # NEED TO CHECK THAT ON WRITING FITS WE DON'T MAKE ANY INCORRECT ASSUMPTIONS.
+        centre_coords = hdr_wcs.all_pix2world(
+            [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in hdr_wcs.pixel_shape]],
+            1,  # origin, i.e. index pixels from 1
+        ).squeeze()
+        for centre_coord, unit, spacing, world_axis_physical_type, len_ax in zip(
+            centre_coords,
+            hdr_wcs.world_axis_units,
+            hdr_wcs.wcs.cdelt,
+            hdr_wcs.world_axis_physical_types,
+            hdr_wcs.pixel_shape,
+        ):
+            if world_axis_physical_type.endswith(".ra"):
+                ra_px_size = -spacing * U.Unit(unit, format="fits")
+                init_args["n_px_x"] = len_ax
+                init_args["ra"] = centre_coord * U.Unit(unit, format="fits")
+            elif world_axis_physical_type.endswith(".dec"):
+                dec_px_size = spacing * U.Unit(unit, format="fits")
+                init_args["n_px_y"] = len_ax
+                init_args["dec"] = centre_coord * U.Unit(unit, format="fits")
+            elif world_axis_physical_type.startswith("spect."):
+                init_args["channel_width"] = spacing * U.Unit(unit, format="fits")
+                init_args["n_channels"] = len_ax
+                init_args["velocity_centre"] = centre_coord * U.Unit(
+                    unit, format="fits"
+                )
+
+        if ra_px_size != dec_px_size:
+            raise ValueError(
+                "Martini requires square pixels but input data cube has non-square pixels"
+                " (|CDELT| for RA and Dec axes do not match)."
+            )
+        else:
+            init_args["px_size"] = ra_px_size  # == dec_px_size
+        return cls(**init_args)
+
     def _init_wcs(self):
         """
         Initialize the World Coordinate System (WCS).
