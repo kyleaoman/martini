@@ -176,8 +176,11 @@ class DataCube(object):
             init_args["px_size"] = ra_px_size  # == dec_px_size
         datacube = cls(**init_args)
         datacube.wcs = input_wcs
-        # datacube._channel_mids()
-        # datacube._channel_edges()
+        datacube.units = [
+            U.Unit(unit, format="fits") for unit in datacube.wcs.wcs.cunit
+        ]
+        datacube._channel_mids()
+        datacube._channel_edges()
         return datacube
 
     def _init_wcs(self, coordinate_frame, specsys):
