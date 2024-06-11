@@ -1,6 +1,7 @@
 import numpy as np
 import astropy.units as U
 from astropy import wcs
+from astropy.coordinates import ICRS
 
 HIfreq = 1.420405751e9 * U.Hz
 
@@ -69,6 +70,9 @@ class DataCube(object):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         stokes_axis=False,
+        coordinate_frame=ICRS(),
+        specsys="GALACTOC",
+        _from_wcs=False,
     ):
         self.stokes_axis = stokes_axis
         datacube_unit = U.Jy * U.pix**-2
@@ -105,15 +109,15 @@ class DataCube(object):
         self.padx = 0
         self.pady = 0
         self._freq_channel_mode = False
-        self._init_wcs()
-        self._channel_mids()
-        self._channel_edges()
+        if not _from_wcs:
+            self._init_wcs(coordinate_frame, specsys)
+            self._channel_mids()
+            self._channel_edges()
 
         return
 
     @classmethod
-    def from_fits_as_template(cls, fitsfile):
-        from astropy.io import fits
+    def from_wcs(cls, input_wcs):
 
         init_args = dict(
             n_px_x=None,
@@ -125,28 +129,28 @@ class DataCube(object):
             ra=None,
             dec=None,
             stokes_axis=None,
+            coordinate_frame=None,
+            specsys=None,
+            _from_wcs=True,
         )
-        with fits.open(fitsfile) as f:
-            hdr_wcs = wcs.WCS(f[0].header)
-        for i, world_axis_physical_type in enumerate(hdr_wcs.world_axis_physical_types):
+        for i, world_axis_physical_type in enumerate(
+            input_wcs.world_axis_physical_types
+        ):
             if world_axis_physical_type.endswith(".stokes"):
-                hdr_wcs = hdr_wcs.dropaxis(i)
+                sub_wcs = input_wcs.dropaxis(i)
                 init_args["stokes_axis"] = True
         if init_args["stokes_axis"] is None:
             init_args["stokes_axis"] = False
-        # HERE SHOULD TRY TO CONVERT THE WCS TO THE FRAME THAT MARTINI ASSUMES?
-        # OR WE INITIALIZE WITH DUMMY VALUES AND THEN INIT THE MARTINI WCS WITH THIS ONE?
-        # NEED TO CHECK THAT ON WRITING FITS WE DON'T MAKE ANY INCORRECT ASSUMPTIONS.
-        centre_coords = hdr_wcs.all_pix2world(
-            [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in hdr_wcs.pixel_shape]],
+        centre_coords = sub_wcs.all_pix2world(
+            [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in sub_wcs.pixel_shape]],
             1,  # origin, i.e. index pixels from 1
         ).squeeze()
         for centre_coord, unit, spacing, world_axis_physical_type, len_ax in zip(
             centre_coords,
-            hdr_wcs.world_axis_units,
-            hdr_wcs.wcs.cdelt,
-            hdr_wcs.world_axis_physical_types,
-            hdr_wcs.pixel_shape,
+            sub_wcs.world_axis_units,
+            sub_wcs.wcs.cdelt,
+            sub_wcs.world_axis_physical_types,
+            sub_wcs.pixel_shape,
         ):
             if world_axis_physical_type.endswith(".ra"):
                 ra_px_size = -spacing * U.Unit(unit, format="fits")
@@ -170,20 +174,27 @@ class DataCube(object):
             )
         else:
             init_args["px_size"] = ra_px_size  # == dec_px_size
-        return cls(**init_args)
+        datacube = cls(**init_args)
+        datacube.wcs = input_wcs
+        # datacube._channel_mids()
+        # datacube._channel_edges()
+        return datacube
 
-    def _init_wcs(self):
+    def _init_wcs(self, coordinate_frame, specsys):
         """
         Initialize the World Coordinate System (WCS).
         """
-        self.wcs = wcs.WCS(naxis=3)
+        hdr = wcs.utils.celestial_frame_to_wcs(coordinate_frame).to_header()
+        hdr.update(dict(WCSAXES=3))  # add spectral axis
+        hdr.update(dict(NAXIS1=self.n_px_x, NAXIS2=self.n_px_y, NAXIS3=self.n_channels))
+        self.wcs = wcs.WCS(hdr)
         self.wcs.wcs.crpix = [
             self.n_px_x / 2.0 + 0.5,
             self.n_px_y / 2.0 + 0.5,
             self.n_channels / 2.0 + 0.5,
         ]
-        self.units = [U.deg, U.deg, U.m / U.s]
-        self.wcs.wcs.cunit = [unit.to_string("fits") for unit in self.units]
+        self.wcs.wcs.cunit[2] = "m s-1"
+        self.units = [U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit]
         self.wcs.wcs.cdelt = [
             -self.px_size.to_value(self.units[0]),
             self.px_size.to_value(self.units[1]),
@@ -198,8 +209,8 @@ class DataCube(object):
                 self.units[2], equivalencies=U.doppler_radio(HIfreq)
             ),
         ]
-        self.wcs.wcs.ctype = ["RA---TAN", "DEC--TAN", "VRAD"]
-        self.wcs.wcs.specsys = "GALACTOC"
+        self.wcs.wcs.ctype[2] = "VRAD"
+        self.wcs.wcs.specsys = specsys
         if self.stokes_axis:
             self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
         return
