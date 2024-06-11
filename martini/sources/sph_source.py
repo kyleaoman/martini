@@ -1,5 +1,10 @@
 import numpy as np
-from astropy.coordinates import CartesianRepresentation, CartesianDifferential, ICRS
+from astropy.coordinates import (
+    CartesianRepresentation,
+    CartesianDifferential,
+    SkyCoord,
+    ICRS,
+)
 from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from ._L_align import L_align
@@ -118,6 +123,7 @@ class SPHSource(object):
         vxyz_g=None,
         hsm_g=None,
         coordinate_axis=None,
+        coordinate_frame=ICRS(),
     ):
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
@@ -147,6 +153,7 @@ class SPHSource(object):
         if coordinate_axis == 0:
             xyz_g = xyz_g.T
             vxyz_g = vxyz_g.T
+        self.coordinate_frame = coordinate_frame
         self.h = h
         self.T_g = T_g
         self.mHI_g = mHI_g
@@ -187,7 +194,9 @@ class SPHSource(object):
         self.rotate(axis_angle=("z", self.ra))
         self.translate(distance_vector)
         self.boost(vsys_vector)
-        self.skycoords = ICRS(self.coordinates_g, copy=True)
+        self.skycoords = SkyCoord(
+            self.coordinates_g, frame=self.coordinate_frame, copy=True
+        )
         # pixels indexed from 0 (not like in FITS!) for better use with numpy
         if _reset:
             self.boost(-vsys_vector)
