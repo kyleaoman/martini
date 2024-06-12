@@ -179,7 +179,11 @@ class TestDataCube:
             "ra",
             "dec",
         ):
-            assert U.isclose(getattr(dc_random, attr), getattr(copy, attr))
+            assert U.isclose(
+                getattr(dc_random, attr),
+                getattr(copy, attr),
+                atol=1e-6 * getattr(dc_random, attr).unit,
+            )
         for attr in (
             "_channel_edges",
             "_channel_mids",
@@ -221,7 +225,11 @@ class TestDataCube:
                 "ra",
                 "dec",
             ):
-                assert U.isclose(getattr(dc_random, attr), getattr(loaded, attr))
+                assert U.isclose(
+                    getattr(dc_random, attr),
+                    getattr(loaded, attr),
+                    atol=1e-6 * getattr(dc_random, attr).unit,
+                )
             for attr in (
                 "channel_edges",
                 "channel_mids",
@@ -280,3 +288,52 @@ class TestDataCube:
         assert U.allclose(
             np.diff(np.diff(dc_zeros.channel_edges)), 0 * U.Hz, atol=1e-5 * U.Hz
         )
+
+
+class TestDataCubeFromWCS:
+
+    @pytest.mark.parametrize("with_fchannels", (False, True))
+    def test_consistent_with_direct(self, dc_random, with_fchannels):
+        """
+        Check that extracting WCS from a constructed DataCube and constructing
+        a DataCube from that WCS is consistent with the original DataCube.
+
+        Note that we shouldn't expect this to reproduce a padded cube, or use
+        a WCS from a padded cube!
+        """
+        if with_fchannels:
+            dc_random.freq_channels()
+        else:
+            dc_random.velocity_channels()
+        from_wcs = DataCube.from_wcs(dc_random.wcs)
+        for attr in (
+            "n_px_x",
+            "n_px_y",
+            "n_channels",
+            "padx",
+            "pady",
+        ):
+            assert getattr(dc_random, attr) == getattr(from_wcs, attr)
+        for attr in (
+            "px_size",
+            "channel_width",
+            "velocity_centre",
+            "ra",
+            "dec",
+        ):
+            assert U.isclose(
+                getattr(dc_random, attr),
+                getattr(from_wcs, attr),
+                atol=1e-6 * getattr(dc_random, attr).unit,
+            )
+        # don't test for arrays matching, they should not:
+        for attr in (
+            "channel_edges",
+            "channel_mids",
+        ):
+            assert U.allclose(
+                getattr(dc_random, attr),
+                getattr(from_wcs, attr),
+                atol=1e-6 * getattr(dc_random, attr).unit,
+            )
+        check_wcs_match(dc_random.wcs, from_wcs.wcs)

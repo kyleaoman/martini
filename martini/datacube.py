@@ -132,10 +132,9 @@ class DataCube(object):
             coordinate_frame=None,
             specsys=None,
         )
-        for i, world_axis_physical_type in enumerate(
-            input_wcs.world_axis_physical_types
-        ):
-            if world_axis_physical_type.endswith(".stokes"):
+        sub_wcs = input_wcs.copy()
+        for i, axis_type in enumerate(input_wcs.get_axis_types()):
+            if axis_type["coordinate_type"] == "stokes":
                 sub_wcs = input_wcs.dropaxis(i)
                 init_args["stokes_axis"] = True
         if init_args["stokes_axis"] is None:
@@ -144,22 +143,30 @@ class DataCube(object):
             [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in sub_wcs.pixel_shape]],
             1,  # origin, i.e. index pixels from 1
         ).squeeze()
-        for centre_coord, unit, spacing, world_axis_physical_type, len_ax in zip(
+        for centre_coord, unit, spacing, axis_type, len_ax in zip(
             centre_coords,
             sub_wcs.world_axis_units,
             sub_wcs.wcs.cdelt,
-            sub_wcs.world_axis_physical_types,
+            sub_wcs.get_axis_types(),
             sub_wcs.pixel_shape,
         ):
-            if world_axis_physical_type.endswith(".ra"):
+            if (
+                axis_type["coordinate_type"] == "celestial"
+                and axis_type["group"] == 0
+                and axis_type["number"] == 0
+            ):
                 ra_px_size = -spacing * U.Unit(unit, format="fits")
                 init_args["n_px_x"] = len_ax
                 init_args["ra"] = centre_coord * U.Unit(unit, format="fits")
-            elif world_axis_physical_type.endswith(".dec"):
+            elif (
+                axis_type["coordinate_type"] == "celestial"
+                and axis_type["group"] == 0
+                and axis_type["number"] == 1
+            ):
                 dec_px_size = spacing * U.Unit(unit, format="fits")
                 init_args["n_px_y"] = len_ax
                 init_args["dec"] = centre_coord * U.Unit(unit, format="fits")
-            elif world_axis_physical_type.startswith("spect."):
+            elif axis_type["coordinate_type"] == "spectral":
                 init_args["channel_width"] = spacing * U.Unit(unit, format="fits")
                 init_args["n_channels"] = len_ax
                 init_args["velocity_centre"] = centre_coord * U.Unit(
