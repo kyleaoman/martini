@@ -72,9 +72,10 @@ class DataCube(object):
         stokes_axis=False,
         coordinate_frame=ICRS(),
         specsys="GALACTOC",
-        _from_wcs=False,
     ):
         self.stokes_axis = stokes_axis
+        self.coordinate_frame = coordinate_frame
+        self.specsys = specsys
         datacube_unit = U.Jy * U.pix**-2
         self._array = np.zeros((n_px_x, n_px_y, n_channels)) * datacube_unit
         if self.stokes_axis:
@@ -109,10 +110,9 @@ class DataCube(object):
         self.padx = 0
         self.pady = 0
         self._freq_channel_mode = False
-        if not _from_wcs:
-            self._init_wcs(coordinate_frame, specsys)
-            self._channel_mids()
-            self._channel_edges()
+        self._channel_edges = None
+        self._channel_mids = None
+        self._wcs = None
 
         return
 
@@ -131,7 +131,6 @@ class DataCube(object):
             stokes_axis=None,
             coordinate_frame=None,
             specsys=None,
-            _from_wcs=True,
         )
         for i, world_axis_physical_type in enumerate(
             input_wcs.world_axis_physical_types
@@ -169,115 +168,117 @@ class DataCube(object):
 
         if ra_px_size != dec_px_size:
             raise ValueError(
-                "Martini requires square pixels but input data cube has non-square pixels"
+                "Martini requires square pixels but input wcs has non-square pixels"
                 " (|CDELT| for RA and Dec axes do not match)."
             )
         else:
             init_args["px_size"] = ra_px_size  # == dec_px_size
         datacube = cls(**init_args)
-        datacube.wcs = input_wcs
-        datacube.units = [
-            U.Unit(unit, format="fits") for unit in datacube.wcs.wcs.cunit
-        ]
-        datacube._channel_mids()
-        datacube._channel_edges()
+        datacube._wcs = input_wcs
         return datacube
 
-    def _init_wcs(self, coordinate_frame, specsys):
-        """
-        Initialize the World Coordinate System (WCS).
-        """
-        hdr = wcs.utils.celestial_frame_to_wcs(coordinate_frame).to_header()
-        hdr.update(dict(WCSAXES=3))  # add spectral axis
-        hdr.update(dict(NAXIS1=self.n_px_x, NAXIS2=self.n_px_y, NAXIS3=self.n_channels))
-        self.wcs = wcs.WCS(hdr)
-        self.wcs.wcs.crpix = [
-            self.n_px_x / 2.0 + 0.5,
-            self.n_px_y / 2.0 + 0.5,
-            self.n_channels / 2.0 + 0.5,
-        ]
-        self.wcs.wcs.cunit[2] = "m s-1"
-        self.units = [U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit]
-        self.wcs.wcs.cdelt = [
-            -self.px_size.to_value(self.units[0]),
-            self.px_size.to_value(self.units[1]),
-            self.channel_width.to_value(
-                self.units[2], equivalencies=U.doppler_radio(HIfreq)
-            ),
-        ]
-        self.wcs.wcs.crval = [
-            self.ra.to_value(self.units[0]),
-            self.dec.to_value(self.units[1]),
-            self.velocity_centre.to_value(
-                self.units[2], equivalencies=U.doppler_radio(HIfreq)
-            ),
-        ]
-        self.wcs.wcs.ctype[2] = "VRAD"
-        self.wcs.wcs.specsys = specsys
-        if self.stokes_axis:
-            self.wcs = wcs.utils.add_stokes_axis_to_wcs(self.wcs, self.wcs.wcs.naxis)
-        return
+    @property
+    def units(self):
+        if self._wcs is None:
+            return None
+        return [U.Unit(unit, format="fits") for unit in self._wcs.wcs.cunit]
 
-    def _channel_mids(self):
+    @property
+    def wcs(self):
         """
-        Calculate the centres of the channels from the coordinate system.
+        The DataCube's World Coordinate System (WCS).
         """
-        pixels = (
-            np.zeros(self.n_channels),
-            np.zeros(self.n_channels),
-            np.arange(self.n_channels) - 0.5,
-        )
-        if self.stokes_axis:
-            pixels = pixels + (np.zeros(self.n_channels),)
-        self.channel_mids = (
-            self.wcs.wcs_pix2world(
-                *pixels,
-                0,
-            )[2]
-            * self.units[2]
-        )
-        return
+        if self._wcs is None:
+            hdr = wcs.utils.celestial_frame_to_wcs(self.coordinate_frame).to_header()
+            hdr.update(dict(WCSAXES=3))  # add spectral axis
+            hdr.update(
+                dict(NAXIS1=self.n_px_x, NAXIS2=self.n_px_y, NAXIS3=self.n_channels)
+            )
+            self._wcs = wcs.WCS(hdr)
+            self._wcs.wcs.crpix = [
+                self.n_px_x / 2.0 + 0.5 + self.padx,
+                self.n_px_y / 2.0 + 0.5 + self.pady,
+                self.n_channels / 2.0 + 0.5,
+            ]
+            self._wcs.wcs.cunit[2] = "m s-1"
+            self._wcs.wcs.cdelt = [
+                -self.px_size.to_value(self.units[0]),
+                self.px_size.to_value(self.units[1]),
+                self.channel_width.to_value(
+                    self.units[2], equivalencies=U.doppler_radio(HIfreq)
+                ),
+            ]
+            self._wcs.wcs.crval = [
+                self.ra.to_value(self.units[0]),
+                self.dec.to_value(self.units[1]),
+                self.velocity_centre.to_value(
+                    self.units[2], equivalencies=U.doppler_radio(HIfreq)
+                ),
+            ]
+            self._wcs.wcs.ctype[2] = "VRAD"
+            self._wcs.wcs.specsys = self.specsys
+            if self.stokes_axis:
+                self._wcs = wcs.utils.add_stokes_axis_to_wcs(
+                    self._wcs, self._wcs.wcs.naxis
+                )
+        return self._wcs
 
-    def _channel_edges(self):
+    @property
+    def channel_mids(self):
         """
-        Calculate the edges of the channels from the coordinate system.
+        The centres of the channels from the coordinate system.
         """
-        pixels = (
-            np.zeros(self.n_channels + 1),
-            np.zeros(self.n_channels + 1),
-            np.arange(self.n_channels + 1) - 1,
-        )
-        if self.stokes_axis:
-            pixels = pixels + (np.zeros(self.n_channels + 1),)
-        self.channel_edges = (
-            self.wcs.wcs_pix2world(
-                *pixels,
-                0,
-            )[2]
-            * self.units[2]
-        )
-        return
+        if self._channel_mids is None:
+            pixels = (
+                np.zeros(self.n_channels),
+                np.zeros(self.n_channels),
+                np.arange(self.n_channels) - 0.5,
+            )
+            if self.stokes_axis:
+                pixels = pixels + (np.zeros(self.n_channels),)
+            self._channel_mids = (
+                self.wcs.wcs_pix2world(
+                    *pixels,
+                    0,
+                )[2]
+                * self.units[2]
+            )
+        return self._channel_mids
 
+    @property
+    def channel_edges(self):
+        """
+        The edges of the channels from the coordinate system.
+        """
+        if self._channel_edges is None:
+            pixels = (
+                np.zeros(self.n_channels + 1),
+                np.zeros(self.n_channels + 1),
+                np.arange(self.n_channels + 1) - 1,
+            )
+            if self.stokes_axis:
+                pixels = pixels + (np.zeros(self.n_channels + 1),)
+            self._channel_edges = (
+                self.wcs.wcs_pix2world(
+                    *pixels,
+                    0,
+                )[2]
+                * self.units[2]
+            )
+        return self._channel_edges
+
+    @property
     def spatial_slices(self):
         """
-        Return an iterator over the spatial 'slices' of the cube.
-
-        Returns
-        -------
-        out : iterator
-            Iterator over the spatial 'slices' of the cube.
+        An iterator over the spatial 'slices' of the cube.
         """
         s = np.s_[..., 0] if self.stokes_axis else np.s_[...]
         return iter(self._array[s].transpose((2, 0, 1)))
 
+    @property
     def spectra(self):
         """
-        Return an iterator over the spectra (one in each spatial pixel).
-
-        Returns
-        -------
-        out : iterator
-            Iterator over the spectra (one in each spatial pixel).
+        An iterator over the spectra (one in each spatial pixel).
         """
         s = np.s_[..., 0] if self.stokes_axis else np.s_[...]
         return iter(self._array[s].reshape(self.n_px_x * self.n_px_y, self.n_channels))
@@ -289,7 +290,7 @@ class DataCube(object):
         if self._freq_channel_mode:
             return
 
-        self.wcs.wcs.cdelt[2] = -np.abs(
+        self._wcs.wcs.cdelt[2] = -np.abs(
             (
                 (self.wcs.wcs.crval[2] + 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
             ).to_value(U.Hz, equivalencies=U.doppler_radio(HIfreq))
@@ -297,15 +298,14 @@ class DataCube(object):
                 (self.wcs.wcs.crval[2] - 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
             ).to_value(U.Hz, equivalencies=U.doppler_radio(HIfreq))
         )
-        self.wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
+        self._wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
             U.Hz, equivalencies=U.doppler_radio(HIfreq)
         )
-        self.wcs.wcs.ctype[2] = "FREQ"
-        self.units[2] = U.Hz
-        self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
+        self._wcs.wcs.ctype[2] = "FREQ"
+        self._wcs.wcs.cunit[2] = (U.Hz).to_string("fits")
         self._freq_channel_mode = True
-        self._channel_mids()
-        self._channel_edges()
+        self._channel_mids = None
+        self._channel_edges = None
         return
 
     def velocity_channels(self):
@@ -315,7 +315,7 @@ class DataCube(object):
         if not self._freq_channel_mode:
             return
 
-        self.wcs.wcs.cdelt[2] = np.abs(
+        self._wcs.wcs.cdelt[2] = np.abs(
             (
                 (self.wcs.wcs.crval[2] - 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
             ).to_value(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
@@ -323,15 +323,14 @@ class DataCube(object):
                 (self.wcs.wcs.crval[2] + 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
             ).to_value(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
         )
-        self.wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
+        self._wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
             U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
         )
-        self.wcs.wcs.ctype[2] = "VRAD"
-        self.units[2] = U.m * U.s**-1
-        self.wcs.wcs.cunit[2] = self.units[2].to_string("fits")
+        self._wcs.wcs.ctype[2] = "VRAD"
+        self._wcs.wcs.cunit[2] = (U.m * U.s**-1).to_string("fits")
         self._freq_channel_mode = False
-        self._channel_mids()
-        self._channel_edges()
+        self._channel_mids = None
+        self._channel_edges = None
         return
 
     def add_pad(self, pad):
@@ -368,7 +367,7 @@ class DataCube(object):
         extend_crpix = [pad[0], pad[1], 0]
         if self.stokes_axis:
             extend_crpix.append(0)
-        self.wcs.wcs.crpix += np.array(extend_crpix)
+        self._wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
         self.padx, self.pady = pad
         return
 
@@ -390,7 +389,7 @@ class DataCube(object):
         retract_crpix = [self.padx, self.pady, 0]
         if self.stokes_axis:
             retract_crpix.append(0)
-        self.wcs.wcs.crpix -= np.array(retract_crpix)
+        self._wcs.wcs.crpix = self.wcs.wcs.crpix - np.array(retract_crpix)
         self.padx, self.pady = 0, 0
         return
 
@@ -420,10 +419,10 @@ class DataCube(object):
             self.dec,
         )
         copy.padx, copy.pady = self.padx, self.pady
-        copy.wcs = self.wcs
+        copy._wcs = self.wcs.copy()
         copy._freq_channel_mode = self._freq_channel_mode
-        copy.channel_edges = self.channel_edges
-        copy.channel_mids = self.channel_mids
+        copy._channel_edges = self.channel_edges
+        copy._channel_mids = self.channel_mids
         copy._array = self._array.copy()
         return copy
 
@@ -480,6 +479,7 @@ class DataCube(object):
             f["_array"].attrs["pady"] = self.pady
             f["_array"].attrs["_freq_channel_mode"] = int(self._freq_channel_mode)
             f["_array"].attrs["stokes_axis"] = self.stokes_axis
+            f["_array"].attrs["wcs_hdr"] = self.wcs.to_header_string()
         return
 
     @classmethod
@@ -533,11 +533,12 @@ class DataCube(object):
                 dec=dec,
                 stokes_axis=stokes_axis,
             )
-            D._init_wcs()
             D.add_pad((f["_array"].attrs["padx"], f["_array"].attrs["pady"]))
             if bool(f["_array"].attrs["_freq_channel_mode"]):
                 D.freq_channels()
             D._array = f["_array"] * U.Unit(f["_array"].attrs["datacube_unit"])
+            # must be after add_pad, freq_channels:
+            D._wcs = wcs.WCS(f["_array"].attrs["wcs_hdr"])
         return D
 
     def __repr__(self):
@@ -577,6 +578,7 @@ class _GlobalProfileDataCube(DataCube):
         n_channels=64,
         channel_width=4.0 * U.km * U.s**-1,
         velocity_centre=0.0 * U.km * U.s**-1,
+        specsys="GALACTOC",
     ):
         super().__init__(
             n_px_x=1,
@@ -588,6 +590,8 @@ class _GlobalProfileDataCube(DataCube):
             ra=0.0 * U.deg,
             dec=0.0 * U.deg,
             stokes_axis=False,
+            coordinate_frame=ICRS(),
+            specsys=specsys,
         )
 
         return

@@ -13,6 +13,12 @@ else:
     have_h5py = True
 
 
+def check_wcs_match(wcs1, wcs2):
+    assert set(wcs1.to_header().keys()) == set(wcs2.to_header().keys())
+    for k, v, _ in wcs1.to_header().cards:
+        assert v == wcs2.to_header()[k]
+
+
 class TestDataCube:
     def test_datacube_dimensions(self):
         """
@@ -40,8 +46,8 @@ class TestDataCube:
         """
         Check that iterators over slices give us expected lengths.
         """
-        assert len(list(dc_zeros.spatial_slices())) == dc_zeros.n_channels
-        assert len(list(dc_zeros.spectra())) == dc_zeros.n_px_x * dc_zeros.n_px_y
+        assert len(list(dc_zeros.spatial_slices)) == dc_zeros.n_channels
+        assert len(list(dc_zeros.spectra)) == dc_zeros.n_px_x * dc_zeros.n_px_y
 
     def test_freq_channels(self, dc_zeros):
         """
@@ -175,12 +181,12 @@ class TestDataCube:
         ):
             assert U.isclose(getattr(dc_random, attr), getattr(copy, attr))
         for attr in (
-            "channel_edges",
-            "channel_mids",
+            "_channel_edges",
+            "_channel_mids",
             "_array",
         ):
             assert U.allclose(getattr(dc_random, attr), getattr(copy, attr))
-        assert str(dc_random.wcs) == str(copy.wcs)
+        check_wcs_match(dc_random.wcs, copy.wcs)
 
     @pytest.mark.skipif(
         not have_h5py, reason="h5py (optional dependency) not available."
@@ -222,7 +228,7 @@ class TestDataCube:
                 "_array",
             ):
                 assert U.allclose(getattr(dc_random, attr), getattr(loaded, attr))
-            assert str(dc_random.wcs) == str(loaded.wcs)
+            check_wcs_match(dc_random.wcs, loaded.wcs)
         except Exception:
             raise
         finally:

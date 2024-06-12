@@ -869,7 +869,7 @@ class Martini(_BaseMartini):
             )
 
         unit = self._datacube._array.unit
-        for spatial_slice in self._datacube.spatial_slices():
+        for spatial_slice in self._datacube.spatial_slices:
             # use a view [...] to force in-place modification
             spatial_slice[...] = (
                 fftconvolve(spatial_slice, self.beam.kernel, mode="same") * unit
