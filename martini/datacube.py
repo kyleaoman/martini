@@ -132,39 +132,32 @@ class DataCube(object):
             coordinate_frame=None,
             specsys=None,
         )
-        sub_wcs = input_wcs.copy()
-        for i, axis_type in enumerate(input_wcs.get_axis_types()):
+        for axis_type in input_wcs.get_axis_types():
             if axis_type["coordinate_type"] == "stokes":
-                sub_wcs = input_wcs.dropaxis(i)
                 init_args["stokes_axis"] = True
         if init_args["stokes_axis"] is None:
             init_args["stokes_axis"] = False
-        centre_coords = sub_wcs.all_pix2world(
-            [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in sub_wcs.pixel_shape]],
+        centre_coords = input_wcs.all_pix2world(
+            [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in input_wcs.pixel_shape]],
             1,  # origin, i.e. index pixels from 1
         ).squeeze()
-        for i, (centre_coord, unit, spacing, len_ax) in enumerate(
-            zip(
-                centre_coords,
-                sub_wcs.world_axis_units,
-                sub_wcs.wcs.cdelt,
-                sub_wcs.pixel_shape,
-            )
-        ):
-            if i == sub_wcs.wcs.lng:
-                ra_px_size = -spacing * U.Unit(unit, format="fits")
-                init_args["n_px_x"] = len_ax
-                init_args["ra"] = centre_coord * U.Unit(unit, format="fits")
-            elif i == sub_wcs.wcs.lat:
-                dec_px_size = spacing * U.Unit(unit, format="fits")
-                init_args["n_px_y"] = len_ax
-                init_args["dec"] = centre_coord * U.Unit(unit, format="fits")
-            elif i == sub_wcs.wcs.spec:
-                init_args["channel_width"] = spacing * U.Unit(unit, format="fits")
-                init_args["n_channels"] = len_ax
-                init_args["velocity_centre"] = centre_coord * U.Unit(
-                    unit, format="fits"
-                )
+        ax_ra, ax_dec, ax_spec = (
+            input_wcs.wcs.lng,
+            input_wcs.wcs.lat,
+            input_wcs.wcs.spec,
+        )
+        unit_ra = U.Unit(input_wcs.world_axis_units[ax_ra], format="fits")
+        unit_dec = U.Unit(input_wcs.world_axis_units[ax_dec], format="fits")
+        unit_spec = U.Unit(input_wcs.world_axis_units[ax_spec], format="fits")
+        ra_px_size = np.abs(input_wcs.wcs.cdelt[ax_ra]) * unit_ra
+        init_args["n_px_x"] = input_wcs.pixel_shape[ax_ra]
+        init_args["ra"] = centre_coords[ax_ra] * unit_ra
+        dec_px_size = input_wcs.wcs.cdelt[ax_dec] * unit_dec
+        init_args["n_px_y"] = input_wcs.pixel_shape[ax_dec]
+        init_args["dec"] = centre_coords[ax_dec] * unit_dec
+        init_args["channel_width"] = np.abs(input_wcs.wcs.cdelt[ax_spec]) * unit_spec
+        init_args["n_channels"] = input_wcs.pixel_shape[ax_spec]
+        init_args["velocity_centre"] = centre_coords[ax_spec] * unit_spec
 
         if ra_px_size != dec_px_size:
             raise ValueError(
@@ -179,7 +172,14 @@ class DataCube(object):
         if datacube_wcs.wcs.lat == 0:  # RA & Dec swapped
             datacube_wcs = datacube_wcs.swapaxes(0, 1)
         datacube._wcs = datacube_wcs
-        # need to set datacube._freq_channel_mode correctly here
+        datacube._freq_channel_mode = (
+            U.get_physical_type(
+                U.Unit(
+                    datacube_wcs.world_axis_units[datacube_wcs.wcs.spec], format="fits"
+                )
+            )
+            == "frequency"
+        )
         datacube.velocity_channels()
         return datacube
 
@@ -227,6 +227,7 @@ class DataCube(object):
                 self._wcs = wcs.utils.add_stokes_axis_to_wcs(
                     self._wcs, self._wcs.wcs.naxis
                 )
+                self._wcs.pixel_shape = (self.n_px_x, self.n_px_y, self.n_channels, 1)
         return self._wcs
 
     @property
@@ -296,6 +297,8 @@ class DataCube(object):
         if self._freq_channel_mode:
             return
 
+        # faulty assumptions here and in velocity channels probably to do with the abs()
+        # and sign of cdelt?
         self._wcs.wcs.cdelt[2] = -np.abs(
             (
                 (self.wcs.wcs.crval[2] + 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]

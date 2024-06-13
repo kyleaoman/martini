@@ -327,6 +327,8 @@ class TestDataCubeFromWCS:
                 getattr(from_wcs, attr),
                 atol=1e-6 * getattr(dc_random, attr).unit,
             )
+        # initialization always converts to velocity channels:
+        dc_random.velocity_channels()
         # don't test for arrays matching, they should not:
         for attr in (
             "channel_edges",

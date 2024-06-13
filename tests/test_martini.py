@@ -684,5 +684,3 @@ class TestMartiniWithDataCubeFromWCS:
             spectral_model=DiracDeltaSpectrum(),
             sph_kernel=DiracDeltaKernel(),
         )
-
-        # m.insert_source_in_cube(progressbar=False)
