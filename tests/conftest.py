@@ -1,6 +1,8 @@
 import pytest
+import os
 import numpy as np
 from astropy import units as U
+from astropy import wcs
 from martini.martini import Martini, GlobalProfile
 from martini.datacube import DataCube
 from martini.beams import GaussianBeam
@@ -249,6 +251,25 @@ def dc_random(request):
         np.random.rand(dc._array.size).reshape(dc._array.shape) * dc._array.unit
     )
 
+    yield dc
+
+
+@pytest.fixture(
+    scope="function",
+    params=[
+        "IC_2574_NA_CUBE_THINGS.HEADER",
+        "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header",
+        "WALLABY_PILOT_CUTOUT_APPROX.HEADER",
+        # as previous but with axes reordered:
+        "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header.permuted",
+    ],
+)
+def dc_wcs(request):
+    with open(os.path.join("tests/data/", request.param), "r") as f:
+        hdr = f.read()
+    with pytest.warns(wcs.FITSFixedWarning):
+        hdr_wcs = wcs.WCS(hdr)
+    dc = DataCube.from_wcs(hdr_wcs)
     yield dc
 
 

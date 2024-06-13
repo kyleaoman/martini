@@ -363,31 +363,25 @@ class TestDataCubeFromWCS:
             [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in hdr_wcs.pixel_shape]],
             1,  # origin, i.e. index pixels from 1
         ).squeeze()
-        for centre_coord, unit, spacing, axis_type, len_ax in zip(
-            centre_coords,
-            hdr_wcs.world_axis_units,
-            hdr_wcs.wcs.cdelt,
-            hdr_wcs.get_axis_types(),
-            hdr_wcs.pixel_shape,
+        for i, (centre_coord, unit, spacing, len_ax) in enumerate(
+            zip(
+                centre_coords,
+                hdr_wcs.world_axis_units,
+                hdr_wcs.wcs.cdelt,
+                hdr_wcs.pixel_shape,
+            )
         ):
-            if (
-                axis_type["coordinate_type"] == "celestial"
-                and axis_type["group"] == 0
-                and axis_type["number"] == 0
-            ):
+            if i == hdr_wcs.wcs.lng:
                 assert U.isclose(dc.px_size, -spacing * U.Unit(unit, format="fits"))
                 assert dc.n_px_x == len_ax
                 assert U.isclose(dc.ra, centre_coord * U.Unit(unit, format="fits"))
-            elif (
-                axis_type["coordinate_type"] == "celestial"
-                and axis_type["group"] == 0
-                and axis_type["number"] == 1
-            ):
+            elif i == hdr_wcs.wcs.lat:
                 assert U.isclose(dc.px_size, spacing * U.Unit(unit, format="fits"))
                 assert dc.n_px_y == len_ax
                 assert U.isclose(dc.dec, centre_coord * U.Unit(unit, format="fits"))
-            elif axis_type["coordinate_type"] == "spectral":
-                # this breaks if spacing is in Hz, need the frequency difference at the velocity centre
+            elif i == hdr_wcs.wcs.spec:
+                # This breaks if spacing is in Hz,
+                # need the frequency difference at the velocity centre:
                 hdr_specref = centre_coord * U.Unit(unit, format="fits")
                 assert U.isclose(
                     dc.channel_width,
@@ -401,4 +395,9 @@ class TestDataCubeFromWCS:
                     ),
                 )
                 assert dc.n_channels == len_ax
-                assert U.isclose(dc.velocity_centre, hdr_specref)
+                assert U.isclose(
+                    dc.velocity_centre,
+                    hdr_specref.to(
+                        dc.velocity_centre.unit, equivalencies=U.doppler_radio(HIfreq)
+                    ),
+                )

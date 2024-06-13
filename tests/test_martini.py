@@ -660,3 +660,29 @@ class TestGlobalProfile:
         gp.plot_spectrum()
         # with non-default arguments
         gp.plot_spectrum(fig=2, title="test", show_vsys=False)
+
+
+class TestMartiniWithDataCubeFromWCS:
+
+    def test_source_insertion(self, dc_wcs, single_particle_source):
+        datacube = dc_wcs
+        source = single_particle_source(
+            ra=datacube.ra,
+            dec=datacube.dec,
+            distance=(
+                datacube.velocity_centre.to(
+                    U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                )
+                / (70 * U.km / U.s / U.Mpc)
+            ).to(U.Mpc),
+        )
+        m = Martini(
+            source=source,
+            datacube=datacube,
+            beam=None,
+            noise=None,
+            spectral_model=DiracDeltaSpectrum(),
+            sph_kernel=DiracDeltaKernel(),
+        )
+
+        # m.insert_source_in_cube(progressbar=False)

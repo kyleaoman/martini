@@ -143,30 +143,23 @@ class DataCube(object):
             [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in sub_wcs.pixel_shape]],
             1,  # origin, i.e. index pixels from 1
         ).squeeze()
-        for centre_coord, unit, spacing, axis_type, len_ax in zip(
-            centre_coords,
-            sub_wcs.world_axis_units,
-            sub_wcs.wcs.cdelt,
-            sub_wcs.get_axis_types(),
-            sub_wcs.pixel_shape,
+        for i, (centre_coord, unit, spacing, len_ax) in enumerate(
+            zip(
+                centre_coords,
+                sub_wcs.world_axis_units,
+                sub_wcs.wcs.cdelt,
+                sub_wcs.pixel_shape,
+            )
         ):
-            if (
-                axis_type["coordinate_type"] == "celestial"
-                and axis_type["group"] == 0
-                and axis_type["number"] == 0
-            ):
+            if i == sub_wcs.wcs.lng:
                 ra_px_size = -spacing * U.Unit(unit, format="fits")
                 init_args["n_px_x"] = len_ax
                 init_args["ra"] = centre_coord * U.Unit(unit, format="fits")
-            elif (
-                axis_type["coordinate_type"] == "celestial"
-                and axis_type["group"] == 0
-                and axis_type["number"] == 1
-            ):
+            elif i == sub_wcs.wcs.lat:
                 dec_px_size = spacing * U.Unit(unit, format="fits")
                 init_args["n_px_y"] = len_ax
                 init_args["dec"] = centre_coord * U.Unit(unit, format="fits")
-            elif axis_type["coordinate_type"] == "spectral":
+            elif i == sub_wcs.wcs.spec:
                 init_args["channel_width"] = spacing * U.Unit(unit, format="fits")
                 init_args["n_channels"] = len_ax
                 init_args["velocity_centre"] = centre_coord * U.Unit(
@@ -181,7 +174,13 @@ class DataCube(object):
         else:
             init_args["px_size"] = ra_px_size  # == dec_px_size
         datacube = cls(**init_args)
-        datacube._wcs = input_wcs
+        # order celestial, then spectral, then other (stokes):
+        datacube_wcs = input_wcs.reorient_celestial_first()
+        if datacube_wcs.wcs.lat == 0:  # RA & Dec swapped
+            datacube_wcs = datacube_wcs.swapaxes(0, 1)
+        datacube._wcs = datacube_wcs
+        # need to set datacube._freq_channel_mode correctly here
+        datacube.velocity_channels()
         return datacube
 
     @property
