@@ -1,6 +1,7 @@
 import pytest
 import os
 import numpy as np
+from astropy import wcs
 from astropy import units as U
 from martini import DataCube
 from martini.datacube import HIfreq
@@ -337,3 +338,67 @@ class TestDataCubeFromWCS:
                 atol=1e-6 * getattr(dc_random, attr).unit,
             )
         check_wcs_match(dc_random.wcs, from_wcs.wcs)
+
+    @pytest.mark.parametrize(
+        "sample_header",
+        (
+            "IC_2574_NA_CUBE_THINGS.HEADER",
+            "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header",
+            "WALLABY_PILOT_CUTOUT_APPROX.HEADER",
+            # as previous but with axes reordered:
+            "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header.permuted",
+        ),
+    )
+    def test_sample_headers(self, sample_header):
+        """
+        Check that some real-world FITS headers can be used to initialize a DataCube.
+        """
+        with open(os.path.join("tests/data/", sample_header), "r") as f:
+            hdr = f.read()
+        with pytest.warns(wcs.FITSFixedWarning):
+            hdr_wcs = wcs.WCS(hdr)
+        dc = DataCube.from_wcs(hdr_wcs)
+        assert dc.stokes_axis == (hdr_wcs.naxis == 4)
+        centre_coords = hdr_wcs.all_pix2world(
+            [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in hdr_wcs.pixel_shape]],
+            1,  # origin, i.e. index pixels from 1
+        ).squeeze()
+        for centre_coord, unit, spacing, axis_type, len_ax in zip(
+            centre_coords,
+            hdr_wcs.world_axis_units,
+            hdr_wcs.wcs.cdelt,
+            hdr_wcs.get_axis_types(),
+            hdr_wcs.pixel_shape,
+        ):
+            if (
+                axis_type["coordinate_type"] == "celestial"
+                and axis_type["group"] == 0
+                and axis_type["number"] == 0
+            ):
+                assert U.isclose(dc.px_size, -spacing * U.Unit(unit, format="fits"))
+                assert dc.n_px_x == len_ax
+                assert U.isclose(dc.ra, centre_coord * U.Unit(unit, format="fits"))
+            elif (
+                axis_type["coordinate_type"] == "celestial"
+                and axis_type["group"] == 0
+                and axis_type["number"] == 1
+            ):
+                assert U.isclose(dc.px_size, spacing * U.Unit(unit, format="fits"))
+                assert dc.n_px_y == len_ax
+                assert U.isclose(dc.dec, centre_coord * U.Unit(unit, format="fits"))
+            elif axis_type["coordinate_type"] == "spectral":
+                # this breaks if spacing is in Hz, need the frequency difference at the velocity centre
+                hdr_specref = centre_coord * U.Unit(unit, format="fits")
+                assert U.isclose(
+                    dc.channel_width,
+                    np.abs(
+                        (hdr_specref + spacing * U.Unit(unit, format="fits")).to(
+                            dc.channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
+                        )
+                        - (hdr_specref).to(
+                            dc.channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
+                        )
+                    ),
+                )
+                assert dc.n_channels == len_ax
+                assert U.isclose(dc.velocity_centre, hdr_specref)
