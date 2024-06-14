@@ -240,7 +240,7 @@ class TestSPHKernels:
                 n_channels=32,
                 px_size=68.75493542 * U.arcsec,
                 channel_width=10 * U.km / U.s,
-                velocity_centre=source.vsys,
+                spectral_centre=source.vsys,
             )
             m = Martini(
                 source=source,

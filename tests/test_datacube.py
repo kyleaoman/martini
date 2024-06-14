@@ -33,14 +33,14 @@ class TestDataCube:
         """
         Check that first and last channel mids are spaced as expected.
         """
-        bandwidth = dc_zeros.channel_mids[-1] - dc_zeros.channel_mids[0]
-        assert bandwidth == (dc_zeros.n_channels - 1) * dc_zeros.channel_width
+        bandwidth = np.abs(dc_zeros.channel_mids[-1] - dc_zeros.channel_mids[0])
+        assert U.isclose(bandwidth, (dc_zeros.n_channels - 1) * dc_zeros.channel_width)
 
     def test_channel_edges(self, dc_zeros):
         """
         Check that first and last channel edges are spaced as expected.
         """
-        bandwidth = dc_zeros.channel_edges[-1] - dc_zeros.channel_edges[0]
+        bandwidth = np.abs(dc_zeros.channel_edges[-1] - dc_zeros.channel_edges[0])
         assert bandwidth == dc_zeros.n_channels * dc_zeros.channel_width
 
     def test_iterators(self, dc_zeros):
@@ -52,47 +52,51 @@ class TestDataCube:
 
     def test_freq_channels(self, dc_zeros):
         """
-        Check that we can convert to frequency channels.
+        Check that frequency channels match WCS.
         """
-        v_channel_mids = dc_zeros.channel_mids
-        v_channel_edges = dc_zeros.channel_edges
-        dc_zeros.freq_channels()
+        spec_unit = U.Unit(dc_zeros.wcs.wcs.cunit[dc_zeros.wcs.wcs.spec], format="fits")
+        mids = (
+            dc_zeros.wcs.sub(("spectral",)).all_pix2world(
+                np.arange(dc_zeros.n_channels), 0
+            )
+        ) * spec_unit
+        edges = (
+            dc_zeros.wcs.sub(("spectral",)).all_pix2world(
+                np.arange(dc_zeros.n_channels + 1) - 0.5, 0
+            )
+        ) * spec_unit
         assert U.allclose(
-            dc_zeros.channel_mids.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)),
-            v_channel_mids,
+            mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
+            dc_zeros.frequency_channel_mids,
         )
         assert U.allclose(
-            dc_zeros.channel_edges.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)),
-            v_channel_edges,
+            edges.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
+            dc_zeros.frequency_channel_edges,
         )
 
     def test_velocity_channels(self, dc_zeros):
         """
-        Check that we can convert to velocity channels.
+        Check that velocity channels match WCS.
         """
-        dc_zeros.freq_channels()
-        f_channel_mids = dc_zeros.channel_mids
-        f_channel_edges = dc_zeros.channel_edges
-        dc_zeros.velocity_channels()
+        spec_unit = U.Unit(dc_zeros.wcs.wcs.cunit[dc_zeros.wcs.wcs.spec], format="fits")
+        mids = (
+            dc_zeros.wcs.sub(("spectral",)).all_pix2world(
+                np.arange(dc_zeros.n_channels), 0
+            )
+        ) * spec_unit
+        edges = (
+            dc_zeros.wcs.sub(("spectral",)).all_pix2world(
+                np.arange(dc_zeros.n_channels + 1) - 0.5, 0
+            )
+        ) * spec_unit
         assert U.allclose(
-            dc_zeros.channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
-            f_channel_mids,
+            mids.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)),
+            dc_zeros.velocity_channel_mids,
         )
         assert U.allclose(
-            dc_zeros.channel_edges.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
-            f_channel_edges,
+            edges.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq)),
+            dc_zeros.velocity_channel_edges,
         )
-
-    def test_channel_mode_switching(self, dc_zeros):
-        """
-        Check that switching twice returns to starting point.
-        """
-        initial_mids = dc_zeros.channel_mids
-        initial_edges = dc_zeros.channel_edges
-        dc_zeros.freq_channels()
-        dc_zeros.velocity_channels()
-        assert U.allclose(dc_zeros.channel_edges, initial_edges)
-        assert U.allclose(dc_zeros.channel_mids, initial_mids)
 
     def test_add_pad(self, dc_zeros):
         """
@@ -152,16 +156,11 @@ class TestDataCube:
         assert dc_zeros.padx == 0
         assert dc_zeros.pady == 0
 
-    @pytest.mark.parametrize("with_fchannels", (False, True))
     @pytest.mark.parametrize("with_pad", (False, True))
-    def test_copy(self, dc_random, with_fchannels, with_pad):
+    def test_copy(self, dc_random, with_pad):
         """
         Check that copying a datacube copies all required information.
         """
-        if with_fchannels:
-            dc_random.freq_channels()
-        else:
-            dc_random.velocity_channels()
         if with_pad:
             dc_random.add_pad((3, 3))
         copy = dc_random.copy()
@@ -176,7 +175,7 @@ class TestDataCube:
         for attr in (
             "px_size",
             "channel_width",
-            "velocity_centre",
+            "spectral_centre",
             "ra",
             "dec",
         ):
@@ -190,23 +189,21 @@ class TestDataCube:
             "_channel_mids",
             "_array",
         ):
-            assert U.allclose(getattr(dc_random, attr), getattr(copy, attr))
+            if getattr(dc_random, attr) is not None:
+                assert U.allclose(getattr(dc_random, attr), getattr(copy, attr))
+            else:
+                assert getattr(copy, attr) is None
         check_wcs_match(dc_random.wcs, copy.wcs)
 
     @pytest.mark.skipif(
         not have_h5py, reason="h5py (optional dependency) not available."
     )
-    @pytest.mark.parametrize("with_fchannels", (False, True))
     @pytest.mark.parametrize("with_pad", (False, True))
-    def test_save_and_load_state(self, dc_random, with_fchannels, with_pad):
+    def test_save_and_load_state(self, dc_random, with_pad):
         """
         Check that we can recover a datacube from a save file.
         """
         try:
-            if with_fchannels:
-                dc_random.freq_channels()
-            else:
-                dc_random.velocity_channels()
             if with_pad:
                 dc_random.add_pad((3, 3))
             dc_random.save_state("test_savestate.hdf5", overwrite=True)
@@ -222,7 +219,7 @@ class TestDataCube:
             for attr in (
                 "px_size",
                 "channel_width",
-                "velocity_centre",
+                "spectral_centre",
                 "ra",
                 "dec",
             ):
@@ -243,58 +240,108 @@ class TestDataCube:
         finally:
             os.remove("test_savestate.hdf5")
 
-    def test_init_with_frequency_channel_spec(self, dc_random):
+    def test_init_with_mixed_spectral_centre_and_channel_width_units(self):
         """
-        Check that we can specify channel spacing and central channel in frequency units.
+        Check that we can specify channel spacing and central channel in mixed units.
         """
         const_kwargs = dict(
-            n_px_x=dc_random.n_px_x,
-            n_px_y=dc_random.n_px_y,
-            n_channels=dc_random.n_channels,
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
         )
-        f_velocity_centre = dc_random.velocity_centre.to(
+        spectral_centre = 3 * 70 * U.km / U.s
+        channel_width = 4 * U.km / U.s
+        f_channel_width = np.abs(
+            (spectral_centre + 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+            - (spectral_centre - 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        )
+        f_spectral_centre = spectral_centre.to(
             U.Hz, equivalencies=U.doppler_radio(HIfreq)
         )
-        f_channel_width = (
-            dc_random.velocity_centre - 0.5 * dc_random.channel_width
-        ).to(U.Hz, equivalencies=U.doppler_radio(HIfreq)) - (
-            dc_random.velocity_centre + 0.5 * dc_random.channel_width
-        ).to(
-            U.Hz, equivalencies=U.doppler_radio(HIfreq)
+        dc_vv = DataCube(
+            spectral_centre=spectral_centre,
+            channel_width=channel_width,
+            **const_kwargs,
         )
         dc_vf = DataCube(
-            velocity_centre=dc_random.velocity_centre,
+            spectral_centre=spectral_centre,
             channel_width=f_channel_width,
             **const_kwargs,
         )
         dc_fv = DataCube(
-            velocity_centre=f_velocity_centre,
-            channel_width=dc_random.channel_width,
+            spectral_centre=f_spectral_centre,
+            channel_width=channel_width,
             **const_kwargs,
         )
         dc_ff = DataCube(
-            velocity_centre=f_velocity_centre,
+            spectral_centre=f_spectral_centre,
             channel_width=f_channel_width,
             **const_kwargs,
         )
-        assert U.allclose(dc_vf.channel_edges, dc_random.channel_edges)
-        assert U.allclose(dc_fv.channel_edges, dc_random.channel_edges)
-        assert U.allclose(dc_ff.channel_edges, dc_random.channel_edges)
-
-    def test_channels_equal_in_frequency(self, dc_zeros):
-        """
-        Expect channels to be equally spaced in frequency, check that this is the case.
-        """
-        dc_zeros.freq_channels()
+        # expect channels to match where units of channel_width match
+        # channel width as velocity:
         assert U.allclose(
-            np.diff(np.diff(dc_zeros.channel_edges)), 0 * U.Hz, atol=1e-5 * U.Hz
+            dc_vv.channel_mids,
+            dc_fv.channel_mids,
         )
+        # channel width as frequency:
+        assert U.allclose(
+            dc_ff.channel_mids,
+            dc_vf.channel_mids,
+        )
+
+    def test_channel_spacing(self, dc_zeros):
+        """
+        Expect channels to be equally spaced in units matching channel_width, check that
+        this is the case.
+        """
+        assert U.get_physical_type(dc_zeros.channel_width) == U.get_physical_type(
+            dc_zeros.channel_mids
+        )
+        assert U.get_physical_type(dc_zeros.channel_width) == U.get_physical_type(
+            dc_zeros.channel_edges
+        )
+        assert U.allclose(
+            np.diff(np.diff(dc_zeros.channel_edges)),
+            0 * dc_zeros.channel_width.unit,
+            atol=1e-5 * dc_zeros.channel_width.unit,
+        )
+        assert U.allclose(
+            np.diff(np.diff(dc_zeros.channel_edges)),
+            0 * dc_zeros.channel_width.unit,
+            atol=1e-5 * dc_zeros.channel_width.unit,
+        )
+        if U.get_physical_type(dc_zeros.channel_width) == "frequency":
+            assert U.allclose(
+                np.diff(np.diff(dc_zeros.frequency_channel_edges)),
+                0 * U.Hz,
+                atol=1e-5 * U.Hz,
+            )
+            assert U.allclose(
+                np.diff(np.diff(dc_zeros.frequency_channel_mids)),
+                0 * U.Hz,
+                atol=1e-5 * U.Hz,
+            )
+        elif U.get_physical_type(dc_zeros.channel_width) == "velocity":
+            assert U.allclose(
+                np.diff(np.diff(dc_zeros.velocity_channel_edges)),
+                0 * U.m / U.s,
+                atol=1e-5 * U.m / U.s,
+            )
+            assert U.allclose(
+                np.diff(np.diff(dc_zeros.velocity_channel_mids)),
+                0 * U.m / U.s,
+                atol=1e-5 * U.m / U.s,
+            )
 
 
 class TestDataCubeFromWCS:
 
-    @pytest.mark.parametrize("with_fchannels", (False, True))
-    def test_consistent_with_direct(self, dc_random, with_fchannels):
+    def test_consistent_with_direct(self, dc_random):
         """
         Check that extracting WCS from a constructed DataCube and constructing
         a DataCube from that WCS is consistent with the original DataCube.
@@ -302,10 +349,6 @@ class TestDataCubeFromWCS:
         Note that we shouldn't expect this to reproduce a padded cube, or use
         a WCS from a padded cube!
         """
-        if with_fchannels:
-            dc_random.freq_channels()
-        else:
-            dc_random.velocity_channels()
         from_wcs = DataCube.from_wcs(dc_random.wcs)
         for attr in (
             "n_px_x",
@@ -318,7 +361,7 @@ class TestDataCubeFromWCS:
         for attr in (
             "px_size",
             "channel_width",
-            "velocity_centre",
+            "spectral_centre",
             "ra",
             "dec",
         ):
@@ -327,8 +370,6 @@ class TestDataCubeFromWCS:
                 getattr(from_wcs, attr),
                 atol=1e-6 * getattr(dc_random, attr).unit,
             )
-        # initialization always converts to velocity channels:
-        dc_random.velocity_channels()
         # don't test for arrays matching, they should not:
         for attr in (
             "channel_edges",
@@ -398,8 +439,8 @@ class TestDataCubeFromWCS:
                 )
                 assert dc.n_channels == len_ax
                 assert U.isclose(
-                    dc.velocity_centre,
+                    dc.spectral_centre,
                     hdr_specref.to(
-                        dc.velocity_centre.unit, equivalencies=U.doppler_radio(HIfreq)
+                        dc.spectral_centre.unit, equivalencies=U.doppler_radio(HIfreq)
                     ),
                 )

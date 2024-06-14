@@ -91,7 +91,7 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
         n_channels=32,
         px_size=10.0 * U.arcsec,
         channel_width=10.0 * U.km * U.s**-1,
-        velocity_centre=source.vsys,
+        spectral_centre=source.vsys,
     )
 
     beam = GaussianBeam(
@@ -116,11 +116,11 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
     M.insert_source_in_cube()
     M.add_noise()
     M.convolve_beam()
-    M.write_beam_fits(beamfile, channels="velocity")
-    M.write_fits(cubefile, channels="velocity")
+    M.write_beam_fits(beamfile)
+    M.write_fits(cubefile)
     print(f"Wrote demo fits output to {cubefile}, and beam image to {beamfile}.")
     try:
-        M.write_hdf5(hdf5file, channels="velocity")
+        M.write_hdf5(hdf5file)
     except ModuleNotFoundError:
         print("h5py package not present, skipping hdf5 output demo.")
     else:

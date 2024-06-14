@@ -157,8 +157,8 @@ class _BaseMartini:
                 f"Source module contained {self.source.npart} particles with total HI"
                 f" mass of {self.source.mHI_g.sum():.2e}."
             )
-        spectrum_half_width = (
-            self.spectral_model.half_width(self.source) / self._datacube.channel_width
+        spectrum_half_width = self.spectral_model.half_width(self.source) / np.max(
+            np.abs(np.diff(self._datacube.velocity_channel_edges))
         )
         spatial_reject_conditions = (
             (
@@ -184,6 +184,7 @@ class _BaseMartini:
             else tuple()
         )
         reject_mask = np.zeros(self.source.pixcoords[0].shape)
+        # this could be a logical_or.reduce?:
         for condition in spatial_reject_conditions + spectral_reject_conditions:
             reject_mask = np.logical_or(reject_mask, condition)
         self.source.apply_mask(np.logical_not(reject_mask))
@@ -345,15 +346,22 @@ class _BaseMartini:
             if self._datacube.padx > 0 and self._datacube.pady > 0
             else np.s_[...]
         )
-        inserted_flux_density = (
-            self._datacube._array[pad_mask].sum() * self._datacube.px_size**2
+        inserted_flux_density = np.sum(
+            self._datacube._array[pad_mask] * self._datacube.px_size**2
         ).to(U.Jy)
         inserted_mass = (
             2.36e5
             * U.Msun
             * self.source.distance.to_value(U.Mpc) ** 2
-            * inserted_flux_density.to_value(U.Jy)
-            * self._datacube.channel_width.to_value(U.km / U.s)
+            * np.sum(
+                (self._datacube._array[pad_mask] * self._datacube.px_size**2)
+                .sum((0, 1))
+                .squeeze()
+                .to_value(U.Jy)
+                * np.abs(np.diff(self._datacube.velocity_channel_edges)).to_value(
+                    U.km / U.s
+                )
+            )
         )
         if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
             print(
@@ -381,7 +389,7 @@ class _BaseMartini:
             n_channels=self._datacube.n_channels,
             px_size=self._datacube.px_size,
             channel_width=self._datacube.channel_width,
-            velocity_centre=self._datacube.velocity_centre,
+            spectral_centre=self._datacube.spectral_centre,
             ra=self._datacube.ra,
             dec=self._datacube.dec,
             stokes_axis=self._datacube.stokes_axis,
@@ -471,7 +479,7 @@ class _BaseMartini:
         z_cube = ((self._datacube.dec - self.source.dec) * self.source.distance).to(
             U.kpc, U.dimensionless_angles()
         )
-        v_cube = (self._datacube.velocity_centre - self.source.vsys).to(U.km / U.s)
+        v_cube = (self._datacube.spectral_centre - self.source.vsys).to(U.km / U.s)
         dy_cube = 0.5 * (
             self._datacube.px_size * self._datacube.n_px_x * self.source.distance
         ).to(
@@ -751,7 +759,7 @@ class Martini(_BaseMartini):
             n_channels=32,
             px_size=10.0 * U.arcsec,
             channel_width=10.0 * U.km * U.s**-1,
-            velocity_centre=source.vsys,
+            spectral_centre=source.vsys,
         )
 
         beam = GaussianBeam(
@@ -776,11 +784,11 @@ class Martini(_BaseMartini):
         M.insert_source_in_cube()
         M.add_noise()
         M.convolve_beam()
-        M.write_beam_fits(beamfile, channels="velocity")
-        M.write_fits(cubefile, channels="velocity")
+        M.write_beam_fits(beamfile)
+        M.write_fits(cubefile)
         print(f"Wrote demo fits output to {cubefile}, and beam image to {beamfile}.")
         try:
-            M.write_hdf5(hdf5file, channels="velocity")
+            M.write_hdf5(hdf5file)
         except ModuleNotFoundError:
             print("h5py package not present, skipping hdf5 output demo.")
         else:
@@ -926,7 +934,6 @@ class Martini(_BaseMartini):
     def write_fits(
         self,
         filename,
-        channels="frequency",
         overwrite=True,
     ):
         """
@@ -938,24 +945,11 @@ class Martini(_BaseMartini):
             Name of the file to write. ``'.fits'`` will be appended if not already
             present.
 
-        channels : str, optional
-            Type of units (``"velocity"`` or ``"frequency"``) used along the spectral axis
-            in output file. (Default: ``"frequency"``)
-
         overwrite: bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
         """
 
         self._datacube.drop_pad()
-        if channels == "frequency":
-            self._datacube.freq_channels()
-        elif channels == "velocity":
-            self._datacube.velocity_channels()
-        else:
-            raise ValueError(
-                "Martini.write_fits: Unknown 'channels' value "
-                "(use 'frequency' or 'velocity')."
-            )
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"
 
@@ -995,7 +989,6 @@ class Martini(_BaseMartini):
             header.append(("CUNIT4", "PAR"))
         header.append(("EPOCH", 2000))
         header.append(("INSTRUME", "MARTINI", martini_version))
-        # header.append(('BLANK', -32768)) #only for integer data
         header.append(("BSCALE", 1.0))
         header.append(("BZERO", 0.0))
         datacube_array_units = self._datacube._array.unit
@@ -1011,17 +1004,8 @@ class Martini(_BaseMartini):
         if self.beam is not None:
             header.append(("BPA", self.beam.bpa.to_value(U.deg)))
         header.append(("OBSERVER", "K. Oman"))
-        # header.append(('NITERS', ???))
-        # header.append(('RMS', ???))
-        # header.append(('LWIDTH', ???))
-        # header.append(('LSTEP', ???))
         header.append(("BUNIT", datacube_array_units.to_string("fits")))
-        # header.append(('PCDEC', ???))
-        # header.append(('LSTART', ???))
         header.append(("DATE-OBS", Time.now().to_value("fits")))
-        # header.append(('LTYPE', ???))
-        # header.append(('PCRA', ???))
-        # header.append(('CELLSCAL', ???))
         if self.beam is not None:
             header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
             header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
@@ -1034,11 +1018,9 @@ class Martini(_BaseMartini):
         )
         hdu.writeto(filename, overwrite=overwrite)
 
-        if channels == "frequency":
-            self._datacube.velocity_channels()
         return
 
-    def write_beam_fits(self, filename, channels="frequency", overwrite=True):
+    def write_beam_fits(self, filename, overwrite=True):
         """
         Output the beam to a FITS-format file.
 
@@ -1050,10 +1032,6 @@ class Martini(_BaseMartini):
         filename : str
             Name of the file to write. ``".fits"`` will be appended if not already
             present.
-
-        channels : str, optional
-            Type of units (``"velocity"`` or ``"frequency"``) used along the spectral axis
-            in output file. (Default: ``"frequency"``)
 
         overwrite: bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
@@ -1069,15 +1047,6 @@ class Martini(_BaseMartini):
                 "Martini.write_beam_fits: Called with beam set " "to 'None'."
             )
         assert self.beam.kernel is not None
-        if channels == "frequency":
-            self._datacube.freq_channels()
-        elif channels == "velocity":
-            self._datacube.velocity_channels()
-        else:
-            raise ValueError(
-                "Martini.write_beam_fits: Unknown 'channels' "
-                "value (use 'frequency' or 'velocity'."
-            )
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"
 
@@ -1087,7 +1056,6 @@ class Martini(_BaseMartini):
         header = fits.Header()
         header.append(("SIMPLE", "T"))
         header.append(("BITPIX", 16))
-        # header.append(('NAXIS', self.beam.kernel.ndim))
         header.append(("NAXIS", 3))
         header.append(("NAXIS1", self.beam.kernel.shape[0]))
         header.append(("NAXIS2", self.beam.kernel.shape[1]))
@@ -1133,14 +1101,11 @@ class Martini(_BaseMartini):
         )
         hdu.writeto(filename, overwrite=True)
 
-        if channels == "frequency":
-            self._datacube.velocity_channels()
         return
 
     def write_hdf5(
         self,
         filename,
-        channels="frequency",
         overwrite=True,
         memmap=False,
         compact=False,
@@ -1154,10 +1119,6 @@ class Martini(_BaseMartini):
         filename : str
             Name of the file to write. ``'.hdf5'`` will be appended if not already
             present.
-
-        channels : str, optional
-            Type of units (``"velocity"`` or ``"frequency"``) used along the spectral axis
-            in output file. (Default: ``"frequency"``)
 
         overwrite: bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
@@ -1175,15 +1136,6 @@ class Martini(_BaseMartini):
         import h5py
 
         self._datacube.drop_pad()
-        if channels == "frequency":
-            self._datacube.freq_channels()
-        elif channels == "velocity":
-            pass
-        else:
-            raise ValueError(
-                "Martini.write_fits: Unknown 'channels' value "
-                "(use 'frequency' or 'velocity')."
-            )
 
         filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
 
@@ -1232,6 +1184,16 @@ class Martini(_BaseMartini):
             f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
             f["channel_mids"] = chgrid
             f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
+            for dataset_name in (
+                "velocity_channel_mids",
+                "velocity_channel_edges",
+                "frequency_channel_mids",
+                "frequency_channel_edges",
+            ):
+                f[dataset_name] = getattr(self._datacube, dataset_name)
+                f[dataset_name].attrs["Unit"] = str(
+                    getattr(self._datacube, dataset_name).unit
+                )
         c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
         c.attrs["FluxCubeUnit"] = str(self._datacube._array.unit)
         c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
@@ -1288,8 +1250,6 @@ class Martini(_BaseMartini):
             b.attrs["MartiniVersion"] = martini_version
             b.attrs["AstropyVersion"] = astropy_version
 
-        if channels == "frequency":
-            self._datacube.velocity_channels()
         if memmap:
             return f
         else:
@@ -1348,14 +1308,10 @@ class GlobalProfile(_BaseMartini):
         Step size along the spectral axis. Can be provided as a velocity or a
         frequency. (Default: ``4 * U.km / U.s``)
 
-    velocity_centre : ~astropy.units.Quantity, optional
+    spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
         (Default: ``0 * U.km / U.s``)
-
-    channels : str, optional
-        Type of units (``"velocity"`` or ``"frequency"``) used along the spectral
-        axis. (Default: ``"frequency"``)
 
     quiet : bool
         If ``True``, suppress output to stdout. (Default: ``False``)
@@ -1416,8 +1372,7 @@ class GlobalProfile(_BaseMartini):
             spectral_model=spectral_model,
             n_channels=32,
             channel_width=10 * U.km * U.s**-1,
-            velocity_centre=source.vsys,
-            channels="frequency",
+            spectral_centre=source.vsys,
         )
 
         # spectrum and channel edges and centres can be accessed as:
@@ -1441,8 +1396,7 @@ class GlobalProfile(_BaseMartini):
         spectral_model=None,
         n_channels=64,
         channel_width=4 * U.km * U.s**-1,
-        velocity_centre=0 * U.km * U.s**-1,
-        channels="frequency",
+        spectral_centre=0 * U.km * U.s**-1,
         quiet=False,
     ):
         super().__init__(
@@ -1450,7 +1404,7 @@ class GlobalProfile(_BaseMartini):
             datacube=_GlobalProfileDataCube(
                 n_channels=n_channels,
                 channel_width=channel_width,
-                velocity_centre=velocity_centre,
+                spectral_centre=spectral_centre,
             ),
             beam=None,
             noise=None,
@@ -1463,15 +1417,6 @@ class GlobalProfile(_BaseMartini):
             ),
             quiet=quiet,
         )
-        if channels == "velocity":
-            self._datacube.velocity_channels()
-        elif channels == "frequency":
-            self._datacube.freq_channels()
-        else:
-            raise ValueError(
-                'GlobalProfile: `channels` must be "velocity" or "frequency".'
-            )
-        self.channels = channels
         self.source.pixcoords[:2] = 0
 
         return
@@ -1552,11 +1497,15 @@ class GlobalProfile(_BaseMartini):
         out : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity.
             Edges of the channels with units depending on
-            :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
+            :class:`~martini.martini.GlobalProfile`'s native channel spacing.
 
         See Also
         --------
         ~martini.martini.GlobalProfile.channel_mids
+        ~martini.martini.GlobalProfile.velocity_channel_mids
+        ~martini.martini.GlobalProfile.velocity_channel_edges
+        ~martini.martini.GlobalProfile.frequency_channel_mids
+        ~martini.martini.GlobalProfile.frequency_channel_edges
         """
         return self._datacube.channel_edges
 
@@ -1570,11 +1519,91 @@ class GlobalProfile(_BaseMartini):
         out : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity.
             Edges of the channels with units depending on
-            :class:`~martini.martini.GlobalProfile`'s ``channels`` argument.
+            :class:`~martini.martini.GlobalProfile`'s native channel spacing.
 
         See Also
         --------
         ~martini.martini.GlobalProfile.channel_edges
+        ~martini.martini.GlobalProfile.velocity_channel_mids
+        ~martini.martini.GlobalProfile.velocity_channel_edges
+        ~martini.martini.GlobalProfile.frequency_channel_mids
+        ~martini.martini.GlobalProfile.frequency_channel_edges
+        """
+        return self._datacube.channel_mids
+
+    @property
+    def frequency_channel_edges(self):
+        """
+        The edges of the frequency channels for the spectrum.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency.
+            Edges of the channels with frequency units.
+
+        See Also
+        --------
+        ~martini.martini.GlobalProfile.velocity_channel_mids
+        ~martini.martini.GlobalProfile.velocity_channel_edges
+        ~martini.martini.GlobalProfile.frequency_channel_mids
+        """
+        return self._datacube.channel_edges
+
+    @property
+    def frequency_channel_mids(self):
+        """
+        The centres of the frequency channels for the spectrum.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency.
+            Edges of the channels with frequency units.
+
+        See Also
+        --------
+        ~martini.martini.GlobalProfile.velocity_channel_mids
+        ~martini.martini.GlobalProfile.velocity_channel_edges
+        ~martini.martini.GlobalProfile.frequency_channel_edges
+        """
+        return self._datacube.channel_mids
+
+    @property
+    def velocity_channel_edges(self):
+        """
+        The edges of the channels for the spectrum in velocity units.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of velocity.
+            Edges of the channels with velocity units.
+
+        See Also
+        --------
+        ~martini.martini.GlobalProfile.velocity_channel_mids
+        ~martini.martini.GlobalProfile.frequency_channel_mids
+        ~martini.martini.GlobalProfile.frequency_channel_edges
+        """
+        return self._datacube.channel_edges
+
+    @property
+    def velocity_channel_mids(self):
+        """
+        The centres of the channels for the spectrum.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of velocity.
+            Edges of the channels with velocity units.
+
+        See Also
+        --------
+        ~martini.martini.GlobalProfile.velocity_channel_edges
+        ~martini.martini.GlobalProfile.frequency_channel_mids
+        ~martini.martini.GlobalProfile.frequency_channel_edges
         """
         return self._datacube.channel_mids
 
@@ -1605,6 +1634,7 @@ class GlobalProfile(_BaseMartini):
         self,
         fig=1,
         title="",
+        channels="velocity",
         show_vsys=True,
         save=None,
     ):
@@ -1619,6 +1649,10 @@ class GlobalProfile(_BaseMartini):
 
         title : str, optional
             A title for the figure can be provided. (Default: ``""``)
+
+        channels : str, optional
+            The type of spectral axis for the plot, either ``"velocity"`` or
+            ``"frequency"``. (Default: ``""``)
 
         show_vsys : bool, optional
             If ``True``, draw a vertical line at the source systemic velocity.
@@ -1635,15 +1669,24 @@ class GlobalProfile(_BaseMartini):
         """
         import matplotlib.pyplot as plt
 
+        if channels == "velocity":
+            channel_mids = self.velocity_channel_mids
+        elif channels == "frequency":
+            channel_mids = self.frequency_channel_mids
+        else:
+            raise ValueError(
+                "`plot_spectrum` argument `channels` must be 'velocity' or 'frequency'."
+            )
+
         fig = plt.figure(fig, figsize=(4, 3))
         fig.clf()
         fig.suptitle(title)
 
-        xunit = dict(velocity=U.km * U.s**-1, frequency=U.GHz)[self.channels]
+        xunit = dict(velocity=U.km * U.s**-1, frequency=U.GHz)[channels]
 
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(
-            self.channel_mids.to_value(xunit),
+            channel_mids.to_value(xunit),
             self.spectrum.to_value(U.Jy),
             ls="solid",
             color="black",
@@ -1657,9 +1700,9 @@ class GlobalProfile(_BaseMartini):
                 color="black",
             )
         ax.set_ylabel(r"Flux density $[\mathrm{Jy}]$")
-        if self.channels == "velocity":
+        if channels == "velocity":
             ax.set_xlabel(r"Velocity $[\mathrm{km}\,\mathrm{s}^{-1}]$")
-        elif self.channels == "frequency":
+        elif channels == "frequency":
             ax.set_xlabel(r"Frequency $[\mathrm{GHz}]$")
 
         if save is not None:

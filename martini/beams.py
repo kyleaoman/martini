@@ -98,7 +98,7 @@ class _BaseBeam(object):
         """
 
         self.px_size = datacube.px_size
-        self.vel = datacube.velocity_centre
+        self.vel = datacube.spectral_centre
         self.ra = datacube.ra
         self.dec = datacube.dec
         if (self.bmaj is None) or (self.bmin is None) or (self.bpa is None):

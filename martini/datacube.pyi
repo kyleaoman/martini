@@ -13,7 +13,7 @@ class DataCube:
         T.Callable[[U.Quantity[U.Jy * U.arcsec**-2]], U.Quantity[U.Jy * U.pix**-2]],
     ]
     channel_width: U.Quantity[U.km / U.s]
-    velocity_centre: U.Quantity[U.km / U.s]
+    spectral_centre: U.Quantity[U.km / U.s]
     ra: U.Quantity[U.deg]
     dec: U.Quantity[U.deg]
     padx: int
@@ -37,7 +37,7 @@ class DataCube:
         n_channels: int = ...,
         px_size: U.Quantity[U.arcsec] = ...,
         channel_width: U.Quantity[U.arcsec] = ...,
-        velocity_centre: U.Quantity[U.km / U.s] = ...,
+        spectral_centre: U.Quantity[U.km / U.s] = ...,
         ra: U.Quantity[U.deg] = ...,
         dec: U.Quantity[U.deg] = ...,
         stokes_axis: bool = ...,
@@ -58,5 +58,5 @@ class _GlobalProfileDataCube(DataCube):
         self,
         n_channels: int = ...,
         channel_width: U.Quantity[U.arcsec] = ...,
-        velocity_centre: U.Quantity[U.km / U.s] = ...,
+        spectral_centre: U.Quantity[U.km / U.s] = ...,
     ) -> None: ...

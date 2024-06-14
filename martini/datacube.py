@@ -37,7 +37,7 @@ class DataCube(object):
         Step size along the spectral axis. Can be provided as a velocity or a
         frequency. (Default: ``4 * U.km * U.s**-1``)
 
-    velocity_centre : ~astropy.units.Quantity, optional
+    spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
         (Default: ``0 * U.km * U.s**-1``)
@@ -66,7 +66,7 @@ class DataCube(object):
         n_channels=64,
         px_size=15.0 * U.arcsec,
         channel_width=4.0 * U.km * U.s**-1,
-        velocity_centre=0.0 * U.km * U.s**-1,
+        spectral_centre=0.0 * U.km * U.s**-1,
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         stokes_axis=False,
@@ -88,28 +88,20 @@ class DataCube(object):
             lambda x: x / self.px_size**2,
             lambda x: x * self.px_size**2,
         )
-        self.velocity_centre = velocity_centre.to(
-            U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
-        )
-        self.channel_width = np.abs(
-            (
-                velocity_centre.to(
-                    channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
-                )
-                + 0.5 * channel_width
-            ).to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
-            - (
-                velocity_centre.to(
-                    channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
-                )
-                - 0.5 * channel_width
-            ).to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
+        if U.get_physical_type(channel_width) == "frequency":
+            self._freq_channel_mode = True
+        elif U.get_physical_type(channel_width) == "velocity":
+            self._freq_channel_mode = False
+        else:
+            raise ValueError("Channel width must have frequency or velocity units.")
+        self.channel_width = np.abs(channel_width)
+        self.spectral_centre = spectral_centre.to(
+            channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
         )
         self.ra = ra
         self.dec = dec
         self.padx = 0
         self.pady = 0
-        self._freq_channel_mode = False
         self._channel_edges = None
         self._channel_mids = None
         self._wcs = None
@@ -125,7 +117,7 @@ class DataCube(object):
             n_channels=None,
             px_size=None,
             channel_width=None,
-            velocity_centre=None,
+            spectral_centre=None,
             ra=None,
             dec=None,
             stokes_axis=None,
@@ -157,7 +149,7 @@ class DataCube(object):
         init_args["dec"] = centre_coords[ax_dec] * unit_dec
         init_args["channel_width"] = np.abs(input_wcs.wcs.cdelt[ax_spec]) * unit_spec
         init_args["n_channels"] = input_wcs.pixel_shape[ax_spec]
-        init_args["velocity_centre"] = centre_coords[ax_spec] * unit_spec
+        init_args["spectral_centre"] = centre_coords[ax_spec] * unit_spec
 
         if ra_px_size != dec_px_size:
             raise ValueError(
@@ -180,14 +172,11 @@ class DataCube(object):
             )
             == "frequency"
         )
-        datacube.velocity_channels()
         return datacube
 
     @property
     def units(self):
-        if self._wcs is None:
-            return None
-        return [U.Unit(unit, format="fits") for unit in self._wcs.wcs.cunit]
+        return [U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit]
 
     @property
     def wcs(self):
@@ -201,28 +190,38 @@ class DataCube(object):
                 dict(NAXIS1=self.n_px_x, NAXIS2=self.n_px_y, NAXIS3=self.n_channels)
             )
             self._wcs = wcs.WCS(hdr)
+            self._wcs.wcs.ctype = [
+                self._wcs.wcs.ctype[0],
+                self._wcs.wcs.ctype[1],
+                "FREQ" if self._freq_channel_mode else "VRAD",
+            ]
+            self._wcs.wcs.specsys = self.specsys
+            self._wcs.wcs.cunit = [
+                self._wcs.wcs.cunit[0],
+                self._wcs.wcs.cunit[1],
+                (
+                    U.Hz.to_string(format="fits")
+                    if self._freq_channel_mode
+                    else (U.m / U.s).to_string(format="fits")
+                ),
+            ]
             self._wcs.wcs.crpix = [
                 self.n_px_x / 2.0 + 0.5 + self.padx,
                 self.n_px_y / 2.0 + 0.5 + self.pady,
                 self.n_channels / 2.0 + 0.5,
             ]
-            self._wcs.wcs.cunit[2] = "m s-1"
+            spec_step_sign = 1 if self._freq_channel_mode else -1
             self._wcs.wcs.cdelt = [
-                -self.px_size.to_value(self.units[0]),
-                self.px_size.to_value(self.units[1]),
-                self.channel_width.to_value(
-                    self.units[2], equivalencies=U.doppler_radio(HIfreq)
-                ),
+                -self.px_size.to_value(self._wcs.wcs.cunit[0]),
+                self.px_size.to_value(self._wcs.wcs.cunit[1]),
+                spec_step_sign
+                * np.abs(self.channel_width.to_value(self._wcs.wcs.cunit[2])),
             ]
             self._wcs.wcs.crval = [
-                self.ra.to_value(self.units[0]),
-                self.dec.to_value(self.units[1]),
-                self.velocity_centre.to_value(
-                    self.units[2], equivalencies=U.doppler_radio(HIfreq)
-                ),
+                self.ra.to_value(self._wcs.wcs.cunit[0]),
+                self.dec.to_value(self._wcs.wcs.cunit[1]),
+                self.spectral_centre.to_value(self._wcs.wcs.cunit[2]),
             ]
-            self._wcs.wcs.ctype[2] = "VRAD"
-            self._wcs.wcs.specsys = self.specsys
             if self.stokes_axis:
                 self._wcs = wcs.utils.add_stokes_axis_to_wcs(
                     self._wcs, self._wcs.wcs.naxis
@@ -236,20 +235,13 @@ class DataCube(object):
         The centres of the channels from the coordinate system.
         """
         if self._channel_mids is None:
-            pixels = (
-                np.zeros(self.n_channels),
-                np.zeros(self.n_channels),
-                np.arange(self.n_channels) - 0.5,
-            )
-            if self.stokes_axis:
-                pixels = pixels + (np.zeros(self.n_channels),)
             self._channel_mids = (
-                self.wcs.wcs_pix2world(
-                    *pixels,
+                self.wcs.sub(("spectral",)).all_pix2world(
+                    np.arange(self.n_channels),
                     0,
-                )[2]
+                )
                 * self.units[2]
-            )
+            ).squeeze()
         return self._channel_mids
 
     @property
@@ -258,89 +250,80 @@ class DataCube(object):
         The edges of the channels from the coordinate system.
         """
         if self._channel_edges is None:
-            pixels = (
-                np.zeros(self.n_channels + 1),
-                np.zeros(self.n_channels + 1),
-                np.arange(self.n_channels + 1) - 1,
-            )
-            if self.stokes_axis:
-                pixels = pixels + (np.zeros(self.n_channels + 1),)
             self._channel_edges = (
-                self.wcs.wcs_pix2world(
-                    *pixels,
+                self.wcs.sub(("spectral",)).all_pix2world(
+                    np.arange(self.n_channels + 1) - 0.5,
                     0,
-                )[2]
+                )
                 * self.units[2]
-            )
+            ).squeeze()
         return self._channel_edges
+
+    @property
+    def velocity_channel_mids(self):
+        return self.channel_mids.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
+
+    @property
+    def velocity_channel_edges(self):
+        return self.channel_edges.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
+
+    @property
+    def frequency_channel_mids(self):
+        return self.channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+
+    @property
+    def frequency_channel_edges(self):
+        return self.channel_edges.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+
+    @property
+    def _stokes_index(self):
+        """
+        The position of the Stokes' axis in the WCS axis order.
+
+        Unlike RA (wcs.WCS().wcs.lng), Dec (wcs.WCS().wcs.lat) and spectral axis
+        (wcs.WCS().wcs.spec), the Stokes' axis isn't exposed in a convenient way, so
+        implement a helper.
+        """
+        for index, axis_type in enumerate(self.wcs.get_axis_types()):
+            if axis_type == "stokes":
+                return index
+        return None  # not found
 
     @property
     def spatial_slices(self):
         """
         An iterator over the spatial 'slices' of the cube.
         """
-        s = np.s_[..., 0] if self.stokes_axis else np.s_[...]
-        return iter(self._array[s].transpose((2, 0, 1)))
+        if self.stokes_axis:
+            return iter(
+                self._array.squeeze(self._stokes_index).transpose(
+                    (self.wcs.wcs.spec, self.wcs.wcs.lng, self.wcs.wcs.lat)
+                )
+            )
+        else:
+            return iter(
+                self._array.transpose(
+                    (self.wcs.wcs.spec, self.wcs.wcs.lng, self.wcs.wcs.lat)
+                )
+            )
 
     @property
     def spectra(self):
         """
         An iterator over the spectra (one in each spatial pixel).
         """
-        s = np.s_[..., 0] if self.stokes_axis else np.s_[...]
-        return iter(self._array[s].reshape(self.n_px_x * self.n_px_y, self.n_channels))
-
-    def freq_channels(self):
-        """
-        Convert spectral axis to frequency units.
-        """
-        if self._freq_channel_mode:
-            return
-
-        # faulty assumptions here and in velocity channels probably to do with the abs()
-        # and sign of cdelt?
-        self._wcs.wcs.cdelt[2] = -np.abs(
-            (
-                (self.wcs.wcs.crval[2] + 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
-            ).to_value(U.Hz, equivalencies=U.doppler_radio(HIfreq))
-            - (
-                (self.wcs.wcs.crval[2] - 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
-            ).to_value(U.Hz, equivalencies=U.doppler_radio(HIfreq))
-        )
-        self._wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
-            U.Hz, equivalencies=U.doppler_radio(HIfreq)
-        )
-        self._wcs.wcs.ctype[2] = "FREQ"
-        self._wcs.wcs.cunit[2] = (U.Hz).to_string("fits")
-        self._freq_channel_mode = True
-        self._channel_mids = None
-        self._channel_edges = None
-        return
-
-    def velocity_channels(self):
-        """
-        Convert spectral axis to velocity units.
-        """
-        if not self._freq_channel_mode:
-            return
-
-        self._wcs.wcs.cdelt[2] = np.abs(
-            (
-                (self.wcs.wcs.crval[2] - 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
-            ).to_value(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
-            - (
-                (self.wcs.wcs.crval[2] + 0.5 * self.wcs.wcs.cdelt[2]) * self.units[2]
-            ).to_value(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
-        )
-        self._wcs.wcs.crval[2] = (self.wcs.wcs.crval[2] * self.units[2]).to_value(
-            U.m / U.s, equivalencies=U.doppler_radio(HIfreq)
-        )
-        self._wcs.wcs.ctype[2] = "VRAD"
-        self._wcs.wcs.cunit[2] = (U.m * U.s**-1).to_string("fits")
-        self._freq_channel_mode = False
-        self._channel_mids = None
-        self._channel_edges = None
-        return
+        if self.stokes_axis:
+            return iter(
+                self._array.squeeze(self._stokes_index)
+                .transpose((self.wcs.wcs.lng, self.wcs.wcs.lat, self.wcs.wcs.spec))
+                .reshape(self.n_px_x * self.n_px_y, self.n_channels)
+            )
+        else:
+            return iter(
+                self._array.transpose(
+                    (self.wcs.wcs.lng, self.wcs.wcs.lat, self.wcs.wcs.spec)
+                ).reshape(self.n_px_x * self.n_px_y, self.n_channels)
+            )
 
     def add_pad(self, pad):
         """
@@ -414,24 +397,21 @@ class DataCube(object):
         out : martini.datacube.DataCube
             Copy of the :class:`~martini.datacube.DataCube` object.
         """
-        in_freq_channel_mode = self._freq_channel_mode
-        if in_freq_channel_mode:
-            self.velocity_channels()
         copy = DataCube(
             self.n_px_x,
             self.n_px_y,
             self.n_channels,
             self.px_size,
             self.channel_width,
-            self.velocity_centre,
+            self.spectral_centre,
             self.ra,
             self.dec,
         )
         copy.padx, copy.pady = self.padx, self.pady
         copy._wcs = self.wcs.copy()
         copy._freq_channel_mode = self._freq_channel_mode
-        copy._channel_edges = self.channel_edges
-        copy._channel_mids = self.channel_mids
+        copy._channel_edges = self._channel_edges
+        copy._channel_mids = self._channel_mids
         copy._array = self._array.copy()
         return copy
 
@@ -473,11 +453,11 @@ class DataCube(object):
                 channel_width_unit
             )
             f["_array"].attrs["channel_width_unit"] = str(channel_width_unit)
-            velocity_centre_unit = self.velocity_centre.unit
-            f["_array"].attrs["velocity_centre"] = self.velocity_centre.to_value(
-                velocity_centre_unit
+            spectral_centre_unit = self.spectral_centre.unit
+            f["_array"].attrs["spectral_centre"] = self.spectral_centre.to_value(
+                spectral_centre_unit
             )
-            f["_array"].attrs["velocity_centre_unit"] = str(velocity_centre_unit)
+            f["_array"].attrs["spectral_centre_unit"] = str(spectral_centre_unit)
             ra_unit = self.ra.unit
             f["_array"].attrs["ra"] = self.ra.to_value(ra_unit)
             f["_array"].attrs["ra_unit"] = str(ra_unit)
@@ -525,8 +505,8 @@ class DataCube(object):
             channel_width = f["_array"].attrs["channel_width"] * U.Unit(
                 f["_array"].attrs["channel_width_unit"]
             )
-            velocity_centre = f["_array"].attrs["velocity_centre"] * U.Unit(
-                f["_array"].attrs["velocity_centre_unit"]
+            spectral_centre = f["_array"].attrs["spectral_centre"] * U.Unit(
+                f["_array"].attrs["spectral_centre_unit"]
             )
             ra = f["_array"].attrs["ra"] * U.Unit(f["_array"].attrs["ra_unit"])
             dec = f["_array"].attrs["dec"] * U.Unit(f["_array"].attrs["dec_unit"])
@@ -537,16 +517,14 @@ class DataCube(object):
                 n_channels=n_channels,
                 px_size=px_size,
                 channel_width=channel_width,
-                velocity_centre=velocity_centre,
+                spectral_centre=spectral_centre,
                 ra=ra,
                 dec=dec,
                 stokes_axis=stokes_axis,
             )
             D.add_pad((f["_array"].attrs["padx"], f["_array"].attrs["pady"]))
-            if bool(f["_array"].attrs["_freq_channel_mode"]):
-                D.freq_channels()
             D._array = f["_array"] * U.Unit(f["_array"].attrs["datacube_unit"])
-            # must be after add_pad, freq_channels:
+            # must be after add_pad:
             D._wcs = wcs.WCS(f["_array"].attrs["wcs_hdr"])
         return D
 
@@ -576,7 +554,7 @@ class _GlobalProfileDataCube(DataCube):
         Step size along the spectral axis. Can be provided as a velocity or a
         frequency. (Default: ``4 U.km * U.s**-1``)
 
-    velocity_centre : ~astropy.units.Quantity, optional
+    spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
         (Default: ``0 * U.km * U.s**-1``)
@@ -586,7 +564,7 @@ class _GlobalProfileDataCube(DataCube):
         self,
         n_channels=64,
         channel_width=4.0 * U.km * U.s**-1,
-        velocity_centre=0.0 * U.km * U.s**-1,
+        spectral_centre=0.0 * U.km * U.s**-1,
         specsys="GALACTOC",
     ):
         super().__init__(
@@ -595,7 +573,7 @@ class _GlobalProfileDataCube(DataCube):
             n_channels=n_channels,
             px_size=1 * U.deg,  # must be >0, ignored for insertion, needed for units
             channel_width=channel_width,
-            velocity_centre=velocity_centre,
+            spectral_centre=spectral_centre,
             ra=0.0 * U.deg,
             dec=0.0 * U.deg,
             stokes_axis=False,

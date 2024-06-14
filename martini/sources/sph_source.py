@@ -9,6 +9,7 @@ from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
+from ..datacube import HIfreq
 
 # Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, "translate", translate)
@@ -211,7 +212,9 @@ class SPHSource(object):
                 datacube.wcs.sub(3).wcs_world2pix(
                     self.skycoords.ra.to(datacube.units[0]),
                     self.skycoords.dec.to(datacube.units[1]),
-                    self.skycoords.radial_velocity.to(datacube.units[2]),
+                    self.skycoords.radial_velocity.to(
+                        datacube.units[2], equivalencies=U.doppler_radio(HIfreq)
+                    ),
                     origin,
                 )
             )

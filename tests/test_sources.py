@@ -270,7 +270,7 @@ class TestSPHSource:
             channel_width=1 * U.km / U.s,
         )
         expected_coords = (
-            np.vstack((np.arange(6)[::-1], np.arange(6), np.arange(6))) * U.pix
+            np.vstack((np.arange(6)[::-1], np.arange(6), np.arange(6)[::-1])) * U.pix
         )
         source._init_skycoords()
         source._init_pixcoords(datacube)

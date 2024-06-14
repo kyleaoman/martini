@@ -79,8 +79,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
             parameters, including spectral channels.
         """
 
-        self.channel_edges = datacube.channel_edges
-        channel_widths = np.diff(self.channel_edges).to(U.km * U.s**-1)
+        self.channel_edges = datacube.velocity_channel_edges
+        channel_widths = np.abs(np.diff(self.channel_edges).to(U.km * U.s**-1))
         self.vmids = source.skycoords.radial_velocity
         A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
         MHI_Jy = (
@@ -147,17 +147,29 @@ class _BaseSpectrum(metaclass=ABCMeta):
         """
         vmids = self.vmids[mask]
         self.init_spectral_function_extra_data(source, datacube, mask=mask)
+        if all(np.diff(self.channel_edges) > 0):
+            lower_edges_slice = np.s_[:-1]
+            upper_edges_slice = np.s_[1:]
+        elif all(np.diff(self.channel_edges) < 0):
+            lower_edges_slice = np.s_[1:]
+            upper_edges_slice = np.s_[:-1]
+        else:
+            raise ValueError("Channel edges are not monotonic sequence.")
         return self.spectral_function(
             (
                 np.tile(
-                    self.channel_edges.to_value(self.channel_edges.unit)[:-1],
+                    self.channel_edges.to_value(self.channel_edges.unit)[
+                        lower_edges_slice
+                    ],
                     vmids.shape + (1,),
                 )
                 * self.channel_edges.unit
             ).astype(self.spec_dtype),
             (
                 np.tile(
-                    self.channel_edges.to_value(self.channel_edges.unit)[1:],
+                    self.channel_edges.to_value(self.channel_edges.unit)[
+                        upper_edges_slice
+                    ],
                     vmids.shape + (1,),
                 )
                 * self.channel_edges.unit
