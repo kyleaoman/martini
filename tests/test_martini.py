@@ -27,6 +27,178 @@ else:
     have_matplotlib = True
 
 
+def check_mass_accuracy(m, out_mode):
+    if out_mode == "hdf5":
+        try:
+            import h5py
+        except ImportError:
+            pytest.skip()
+
+    # flux in channels
+    F = (m.datacube._array * m.datacube.px_size**2).sum((0, 1)).squeeze()  # Jy
+
+    # distance
+    D = m.source.distance
+
+    # channel width
+    dv = np.abs(np.diff(m.datacube.velocity_channel_edges))
+
+    # HI mass
+    MHI = np.sum(
+        2.36e5
+        * U.Msun
+        * D.to_value(U.Mpc) ** 2
+        * F.to_value(U.Jy)
+        * dv.to_value(U.km / U.s)
+    ).to(U.Msun)
+
+    # demand accuracy within 1% after source insertion
+    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+    m.convolve_beam()
+
+    # radiant intensity
+    Irad = m.datacube._array.sum((0, 1)).squeeze()  # Jy / beam
+
+    # beam area, for an equivalent Gaussian beam
+    A = np.pi * m.beam.bmaj * m.beam.bmin / 4 / np.log(2) / U.beam
+
+    # distance
+    D = m.source.distance
+
+    # channel width
+    dv = np.abs(np.diff(m.datacube.velocity_channel_edges))
+
+    # flux
+    F = (Irad / A).to(U.Jy / U.arcsec**2) * m.datacube.px_size**2
+
+    # HI mass
+    MHI = np.sum(
+        2.36e5
+        * U.Msun
+        * D.to_value(U.Mpc) ** 2
+        * F.to_value(U.Jy)
+        * dv.to_value(U.km / U.s)
+    ).to(U.Msun)
+
+    # demand accuracy within 1% after beam convolution
+    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+    if out_mode == "fits":
+        filename = "cube.fits"
+        try:
+            m.write_fits(filename)
+            with fits.open(filename) as f:
+                # distance
+                D = m.source.distance
+
+                # radiant intensity
+                fits_wcs = wcs.WCS(f[0].header)
+                Irad = U.Quantity(
+                    f[0].data.T.sum((0, 1)).squeeze(), unit=f[0].header["BUNIT"]
+                )
+
+                A = (
+                    np.pi
+                    * (f[0].header["BMAJ"] * U.deg)
+                    * (f[0].header["BMIN"] * U.deg)
+                    / 4
+                    / np.log(2)
+                    / U.beam
+                )
+                px_area = U.Quantity(
+                    np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
+                ) * U.Quantity(
+                    np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"]
+                )
+
+                # flux
+                F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+
+                channel_edges = fits_wcs.sub(("spectral",)).all_pix2world(
+                    np.arange(fits_wcs.sub(("spectral",)).pixel_shape[0] + 1) - 0.5,
+                    0,
+                ) * U.Unit(fits_wcs.wcs.cunit[fits_wcs.wcs.spec], format="fits")
+                dv = np.abs(
+                    np.diff(
+                        channel_edges.squeeze().to(
+                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                        )
+                    )
+                )
+
+                # HI mass
+                MHI = np.sum(
+                    2.36e5
+                    * U.Msun
+                    * D.to_value(U.Mpc) ** 2
+                    * F.to_value(U.Jy)
+                    * dv.to_value(U.km / U.s)
+                ).to(U.Msun)
+
+            # demand accuracy within 1% in output fits file
+            assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
+
+    if out_mode == "hdf5":
+        filename = "cube.hdf5"
+        try:
+            m.write_hdf5(filename)
+            with h5py.File(filename, "r") as f:
+                # distance
+                D = m.source.distance
+
+                # radiant intensity
+                Irad = U.Quantity(
+                    f["FluxCube"][()].sum((0, 1)).squeeze(),
+                    unit=f["FluxCube"].attrs["FluxCubeUnit"],
+                )
+
+                A = (
+                    np.pi
+                    * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
+                    * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
+                    / 4
+                    / np.log(2)
+                    / U.beam
+                )
+                dv = np.abs(
+                    np.diff(
+                        f["velocity_channel_edges"]
+                        * U.Unit(f["velocity_channel_edges"].attrs["Unit"])
+                    )
+                )
+                px_area = U.Quantity(
+                    np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
+                    unit=f["FluxCube"].attrs["RAUnit"],
+                ) * U.Quantity(
+                    np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
+                    unit=f["FluxCube"].attrs["DecUnit"],
+                )
+
+                # flux
+                F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+
+                # HI mass
+                MHI = np.sum(
+                    2.36e5
+                    * U.Msun
+                    * D.to_value(U.Mpc) ** 2
+                    * F.to_value(U.Jy)
+                    * dv.to_value(U.km / U.s)
+                ).to(U.Msun)
+
+            # demand accuracy within 1% in output hdf5 file
+            assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
+
+
 class TestMartini:
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
@@ -40,17 +212,10 @@ class TestMartini:
         Martini.insert_source_in_cube.
         """
 
-        if out_mode == "hdf5":
-            try:
-                import h5py
-            except ImportError:
-                pytest.skip()
-
         hsm_g = (
             0.1 * U.kpc if sph_kernel.__name__ == "DiracDeltaKernel" else 1.0 * U.kpc
         )
         source = single_particle_source(hsm_g=hsm_g)
-
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         m = Martini(
             source=source,
@@ -60,172 +225,8 @@ class TestMartini:
             spectral_model=spectral_model(),
             sph_kernel=sph_kernel(),
         )
-
         m.insert_source_in_cube(progressbar=False)
-
-        # flux in channels
-        F = (m.datacube._array * m.datacube.px_size**2).sum((0, 1)).squeeze()  # Jy
-
-        # distance
-        D = m.source.distance
-
-        # channel width
-        dv = np.abs(np.diff(m.datacube.velocity_channel_edges))
-
-        # HI mass
-        MHI = np.sum(
-            2.36e5
-            * U.Msun
-            * D.to_value(U.Mpc) ** 2
-            * F.to_value(U.Jy)
-            * dv.to_value(U.km / U.s)
-        ).to(U.Msun)
-
-        # demand accuracy within 1% after source insertion
-        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-        m.convolve_beam()
-
-        # radiant intensity
-        Irad = m.datacube._array.sum((0, 1)).squeeze()  # Jy / beam
-
-        # beam area, for an equivalent Gaussian beam
-        A = np.pi * m.beam.bmaj * m.beam.bmin / 4 / np.log(2) / U.beam
-
-        # distance
-        D = m.source.distance
-
-        # channel width
-        dv = np.abs(np.diff(m.datacube.velocity_channel_edges))
-
-        # flux
-        F = (Irad / A).to(U.Jy / U.arcsec**2) * m.datacube.px_size**2
-
-        # HI mass
-        MHI = np.sum(
-            2.36e5
-            * U.Msun
-            * D.to_value(U.Mpc) ** 2
-            * F.to_value(U.Jy)
-            * dv.to_value(U.km / U.s)
-        ).to(U.Msun)
-
-        # demand accuracy within 1% after beam convolution
-        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-        if out_mode == "fits":
-            filename = "cube.fits"
-            try:
-                m.write_fits(filename)
-                with fits.open(filename) as f:
-                    # distance
-                    D = m.source.distance
-
-                    # radiant intensity
-                    fits_wcs = wcs.WCS(f[0].header)
-                    Irad = U.Quantity(
-                        f[0].data.T.sum((0, 1)).squeeze(), unit=f[0].header["BUNIT"]
-                    )
-
-                    A = (
-                        np.pi
-                        * (f[0].header["BMAJ"] * U.deg)
-                        * (f[0].header["BMIN"] * U.deg)
-                        / 4
-                        / np.log(2)
-                        / U.beam
-                    )
-                    px_area = U.Quantity(
-                        np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
-                    ) * U.Quantity(
-                        np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"]
-                    )
-
-                    # flux
-                    F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
-
-                    channel_edges = fits_wcs.sub(("spectral",)).all_pix2world(
-                        np.arange(fits_wcs.sub(("spectral",)).pixel_shape[0] + 1) - 0.5,
-                        0,
-                    ) * U.Unit(fits_wcs.wcs.cunit[fits_wcs.wcs.spec], format="fits")
-                    dv = np.abs(
-                        np.diff(
-                            channel_edges.squeeze().to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            )
-                        )
-                    )
-
-                    # HI mass
-                    MHI = np.sum(
-                        2.36e5
-                        * U.Msun
-                        * D.to_value(U.Mpc) ** 2
-                        * F.to_value(U.Jy)
-                        * dv.to_value(U.km / U.s)
-                    ).to(U.Msun)
-
-                # demand accuracy within 1% in output fits file
-                assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-            finally:
-                if os.path.exists(filename):
-                    os.remove(filename)
-
-        if out_mode == "hdf5":
-            filename = "cube.hdf5"
-            try:
-                m.write_hdf5(filename)
-                with h5py.File(filename, "r") as f:
-                    # distance
-                    D = m.source.distance
-
-                    # radiant intensity
-                    Irad = U.Quantity(
-                        f["FluxCube"][()].sum((0, 1)).squeeze(),
-                        unit=f["FluxCube"].attrs["FluxCubeUnit"],
-                    )
-
-                    A = (
-                        np.pi
-                        * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
-                        * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
-                        / 4
-                        / np.log(2)
-                        / U.beam
-                    )
-                    dv = np.abs(
-                        np.diff(
-                            f["velocity_channel_edges"]
-                            * U.Unit(f["velocity_channel_edges"].attrs["Unit"])
-                        )
-                    )
-                    px_area = U.Quantity(
-                        np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
-                        unit=f["FluxCube"].attrs["RAUnit"],
-                    ) * U.Quantity(
-                        np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
-                        unit=f["FluxCube"].attrs["DecUnit"],
-                    )
-
-                    # flux
-                    F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
-
-                    # HI mass
-                    MHI = np.sum(
-                        2.36e5
-                        * U.Msun
-                        * D.to_value(U.Mpc) ** 2
-                        * F.to_value(U.Jy)
-                        * dv.to_value(U.km / U.s)
-                    ).to(U.Msun)
-
-                # demand accuracy within 1% in output hdf5 file
-                assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-            finally:
-                if os.path.exists(filename):
-                    os.remove(filename)
+        check_mass_accuracy(m, out_mode)
 
     def test_convolve_beam(self, single_particle_source):
         """
@@ -651,23 +652,31 @@ class TestGlobalProfile:
 
 class TestMartiniWithDataCubeFromWCS:
 
-    def test_source_insertion(self, dc_wcs, single_particle_source):
+    @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
+    def test_source_insertion(self, dc_wcs, single_particle_source, out_mode):
         datacube = dc_wcs
+        distance = (
+            datacube.spectral_centre.to(
+                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+            )
+            / (70 * U.km / U.s / U.Mpc)
+        ).to(U.Mpc)
         source = single_particle_source(
             ra=datacube.ra,
             dec=datacube.dec,
-            distance=(
-                datacube.spectral_centre.to(
-                    U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                )
-                / (70 * U.km / U.s / U.Mpc)
-            ).to(U.Mpc),
+            distance=distance,
+            hsm_g=(3 * datacube.px_size * distance).to(
+                U.kpc, equivalencies=U.dimensionless_angles()
+            ),
         )
+        beam = GaussianBeam(bmaj=3 * datacube.px_size, bmin=3 * datacube.px_size)
         m = Martini(
             source=source,
             datacube=datacube,
-            beam=None,
+            beam=beam,
             noise=None,
-            spectral_model=DiracDeltaSpectrum(),
-            sph_kernel=DiracDeltaKernel(),
+            spectral_model=GaussianSpectrum(sigma="thermal"),
+            sph_kernel=_CubicSplineKernel(),
         )
+        m.insert_source_in_cube(progressbar=False)
+        check_mass_accuracy(m, out_mode)

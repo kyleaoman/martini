@@ -299,7 +299,10 @@ def dc_wcs(request):
         hdr = f.read()
     with pytest.warns(wcs.FITSFixedWarning):
         hdr_wcs = wcs.WCS(hdr)
-    dc = DataCube.from_wcs(hdr_wcs)
+    if hdr_wcs.wcs.specsys == "":
+        dc = DataCube.from_wcs(hdr_wcs, specsys="BARYCENT")
+    else:
+        dc = DataCube.from_wcs(hdr_wcs)
     yield dc
 
 

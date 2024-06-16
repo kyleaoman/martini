@@ -1011,6 +1011,7 @@ class Martini(_BaseMartini):
             header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
         header.append(("BTYPE", "Intensity"))
         header.append(("SPECSYS", wcs_header["SPECSYS"]))
+        header.append(("RESTFRQ", wcs_header["RESTFRQ"]))
 
         # flip axes to write
         hdu = fits.PrimaryHDU(
@@ -1211,6 +1212,7 @@ class Martini(_BaseMartini):
         c.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
         c.attrs["VUnit"] = wcs_header["CUNIT3"]
         c.attrs["VProjType"] = wcs_header["CTYPE3"]
+        c.attrs["SpecSys"] = wcs_header["SPECSYS"]
         if self.beam is not None:
             c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
             c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)

@@ -400,7 +400,11 @@ class TestDataCubeFromWCS:
             hdr = f.read()
         with pytest.warns(wcs.FITSFixedWarning):
             hdr_wcs = wcs.WCS(hdr)
-        dc = DataCube.from_wcs(hdr_wcs)
+        if hdr_wcs.wcs.specsys == "":
+            with pytest.warns(UserWarning, match="SPECSYS"):
+                dc = DataCube.from_wcs(hdr_wcs)
+        else:
+            dc = DataCube.from_wcs(hdr_wcs)
         assert dc.stokes_axis == (hdr_wcs.naxis == 4)
         centre_coords = hdr_wcs.all_pix2world(
             [[n_px // 2 + (1 + n_px % 2) / 2 for n_px in hdr_wcs.pixel_shape]],

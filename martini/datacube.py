@@ -2,6 +2,7 @@ import numpy as np
 import astropy.units as U
 from astropy import wcs
 from astropy.coordinates import ICRS
+import warnings
 
 HIfreq = 1.420405751e9 * U.Hz
 
@@ -85,8 +86,8 @@ class DataCube(object):
         self.arcsec2_to_pix = (
             U.Jy * U.pix**-2,
             U.Jy * U.arcsec**-2,
-            lambda x: x / self.px_size**2,
-            lambda x: x * self.px_size**2,
+            lambda x: x / self.px_size.to_value(U.arcsec) ** 2,
+            lambda x: x * self.px_size.to_value(U.arcsec) ** 2,
         )
         if U.get_physical_type(channel_width) == "frequency":
             self._freq_channel_mode = True
@@ -109,7 +110,7 @@ class DataCube(object):
         return
 
     @classmethod
-    def from_wcs(cls, input_wcs):
+    def from_wcs(cls, input_wcs, specsys=None):
 
         init_args = dict(
             n_px_x=None,
@@ -150,6 +151,13 @@ class DataCube(object):
         init_args["channel_width"] = np.abs(input_wcs.wcs.cdelt[ax_spec]) * unit_spec
         init_args["n_channels"] = input_wcs.pixel_shape[ax_spec]
         init_args["spectral_centre"] = centre_coords[ax_spec] * unit_spec
+        if specsys is not None:
+            init_args["specsys"] = specsys
+            input_wcs.wcs.specsys = specsys
+        elif input_wcs.wcs.specsys == "":
+            warnings.warn(UserWarning("Input WCS did not specify 'SPECSYS'."))
+        else:
+            init_args["specsys"] = input_wcs.wcs.specsys
 
         if ra_px_size != dec_px_size:
             raise ValueError(
