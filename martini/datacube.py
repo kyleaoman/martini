@@ -16,6 +16,16 @@ class DataCube(object):
     modules, especially beams. To initialize a :class:`~martini.datacube.DataCube`
     from a saved state, see :meth:`~martini.datacube.DataCube.load_state`.
 
+    .. note::
+
+        The ``channel_width`` argument defines the channel spacing in either
+        frequency or velocity units. If provided with units of frequency, the
+        data cube channels will be evenly spaced in frequency. Conversely, if
+        provided with units of velocity, the channels will be evenly spaced in
+        velocity. The ``spectral_centre`` is related and can also have units
+        of frequency or velocity, but will be converted to have the same units
+        as the ``channel_width`` in order to define the channels.
+
     Parameters
     ----------
     n_px_x : int, optional
@@ -55,9 +65,20 @@ class DataCube(object):
         Whether the datacube should be initialized with a Stokes' axis.
         (Default: ``False``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame of the World Coordinate System (WCS) associated with
+        the data cube. (Default: ``astropy.coordinates.ICRS()``)
+
+    specsys : str, optional
+        The spectral reference frame (standard of rest) of the World Coordinate System
+        (WCS) associated with the data cube, in the format used in FITS headers (e.g.
+        ``"BARYCENT"``, ``"GALACTOC"``, etc.). (Default: ``"BARYCENT"``)
+
     See Also
     --------
     ~martini.datacube.DataCube.load_state
+    ~martini.datacube.DataCube.from_wcs
     """
 
     def __init__(
@@ -72,7 +93,7 @@ class DataCube(object):
         dec=0.0 * U.deg,
         stokes_axis=False,
         coordinate_frame=ICRS(),
-        specsys="GALACTOC",
+        specsys="BARYCENT",
     ):
         self.stokes_axis = stokes_axis
         self.coordinate_frame = coordinate_frame
@@ -111,6 +132,63 @@ class DataCube(object):
 
     @classmethod
     def from_wcs(cls, input_wcs, specsys=None):
+        """
+        Create a DataCube from a World Coordinate System (WCS), for instance one created
+        from a FITS header.
+
+        To create a MARTINI data cube with pixels and channels exactly matching an
+        observed data cube (stored in a FITS file) would be a bit tedious using the usual
+        :meth:`~martini.datacube.DataCube.__init__` since the number of pixels, channel
+        spacing and so on must be specified by hand. This function instead constructs a
+        :class:`~martini.datacube.DataCube` from a :class:`~astropy.wcs.WCS` instance,
+        that can be easily obtained from a FITS file or header (see example below). The
+        resulting data cube has exactly the same dimensions (pixels and channels) and
+        World Coordinate System (WCS) as the input WCS.
+
+        .. note::
+
+            MARTINI's data cubes have a fixed axis ordering: first the RA axis, then the
+            Dec axis, then the spectral axis, and finally the Stokes' axis (if present). A
+            :class:`~martini.datacube.DataCube` created with
+            :meth:`~martini.datacube.DataCube.from_wcs` may therefore have its axes
+            re-ordered (tranposed) relative to the ``input_wcs``. The FITS files output by
+            MARTINI have the same axis ordering, and may therefore also be transposed
+            relative to a data cube used to construct the :class"`~astropy.wcs.WCS` for
+            the ``input_wcs`` argument.
+
+        Parameters
+        ----------
+        input_wcs : ~astropy.wcs.WCS
+            The :class:`~astropy.wcs.WCS` instance to use as the basis for the
+            :class:`~martini.datacube.DataCube`.
+
+        specsys : str, optional
+            The spectral reference frame (standard of rest) of the World Coordinate System
+            (WCS) associated with the data cube, in the format used in FITS headers (e.g.
+            ``"BARYCENT"``, ``"GALACTOC"``, etc.). Intended for cases where the
+            ``input_wcs`` does not specify the ``specsys``. (Default: ``None``)
+
+        See Also
+        --------
+        ~martini.datacube.DataCube
+
+        Examples
+        --------
+        It is easy to initialize a :class:`~astropy.wcs.WCS` from a FITS-format header.
+        For example, given a FITS file ``my_cube.fits``, setting up a
+        :class:`~martini.datacube.DataCube` with matching World Coordinate System (WCS)
+        looks like:
+
+            from astropy import wcs
+            from astropy.io import fits
+            from martini.datacube import DataCube
+
+            with fits.open("my_cube.fits") as fitsfile:
+                fits_hdr = fitsfile[0].header  # header of the main HDU
+            fits_wcs = wcs.WCS(fits_hdr)
+            datacube = DataCube.from_wcs(fits_wcs)
+
+        """
 
         init_args = dict(
             n_px_x=None,
@@ -155,7 +233,12 @@ class DataCube(object):
             init_args["specsys"] = specsys
             input_wcs.wcs.specsys = specsys
         elif input_wcs.wcs.specsys == "":
-            warnings.warn(UserWarning("Input WCS did not specify 'SPECSYS'."))
+            warnings.warn(
+                UserWarning(
+                    "Input WCS did not specify 'SPECSYS' (see `specsys` argument to "
+                    "`from_wcs` for a work-around)."
+                )
+            )
         else:
             init_args["specsys"] = input_wcs.wcs.specsys
 
@@ -192,12 +275,27 @@ class DataCube(object):
 
     @property
     def units(self):
+        """
+        The units of the DataCube's World Coordinate System (WCS).
+
+        Returns
+        -------
+        out : tuple
+            A tuple containing :class:`~astropy.units.Unit` instances describing the WCS
+            units.
+        """
         return tuple(U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit)
 
     @property
     def wcs(self):
         """
         The DataCube's World Coordinate System (WCS).
+
+        Returns
+        -------
+        out : ~astropy.wcs.WCS
+            The :class:`~astropy.wcs.WCS` instance that describes the
+            :class:`~martini.datacube.DataCube`'s World Coordinate System (WCS).
         """
         if self._wcs is None:
             hdr = wcs.utils.celestial_frame_to_wcs(self.coordinate_frame).to_header()
@@ -250,6 +348,12 @@ class DataCube(object):
     def channel_mids(self):
         """
         The centres of the channels from the coordinate system.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency or velocity
+            containing the channel centres.
         """
         if self._channel_mids is None:
             self._channel_mids = (
@@ -265,6 +369,12 @@ class DataCube(object):
     def channel_edges(self):
         """
         The edges of the channels from the coordinate system.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency or velocity
+            containing the channel edges.
         """
         if self._channel_edges is None:
             self._channel_edges = (
@@ -278,18 +388,54 @@ class DataCube(object):
 
     @property
     def velocity_channel_mids(self):
+        """
+        The centres of the channels from the coordinate system in velocity units.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of velocity containing the
+            channel centres.
+        """
         return self.channel_mids.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
 
     @property
     def velocity_channel_edges(self):
+        """
+        The edges of the channels from the coordinate system in velocity units.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of velocity containing the
+            channel edges.
+        """
         return self.channel_edges.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
 
     @property
     def frequency_channel_mids(self):
+        """
+        The centres of the channels from the coordinate system in frequency units.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency containing the
+            channel centres.
+        """
         return self.channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
 
     @property
     def frequency_channel_edges(self):
+        """
+        The edges of the channels from the coordinate system in frequency units.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of frequency containing the
+            channel edges.
+        """
         return self.channel_edges.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
 
     @property
@@ -297,9 +443,14 @@ class DataCube(object):
         """
         The position of the Stokes' axis in the WCS axis order.
 
-        Unlike RA (wcs.WCS().wcs.lng), Dec (wcs.WCS().wcs.lat) and spectral axis
-        (wcs.WCS().wcs.spec), the Stokes' axis isn't exposed in a convenient way, so
-        implement a helper.
+        Unlike the RA (``wcs.WCS().wcs.lng``), Dec (``wcs.WCS().wcs.lat``) and spectral
+        axis (``wcs.WCS().wcs.spec``), the Stokes' axis isn't exposed in a convenient way,
+        so we implement a helper.
+
+        Returns
+        -------
+        out : int or None
+            Index of the Stokes' axis (or ``None`` if it is not present).
         """
         for index, axis_type in enumerate(self.wcs.get_axis_types()):
             if axis_type == "stokes":
@@ -310,6 +461,11 @@ class DataCube(object):
     def spatial_slices(self):
         """
         An iterator over the spatial 'slices' of the cube.
+
+        Returns
+        -------
+        out : iter
+            The iterator over the spatial 'slices' of the cube.
         """
         if self.stokes_axis:
             return iter(
@@ -328,6 +484,11 @@ class DataCube(object):
     def spectra(self):
         """
         An iterator over the spectra (one in each spatial pixel).
+
+        Returns
+        -------
+        out : iter
+            The iterator over the spectra making up the cube.
         """
         if self.stokes_axis:
             return iter(
@@ -575,6 +736,11 @@ class _GlobalProfileDataCube(DataCube):
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
         (Default: ``0 * U.km * U.s**-1``)
+
+    specsys : str, optional
+        The spectral reference frame (standard of rest) of the World Coordinate System
+        (WCS) associated with the data cube, in the format used in FITS headers (e.g.
+        ``"BARYCENT"``, ``"GALACTOC"``, etc.). (Default: ``"BARYCENT"``)
     """
 
     def __init__(
@@ -582,7 +748,7 @@ class _GlobalProfileDataCube(DataCube):
         n_channels=64,
         channel_width=4.0 * U.km * U.s**-1,
         spectral_centre=0.0 * U.km * U.s**-1,
-        specsys="GALACTOC",
+        specsys="BARYCENT",
     ):
         super().__init__(
             n_px_x=1,

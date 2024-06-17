@@ -70,8 +70,8 @@ class _BaseMartini:
         other models is straightforward. See
         :doc:`sub-module documentation </spectral_models/index>`.
 
-    quiet : bool
-        If True, suppress output to stdout. (Default: ``False``)
+    quiet : bool, optional
+        If ``True``, suppress output to stdout. (Default: ``False``)
 
     See Also
     --------
@@ -142,10 +142,10 @@ class _BaseMartini:
         Parameters
         ----------
         spatial : bool
-            If True, prune particles that fall outside the spatial aperture.
+            If ``True``, prune particles that fall outside the spatial aperture.
             (Default: ``True``)
         spectral : bool
-            If True, prune particles that fall outside the spectral bandwidth.
+            If ``True``, prune particles that fall outside the spectral bandwidth.
             (Default: ``True``)
         obj_type_str : str
             String describing the object to be pruned for messages.
@@ -218,6 +218,9 @@ class _BaseMartini:
         rank_and_ij_pxs : tuple
             A 2-tuple containing an integer (cpu "rank" in the case of parallel execution)
             and a list of 2-tuples specifying the indices (i, j) of pixels in the grid.
+
+        progressbar : bool, optional
+            Whether to display a :mod:`tqdm` progressbar. (Default: ``True``)
 
         Returns
         -------
@@ -299,7 +302,7 @@ class _BaseMartini:
             `multiprocessing`). (Default: ``1``)
 
         quiet : bool, optional
-            If True, suppress output to stdout. If specified, takes precedence over
+            If ``True``, suppress output to stdout. If specified, takes precedence over
             quiet parameter of class. (Default: ``None``)
         """
 
@@ -689,6 +692,9 @@ class Martini(_BaseMartini):
         other models is straightforward. See
         :doc:`sub-module documentation </spectral_models/index>`.
 
+    quiet : bool, optional
+        If ``True``, suppress output to stdout. (Default: ``False``)
+
     See Also
     --------
     ~martini.sources.sph_source.SPHSource
@@ -717,7 +723,7 @@ class Martini(_BaseMartini):
             def f(r):
                 return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
 
-            r.append(fsolve(f, 1.0)[0])
+        r.append(fsolve(f, 1.0)[0])
         r = np.array(r)
         # exponential disk
         r *= 3 / np.sort(r)[N // 2]
@@ -821,6 +827,12 @@ class Martini(_BaseMartini):
     def datacube(self):
         """
         The :class:`~martini.datacube.DataCube` object for this mock observation.
+
+        Returns
+        -------
+        out : ~martini.datacube.DataCube
+            The :class:`~martini.datacube.DataCube` contained by this
+            :class:`~martini.martini.Martini` instance.
         """
         return self._datacube
 
@@ -1287,14 +1299,14 @@ class GlobalProfile(_BaseMartini):
 
     Parameters
     ----------
-    source : SPHSource
+    source : ~martini.sources.sph_source.SPHSource
         An instance of a class derived from
         :class:`~martini.sources.sph_source.SPHSource`.
         A description of the HI emitting object, including position, geometry
         and an interface to the simulation data (SPH particle masses,
         positions, etc.). See :doc:`sub-module documentation </sources/index>`.
 
-    spectral_model : _BaseSpectrum
+    spectral_model : ~martini.spectral_models._BaseSpectrum
         An instance of a class derived from
         :class:`~martini.spectral_models._BaseSpectrum`.
         A description of the HI line produced by a particle of given
@@ -1316,7 +1328,7 @@ class GlobalProfile(_BaseMartini):
         Velocity (or frequency) of the centre along the spectral axis.
         (Default: ``0 * U.km / U.s``)
 
-    quiet : bool
+    quiet : bool, optional
         If ``True``, suppress output to stdout. (Default: ``False``)
 
     Examples

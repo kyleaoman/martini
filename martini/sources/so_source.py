@@ -55,6 +55,11 @@ class SOSource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec.
+        (Default: ``astropy.coordinates.ICRS()``)
+
     SO_args : dict, optional
         Dictionary of keyword arguments to pass to a call to
         :class:`simobj.simobj.SimObj`.

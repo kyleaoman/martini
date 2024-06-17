@@ -41,8 +41,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     See Also
     --------
-    martini.spectral_models.GaussianSpectrum
-    martini.spectral_models.DiracDeltaSpectrum
+    ~martini.spectral_models.GaussianSpectrum
+    ~martini.spectral_models.DiracDeltaSpectrum
     """
 
     def __init__(self, ncpu=None, spec_dtype=np.float64):
@@ -71,10 +71,10 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object containing arrays of particle properties.
 
-        datacube : martini.datacube.DataCube
+        datacube : ~martini.datacube.DataCube
             :class:`~martini.datacube.DataCube` object defining the observational
             parameters, including spectral channels.
         """
@@ -134,10 +134,10 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object containing arrays of particle properties.
 
-        datacube : martini.datacube.DataCube
+        datacube : ~martini.datacube.DataCube
             :class:`~martini.datacube.DataCube` object defining the observational
             parameters, including spectral channels.
 
@@ -191,7 +191,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             The source object will be provided to allow access to particle
             properties.
         """
@@ -367,7 +367,7 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object, making particle properties available.
 
         Returns
@@ -439,7 +439,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object, making particle properties available.
 
         Returns

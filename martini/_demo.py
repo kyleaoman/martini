@@ -77,11 +77,15 @@ def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.
 
     Parameters
     ----------
-    cubefile : string
-        File to write demonstration datacube.
+    cubefile : str
+        File name to write demonstration datacube.
 
-    beamfile : string
-        File to write demonstration beam.
+    beamfile : str
+        File name to write demonstration beam.
+
+    hdf5file : str
+        File name to write demonstration datacube in hdf5 format (if :mod:`h5py` is
+        available).
     """
     source = demo_source()
 

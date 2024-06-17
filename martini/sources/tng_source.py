@@ -153,6 +153,10 @@ class TNGSource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec.
+        (Default: ``astropy.coordinates.ICRS()``)
     """
 
     def __init__(

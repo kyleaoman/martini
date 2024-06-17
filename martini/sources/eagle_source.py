@@ -40,7 +40,7 @@ class EAGLESource(SPHSource):
         Database username.
 
     db_key : str, optional
-        Database password, or omit for a prompt at runtime. (Default: None.)
+        Database password, or omit for a prompt at runtime. (Default: ``None``)
 
     subBoxSize : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
@@ -90,9 +90,14 @@ class EAGLESource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec.
+        (Default: ``astropy.coordinates.ICRS()``)
+
     print_query : bool, optional
         If True, the SQL query submitted to the EAGLE database is printed.
-        (Default: False.)
+        (Default: ``False``)
     """
 
     def __init__(

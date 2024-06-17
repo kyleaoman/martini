@@ -108,6 +108,11 @@ class SPHSource(object):
         particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
         Usually prefer to omit this as it can be determined automatically, but is
         ambiguous for sources with exactly 3 particles. (Default: ``None``)
+
+    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec.
+        (Default: ``astropy.coordinates.ICRS()``)
     """
 
     def __init__(
@@ -406,7 +411,7 @@ class SPHSource(object):
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of length.
             The coordinate axes extend from -lim to lim. If unspecified, the maximum
-            absolute coordinate of particles in the source is used. (Default: None)
+            absolute coordinate of particles in the source is used. (Default: ``None``)
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of speed.
