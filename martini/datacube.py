@@ -16,16 +16,6 @@ class DataCube(object):
     modules, especially beams. To initialize a :class:`~martini.datacube.DataCube`
     from a saved state, see :meth:`~martini.datacube.DataCube.load_state`.
 
-    .. note::
-
-        The ``channel_width`` argument defines the channel spacing in either
-        frequency or velocity units. If provided with units of frequency, the
-        data cube channels will be evenly spaced in frequency. Conversely, if
-        provided with units of velocity, the channels will be evenly spaced in
-        velocity. The ``spectral_centre`` is related and can also have units
-        of frequency or velocity, but will be converted to have the same units
-        as the ``channel_width`` in order to define the channels.
-
     Parameters
     ----------
     n_px_x : int, optional
@@ -79,6 +69,17 @@ class DataCube(object):
     --------
     ~martini.datacube.DataCube.load_state
     ~martini.datacube.DataCube.from_wcs
+
+    Notes
+    -----
+    The ``channel_width`` argument defines the channel spacing in either
+    frequency or velocity units. If provided with units of frequency, the
+    data cube channels will be evenly spaced in frequency. Conversely, if
+    provided with units of velocity, the channels will be evenly spaced in
+    velocity. The ``spectral_centre`` is related and can also have units
+    of frequency or velocity, but will be converted to have the same units
+    as the ``channel_width`` in order to define the channels.
+
     """
 
     def __init__(
@@ -145,17 +146,6 @@ class DataCube(object):
         resulting data cube has exactly the same dimensions (pixels and channels) and
         World Coordinate System (WCS) as the input WCS.
 
-        .. note::
-
-            MARTINI's data cubes have a fixed axis ordering: first the RA axis, then the
-            Dec axis, then the spectral axis, and finally the Stokes' axis (if present). A
-            :class:`~martini.datacube.DataCube` created with
-            :meth:`~martini.datacube.DataCube.from_wcs` may therefore have its axes
-            re-ordered (tranposed) relative to the ``input_wcs``. The FITS files output by
-            MARTINI have the same axis ordering, and may therefore also be transposed
-            relative to a data cube used to construct the :class"`~astropy.wcs.WCS` for
-            the ``input_wcs`` argument.
-
         Parameters
         ----------
         input_wcs : ~astropy.wcs.WCS
@@ -172,12 +162,23 @@ class DataCube(object):
         --------
         ~martini.datacube.DataCube
 
+        Notes
+        -----
+        MARTINI's data cubes have a fixed axis ordering: first the RA axis, then the
+        Dec axis, then the spectral axis, and finally the Stokes' axis (if present). A
+        :class:`~martini.datacube.DataCube` created with
+        :meth:`~martini.datacube.DataCube.from_wcs` may therefore have its axes
+        re-ordered (tranposed) relative to the ``input_wcs``. The FITS files output by
+        MARTINI have the same axis ordering, and may therefore also be transposed
+        relative to a data cube used to construct the :class"`~astropy.wcs.WCS` for
+        the ``input_wcs`` argument.
+
         Examples
         --------
         It is easy to initialize a :class:`~astropy.wcs.WCS` from a FITS-format header.
         For example, given a FITS file ``my_cube.fits``, setting up a
         :class:`~martini.datacube.DataCube` with matching World Coordinate System (WCS)
-        looks like:
+        looks like::
 
             from astropy import wcs
             from astropy.io import fits
