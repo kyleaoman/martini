@@ -1,8 +1,8 @@
 import io
 import os
 import numpy as np
-import astropy.units as U
-import astropy.constants as C
+from astropy import units as U, constants as C
+from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
 
@@ -167,6 +167,7 @@ class TNGSource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
     ):
         # optional dependencies for this source class
         import h5py

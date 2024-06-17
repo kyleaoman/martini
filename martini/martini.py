@@ -1636,7 +1636,6 @@ class GlobalProfile(_BaseMartini):
         self,
         fig=1,
         title="",
-        channels="velocity",
         show_vsys=True,
         save=None,
     ):

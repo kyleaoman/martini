@@ -1,5 +1,6 @@
 import numpy as np
 from astropy import units as U
+from astropy.coordinates import ICRS
 from .swiftgalaxy_source import SWIFTGalaxySource
 
 
@@ -63,6 +64,7 @@ class ColibreSource(SWIFTGalaxySource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
     ):
         # No special functionality wanted/needed:
         super().__init__(
@@ -72,5 +74,6 @@ class ColibreSource(SWIFTGalaxySource):
             rotation=rotation,
             ra=ra,
             dec=dec,
+            coordinate_frame=coordinate_frame,
         )
         return

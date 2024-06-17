@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as U
+from astropy.coordinates import ICRS
 from ..sph_kernels import _WendlandC6Kernel, find_fwhm
 from .sph_source import SPHSource
 
@@ -120,6 +121,7 @@ class MagneticumSource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0 * U.deg,
         dec=0 * U.deg,
+        coordinate_frame=ICRS(),
     ):
         from g3t.stable.g3read import GadgetFile, read_particles_in_box
 
@@ -196,6 +198,7 @@ class MagneticumSource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
+            coordinate_frame=coordinate_frame,
             **particles,
         )
         return

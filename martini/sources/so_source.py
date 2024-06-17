@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as U
+from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 
 
@@ -74,6 +75,7 @@ class SOSource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
         SO_args=None,
         SO_instance=None,
         rescale_hsm_g=1,
@@ -88,19 +90,29 @@ class SOSource(SPHSource):
             )
         elif SO_args is not None:
             with SimObj(**self._SO_args) as SO:
-                super().__init__(
-                    distance=distance,
-                    rotation=rotation,
-                    ra=ra,
-                    dec=dec,
-                    h=SO.h,
+                particles = dict(
                     T_g=SO.T_g,
                     mHI_g=SO.mHI_g,
                     xyz_g=SO.xyz_g,
                     vxyz_g=SO.vxyz_g,
                     hsm_g=SO.hsm_g * self.rescale_hsm_g,
                 )
+                super().__init__(
+                    distance=distance,
+                    rotation=rotation,
+                    ra=ra,
+                    dec=dec,
+                    h=SO.h,
+                    **particles,
+                )
         elif SO_instance is not None:
+            particles = dict(
+                T_g=SO_instance.T_g,
+                mHI_g=SO_instance.mHI_g,
+                xyz_g=SO_instance.xyz_g,
+                vxyz_g=SO_instance.vxyz_g,
+                hsm_g=SO_instance.hsm_g,
+            )
             super().__init__(
                 distance=distance,
                 vpeculiar=vpeculiar,
@@ -108,11 +120,8 @@ class SOSource(SPHSource):
                 ra=ra,
                 dec=dec,
                 h=SO_instance.h,
-                T_g=SO_instance.T_g,
-                mHI_g=SO_instance.mHI_g,
-                xyz_g=SO_instance.xyz_g,
-                vxyz_g=SO_instance.vxyz_g,
-                hsm_g=SO_instance.hsm_g,
+                coordinate_frame=coordinate_frame,
+                **particles,
             )
         else:
             raise ValueError(

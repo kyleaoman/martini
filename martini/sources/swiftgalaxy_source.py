@@ -1,6 +1,7 @@
 import numpy as np
 from .sph_source import SPHSource
 from astropy import units as U
+from astropy.coordinates import ICRS
 
 
 class SWIFTGalaxySource(SPHSource):
@@ -63,6 +64,7 @@ class SWIFTGalaxySource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
     ):
         h = galaxy.metadata.cosmology.h
         particles = dict(
@@ -81,6 +83,7 @@ class SWIFTGalaxySource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
+            coordinate_frame=coordinate_frame,
             **particles,
         )
         return

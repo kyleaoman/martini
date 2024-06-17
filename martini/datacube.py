@@ -184,7 +184,7 @@ class DataCube(object):
 
     @property
     def units(self):
-        return [U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit]
+        return tuple(U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit)
 
     @property
     def wcs(self):

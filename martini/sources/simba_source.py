@@ -3,6 +3,7 @@ from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from os.path import join
 from astropy import units as U, constants as C
+from astropy.coordinates import ICRS
 
 
 class SimbaSource(SPHSource):
@@ -92,6 +93,7 @@ class SimbaSource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
     ):
         if snapPath is None:
             raise ValueError("Provide snapPath argument to SimbaSource.")
@@ -175,6 +177,7 @@ class SimbaSource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
+            coordinate_frame=coordinate_frame,
             **particles,
         )
         return

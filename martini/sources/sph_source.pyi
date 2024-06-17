@@ -4,6 +4,8 @@ from martini.datacube import DataCube
 from numpy import ndarray
 import typing as T
 from matplotlib.figure import Figure
+from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
 
 class SPHSource:
     h: float
@@ -20,6 +22,7 @@ class SPHSource:
     vhubble: U.Quantity[U.km / U.s]
     vsys: U.Quantity[U.km / U.s]
     sky_coordinates: ICRS
+    coordinate_frame: BaseRADecFrame
 
     def __init__(
         self,
@@ -41,6 +44,7 @@ class SPHSource:
         vxyz_g: T.Optional[U.Quantity[U.km / U.s]] = ...,
         hsm_g: T.Optional[U.Quantity[U.kpc]] = ...,
         coordinate_axis: T.Optional[int] = ...,
+        coordinate_frame: BaseRADecFrame = ...,
     ) -> None: ...
     def _init_skycoords(self, _reset: bool = ...) -> None: ...
     def _init_pixcoords(self, datacube: DataCube, origin: int = ...) -> None: ...

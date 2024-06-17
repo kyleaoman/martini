@@ -3,6 +3,7 @@ from .sph_source import SPHSource
 from ..sph_kernels import _WendlandC2Kernel, find_fwhm
 from os.path import join, normpath, sep
 import astropy.units as U
+from astropy.coordinates import ICRS
 
 
 class EAGLESource(SPHSource):
@@ -108,6 +109,7 @@ class EAGLESource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
         print_query=False,
     ):
         if snapPath is None:
@@ -230,6 +232,7 @@ class EAGLESource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
+            coordinate_frame=coordinate_frame,
             **particles,
         )
         return
