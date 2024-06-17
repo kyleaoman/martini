@@ -321,9 +321,9 @@ class GaussianSpectrum(_BaseSpectrum):
         assert self.spectral_function_extra_data is not None
         sigma = self.spectral_function_extra_data["sigma"]
 
-        return 0.5 * (
-            erf((b - vmids) / (np.sqrt(2.0) * sigma))
-            - erf((a - vmids) / (np.sqrt(2.0) * sigma))
+        return self.spec_dtype(0.5) * (
+            erf((b - vmids) / (np.sqrt(self.spec_dtype(2.0)) * sigma))
+            - erf((a - vmids) / (np.sqrt(self.spec_dtype(2.0)) * sigma))
         )
 
     def init_spectral_function_extra_data(self, source, datacube, mask=np.s_[...]):
