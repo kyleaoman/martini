@@ -171,6 +171,14 @@ class DataCube(object):
         datacube_wcs = input_wcs.reorient_celestial_first()
         if datacube_wcs.wcs.lat == 0:  # RA & Dec swapped
             datacube_wcs = datacube_wcs.swapaxes(0, 1)
+        if input_wcs.wcs.restfrq == 0.0:
+            warnings.warn(
+                UserWarning(
+                    "Input WCS did not specify RESTFRQ, "
+                    f"assuming {HIfreq.to_value(U.Hz)} (Hz)."
+                )
+            )
+            datacube_wcs.wcs.restfrq = HIfreq.to_value(U.Hz)
         datacube._wcs = datacube_wcs
         datacube._freq_channel_mode = (
             U.get_physical_type(
@@ -197,6 +205,7 @@ class DataCube(object):
             hdr.update(
                 dict(NAXIS1=self.n_px_x, NAXIS2=self.n_px_y, NAXIS3=self.n_channels)
             )
+            hdr.update(dict(RESTFRQ=HIfreq.to_value(U.Hz)))
             self._wcs = wcs.WCS(hdr)
             self._wcs.wcs.ctype = [
                 self._wcs.wcs.ctype[0],

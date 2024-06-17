@@ -1006,6 +1006,7 @@ class Martini(_BaseMartini):
         header.append(("OBSERVER", "K. Oman"))
         header.append(("BUNIT", datacube_array_units.to_string("fits")))
         header.append(("DATE-OBS", Time.now().to_value("fits")))
+        header.append(("MJD-OBS", Time.now().to_value("mjd")))
         if self.beam is not None:
             header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
             header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
@@ -1636,6 +1637,7 @@ class GlobalProfile(_BaseMartini):
         self,
         fig=1,
         title="",
+        channels="velocity",
         show_vsys=True,
         save=None,
     ):
@@ -1653,7 +1655,7 @@ class GlobalProfile(_BaseMartini):
 
         channels : str, optional
             The type of spectral axis for the plot, either ``"velocity"`` or
-            ``"frequency"``. (Default: ``""``)
+            ``"frequency"``. (Default: ``"velocity"``)
 
         show_vsys : bool, optional
             If ``True``, draw a vertical line at the source systemic velocity.

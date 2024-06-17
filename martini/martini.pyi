@@ -12,7 +12,6 @@ import astropy.units as U
 gc: bytes
 martini_version: str
 
-
 class _BaseMartini:
     source: SPHSource
     _datacube: DataCube
@@ -63,7 +62,6 @@ class _BaseMartini:
         save: T.Optional[str] = ...,
     ) -> Figure: ...
 
-
 class Martini:
     def __init__(
         self,
@@ -94,7 +92,6 @@ class Martini:
         memmap: bool = ...,
         compact: bool = ...,
     ) -> None: ...
-
 
 class GlobalProfile(_BaseMartini):
     def __init__(
@@ -128,6 +125,7 @@ class GlobalProfile(_BaseMartini):
         self,
         fig: int = ...,
         title: str = ...,
+        channels: str = ...,
         show_vsys: bool = ...,
         save: T.Optional[str] = ...,
     ) -> Figure: ...

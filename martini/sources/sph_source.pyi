@@ -6,7 +6,6 @@ import typing as T
 from matplotlib.figure import Figure
 from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
-
 class SPHSource:
     h: float
     T_g: U.Quantity[U.K]
