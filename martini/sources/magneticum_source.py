@@ -103,7 +103,13 @@ class MagneticumSource(SPHSource):
 
     coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
     optional
-        The coordinate frame assumed in converting particle coordinates to RA and Dec.
+        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
+        for transforming coordinates and velocities to the data cube frame. The frame
+        needs to have a well-defined velocity as well as spatial origin. Recommended
+        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
+        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
+        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
+        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
         (Default: ``astropy.coordinates.ICRS()``)
     """
 
