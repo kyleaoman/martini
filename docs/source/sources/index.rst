@@ -91,6 +91,11 @@ Any source module can be configured with the ``distance``, ``vpeculiar``, ``ra``
 
 The systemic velocity of the source is defined as the sum of the Hubble and peculiar velocities: :math:`v_\mathrm{sys}=v_\mathrm{Hubble}+v_\mathrm{peculiar}`. A positive peculiar velocity therefore makes the source recede faster than :math:`v_\mathrm{Hubble}=H_0D`, and vice-versa.
 
+Coordinate frame
+++++++++++++++++
+
+!!! mention source and datacube coordinate_frame and specsys here.
+
 Manipulating a source before making a mock
 ------------------------------------------
 

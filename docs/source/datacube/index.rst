@@ -16,7 +16,7 @@ When using MARTINI, most of the time the only interaction with the :class:`~mart
 Initialization parameters
 +++++++++++++++++++++++++
 
-The footprint of the mock observation on the sky is set by the five parameters: ``ra``, ``dec``, ``px_size``, ``n_px_x``, ``n_px_y``. It is recommended to choose even numbers of pixels along each axis for ``n_px_x`` (RA axis) and ``n_px_y`` (Dec axis). The ``ra`` and ``dec`` parameters then control the location of the boundary between the two centremost pixels along each axis, the the boundaries of pixels going out from this centre are each offset in angle by ``px_size`` from their neighbour. For users accustomed to the FITS_ standard, the ``px_size`` corresponds to `CDELT` and ``ra`` and ``dec`` correspond to `CRVAL`, with `CRPIX` set to the boundary between the two central pixels (or the central pixel if an odd number is chosen). The ``ra``, ``dec`` and ``px_size`` parameters should be provided with :mod:`astropy.units` with dimensions of angle.
+The footprint of the mock observation on the sky is set by the five parameters: ``ra``, ``dec``, ``px_size``, ``n_px_x``, ``n_px_y``. It is recommended to choose even numbers of pixels along each axis for ``n_px_x`` (RA axis) and ``n_px_y`` (Dec axis). The ``ra`` and ``dec`` parameters then control the location of the boundary between the two centremost pixels along each axis, the the boundaries of pixels going out from this centre are each offset in angle by ``px_size`` from their neighbour. For users accustomed to the FITS_ standard, the ``px_size`` corresponds to `CDELT` and ``ra`` and ``dec`` correspond to `CRVAL`, with `CRPIX` set to the boundary between the two central pixels (or the central pixel if an odd number is chosen). There is also an option to initialize the data cube from a FITS_ header (see below). The ``ra``, ``dec`` and ``px_size`` parameters should be provided with :mod:`astropy.units` with dimensions of angle.
 
 .. _FITS: https://fits.gsfc.nasa.gov/fits_standard.html
 
@@ -34,6 +34,7 @@ A possible initialization of a :class:`~martini.datacube.DataCube` looks like:
 
     import astropy.units as U
     from martini import DataCube
+    from astropy.coordinates import ICRS
 
     datacube = DataCube(
         n_px_x=256,
@@ -81,7 +82,31 @@ It often makes sense to place the source centre (defined by its RA, Dec and syst
 	stokes_axis=False,
     )
 
+!!! mention datacube and source coordinate_frame and specsys here.
 
+Initializing from a FITS header
++++++++++++++++++++++++++++++++
+
+If you have a precise observational footprint in mind because you want to compare with or even inject sources into an existing data cube, calculating the initialization parameters for :class:`~martini.datacube.DataCube` can be quite tedious (especially ``ra`` and ``dec`` if the target data cube is not defined by its centre). To simplify this workflow :class:`~martini.datacube.DataCube` provides a method :meth:`~martini.datacube.DataCube.from_wcs`. This accepts a :class:`~astropy.wcs.WCS` instance that describes the World Coordinate System of the data cube, and this can be very easily created from a FITS header. For example, given a FITS file ``my_cube.fits``:
+
+.. code-block:: python
+
+    from astropy import wcs
+    from astropy.io import fits
+    from martini.datacube import DataCube
+
+    with fits.open("my_cube.fits") as fitsfile:
+        fits_hdr = fitsfile[0].header  # header of the main HDU
+    fits_wcs = wcs.WCS(fits_hdr)
+    datacube = DataCube.from_wcs(fits_wcs)
+
+`A notebook`_ with a worked example of inserting a simulated galaxy into an observed data cube is provided in the `examples directory`_ on github.
+
+.. _`A notebook`: https://github.com/kyleaoman/martini/blob/main/examples/martini_TNG.ipynb
+.. _`examples directory`: https://github.com/kyleaoman/martini/tree/main/examples
+
+!!! mention datacube and source coordinate_frame and specsys here.
+    
 Saving, loading & copying the datacube state
 ++++++++++++++++++++++++++++++++++++++++++++
 
