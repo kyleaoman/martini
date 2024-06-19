@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.units as U
 from astropy import wcs
-from astropy.coordinates import ICRS
+from astropy.coordinates import ICRS, SpectralCoord
 import warnings
 
 HIfreq = 1.420405751e9 * U.Hz
@@ -119,9 +119,11 @@ class DataCube(object):
         else:
             raise ValueError("Channel width must have frequency or velocity units.")
         self.channel_width = np.abs(channel_width)
-        self.spectral_centre = spectral_centre.to(
-            channel_width.unit, equivalencies=U.doppler_radio(HIfreq)
-        )
+        self.spectral_centre = SpectralCoord(
+            spectral_centre,
+            doppler_convention="radio",
+            doppler_rest=HIfreq,
+        ).to(channel_width.unit)
         self.ra = ra
         self.dec = dec
         self.padx = 0
@@ -378,13 +380,17 @@ class DataCube(object):
             containing the channel centres.
         """
         if self._channel_mids is None:
-            self._channel_mids = (
-                self.wcs.sub(("spectral",)).all_pix2world(
-                    np.arange(self.n_channels),
-                    0,
-                )
-                * self.units[2]
-            ).squeeze()
+            self._channel_mids = SpectralCoord(
+                (
+                    self.wcs.sub(("spectral",)).all_pix2world(
+                        np.arange(self.n_channels),
+                        0,
+                    )
+                    * self.units[2]
+                ).squeeze(),
+                doppler_convention="radio",
+                doppler_rest=HIfreq,
+            )
         return self._channel_mids
 
     @property
@@ -399,13 +405,17 @@ class DataCube(object):
             containing the channel edges.
         """
         if self._channel_edges is None:
-            self._channel_edges = (
-                self.wcs.sub(("spectral",)).all_pix2world(
-                    np.arange(self.n_channels + 1) - 0.5,
-                    0,
-                )
-                * self.units[2]
-            ).squeeze()
+            self._channel_edges = SpectralCoord(
+                (
+                    self.wcs.sub(("spectral",)).all_pix2world(
+                        np.arange(self.n_channels + 1) - 0.5,
+                        0,
+                    )
+                    * self.units[2]
+                ).squeeze(),
+                doppler_convention="radio",
+                doppler_rest=HIfreq,
+            )
         return self._channel_edges
 
     @property
@@ -419,7 +429,7 @@ class DataCube(object):
             :class:`~astropy.units.Quantity` with dimensions of velocity containing the
             channel centres.
         """
-        return self.channel_mids.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
+        return self.channel_mids.to(U.m / U.s)
 
     @property
     def velocity_channel_edges(self):
@@ -432,7 +442,7 @@ class DataCube(object):
             :class:`~astropy.units.Quantity` with dimensions of velocity containing the
             channel edges.
         """
-        return self.channel_edges.to(U.m / U.s, equivalencies=U.doppler_radio(HIfreq))
+        return self.channel_edges.to(U.m / U.s)
 
     @property
     def frequency_channel_mids(self):
@@ -445,7 +455,7 @@ class DataCube(object):
             :class:`~astropy.units.Quantity` with dimensions of frequency containing the
             channel centres.
         """
-        return self.channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+        return self.channel_mids.to(U.Hz)
 
     @property
     def frequency_channel_edges(self):
@@ -458,7 +468,7 @@ class DataCube(object):
             :class:`~astropy.units.Quantity` with dimensions of frequency containing the
             channel edges.
         """
-        return self.channel_edges.to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+        return self.channel_edges.to(U.Hz)
 
     @property
     def _stokes_index(self):

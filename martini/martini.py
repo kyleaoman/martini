@@ -10,7 +10,7 @@ from astropy import __version__ as astropy_version
 from itertools import product
 from .__version__ import __version__ as martini_version
 from warnings import warn
-from martini.datacube import DataCube, _GlobalProfileDataCube, HIfreq
+from martini.datacube import DataCube, _GlobalProfileDataCube
 from martini.sph_kernels import DiracDeltaKernel
 
 try:
@@ -1709,7 +1709,7 @@ class GlobalProfile(_BaseMartini):
         )
         if show_vsys:
             ax.axvline(
-                self.source.vsys.to_value(xunit, equivalencies=U.doppler_radio(HIfreq)),
+                self.source.vsys.to_value(xunit),
                 linestyle="dotted",
                 lw=1.5,
                 color="black",
