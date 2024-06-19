@@ -10,6 +10,7 @@ from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from astropy import units as U
 from astropy.io import fits
 from astropy import wcs
+from astropy.coordinates import FK5, ICRS
 from scipy.signal import fftconvolve
 
 try:
@@ -434,6 +435,137 @@ class TestMartini:
             point_scaling="fixed",
             title="test",
         )
+
+    def test_source_to_datacube_coord_transformation(self, single_particle_source):
+        """
+        Check that transformation is applied if source and datacube have different
+        coordinate frames.
+        """
+        source = single_particle_source(hsm_g=0.01 * U.kpc)
+        assert source.coordinate_frame.name == "icrs"
+        datacube_icrs = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=ICRS(),
+        )
+        m_icrs = Martini(
+            source=source,
+            datacube=datacube_icrs,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=DiracDeltaSpectrum(),
+        )
+
+        def centre_pixels_slice(m):
+            datacube = m.datacube
+            return m.datacube._array[
+                datacube.n_px_x // 2
+                - 1
+                + datacube.padx : datacube.n_px_x // 2
+                + 1
+                + datacube.padx,
+                datacube.n_px_y // 2
+                - 1
+                + datacube.pady : datacube.n_px_y // 2
+                + 1
+                + datacube.pady,
+            ]
+
+        assert np.sum(centre_pixels_slice(m_icrs).sum()) == 0
+        m_icrs.insert_source_in_cube(progressbar=False)
+        assert np.sum(centre_pixels_slice(m_icrs).sum()) > 0
+
+        # ICRS is ~J2000 equinox. J1950 equinox is about a degree off,
+        # so we should completely miss the cube (16 pix of 10 arcsec).
+        datacube_fk5_J1950 = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=FK5(equinox="J1950"),
+        )
+        with pytest.raises(RuntimeError, match="No source particles in target region."):
+            Martini(
+                source=source,
+                datacube=datacube_fk5_J1950,
+                beam=GaussianBeam(),
+                noise=None,
+                sph_kernel=DiracDeltaKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+            )
+
+    def test_source_to_datacube_specsys_transformation(self, single_particle_source):
+        """
+        Check that spectral reference transformation is applied if source and datacube
+        have different specsys.
+        """
+        source = single_particle_source(hsm_g=0.01 * U.kpc)
+        datacube_icrs = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=ICRS(),
+            specsys="icrs",
+        )
+        m_icrs = Martini(
+            source=source,
+            datacube=datacube_icrs,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=DiracDeltaSpectrum(),
+        )
+
+        def centre_channels_slice(m):
+            datacube = m.datacube
+            return m.datacube._array[
+                :, :, datacube.n_channels // 2 - 1 : datacube.n_channels // 2 + 1
+            ]
+
+        assert np.sum(centre_channels_slice(m_icrs).sum()) == 0
+        m_icrs.insert_source_in_cube(progressbar=False)
+        assert np.sum(centre_channels_slice(m_icrs).sum()) > 0
+
+        # ICRS and GCRS are offset by many km/s depending on direction
+        # so with 4 channels of 1 km/s we should completely miss the cube
+        datacube_gcrs = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=4,
+            channel_width=1 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=ICRS(),
+            specsys="gcrs",
+        )
+        assert datacube_gcrs.wcs.wcs.specsys == "gcrs"
+        with pytest.raises(RuntimeError, match="No source particles in target region."):
+            Martini(
+                source=source,
+                datacube=datacube_gcrs,
+                beam=GaussianBeam(),
+                noise=None,
+                sph_kernel=DiracDeltaKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+            )
 
 
 @pytest.mark.skipif(

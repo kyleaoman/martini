@@ -401,7 +401,15 @@ class TestDataCubeFromWCS:
         with pytest.warns(wcs.FITSFixedWarning):
             hdr_wcs = wcs.WCS(hdr)
         if hdr_wcs.wcs.specsys == "":
-            with pytest.warns(UserWarning, match="SPECSYS"):
+            with pytest.warns(
+                UserWarning,
+                match="Input WCS did not specify 'SPECSYS'",
+            ):
+                dc = DataCube.from_wcs(hdr_wcs)
+        elif hdr_wcs.wcs.specsys == "BARYCENT":
+            with pytest.warns(
+                UserWarning, match="Assuming ICRS barycentric reference system."
+            ):
                 dc = DataCube.from_wcs(hdr_wcs)
         else:
             dc = DataCube.from_wcs(hdr_wcs)

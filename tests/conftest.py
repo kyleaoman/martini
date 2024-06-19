@@ -3,6 +3,7 @@ import os
 import numpy as np
 from astropy import units as U
 from astropy import wcs
+from astropy.coordinates import ICRS
 from martini.martini import Martini, GlobalProfile
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
@@ -22,6 +23,7 @@ def sps_sourcegen(
     ra=0 * U.deg,
     dec=0 * U.deg,
     vpeculiar=0 * U.km / U.s,
+    coordinate_frame=ICRS(),
 ):
     """
     Creates a single particle test source.
@@ -42,6 +44,7 @@ def sps_sourcegen(
         ra=ra,
         dec=dec,
         vpeculiar=vpeculiar,
+        coordinate_frame=coordinate_frame,
     )
 
 
@@ -300,7 +303,12 @@ def dc_wcs(request):
     with pytest.warns(wcs.FITSFixedWarning):
         hdr_wcs = wcs.WCS(hdr)
     if hdr_wcs.wcs.specsys == "":
-        dc = DataCube.from_wcs(hdr_wcs, specsys="BARYCENT")
+        dc = DataCube.from_wcs(hdr_wcs, specsys="icrs")
+    elif hdr_wcs.wcs.specsys == "BARYCENT":
+        with pytest.warns(
+            UserWarning, match="Assuming ICRS barycentric reference system."
+        ):
+            dc = DataCube.from_wcs(hdr_wcs)
     else:
         dc = DataCube.from_wcs(hdr_wcs)
     yield dc

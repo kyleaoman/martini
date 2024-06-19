@@ -5,6 +5,7 @@ from astropy.coordinates import ICRS
 import warnings
 
 HIfreq = 1.420405751e9 * U.Hz
+_supported_specsys = ("gcrs", "icrs", "hcrs", "lsrk", "lsrd", "lsr")
 
 
 class DataCube(object):
@@ -62,8 +63,8 @@ class DataCube(object):
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
-        (WCS) associated with the data cube, in the format used in FITS headers (e.g.
-        ``"BARYCENT"``, ``"GALACTOC"``, etc.). (Default: ``"BARYCENT"``)
+        (WCS) associated with the data cube, selected from the list ``"gcrs"``,
+        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``)
 
     See Also
     --------
@@ -94,7 +95,7 @@ class DataCube(object):
         dec=0.0 * U.deg,
         stokes_axis=False,
         coordinate_frame=ICRS(),
-        specsys="BARYCENT",
+        specsys="icrs",
     ):
         self.stokes_axis = stokes_axis
         self.coordinate_frame = coordinate_frame
@@ -154,9 +155,9 @@ class DataCube(object):
 
         specsys : str, optional
             The spectral reference frame (standard of rest) of the World Coordinate System
-            (WCS) associated with the data cube, in the format used in FITS headers (e.g.
-            ``"BARYCENT"``, ``"GALACTOC"``, etc.). Intended for cases where the
-            ``input_wcs`` does not specify the ``specsys``. (Default: ``None``)
+            (WCS) associated with the data cube, selected from the list ``"gcrs"``,
+            ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
+            (Default: ``"icrs"``)
 
         See Also
         --------
@@ -230,7 +231,10 @@ class DataCube(object):
         init_args["channel_width"] = np.abs(input_wcs.wcs.cdelt[ax_spec]) * unit_spec
         init_args["n_channels"] = input_wcs.pixel_shape[ax_spec]
         init_args["spectral_centre"] = centre_coords[ax_spec] * unit_spec
+        init_args["coordinate_frame"] = wcs.utils.wcs_to_celestial_frame(input_wcs)
         if specsys is not None:
+            if specsys not in _supported_specsys:
+                raise ValueError(f"Supported specsys values are {_supported_specsys}.")
             init_args["specsys"] = specsys
             input_wcs.wcs.specsys = specsys
         elif input_wcs.wcs.specsys == "":
@@ -241,7 +245,24 @@ class DataCube(object):
                 )
             )
         else:
-            init_args["specsys"] = input_wcs.wcs.specsys
+            if input_wcs.wcs.specsys in _supported_specsys:
+                init_args["specsys"] = input_wcs.wcs.specsys
+            elif input_wcs.wcs.specsys.lower() in _supported_specsys:
+                init_args["specsys"] = input_wcs.wcs.specsys.lower()
+            elif input_wcs.wcs.specsys == "BARYCENT":
+                warnings.warn(
+                    UserWarning(
+                        "Input WCS specified 'SPECSYS' of 'BARYCENT'. Assuming ICRS"
+                        " barycentric reference system."
+                    )
+                )
+                init_args["specsys"] = "icrs"
+            else:
+                raise ValueError(
+                    f"Input WCS specified 'SPECSYS' of '{input_wcs.wcs.specsys}' not"
+                    " yet supported by MARTINI. Please report using a github issue or"
+                    " email kyle.a.oman@durham.ac.uk."
+                )
 
         if ra_px_size != dec_px_size:
             raise ValueError(
@@ -740,8 +761,8 @@ class _GlobalProfileDataCube(DataCube):
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
-        (WCS) associated with the data cube, in the format used in FITS headers (e.g.
-        ``"BARYCENT"``, ``"GALACTOC"``, etc.). (Default: ``"BARYCENT"``)
+        (WCS) associated with the data cube, selected from the list ``"gcrs"``,
+        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``)
     """
 
     def __init__(
@@ -749,7 +770,7 @@ class _GlobalProfileDataCube(DataCube):
         n_channels=64,
         channel_width=4.0 * U.km * U.s**-1,
         spectral_centre=0.0 * U.km * U.s**-1,
-        specsys="BARYCENT",
+        specsys="icrs",
     ):
         super().__init__(
             n_px_x=1,
