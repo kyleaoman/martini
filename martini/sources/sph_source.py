@@ -115,7 +115,7 @@ class SPHSource(object):
         Usually prefer to omit this as it can be determined automatically, but is
         ambiguous for sources with exactly 3 particles. (Default: ``None``)
 
-    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
         The coordinate frame assumed in converting particle coordinates to RA and Dec, and
         for transforming coordinates and velocities to the data cube frame. The frame

@@ -542,9 +542,9 @@ class TestMartini:
         m_icrs.insert_source_in_cube(progressbar=False)
         assert np.sum(centre_channels_slice(m_icrs).sum()) > 0
 
-        # ICRS and GCRS are offset by many km/s depending on direction
+        # ICRS and Galactocentric are offset by many km/s depending on direction
         # so with 4 channels of 1 km/s we should completely miss the cube
-        datacube_gcrs = DataCube(
+        datacube_galactocentric = DataCube(
             n_px_x=16,
             n_px_y=16,
             n_channels=4,
@@ -554,13 +554,13 @@ class TestMartini:
             ra=source.ra,
             dec=source.dec,
             coordinate_frame=ICRS(),
-            specsys="gcrs",
+            specsys="galactocentric",
         )
-        assert datacube_gcrs.wcs.wcs.specsys == "gcrs"
+        assert datacube_galactocentric.wcs.wcs.specsys == "galactocentric"
         with pytest.raises(RuntimeError, match="No source particles in target region."):
             Martini(
                 source=source,
-                datacube=datacube_gcrs,
+                datacube=datacube_galactocentric,
                 beam=GaussianBeam(),
                 noise=None,
                 sph_kernel=DiracDeltaKernel(),

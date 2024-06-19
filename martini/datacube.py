@@ -3,9 +3,10 @@ import astropy.units as U
 from astropy import wcs
 from astropy.coordinates import ICRS, SpectralCoord
 import warnings
+from astropy.coordinates import frame_transform_graph
 
 HIfreq = 1.420405751e9 * U.Hz
-_supported_specsys = ("gcrs", "icrs", "hcrs", "lsrk", "lsrd", "lsr")
+_supported_specsys = frame_transform_graph.get_names()
 
 
 class DataCube(object):
@@ -56,15 +57,21 @@ class DataCube(object):
         Whether the datacube should be initialized with a Stokes' axis.
         (Default: ``False``)
 
-    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
         The coordinate frame of the World Coordinate System (WCS) associated with
-        the data cube. (Default: ``astropy.coordinates.ICRS()``)
+        the data cube. Recommended frames are :class:`~astropy.coordinates.GCRS`,
+        :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
+        :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
+        :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
+        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``)
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
-        (WCS) associated with the data cube, selected from the list ``"gcrs"``,
-        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``)
+        (WCS) associated with the data cube. Some common options include ``"gcrs"``,
+        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. For a complete list,
+        use :meth:`astropy.coordinates.frame_transform_graph.get_names`.
+        (Default: ``"icrs"``)
 
     See Also
     --------
@@ -173,7 +180,7 @@ class DataCube(object):
         :meth:`~martini.datacube.DataCube.from_wcs` may therefore have its axes
         re-ordered (tranposed) relative to the ``input_wcs``. The FITS files output by
         MARTINI have the same axis ordering, and may therefore also be transposed
-        relative to a data cube used to construct the :class"`~astropy.wcs.WCS` for
+        relative to a data cube used to construct the :class:`~astropy.wcs.WCS` for
         the ``input_wcs`` argument.
 
         Examples
@@ -604,7 +611,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : martini.datacube.DataCube
+        out : ~martini.datacube.DataCube
             Copy of the :class:`~martini.datacube.DataCube` object.
         """
         copy = DataCube(
@@ -696,7 +703,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : martini.datacube.DataCube
+        out : ~martini.datacube.DataCube
             A suitably initialized :class:`~martini.datacube.DataCube` object.
 
         See Also

@@ -90,7 +90,7 @@ class EAGLESource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
-    coordinate_frame : ~astropy.coordinates.builtin_frame.baseradec.BaseRADecFrame, \
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
         The coordinate frame assumed in converting particle coordinates to RA and Dec, and
         for transforming coordinates and velocities to the data cube frame. The frame
