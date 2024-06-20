@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as U
+from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 
 
@@ -54,6 +55,17 @@ class SOSource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
+        for transforming coordinates and velocities to the data cube frame. The frame
+        needs to have a well-defined velocity as well as spatial origin. Recommended
+        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
+        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
+        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
+        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
+        (Default: ``astropy.coordinates.ICRS()``)
+
     SO_args : dict, optional
         Dictionary of keyword arguments to pass to a call to
         :class:`simobj.simobj.SimObj`.
@@ -74,6 +86,7 @@ class SOSource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
         SO_args=None,
         SO_instance=None,
         rescale_hsm_g=1,
@@ -88,19 +101,29 @@ class SOSource(SPHSource):
             )
         elif SO_args is not None:
             with SimObj(**self._SO_args) as SO:
-                super().__init__(
-                    distance=distance,
-                    rotation=rotation,
-                    ra=ra,
-                    dec=dec,
-                    h=SO.h,
+                particles = dict(
                     T_g=SO.T_g,
                     mHI_g=SO.mHI_g,
                     xyz_g=SO.xyz_g,
                     vxyz_g=SO.vxyz_g,
                     hsm_g=SO.hsm_g * self.rescale_hsm_g,
                 )
+                super().__init__(
+                    distance=distance,
+                    rotation=rotation,
+                    ra=ra,
+                    dec=dec,
+                    h=SO.h,
+                    **particles,
+                )
         elif SO_instance is not None:
+            particles = dict(
+                T_g=SO_instance.T_g,
+                mHI_g=SO_instance.mHI_g,
+                xyz_g=SO_instance.xyz_g,
+                vxyz_g=SO_instance.vxyz_g,
+                hsm_g=SO_instance.hsm_g,
+            )
             super().__init__(
                 distance=distance,
                 vpeculiar=vpeculiar,
@@ -108,11 +131,8 @@ class SOSource(SPHSource):
                 ra=ra,
                 dec=dec,
                 h=SO_instance.h,
-                T_g=SO_instance.T_g,
-                mHI_g=SO_instance.mHI_g,
-                xyz_g=SO_instance.xyz_g,
-                vxyz_g=SO_instance.vxyz_g,
-                hsm_g=SO_instance.hsm_g,
+                coordinate_frame=coordinate_frame,
+                **particles,
             )
         else:
             raise ValueError(

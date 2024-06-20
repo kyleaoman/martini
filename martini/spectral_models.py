@@ -41,8 +41,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     See Also
     --------
-    martini.spectral_models.GaussianSpectrum
-    martini.spectral_models.DiracDeltaSpectrum
+    ~martini.spectral_models.GaussianSpectrum
+    ~martini.spectral_models.DiracDeltaSpectrum
     """
 
     def __init__(self, ncpu=None, spec_dtype=np.float64):
@@ -71,16 +71,16 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object containing arrays of particle properties.
 
-        datacube : martini.datacube.DataCube
+        datacube : ~martini.datacube.DataCube
             :class:`~martini.datacube.DataCube` object defining the observational
             parameters, including spectral channels.
         """
 
-        self.channel_edges = datacube.channel_edges
-        channel_widths = np.diff(self.channel_edges).to(U.km * U.s**-1)
+        self.channel_edges = datacube.velocity_channel_edges
+        channel_widths = np.abs(np.diff(self.channel_edges).to(U.km * U.s**-1))
         self.vmids = source.skycoords.radial_velocity
         A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
         MHI_Jy = (
@@ -134,10 +134,10 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object containing arrays of particle properties.
 
-        datacube : martini.datacube.DataCube
+        datacube : ~martini.datacube.DataCube
             :class:`~martini.datacube.DataCube` object defining the observational
             parameters, including spectral channels.
 
@@ -147,17 +147,29 @@ class _BaseSpectrum(metaclass=ABCMeta):
         """
         vmids = self.vmids[mask]
         self.init_spectral_function_extra_data(source, datacube, mask=mask)
+        if all(np.diff(self.channel_edges) > 0):
+            lower_edges_slice = np.s_[:-1]
+            upper_edges_slice = np.s_[1:]
+        elif all(np.diff(self.channel_edges) < 0):
+            lower_edges_slice = np.s_[1:]
+            upper_edges_slice = np.s_[:-1]
+        else:
+            raise ValueError("Channel edges are not monotonic sequence.")
         return self.spectral_function(
             (
                 np.tile(
-                    self.channel_edges.to_value(self.channel_edges.unit)[:-1],
+                    self.channel_edges.to_value(self.channel_edges.unit)[
+                        lower_edges_slice
+                    ],
                     vmids.shape + (1,),
                 )
                 * self.channel_edges.unit
             ).astype(self.spec_dtype),
             (
                 np.tile(
-                    self.channel_edges.to_value(self.channel_edges.unit)[1:],
+                    self.channel_edges.to_value(self.channel_edges.unit)[
+                        upper_edges_slice
+                    ],
                     vmids.shape + (1,),
                 )
                 * self.channel_edges.unit
@@ -179,7 +191,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             The source object will be provided to allow access to particle
             properties.
         """
@@ -355,7 +367,7 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object, making particle properties available.
 
         Returns
@@ -427,7 +439,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Parameters
         ----------
-        source : martini.sources.sph_source.SPHSource
+        source : ~martini.sources.sph_source.SPHSource
             Source object, making particle properties available.
 
         Returns

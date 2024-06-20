@@ -3,6 +3,7 @@ from .sph_source import SPHSource
 from ..sph_kernels import _WendlandC2Kernel, find_fwhm
 from os.path import join, normpath, sep
 import astropy.units as U
+from astropy.coordinates import ICRS
 
 
 class EAGLESource(SPHSource):
@@ -39,7 +40,7 @@ class EAGLESource(SPHSource):
         Database username.
 
     db_key : str, optional
-        Database password, or omit for a prompt at runtime. (Default: None.)
+        Database password, or omit for a prompt at runtime. (Default: ``None``)
 
     subBoxSize : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
@@ -89,9 +90,20 @@ class EAGLESource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
+        for transforming coordinates and velocities to the data cube frame. The frame
+        needs to have a well-defined velocity as well as spatial origin. Recommended
+        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
+        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
+        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
+        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
+        (Default: ``astropy.coordinates.ICRS()``)
+
     print_query : bool, optional
         If True, the SQL query submitted to the EAGLE database is printed.
-        (Default: False.)
+        (Default: ``False``)
     """
 
     def __init__(
@@ -108,6 +120,7 @@ class EAGLESource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
         print_query=False,
     ):
         if snapPath is None:
@@ -230,6 +243,7 @@ class EAGLESource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
+            coordinate_frame=coordinate_frame,
             **particles,
         )
         return

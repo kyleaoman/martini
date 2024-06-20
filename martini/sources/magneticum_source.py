@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as U
+from astropy.coordinates import ICRS
 from ..sph_kernels import _WendlandC6Kernel, find_fwhm
 from .sph_source import SPHSource
 
@@ -100,6 +101,16 @@ class MagneticumSource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
+        for transforming coordinates and velocities to the data cube frame. The frame
+        needs to have a well-defined velocity as well as spatial origin. Recommended
+        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
+        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
+        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
+        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
+        (Default: ``astropy.coordinates.ICRS()``)
     """
 
     def __init__(
@@ -120,6 +131,7 @@ class MagneticumSource(SPHSource):
         rotation={"rotmat": np.eye(3)},
         ra=0 * U.deg,
         dec=0 * U.deg,
+        coordinate_frame=ICRS(),
     ):
         from g3t.stable.g3read import GadgetFile, read_particles_in_box
 
@@ -196,6 +208,7 @@ class MagneticumSource(SPHSource):
             ra=ra,
             dec=dec,
             h=h,
+            coordinate_frame=coordinate_frame,
             **particles,
         )
         return

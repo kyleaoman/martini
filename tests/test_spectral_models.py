@@ -24,7 +24,7 @@ class TestGaussianSpectrum:
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
         spectral_model.init_spectra(source, datacube)
         expected_flux = (
@@ -60,12 +60,12 @@ class TestGaussianSpectrum:
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
         spectral_model.init_spectral_function_extra_data(source, datacube)
         spectrum = spectral_model.spectral_function(
-            datacube.channel_edges[:-1],
             datacube.channel_edges[1:],
+            datacube.channel_edges[:-1],
             U.Quantity([source.vsys]),  # expected from single_particle_source
         )
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
@@ -80,7 +80,7 @@ class TestGaussianSpectrum:
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
         spectral_model.init_spectral_function_extra_data(source, datacube)
         extra_data = spectral_model.spectral_function_extra_data
@@ -100,7 +100,7 @@ class TestDiracDeltaSpectrum:
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
         spectral_model.init_spectra(source, datacube)
         expected_flux = (
@@ -125,11 +125,11 @@ class TestDiracDeltaSpectrum:
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
         spectrum = spectral_model.spectral_function(
-            datacube.channel_edges[:-1],
-            datacube.channel_edges[1:],
+            datacube.velocity_channel_edges[1:],
+            datacube.velocity_channel_edges[:-1],
             U.Quantity([source.vsys]),  # expected from _SingleParticleSource
         )
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
@@ -141,7 +141,7 @@ class TestDiracDeltaSpectrum:
         source = single_particle_source()
         source._init_skycoords()
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, velocity_centre=source.vsys
+            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
         spectral_model = DiracDeltaSpectrum()
         spectral_model.init_spectral_function_extra_data(source, datacube)

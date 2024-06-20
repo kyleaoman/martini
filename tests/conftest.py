@@ -1,8 +1,11 @@
 import pytest
+import os
 import numpy as np
 from astropy import units as U
+from astropy import wcs
+from astropy.coordinates import ICRS
 from martini.martini import Martini, GlobalProfile
-from martini.datacube import DataCube
+from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
 from martini.sources import SPHSource
@@ -20,6 +23,7 @@ def sps_sourcegen(
     ra=0 * U.deg,
     dec=0 * U.deg,
     vpeculiar=0 * U.km / U.s,
+    coordinate_frame=ICRS(),
 ):
     """
     Creates a single particle test source.
@@ -40,6 +44,7 @@ def sps_sourcegen(
         ra=ra,
         dec=dec,
         vpeculiar=vpeculiar,
+        coordinate_frame=coordinate_frame,
     )
 
 
@@ -155,14 +160,25 @@ def cross_sourcegen(
     )
 
 
-@pytest.fixture(scope="function")
-def m():
+@pytest.fixture(scope="function", params=[True, False])
+def m(request):
     source = sps_sourcegen()
+    spectral_centre = source.distance * source.h * 100 * U.km / U.s / U.Mpc
+    channel_width = 4 * U.km / U.s
+    if request.param:
+        channel_width = np.abs(
+            (spectral_centre + 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+            - (spectral_centre - 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        )
     datacube = DataCube(
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
-        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        spectral_centre=spectral_centre,
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
@@ -190,7 +206,7 @@ def m_init():
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
-        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
@@ -215,7 +231,7 @@ def m_nn():
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
-        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = None
@@ -235,14 +251,33 @@ def m_nn():
     yield m
 
 
-@pytest.fixture(scope="function", params=[True, False])
+@pytest.fixture(
+    scope="function",
+    params=[(True, True), (True, False), (False, True), (False, False)],
+)
 def dc_random(request):
+    stokes_axis, freq_channels = request.param
+    spectral_centre = 3 * 70 * U.km / U.s
+    channel_width = 4 * U.km / U.s
+    if freq_channels:
+        channel_width = np.abs(
+            (spectral_centre + 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+            - (spectral_centre - 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        )
+        spectral_centre = spectral_centre.to(
+            U.Hz, equivalencies=U.doppler_radio(HIfreq)
+        )
     dc = DataCube(
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
-        velocity_centre=3 * 70 * U.km / U.s,
-        stokes_axis=request.param,
+        channel_width=channel_width,
+        spectral_centre=spectral_centre,
+        stokes_axis=stokes_axis,
     )
 
     dc._array[...] = (
@@ -252,14 +287,60 @@ def dc_random(request):
     yield dc
 
 
-@pytest.fixture(scope="function", params=[True, False])
+@pytest.fixture(
+    scope="function",
+    params=[
+        "IC_2574_NA_CUBE_THINGS.HEADER",
+        "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header",
+        "WALLABY_PILOT_CUTOUT_APPROX.HEADER",
+        # as previous but with axes reordered:
+        "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header.permuted",
+    ],
+)
+def dc_wcs(request):
+    with open(os.path.join("tests/data/", request.param), "r") as f:
+        hdr = f.read()
+    with pytest.warns(wcs.FITSFixedWarning):
+        hdr_wcs = wcs.WCS(hdr)
+    if hdr_wcs.wcs.specsys == "":
+        dc = DataCube.from_wcs(hdr_wcs, specsys="icrs")
+    elif hdr_wcs.wcs.specsys == "BARYCENT":
+        with pytest.warns(
+            UserWarning, match="Assuming ICRS barycentric reference system."
+        ):
+            dc = DataCube.from_wcs(hdr_wcs)
+    else:
+        dc = DataCube.from_wcs(hdr_wcs)
+    yield dc
+
+
+@pytest.fixture(
+    scope="function",
+    params=[(True, True), (True, False), (False, True), (False, False)],
+)
 def dc_zeros(request):
+    stokes_axis, freq_channels = request.param
+    spectral_centre = 3 * 70 * U.km / U.s
+    channel_width = 4 * U.km / U.s
+    if freq_channels:
+        channel_width = np.abs(
+            (spectral_centre + 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+            - (spectral_centre - 0.5 * channel_width).to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        )
+        spectral_centre = spectral_centre.to(
+            U.Hz, equivalencies=U.doppler_radio(HIfreq)
+        )
     dc = DataCube(
         n_px_x=16,
         n_px_y=16,
         n_channels=16,
-        velocity_centre=3 * 70 * U.km / U.s,
-        stokes_axis=request.param,
+        channel_width=channel_width,
+        spectral_centre=spectral_centre,
+        stokes_axis=stokes_axis,
     )
 
     yield dc
@@ -272,7 +353,7 @@ def adaptive_kernel_test_datacube():
         n_px_y=16,
         n_channels=16,
         px_size=((1 * U.kpc) / (3 * U.Mpc)).to(U.arcsec, U.dimensionless_angles()),
-        velocity_centre=3 * 70 * U.km / U.s,
+        spectral_centre=3 * 70 * U.km / U.s,
     )
 
     yield dc
@@ -348,7 +429,7 @@ def gp():
         source=source,
         spectral_model=spectral_model,
         n_channels=16,
-        velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
     )
     m.insert_source_in_spectrum()
     yield m

@@ -1,5 +1,6 @@
 import numpy as np
 from astropy import units as U
+from astropy.coordinates import ICRS
 from .swiftgalaxy_source import SWIFTGalaxySource
 
 
@@ -53,6 +54,16 @@ class ColibreSource(SWIFTGalaxySource):
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Declination for the source centroid. (Default: ``0 * U.deg``)
 
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
+        for transforming coordinates and velocities to the data cube frame. The frame
+        needs to have a well-defined velocity as well as spatial origin. Recommended
+        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
+        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
+        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
+        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
+        (Default: ``astropy.coordinates.ICRS()``)
     """
 
     def __init__(
@@ -63,6 +74,7 @@ class ColibreSource(SWIFTGalaxySource):
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
+        coordinate_frame=ICRS(),
     ):
         # No special functionality wanted/needed:
         super().__init__(
@@ -72,5 +84,6 @@ class ColibreSource(SWIFTGalaxySource):
             rotation=rotation,
             ra=ra,
             dec=dec,
+            coordinate_frame=coordinate_frame,
         )
         return

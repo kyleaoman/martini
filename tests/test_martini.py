@@ -9,6 +9,8 @@ from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaK
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from astropy import units as U
 from astropy.io import fits
+from astropy import wcs
+from astropy.coordinates import FK5, ICRS
 from scipy.signal import fftconvolve
 
 try:
@@ -26,6 +28,178 @@ else:
     have_matplotlib = True
 
 
+def check_mass_accuracy(m, out_mode):
+    if out_mode == "hdf5":
+        try:
+            import h5py
+        except ImportError:
+            pytest.skip()
+
+    # flux in channels
+    F = (m.datacube._array * m.datacube.px_size**2).sum((0, 1)).squeeze()  # Jy
+
+    # distance
+    D = m.source.distance
+
+    # channel width
+    dv = np.abs(np.diff(m.datacube.velocity_channel_edges))
+
+    # HI mass
+    MHI = np.sum(
+        2.36e5
+        * U.Msun
+        * D.to_value(U.Mpc) ** 2
+        * F.to_value(U.Jy)
+        * dv.to_value(U.km / U.s)
+    ).to(U.Msun)
+
+    # demand accuracy within 1% after source insertion
+    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+    m.convolve_beam()
+
+    # radiant intensity
+    Irad = m.datacube._array.sum((0, 1)).squeeze()  # Jy / beam
+
+    # beam area, for an equivalent Gaussian beam
+    A = np.pi * m.beam.bmaj * m.beam.bmin / 4 / np.log(2) / U.beam
+
+    # distance
+    D = m.source.distance
+
+    # channel width
+    dv = np.abs(np.diff(m.datacube.velocity_channel_edges))
+
+    # flux
+    F = (Irad / A).to(U.Jy / U.arcsec**2) * m.datacube.px_size**2
+
+    # HI mass
+    MHI = np.sum(
+        2.36e5
+        * U.Msun
+        * D.to_value(U.Mpc) ** 2
+        * F.to_value(U.Jy)
+        * dv.to_value(U.km / U.s)
+    ).to(U.Msun)
+
+    # demand accuracy within 1% after beam convolution
+    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+    if out_mode == "fits":
+        filename = "cube.fits"
+        try:
+            m.write_fits(filename)
+            with fits.open(filename) as f:
+                # distance
+                D = m.source.distance
+
+                # radiant intensity
+                fits_wcs = wcs.WCS(f[0].header)
+                Irad = U.Quantity(
+                    f[0].data.T.sum((0, 1)).squeeze(), unit=f[0].header["BUNIT"]
+                )
+
+                A = (
+                    np.pi
+                    * (f[0].header["BMAJ"] * U.deg)
+                    * (f[0].header["BMIN"] * U.deg)
+                    / 4
+                    / np.log(2)
+                    / U.beam
+                )
+                px_area = U.Quantity(
+                    np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
+                ) * U.Quantity(
+                    np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"]
+                )
+
+                # flux
+                F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+
+                channel_edges = fits_wcs.sub(("spectral",)).all_pix2world(
+                    np.arange(fits_wcs.sub(("spectral",)).pixel_shape[0] + 1) - 0.5,
+                    0,
+                ) * U.Unit(fits_wcs.wcs.cunit[fits_wcs.wcs.spec], format="fits")
+                dv = np.abs(
+                    np.diff(
+                        channel_edges.squeeze().to(
+                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+                        )
+                    )
+                )
+
+                # HI mass
+                MHI = np.sum(
+                    2.36e5
+                    * U.Msun
+                    * D.to_value(U.Mpc) ** 2
+                    * F.to_value(U.Jy)
+                    * dv.to_value(U.km / U.s)
+                ).to(U.Msun)
+
+            # demand accuracy within 1% in output fits file
+            assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
+
+    if out_mode == "hdf5":
+        filename = "cube.hdf5"
+        try:
+            m.write_hdf5(filename)
+            with h5py.File(filename, "r") as f:
+                # distance
+                D = m.source.distance
+
+                # radiant intensity
+                Irad = U.Quantity(
+                    f["FluxCube"][()].sum((0, 1)).squeeze(),
+                    unit=f["FluxCube"].attrs["FluxCubeUnit"],
+                )
+
+                A = (
+                    np.pi
+                    * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
+                    * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
+                    / 4
+                    / np.log(2)
+                    / U.beam
+                )
+                dv = np.abs(
+                    np.diff(
+                        f["velocity_channel_edges"]
+                        * U.Unit(f["velocity_channel_edges"].attrs["Unit"])
+                    )
+                )
+                px_area = U.Quantity(
+                    np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
+                    unit=f["FluxCube"].attrs["RAUnit"],
+                ) * U.Quantity(
+                    np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
+                    unit=f["FluxCube"].attrs["DecUnit"],
+                )
+
+                # flux
+                F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+
+                # HI mass
+                MHI = np.sum(
+                    2.36e5
+                    * U.Msun
+                    * D.to_value(U.Mpc) ** 2
+                    * F.to_value(U.Jy)
+                    * dv.to_value(U.km / U.s)
+                ).to(U.Msun)
+
+            # demand accuracy within 1% in output hdf5 file
+            assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
+
+
 class TestMartini:
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
@@ -39,17 +213,10 @@ class TestMartini:
         Martini.insert_source_in_cube.
         """
 
-        if out_mode == "hdf5":
-            try:
-                import h5py
-            except ImportError:
-                pytest.skip()
-
         hsm_g = (
             0.1 * U.kpc if sph_kernel.__name__ == "DiracDeltaKernel" else 1.0 * U.kpc
         )
         source = single_particle_source(hsm_g=hsm_g)
-
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         m = Martini(
             source=source,
@@ -59,185 +226,8 @@ class TestMartini:
             spectral_model=spectral_model(),
             sph_kernel=sph_kernel(),
         )
-
         m.insert_source_in_cube(progressbar=False)
-
-        # flux
-        F = m.datacube._array.sum() * m.datacube.px_size**2  # Jy
-
-        # distance
-        D = m.source.distance
-
-        # channel width
-        dv = m.datacube.channel_width
-
-        # HI mass
-        MHI = (
-            2.36e5
-            * U.Msun
-            * D.to_value(U.Mpc) ** 2
-            * F.to_value(U.Jy)
-            * dv.to_value(U.km / U.s)
-        ).to(U.Msun)
-
-        # demand accuracy within 1% after source insertion
-        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-        m.convolve_beam()
-
-        # radiant intensity
-        Irad = m.datacube._array.sum()  # Jy / beam
-
-        # beam area, for an equivalent Gaussian beam
-        A = np.pi * m.beam.bmaj * m.beam.bmin / 4 / np.log(2) / U.beam
-
-        # distance
-        D = m.source.distance
-
-        # channel width
-        dv = m.datacube.channel_width
-
-        # flux
-        F = (Irad / A).to(U.Jy / U.arcsec**2) * m.datacube.px_size**2
-
-        # HI mass
-        MHI = (
-            2.36e5
-            * U.Msun
-            * D.to_value(U.Mpc) ** 2
-            * F.to_value(U.Jy)
-            * dv.to_value(U.km / U.s)
-        ).to(U.Msun)
-
-        # demand accuracy within 1% after beam convolution
-        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-        if out_mode == "fits":
-            for channel_mode in ("velocity", "frequency"):
-                filename = f"cube_{channel_mode}.fits"
-                try:
-                    m.write_fits(filename, channels=channel_mode)
-                    with fits.open(filename) as f:
-                        # distance
-                        D = m.source.distance
-
-                        # radiant intensity
-                        Irad = U.Quantity(f[0].data.sum(), unit=f[0].header["BUNIT"])
-
-                        A = (
-                            np.pi
-                            * (f[0].header["BMAJ"] * U.deg)
-                            * (f[0].header["BMIN"] * U.deg)
-                            / 4
-                            / np.log(2)
-                            / U.beam
-                        )
-                        dchannel = np.abs(
-                            U.Quantity(
-                                f[0].header["CDELT3"], unit=f[0].header["CUNIT3"]
-                            )
-                        )
-                        if channel_mode == "velocity":
-                            dv = dchannel
-                        elif channel_mode == "frequency":
-                            channelmid = U.Quantity(
-                                f[0].header["CRVAL3"], unit=f[0].header["CUNIT3"]
-                            )
-                            dv = (channelmid - 0.5 * dchannel).to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            ) - (channelmid + 0.5 * dchannel).to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            )
-                        px_area = U.Quantity(
-                            np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
-                        ) * U.Quantity(
-                            np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"]
-                        )
-
-                        # flux
-                        F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
-
-                        # HI mass
-                        MHI = (
-                            2.36e5
-                            * U.Msun
-                            * D.to_value(U.Mpc) ** 2
-                            * F.to_value(U.Jy)
-                            * dv.to_value(U.km / U.s)
-                        ).to(U.Msun)
-
-                    # demand accuracy within 1% in output fits file
-                    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-                finally:
-                    if os.path.exists(filename):
-                        os.remove(filename)
-
-        if out_mode == "hdf5":
-            for channel_mode in ("velocity", "frequency"):
-                filename = f"cube_{channel_mode}.hdf5"
-                try:
-                    m.write_hdf5(filename, channels=channel_mode)
-                    with h5py.File(filename, "r") as f:
-                        # distance
-                        D = m.source.distance
-
-                        # radiant intensity
-                        Irad = U.Quantity(
-                            f["FluxCube"][()].sum(),
-                            unit=f["FluxCube"].attrs["FluxCubeUnit"],
-                        )
-
-                        A = (
-                            np.pi
-                            * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
-                            * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
-                            / 4
-                            / np.log(2)
-                            / U.beam
-                        )
-                        dchannel = U.Quantity(
-                            np.abs(f["FluxCube"].attrs["deltaV_in_VUnit"]),
-                            unit=f["FluxCube"].attrs["VUnit"],
-                        )
-                        if channel_mode == "velocity":
-                            dv = dchannel
-                        elif channel_mode == "frequency":
-                            channelmid = U.Quantity(
-                                f["FluxCube"].attrs["V0_in_VUnit"],
-                                unit=f["FluxCube"].attrs["VUnit"],
-                            )
-                            dv = (channelmid - 0.5 * dchannel).to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            ) - (channelmid + 0.5 * dchannel).to(
-                                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                            )
-                        px_area = U.Quantity(
-                            np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
-                            unit=f["FluxCube"].attrs["RAUnit"],
-                        ) * U.Quantity(
-                            np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
-                            unit=f["FluxCube"].attrs["DecUnit"],
-                        )
-
-                        # flux
-                        F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
-
-                        # HI mass
-                        MHI = (
-                            2.36e5
-                            * U.Msun
-                            * D.to_value(U.Mpc) ** 2
-                            * F.to_value(U.Jy)
-                            * dv.to_value(U.km / U.s)
-                        ).to(U.Msun)
-
-                    # demand accuracy within 1% in output hdf5 file
-                    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-                finally:
-                    if os.path.exists(filename):
-                        os.remove(filename)
+        check_mass_accuracy(m, out_mode)
 
     def test_convolve_beam(self, single_particle_source):
         """
@@ -248,7 +238,7 @@ class TestMartini:
             n_px_x=16,
             n_px_y=16,
             n_channels=16,
-            velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
         )
         beam = GaussianBeam()
         noise = None
@@ -366,7 +356,7 @@ class TestMartini:
             n_px_x=2,
             n_px_y=2,
             n_channels=2,
-            velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
             px_size=1 * U.arcsec,
             channel_width=1 * U.km / U.s,
             ra=0 * U.deg,
@@ -446,6 +436,137 @@ class TestMartini:
             title="test",
         )
 
+    def test_source_to_datacube_coord_transformation(self, single_particle_source):
+        """
+        Check that transformation is applied if source and datacube have different
+        coordinate frames.
+        """
+        source = single_particle_source(hsm_g=0.01 * U.kpc)
+        assert source.coordinate_frame.name == "icrs"
+        datacube_icrs = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=ICRS(),
+        )
+        m_icrs = Martini(
+            source=source,
+            datacube=datacube_icrs,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=DiracDeltaSpectrum(),
+        )
+
+        def centre_pixels_slice(m):
+            datacube = m.datacube
+            return m.datacube._array[
+                datacube.n_px_x // 2
+                - 1
+                + datacube.padx : datacube.n_px_x // 2
+                + 1
+                + datacube.padx,
+                datacube.n_px_y // 2
+                - 1
+                + datacube.pady : datacube.n_px_y // 2
+                + 1
+                + datacube.pady,
+            ]
+
+        assert np.sum(centre_pixels_slice(m_icrs).sum()) == 0
+        m_icrs.insert_source_in_cube(progressbar=False)
+        assert np.sum(centre_pixels_slice(m_icrs).sum()) > 0
+
+        # ICRS is ~J2000 equinox. J1950 equinox is about a degree off,
+        # so we should completely miss the cube (16 pix of 10 arcsec).
+        datacube_fk5_J1950 = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=FK5(equinox="J1950"),
+        )
+        with pytest.raises(RuntimeError, match="No source particles in target region."):
+            Martini(
+                source=source,
+                datacube=datacube_fk5_J1950,
+                beam=GaussianBeam(),
+                noise=None,
+                sph_kernel=DiracDeltaKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+            )
+
+    def test_source_to_datacube_specsys_transformation(self, single_particle_source):
+        """
+        Check that spectral reference transformation is applied if source and datacube
+        have different specsys.
+        """
+        source = single_particle_source(hsm_g=0.01 * U.kpc)
+        datacube_icrs = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=ICRS(),
+            specsys="icrs",
+        )
+        m_icrs = Martini(
+            source=source,
+            datacube=datacube_icrs,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=DiracDeltaSpectrum(),
+        )
+
+        def centre_channels_slice(m):
+            datacube = m.datacube
+            return m.datacube._array[
+                :, :, datacube.n_channels // 2 - 1 : datacube.n_channels // 2 + 1
+            ]
+
+        assert np.sum(centre_channels_slice(m_icrs).sum()) == 0
+        m_icrs.insert_source_in_cube(progressbar=False)
+        assert np.sum(centre_channels_slice(m_icrs).sum()) > 0
+
+        # ICRS and Galactocentric are offset by many km/s depending on direction
+        # so with 4 channels of 1 km/s we should completely miss the cube
+        datacube_galactocentric = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=4,
+            channel_width=1 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+            coordinate_frame=ICRS(),
+            specsys="galactocentric",
+        )
+        assert datacube_galactocentric.wcs.wcs.specsys == "galactocentric"
+        with pytest.raises(RuntimeError, match="No source particles in target region."):
+            Martini(
+                source=source,
+                datacube=datacube_galactocentric,
+                beam=GaussianBeam(),
+                noise=None,
+                sph_kernel=DiracDeltaKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+            )
+
 
 @pytest.mark.skipif(
     not have_multiprocess, reason="multiprocess (optional dependency) not available"
@@ -503,7 +624,7 @@ class TestGlobalProfile:
             spectral_model=spectral_model(),
             n_channels=32,
             channel_width=10 * U.km * U.s**-1,
-            velocity_centre=source.vsys,
+            spectral_centre=source.vsys,
         )
 
         m.insert_source_in_spectrum()
@@ -579,7 +700,7 @@ class TestGlobalProfile:
             spectral_model=spectral_model,
             n_channels=2,
             channel_width=1 * U.km / U.s,
-            velocity_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
         )
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
         if not expect_particle:
@@ -630,21 +751,20 @@ class TestGlobalProfile:
             title="test",
         )
 
-    @pytest.mark.parametrize("channels", ("frequency", "velocity"))
-    def test_channel_modes(self, single_particle_source, channels):
+    def test_channel_modes(self, single_particle_source):
         """
         Check that channels have expected units in both modes (frequency, velocity).
         """
         source = single_particle_source()
+        channel_width = 10 * U.km * U.s**-1
         m = GlobalProfile(
             source=source,
             spectral_model=GaussianSpectrum(sigma="thermal"),
             n_channels=32,
-            channel_width=10 * U.km * U.s**-1,
-            velocity_centre=source.vsys,
-            channels=channels,
+            channel_width=channel_width,
+            spectral_centre=source.vsys,
         )
-        expected_units = dict(frequency=U.Hz, velocity=U.km * U.s**-1)[channels]
+        expected_units = channel_width.unit
         # these will raise if there's a problem:
         m.channel_edges.to(expected_units)
         m.channel_mids.to(expected_units)
@@ -660,3 +780,35 @@ class TestGlobalProfile:
         gp.plot_spectrum()
         # with non-default arguments
         gp.plot_spectrum(fig=2, title="test", show_vsys=False)
+
+
+class TestMartiniWithDataCubeFromWCS:
+
+    @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
+    def test_source_insertion(self, dc_wcs, single_particle_source, out_mode):
+        datacube = dc_wcs
+        distance = (
+            datacube.spectral_centre.to(
+                U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
+            )
+            / (70 * U.km / U.s / U.Mpc)
+        ).to(U.Mpc)
+        source = single_particle_source(
+            ra=datacube.ra,
+            dec=datacube.dec,
+            distance=distance,
+            hsm_g=(3 * datacube.px_size * distance).to(
+                U.kpc, equivalencies=U.dimensionless_angles()
+            ),
+        )
+        beam = GaussianBeam(bmaj=3 * datacube.px_size, bmin=3 * datacube.px_size)
+        m = Martini(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=None,
+            spectral_model=GaussianSpectrum(sigma="thermal"),
+            sph_kernel=_CubicSplineKernel(),
+        )
+        m.insert_source_in_cube(progressbar=False)
+        check_mass_accuracy(m, out_mode)

@@ -1,9 +1,16 @@
 import numpy as np
-from astropy.coordinates import CartesianRepresentation, CartesianDifferential, ICRS
+from astropy.coordinates import (
+    CartesianRepresentation,
+    CartesianDifferential,
+    SkyCoord,
+    SpectralCoord,
+    ICRS,
+)
 from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
+from ..datacube import HIfreq
 
 # Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, "translate", translate)
@@ -11,6 +18,11 @@ setattr(CartesianRepresentation, "translate", translate)
 # Extend CartesianDifferential to allow velocity (or other differential)
 # translation
 setattr(CartesianDifferential, "translate", translate_d)
+
+_origin = CartesianRepresentation(
+    np.zeros((3, 1)) * U.kpc,
+    differentials={"s": CartesianDifferential(np.zeros((3, 1)) * U.km / U.s)},
+)
 
 
 class SPHSource(object):
@@ -102,6 +114,17 @@ class SPHSource(object):
         particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
         Usually prefer to omit this as it can be determined automatically, but is
         ambiguous for sources with exactly 3 particles. (Default: ``None``)
+
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
+        for transforming coordinates and velocities to the data cube frame. The frame
+        needs to have a well-defined velocity as well as spatial origin. Recommended
+        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
+        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
+        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
+        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
+        (Default: ``astropy.coordinates.ICRS()``)
     """
 
     def __init__(
@@ -118,6 +141,7 @@ class SPHSource(object):
         vxyz_g=None,
         hsm_g=None,
         coordinate_axis=None,
+        coordinate_frame=ICRS(),
     ):
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
@@ -147,6 +171,7 @@ class SPHSource(object):
         if coordinate_axis == 0:
             xyz_g = xyz_g.T
             vxyz_g = vxyz_g.T
+        self.coordinate_frame = coordinate_frame
         self.h = h
         self.T_g = T_g
         self.mHI_g = mHI_g
@@ -169,6 +194,7 @@ class SPHSource(object):
         self.current_rotation = np.eye(3)
         self.rotate(**rotation)
         self.skycoords = None
+        self.spectralcoords = None
         self.pixcoords = None
         return
 
@@ -187,8 +213,27 @@ class SPHSource(object):
         self.rotate(axis_angle=("z", self.ra))
         self.translate(distance_vector)
         self.boost(vsys_vector)
-        self.skycoords = ICRS(self.coordinates_g, copy=True)
-        # pixels indexed from 0 (not like in FITS!) for better use with numpy
+        self.skycoords = SkyCoord(
+            self.coordinates_g, frame=self.coordinate_frame, copy=True
+        )
+        origin_skycoord = SkyCoord(
+            x=0 * U.kpc,
+            y=0 * U.kpc,
+            z=0 * U.kpc,
+            v_x=0 * U.km / U.s,
+            v_y=0 * U.km / U.s,
+            v_z=0 * U.km / U.s,
+            representation_type="cartesian",
+            differential_type="cartesian",
+            frame=self.coordinate_frame,
+        )
+        self.spectralcoords = SpectralCoord(
+            self.skycoords.radial_velocity,
+            doppler_convention="radio",
+            doppler_rest=HIfreq,
+            target=self.skycoords,
+            observer=origin_skycoord,
+        )
         if _reset:
             self.boost(-vsys_vector)
             self.translate(-distance_vector)
@@ -197,12 +242,17 @@ class SPHSource(object):
         return
 
     def _init_pixcoords(self, datacube, origin=0):
+        skycoords_df_frame = self.skycoords.transform_to(datacube.coordinate_frame)
+        spectralcoords_df_specsys = (
+            self.spectralcoords.with_observer_stationary_relative_to(datacube.specsys)
+        )
+        # pixels indexed from 0 (not like in FITS!) for better use with numpy
         self.pixcoords = (
             np.vstack(
                 datacube.wcs.sub(3).wcs_world2pix(
-                    self.skycoords.ra.to(datacube.units[0]),
-                    self.skycoords.dec.to(datacube.units[1]),
-                    self.skycoords.radial_velocity.to(datacube.units[2]),
+                    skycoords_df_frame.ra.to(datacube.units[0]),
+                    skycoords_df_frame.dec.to(datacube.units[1]),
+                    spectralcoords_df_specsys.to(datacube.units[2]),
                     origin,
                 )
             )
@@ -234,6 +284,8 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g[mask]
         if self.skycoords is not None:
             self.skycoords = self.skycoords[mask]
+        if self.spectralcoords is not None:
+            self.spectralcoords = self.spectralcoords[mask]
         if self.pixcoords is not None:
             self.pixcoords = self.pixcoords[:, mask]
         if not self.hsm_g.isscalar:
@@ -394,7 +446,7 @@ class SPHSource(object):
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of length.
             The coordinate axes extend from -lim to lim. If unspecified, the maximum
-            absolute coordinate of particles in the source is used. (Default: None)
+            absolute coordinate of particles in the source is used. (Default: ``None``)
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of speed.
