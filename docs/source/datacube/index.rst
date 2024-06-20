@@ -82,8 +82,30 @@ It often makes sense to place the source centre (defined by its RA, Dec and syst
 	stokes_axis=False,
     )
 
-!!! mention datacube and source coordinate_frame and specsys here.
+Coordinate frames and standard of rest
+++++++++++++++++++++++++++++++++++++++
+    
+By default the :class:`~martini.datacube.DataCube` coordinate frame is :class:`~astropy.coordinates.ICRS` that is centred and at rest with respect to the Solar System barycentre. Some use cases of MARTINI might require a different frame. This can be set with a keyword argument as ``DataCube(..., coordinate_frame=LSRK())``, for example - notice that the frame should be initialized (``LSRK()`` not ``LSRK``). Keep in mind that since this frame defines the coordinate system for an observation within a World Coordinate System (WCS), the coordinate frame must be one with a notion of RA and Dec (so no, for example, :class:`~astropy.coordinates.Galactocentric` coordinates). :class:`~astropy.coordinates.Galactic` coordinates are not currently supported.
 
+Note that the source is also defined in the :class:`~astropy.coordinates.ICRS` frame by default. If the ``coordinate_frame`` of the :class:`~martini.datacube.DataCube` is changed from the default, consider whether the source frame needs to be changed to match. In most cases leaving both in :class:`~astropy.coordinates.ICRS` is all that's needed. You could link the two programatically like this (schematically), if desired:
+
+.. code-block:: python
+
+    from martini.sources import SPHSource
+    from martini import DataCube
+    from astropy.coordinates import LSRK
+    
+    source = SPHSource(..., coordinate_frame=LSRK())
+    datacube = DataCube(
+        ...,
+	coordinate_frame=source.coordinate_frame,
+	specsys=source.coordinate_frame.name
+    )
+
+The "standard of rest" (in FITS headers identified by the ``'SPECSYS'`` card) can also be controlled. When the source is created its velocity is defined with respect to the origin of its ``coordinate_frame`` (:class:`~astropy.coordinates.ICRS`, by default), which is taken to be at rest. The velocity is converted to the :class:`~martini.datacube.DataCube` coordinate frame and also its standard of rest. By default this is ``"icrs"`` (i.e. the origin of the :class:`~astropy.coordinates.ICRS` frame is taken to be at rest). This can be changed with a keyword argument as ``DataCube(..., specsys="lsrk")``, for example. Any `standard of rest supported`_ by :mod:`astropy` is allowed, and the coordinate origin can be in motion depending on the choice of standard of rest. Keep in mind that the velocity of the source in its frame will be converted to the specified standard of rest - for ease of control of where your source lands in the channels of your :class:`~martini.datacube.DataCube` it's simplest to define the source in the same standard of rest (and coordinate frame) as that in which you wish to observe it.
+
+.. _standard of rest supported: https://docs.astropy.org/en/stable/coordinates/spectralcoord.html#common-velocity-frames
+    
 Initializing from a FITS header
 +++++++++++++++++++++++++++++++
 
@@ -105,8 +127,13 @@ If you have a precise observational footprint in mind because you want to compar
 .. _`A notebook`: https://github.com/kyleaoman/martini/blob/main/examples/martini_TNG.ipynb
 .. _`examples directory`: https://github.com/kyleaoman/martini/tree/main/examples
 
-!!! mention datacube and source coordinate_frame and specsys here.
-    
+While for "normal" initialization of a :class:`~martini.datacube.DataCube` the coordinate frame and standard of rest can be set (or default to :class:`~astropy.coordinates.ICRS` and ``"icrs"``, respectively), when a :class:`~martini.datacube.DataCube` is initialized from a FITS header, MARTINI will try to determine the coordinate frame and standard of rest from the header. This generally works well for the coordinate frame (but for headers that don't conform to the FITS standard, could fail, raising an exception originating in :mod:`astropy`). The standard of rest is in practice less standardized. MARTINI will look for a ``specsys`` in the WCS object and try to interpret this as a `standard of rest supported`_ by :mod:`astropy`. If the WCS specifies ``BARYCENT`` this will be interpreted as ``"icrs"`` (a common barycentric frame of reference), but since this choice is ambiguous a warning will be produced. If the WCS doesn't specify a ``specsys`` a warning will be produced (ignoring this one probably results in a crash later in typical MARTINI use). If the WCS does provide a ``specsys`` but MARTINI fails to interpret it an exception is raised. All of this can be overridden by explicitly setting the standard of rest with ``DataCube.from_wcs(..., specsys="icrs")``, for example. For a complete list of options you can do:
+
+.. code-block:: python
+
+    from astropy.coordinates import frame_transform_graph
+    frame_transform_graph.get_names()
+
 Saving, loading & copying the datacube state
 ++++++++++++++++++++++++++++++++++++++++++++
 

@@ -94,7 +94,9 @@ The systemic velocity of the source is defined as the sum of the Hubble and pecu
 Coordinate frame
 ++++++++++++++++
 
-!!! mention source and datacube coordinate_frame and specsys here.
+The conversion from the Cartesian coordinates of particles in a simulation to RA, Dec and distance is conceptually a straightforward conversion to a spherical coordinate system, but there are many celestial coordinate frames. For many use cases of MARTINI the specific choice of coordinate frame is unimportant, but when working closely with observational data the distinction between frames may become important. By default the :class:`~astropy.coordinates.ICRS` coordinate frame is assumed, which is centred on and at rest with respect to the Solar System barycentre. The source distance is defined from this origin, as is the radial velocity. `Other frames`_ implemented by :mod:`astropy` can be specified as arguments to :class:`~martini.sources.sph_source.SPHSource` or other source modules, e.g. ``SPHSource(..., coordinate_frame=GCRS())``. MARTINI's :class:`~martini.datacube.DataCube` class also defines a coordinate frame. At present using different coordinate frames for the two is in principle possible but not well supported, so using the same for both is recommended.
+
+.. _Other frames: https://docs.astropy.org/en/stable/coordinates/#module-astropy.coordinates.builtin_frames
 
 Manipulating a source before making a mock
 ------------------------------------------
