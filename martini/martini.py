@@ -1,3 +1,4 @@
+import warnings
 import subprocess
 import os
 import tqdm
@@ -967,9 +968,11 @@ class Martini(_BaseMartini):
         """
 
         if channels is not None:
-            DeprecationWarning(
-                "`channels` argument to `write_fits` ignored, channels and their units"
-                " now fixed at DataCube initialization."
+            warnings.warn(
+                DeprecationWarning(
+                    "`channels` argument to `write_fits` ignored, channels and their"
+                    " units now fixed at DataCube initialization."
+                )
             )
         self._datacube.drop_pad()
 
@@ -1076,9 +1079,11 @@ class Martini(_BaseMartini):
         """
 
         if channels is not None:
-            DeprecationWarning(
-                "`channels` argument to `write_fits` ignored, channels and their units"
-                " now fixed at DataCube initialization."
+            warnings.warn(
+                DeprecationWarning(
+                    "`channels` argument to `write_fits` ignored, channels and their"
+                    " units now fixed at DataCube initialization."
+                )
             )
 
         if self.beam is None:
@@ -1179,9 +1184,11 @@ class Martini(_BaseMartini):
         """
 
         if channels is not None:
-            DeprecationWarning(
-                "`channels` argument to `write_fits` ignored, channels and their units"
-                " now fixed at DataCube initialization."
+            warnings.warn(
+                DeprecationWarning(
+                    "`channels` argument to `write_fits` ignored, channels and their"
+                    " units now fixed at DataCube initialization."
+                )
             )
 
         import h5py
@@ -1457,11 +1464,13 @@ class GlobalProfile(_BaseMartini):
         channels=None,  # deprecated
     ):
         if channels is not None:
-            DeprecationWarning(
-                "The `channels` argument to `GlobalProfile.__init__` is deprecated"
-                " and has been ignored. If `channel_width` has velocity units channels"
-                " are evenly spaced in velocity, and if it has frequency units they are"
-                " evenly spaced in frequency."
+            warnings.warn(
+                DeprecationWarning(
+                    "The `channels` argument to `GlobalProfile.__init__` is deprecated"
+                    " and has been ignored. If `channel_width` has velocity units"
+                    " channels are evenly spaced in velocity, and if it has frequency"
+                    " units they are evenly spaced in frequency."
+                )
             )
         super().__init__(
             source=source,

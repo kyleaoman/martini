@@ -20,7 +20,34 @@ def check_wcs_match(wcs1, wcs2):
         assert v == wcs2.to_header()[k]
 
 
+class TestDeprecationWarnings:
+    def test_deprecation_warnings(self):
+        """
+        Check that we get deprecation warnings where we expect them.
+        """
+        with pytest.warns(DeprecationWarning):
+            dc = DataCube(velocity_centre=0 * U.km / U.s)
+        with pytest.warns(DeprecationWarning):
+            dc.velocity_channels()
+        with pytest.warns(DeprecationWarning):
+            dc.freq_channels()
+
+
 class TestDataCube:
+    def test_invalid_channel_units(self):
+        """
+        Check that we get an error if the channel_width doesn't have valid units.
+        """
+        with pytest.raises(ValueError, match="Channel width must have"):
+            DataCube(channel_width=1 * U.K)
+
+    def test_invalid_specsys(self):
+        """
+        Check that we get an error for an invalid specsys.
+        """
+        with pytest.raises(ValueError, match="Supported specsys values are"):
+            DataCube(specsys="rubbish")
+
     def test_datacube_dimensions(self):
         """
         Check that dimensions are as requested.
@@ -341,6 +368,58 @@ class TestDataCube:
 
 
 class TestDataCubeFromWCS:
+
+    def test_specsys_case_insensitive(self, dc_random):
+        """
+        FITS specsys usually uppercase but astropy has equivalents in lowercase.
+        Check that we convert successfully.
+        """
+        dc_random.wcs.wcs.specsys = "ICRS"
+        from_wcs = DataCube.from_wcs(dc_random.wcs)
+        assert from_wcs.specsys == "icrs"
+
+    def test_unrecognized_specsys(self, dc_random):
+        """
+        Check that we get an error for a specsys that we can't understand.
+        """
+        dc_random.wcs.wcs.specsys = "rubbish"
+        with pytest.raises(ValueError, match="not yet supported by MARTINI"):
+            DataCube.from_wcs(dc_random.wcs)
+
+    def test_invalid_specsys(self, dc_random):
+        """
+        Check that we get an error for an invalid specsys.
+        """
+        with pytest.raises(ValueError, match="Supported specsys values are"):
+            DataCube.from_wcs(dc_random.wcs, specsys="rubbish")
+
+    def test_rectangular_pixels_rejected(self, dc_random):
+        """
+        Check that we refuse to accept rectangular pixels.
+        """
+        if dc_random.stokes_axis:
+            dc_random.wcs.wcs.cdelt = (
+                dc_random.wcs.wcs.cdelt[0],
+                dc_random.wcs.wcs.cdelt[1] + 1,
+                dc_random.wcs.wcs.cdelt[2],
+                dc_random.wcs.wcs.cdelt[3],
+            )
+        else:
+            dc_random.wcs.wcs.cdelt = (
+                dc_random.wcs.wcs.cdelt[0],
+                dc_random.wcs.wcs.cdelt[1] + 1,
+                dc_random.wcs.wcs.cdelt[2],
+            )
+        with pytest.raises(ValueError, match="RA and Dec axes do not match"):
+            DataCube.from_wcs(dc_random.wcs)
+
+    def test_restfrq_missing(self, dc_random):
+        """
+        Check that we warn if the WCS doesn't specify a RESTFRQ.
+        """
+        dc_random.wcs.wcs.restfrq = 0.0
+        with pytest.warns(UserWarning, match="Input WCS did not specify RESTFRQ"):
+            DataCube.from_wcs(dc_random.wcs)
 
     def test_consistent_with_direct(self, dc_random):
         """

@@ -9,6 +9,15 @@ HIfreq = 1.420405751e9 * U.Hz
 _supported_specsys = frame_transform_graph.get_names()
 
 
+def _validate_specsys(specsys):
+    """
+    Check if a specsys is one recognized by astropy.
+    """
+    if specsys is not None and specsys not in _supported_specsys:
+        raise ValueError(f"Supported specsys values are {_supported_specsys}.")
+    return specsys
+
+
 class DataCube(object):
     """
     Handles creation and management of the data cube itself.
@@ -109,13 +118,15 @@ class DataCube(object):
         velocity_centre=None,  # deprecated
     ):
         if velocity_centre is not None:
-            DeprecationWarning(
-                "velocity_centre is deprecated, use spectral_centre instead."
+            warnings.warn(
+                DeprecationWarning(
+                    "velocity_centre is deprecated, use spectral_centre instead."
+                )
             )
             spectral_centre = velocity_centre
         self.stokes_axis = stokes_axis
         self.coordinate_frame = coordinate_frame
-        self.specsys = specsys
+        self.specsys = _validate_specsys(specsys)
         datacube_unit = U.Jy * U.pix**-2
         self._array = np.zeros((n_px_x, n_px_y, n_channels)) * datacube_unit
         if self.stokes_axis:
@@ -151,20 +162,24 @@ class DataCube(object):
         return
 
     def velocity_channels(self):
-        DeprecationWarning(
-            "Changing the channel mode is deprecated. You can access channels in deisred"
-            " units with `DataCube.frequency_channel_edges`,"
-            " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges` and"
-            " `DataCube.velocity_channel_mids`."
+        warnings.warn(
+            DeprecationWarning(
+                "Changing the channel mode is deprecated. You can access channels in"
+                " deisred units with `DataCube.frequency_channel_edges`,"
+                " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
+                " and `DataCube.velocity_channel_mids`."
+            )
         )
         pass
 
     def freq_channels(self):
-        DeprecationWarning(
-            "Changing the channel mode is deprecated. You can access channels in deisred"
-            " units with `DataCube.frequency_channel_edges`,"
-            " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges` and"
-            " `DataCube.velocity_channel_mids`."
+        warnings.warn(
+            DeprecationWarning(
+                "Changing the channel mode is deprecated. You can access channels in"
+                " deisred units with `DataCube.frequency_channel_edges`,"
+                " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
+                " and `DataCube.velocity_channel_mids`."
+            )
         )
         pass
 
@@ -269,8 +284,7 @@ class DataCube(object):
         init_args["spectral_centre"] = centre_coords[ax_spec] * unit_spec
         init_args["coordinate_frame"] = wcs.utils.wcs_to_celestial_frame(input_wcs)
         if specsys is not None:
-            if specsys not in _supported_specsys:
-                raise ValueError(f"Supported specsys values are {_supported_specsys}.")
+            _validate_specsys(specsys)
             init_args["specsys"] = specsys
             input_wcs.wcs.specsys = specsys
         elif input_wcs.wcs.specsys == "":
