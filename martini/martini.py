@@ -1456,6 +1456,13 @@ class GlobalProfile(_BaseMartini):
         quiet=False,
         channels=None,  # deprecated
     ):
+        if channels is not None:
+            DeprecationWarning(
+                "The `channels` argument to `GlobalProfile.__init__` is deprecated"
+                " and has been ignored. If `channel_width` has velocity units channels"
+                " are evenly spaced in velocity, and if it has frequency units they are"
+                " evenly spaced in frequency."
+            )
         super().__init__(
             source=source,
             datacube=_GlobalProfileDataCube(
@@ -1473,7 +1480,6 @@ class GlobalProfile(_BaseMartini):
                 obj_type_str="spectrum",
             ),
             quiet=quiet,
-            channels=channels,  # deprecated
         )
         self.source.pixcoords[:2] = 0
 
