@@ -40,7 +40,7 @@ magneticumsource = ["g3t"]
 simbasource = ["h5py"]
 swiftgalaxysource = [
     "swiftsimio",
-	"swiftgalaxy",
+    "swiftgalaxy",
 ]
 colibresource = [
     "swiftsimio",
