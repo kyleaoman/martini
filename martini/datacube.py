@@ -73,6 +73,9 @@ class DataCube(object):
         use :meth:`astropy.coordinates.frame_transform_graph.get_names`.
         (Default: ``"icrs"``)
 
+    velocity_centre : ~astropy.units.Quantity, deprecated
+        Deprecated, use spectral centre instead.
+
     See Also
     --------
     ~martini.datacube.DataCube.load_state
@@ -103,7 +106,13 @@ class DataCube(object):
         stokes_axis=False,
         coordinate_frame=ICRS(),
         specsys="icrs",
+        velocity_centre=None,  # deprecated
     ):
+        if velocity_centre is not None:
+            DeprecationWarning(
+                "velocity_centre is deprecated, use spectral_centre instead."
+            )
+            spectral_centre = velocity_centre
         self.stokes_axis = stokes_axis
         self.coordinate_frame = coordinate_frame
         self.specsys = specsys
@@ -140,6 +149,24 @@ class DataCube(object):
         self._wcs = None
 
         return
+
+    def velocity_channels(self):
+        DeprecationWarning(
+            "Changing the channel mode is deprecated. You can access channels in deisred"
+            " units with `DataCube.frequency_channel_edges`,"
+            " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges` and"
+            " `DataCube.velocity_channel_mids`."
+        )
+        pass
+
+    def freq_channels(self):
+        DeprecationWarning(
+            "Changing the channel mode is deprecated. You can access channels in deisred"
+            " units with `DataCube.frequency_channel_edges`,"
+            " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges` and"
+            " `DataCube.velocity_channel_mids`."
+        )
+        pass
 
     @classmethod
     def from_wcs(cls, input_wcs, specsys=None):
@@ -497,6 +524,20 @@ class DataCube(object):
         return None  # not found
 
     @property
+    def channel_maps(self):
+        """
+        An iterator over the channel maps.
+
+        An alias for :meth:`~martini.datacube.DataCube.spatial_slices`.
+
+        Returns
+        -------
+        out : iter
+            The iterator over the spatial 'slices' of the cube.
+        """
+        return self.spatial_slices
+
+    @property
     def spatial_slices(self):
         """
         An iterator over the spatial 'slices' of the cube.
@@ -780,6 +821,9 @@ class _GlobalProfileDataCube(DataCube):
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube, selected from the list ``"gcrs"``,
         ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``)
+
+    velocity_centre : ~astropy.units.Quantity, deprecated
+        Deprecated, use spectral centre instead.
     """
 
     def __init__(
@@ -788,6 +832,7 @@ class _GlobalProfileDataCube(DataCube):
         channel_width=4.0 * U.km * U.s**-1,
         spectral_centre=0.0 * U.km * U.s**-1,
         specsys="icrs",
+        velocity_centre=None,  # deprecated
     ):
         super().__init__(
             n_px_x=1,
@@ -801,6 +846,7 @@ class _GlobalProfileDataCube(DataCube):
             stokes_axis=False,
             coordinate_frame=ICRS(),
             specsys=specsys,
+            velocity_centre=velocity_centre,
         )
 
         return

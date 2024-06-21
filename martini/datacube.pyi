@@ -48,6 +48,7 @@ class DataCube:
         stokes_axis: bool = ...,
         coordinate_frame: BaseRADecFrame = ...,
         specsys: str = ...,
+        velocity_centre: None = ...,  # deprecated
     ) -> None: ...
     @classmethod
     def from_wcs(cls, input_wcs: WCS, specsys=T.Optional[str]) -> T.Self: ...
@@ -67,6 +68,8 @@ class DataCube:
             U.Quantity[U.dimensionless_unscaled],
         ],
     ]: ...
+    def velocity_channels(self) -> None: ...  # deprecated
+    def freq_channels(self) -> None: ...  # deprecated
     @property
     def wcs(self) -> WCS: ...
     @property
@@ -83,6 +86,8 @@ class DataCube:
     def frequency_channel_edges(self) -> U.Quantity[U.Hz]: ...
     @property
     def _stokes_index(self) -> T.Optional[int]: ...
+    @property
+    def channel_maps(self) -> T.Iterator[U.Quantity]: ...
     @property
     def spatial_slices(self) -> T.Iterator[U.Quantity]: ...
     @property
@@ -102,4 +107,5 @@ class _GlobalProfileDataCube(DataCube):
         channel_width: U.Quantity[U.arcsec] = ...,
         spectral_centre: U.Quantity[U.km / U.s] = ...,
         specsys: str = ...,
+        velocity_centre: None = ...,  # deprecated
     ) -> None: ...

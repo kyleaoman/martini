@@ -47,6 +47,7 @@ class TestDataCube:
         """
         Check that iterators over slices give us expected lengths.
         """
+        assert len(list(dc_zeros.channel_maps)) == dc_zeros.n_channels
         assert len(list(dc_zeros.spatial_slices)) == dc_zeros.n_channels
         assert len(list(dc_zeros.spectra)) == dc_zeros.n_px_x * dc_zeros.n_px_y
 

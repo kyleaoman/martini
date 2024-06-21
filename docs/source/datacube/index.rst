@@ -20,7 +20,7 @@ The footprint of the mock observation on the sky is set by the five parameters: 
 
 .. _FITS: https://fits.gsfc.nasa.gov/fits_standard.html
 
-In the spectral direction, the number of channels is set by ``n_channels`` and the location of the boundary between the two central channels (assuming an even number of channels) is set by ``velocity_centre`` (similar to `CRVAL`). The ``velocity_centre`` can be specified either as a velocity (:mod:`astropy.units` with dimensions of speed) or as a frequency (dimensions of inverse time). Similarly, the spacing between channels, set by ``channel_width`` (similar to `CDELT`), can be either a frequency spacing or a velocity spacing. Frequencies and velocities can be mixed freely, so a ``velocity_centre`` in Hz could be given along with a ``channel_width`` in km/s. Regardless of how the input is provided, internally the channels are spaced evenly in velocity. Since the frequency interval corresponding to a velocity interval is frequency-dependent, if a frequency width is specified it is converted to a velocity width assuming the frequency at the central channel (i.e. at the ``velocity_centre``).
+In the spectral direction, the number of channels is set by ``n_channels`` and the location of the boundary between the two central channels (for an even number of channels) or the centre of the central channel (for an odd number of channels) is set by ``spectral_centre`` (similar to `CRVAL`). The ``spectral_centre`` can be specified either as a velocity (:mod:`astropy.units` with dimensions of speed) or as a frequency (dimensions of inverse time). Similarly, the spacing between channels, set by ``channel_width`` (similar to `CDELT`), can be either a frequency spacing or a velocity spacing. Frequencies and velocities can be mixed freely, so a ``spectral_centre`` in Hz could be given along with a ``channel_width`` in km/s. The dimensions of ``channel_width`` are important: if these are speed, then the channels will be evenly spaced in velocity, while if they are frequency the channels will be evenly spaced in frequency.
 
 If a Stokes' axis is desired, this can be enabled with ``stokes_axis=True``.
 
@@ -42,7 +42,7 @@ A possible initialization of a :class:`~martini.datacube.DataCube` looks like:
 	n_channels=64,
 	px_size=15 * U.arcsec,
 	channel_width=4 * U.km / U.s,
-	velocity_centre=1000 * U.km / U.s,
+	spectral_centre=1000 * U.km / U.s,
 	ra=45 * U.deg,
 	dec=-30 * U.deg,
 	stokes_axis=False,
@@ -76,7 +76,7 @@ It often makes sense to place the source centre (defined by its RA, Dec and syst
 	n_channels=64,
 	px_size=15 * U.arcsec,
 	channel_width=4 * U.km / U.s,
-	velocity_centre=source.vsys,
+	spectral_centre=source.vsys,
 	ra=source.ra,
 	dec=source.dec,
 	stokes_axis=False,
@@ -134,8 +134,33 @@ While for "normal" initialization of a :class:`~martini.datacube.DataCube` the c
     from astropy.coordinates import frame_transform_graph
     frame_transform_graph.get_names()
 
-Saving, loading & copying the datacube state
-++++++++++++++++++++++++++++++++++++++++++++
+Properties of the data cube
++++++++++++++++++++++++++++
+
+You can access the World Coordinate System (WCS) as a :class:`~astropy.wcs.WCS` object with (assuming ``datacube = DataCube(...)``:
+
+ - :attr:`datacube.wcs`
+
+The channel edges and centres in their intrinsic units (those in which they are evenly spaced) can be accessed as:
+
+ - :attr:`datacube.channel_mids`
+ - :attr:`datacube.channel_edges`
+
+or obtained with specifically frequency or velocity dimensions with:
+
+ - :attr:`datacube.frequency_channel_mids`
+ - :attr:`datacube.frequency_channel_edges`
+ - :attr:`datacube.velocity_channel_mids`
+ - :attr:`datacube.velocity_channel_edges`
+
+Iterators over the data cube slices in frequency (i.e. "channel maps") and over the spectra in each pixel can be obtained as:
+
+ - :attr:`datacube.spatial_slices`
+ - :attr:`datacube.channel_maps` (same as ``spatial_slices``)
+ - :attr:`datacube.spectra`
+
+Saving, loading & copying the data cube state
++++++++++++++++++++++++++++++++++++++++++++++
 
 Because some operations that modify :class:`~martini.datacube.DataCube` objects are computationally expensive, especially :meth:`~martini.martini.Martini.insert_source_in_cube`, some functionality to load/save/copy the state of a datacube object is provided. For instance, the result of inserting the source in the cube could be cached and the source insertion step skipped if the cache file exists like this:
 

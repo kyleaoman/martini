@@ -32,11 +32,10 @@ The :doc:`source </sources/index>` and :doc:`spectral model </spectral_models/in
 	spectral_model=spectral_model,
 	n_channels=64,
 	channel_width=10 * U.km * U.s**-1,
-	velocity_centre=source.vsys,
-	channels="velocity",
+	spectral_centre=source.vsys,
     )
 
-The arguments to the other modules are omitted here (replaced with ``...``), check the documentation pages of each module for details. Here the spectrum will be centred on the source systemic velocity, but an explicit frequency or Doppler velocity value could be given instead. The ``channels`` argument determines whether the resulting spectrum will have channel edges in velocity or frequency units. The units (frequency or velocity) of the ``channel_width`` and ``velocity_centre``, and whether ``channels`` is set to ``"frequency"`` or ``"velocity"``, can be mixed in any combination.
+The arguments to the other modules are omitted here (replaced with ``...``), check the documentation pages of each module for details. Here the spectrum will be centred on the source systemic velocity, but an explicit frequency or Doppler velocity value could be given instead. The units of the ``channel_width`` argument determines whether the resulting spectrum will have channels evenly spaced in frequency (if ``channel_width`` has dimensions of frequency) or velocity (if it has dimensions of speed).
 
 Inserting the source
 --------------------
@@ -60,7 +59,14 @@ but this is not usually necessary. In addition to the spectrum itself, the centr
     gp.channel_mids
     gp.channel_edges
 
-respectively. These arrays will have dimensions of frequency or velocity depending on the ``channels`` argument passed to :class:`~martini.martini.GlobalProfile` on initialization.
+respectively. These arrays will have dimensions of frequency or velocity depending on the units of the ``channel_width`` argument passed to :class:`~martini.martini.GlobalProfile` on initialization. You can obtain the channel edges or centres in your preferred dimensions with:
+
+.. code-block:: python
+
+    gp.frequency_channel_mids
+    gp.frequency_channel_edges
+    gp.velocity_channel_mids
+    gp.velocity_channel_edges
 
 Parallelization
 +++++++++++++++
@@ -70,7 +76,7 @@ The core loop in the source insertion function is a loop over pixels. Since para
 Quick plot of the spectrum
 --------------------------
 
-As a convenience, a function is provided to make a quick plot showing the spectrum. Whether the systemic velocity of the source (as reported by ``source.vsys``) is shown by a vertical dotted line is controlled by the ``show_vsys`` argument.
+As a convenience, a function is provided to make a quick plot showing the spectrum. Whether the systemic velocity of the source (as reported by ``source.vsys``) is shown by a vertical dotted line is controlled by the ``show_vsys`` argument. The ``channels`` argument (either ``"velocity"`` or ``"frequency"``) determines the units of the spectral axis in the figure.
 
 .. code-block:: python
 
@@ -83,7 +89,7 @@ As a convenience, a function is provided to make a quick plot showing the spectr
 	spectral_model=GaussianSpectrum(sigma=7 * U.km * U.s**-1),
 	n_channels=128,
 	channel_width=2.5 * U.km * U.s**-1,
-	velocity_centre=source.vsys,
+	spectral_centre=source.vsys,
 	channels="velocity",
     )
     gp.plot_spectrum(

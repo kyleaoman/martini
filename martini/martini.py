@@ -947,6 +947,7 @@ class Martini(_BaseMartini):
         self,
         filename,
         overwrite=True,
+        channels=None,  # deprecated
     ):
         """
         Output the data cube to a FITS-format file.
@@ -957,10 +958,19 @@ class Martini(_BaseMartini):
             Name of the file to write. ``'.fits'`` will be appended if not already
             present.
 
-        overwrite: bool, optional
+        overwrite : bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
+
+        channels : str, deprecated
+            Deprecated, channels and their units now fixed at
+            :class:`~martini.datacube.DataCube` initialization.
         """
 
+        if channels is not None:
+            DeprecationWarning(
+                "`channels` argument to `write_fits` ignored, channels and their units"
+                " now fixed at DataCube initialization."
+            )
         self._datacube.drop_pad()
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"
@@ -1034,7 +1044,12 @@ class Martini(_BaseMartini):
 
         return
 
-    def write_beam_fits(self, filename, overwrite=True):
+    def write_beam_fits(
+        self,
+        filename,
+        overwrite=True,
+        channels=None,  # deprecated
+    ):
         """
         Output the beam to a FITS-format file.
 
@@ -1050,11 +1065,21 @@ class Martini(_BaseMartini):
         overwrite: bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
 
+        channels : str, deprecated
+            Deprecated, channels and their units now fixed at
+            :class:`~martini.datacube.DataCube` initialization.
+
         Raises
         ------
         ValueError
             If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
+
+        if channels is not None:
+            DeprecationWarning(
+                "`channels` argument to `write_fits` ignored, channels and their units"
+                " now fixed at DataCube initialization."
+            )
 
         if self.beam is None:
             raise ValueError(
@@ -1123,6 +1148,7 @@ class Martini(_BaseMartini):
         overwrite=True,
         memmap=False,
         compact=False,
+        channels=None,  # deprecated
     ):
         """
         Output the data cube and beam to a HDF5-format file. Requires the :mod:`h5py`
@@ -1145,7 +1171,18 @@ class Martini(_BaseMartini):
             If ``True``, omit pixel coordinate arrays to save disk space. In this
             case pixel coordinates can still be reconstructed from FITS-style
             keywords stored in the FluxCube attributes. (Default: ``False``)
+
+        channels : str, deprecated
+            Deprecated, channels and their units now fixed at
+            :class:`~martini.datacube.DataCube` initialization.
+
         """
+
+        if channels is not None:
+            DeprecationWarning(
+                "`channels` argument to `write_fits` ignored, channels and their units"
+                " now fixed at DataCube initialization."
+            )
 
         import h5py
 
@@ -1331,6 +1368,10 @@ class GlobalProfile(_BaseMartini):
     quiet : bool, optional
         If ``True``, suppress output to stdout. (Default: ``False``)
 
+    channels : str, deprecated
+        Deprecated, channels and their units now fixed at
+        :class:`~martini.datacube.DataCube` initialization.
+
     Examples
     --------
     ::
@@ -1413,6 +1454,7 @@ class GlobalProfile(_BaseMartini):
         channel_width=4 * U.km * U.s**-1,
         spectral_centre=0 * U.km * U.s**-1,
         quiet=False,
+        channels=None,  # deprecated
     ):
         super().__init__(
             source=source,
@@ -1431,6 +1473,7 @@ class GlobalProfile(_BaseMartini):
                 obj_type_str="spectrum",
             ),
             quiet=quiet,
+            channels=channels,  # deprecated
         )
         self.source.pixcoords[:2] = 0
 

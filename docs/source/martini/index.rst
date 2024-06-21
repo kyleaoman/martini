@@ -68,7 +68,7 @@ Similar to the preview functionality of the :doc:`source module </sources/index>
         n_channels=32,
         px_size=10.0 * U.arcsec,
         channel_width=10.0 * U.km * U.s**-1,
-        velocity_centre=source.vsys,
+        spectral_centre=source.vsys,
     )
 
     beam = GaussianBeam(
@@ -126,7 +126,7 @@ Parallelization
 
    Available since `v2.0.4`.
 
-The core loop in the source insertion function is embarassingly parallel. Parallel execution is implemented using the `multiprocess`_ package. You may need to install this, for instance ``pip install multiprocess`` to install from PyPI. To make use of the parallelization simply specify the number of processes to use, for example:
+The core loop in the source insertion function is "embarassingly parallel". Parallel execution is implemented using the `multiprocess`_ package. You may need to install this, for instance ``pip install multiprocess`` to install from PyPI. To make use of the parallelization simply specify the number of processes to use, for example:
 
 .. _multiprocess: https://pypi.org/project/multiprocess/
 
