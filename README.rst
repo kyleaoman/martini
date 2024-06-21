@@ -16,9 +16,9 @@
 .. |Repostatus| image:: https://www.repostatus.org/badges/latest/active.svg
    :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
    :target: https://www.repostatus.org/#active
-.. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.11198185.svg
+.. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.11193206.svg
    :alt: Zenodo DOI
-   :target: https://zenodo.org/records/11198185
+   :target: https://zenodo.org/doi/10.5281/zenodo.11193206
 .. |CodeCov| image:: https://codecov.io/gh/kyleaoman/martini/graph/badge.svg?token=05OA3Y8889 
    :alt: Tests code coverage
    :target: https://codecov.io/gh/kyleaoman/martini
