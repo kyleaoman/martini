@@ -208,14 +208,15 @@ class SPHSource(object):
         )
         distance_vector = distance_unit_vector * self.distance
         vpeculiar_vector = distance_unit_vector * self.vpeculiar
-        # \vec{v_H} = (100 h km/s/Mpc * D) * r^, but D * r^ is just \vec{r}:
-        vhubble_vectors = (
-            self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1
-        ) * self.coordinates_g.xyz
 
         self.rotate(axis_angle=("y", -self.dec))
         self.rotate(axis_angle=("z", self.ra))
         self.translate(distance_vector)
+        # must be after translate:
+        # \vec{v_H} = (100 h km/s/Mpc * D) * r^, but D * r^ is just \vec{r}:
+        vhubble_vectors = (
+            self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1
+        ) * self.coordinates_g.xyz
         self.boost(vpeculiar_vector)
         # can't use boost for particle-by-particle velocities:
         self.coordinates_g.differentials["s"] = CartesianDifferential(
