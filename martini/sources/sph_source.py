@@ -2,6 +2,7 @@ import numpy as np
 from astropy.coordinates import (
     CartesianRepresentation,
     CartesianDifferential,
+    SphericalRepresentation,
     SkyCoord,
     SpectralCoord,
     ICRS,
@@ -211,10 +212,20 @@ class SPHSource(object):
         self.rotate(axis_angle=("y", -self.dec))
         self.rotate(axis_angle=("z", self.ra))
         self.translate(distance_vector)
-        distances = np.sqrt(np.power(self.coordinates_g.xyz, 2).sum(axis=0))
-        vhubbles = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * distances
-        vsys_vector = direction_vector * (vhubbles + self.vpeculiar)
-        self.boost(vsys_vector)
+        sph_coords = self.coordinates_g.represent_as(SphericalRepresentation)
+        vhubbles = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * sph_coords.distance
+        direction_vectors = np.array(
+            [
+                np.cos(sph_coords.lon) * np.cos(sph_coords.lat),
+                np.sin(sph_coords.lon) * np.cos(sph_coords.lat),
+                np.sin(sph_coords.lat),
+            ]
+        )
+        v_vectors = direction_vectors * (vhubbles + self.vpeculiar)[np.newaxis, :]
+        # can't use boost for particle-by-particle velocities
+        self.coordinates_g.differentials["s"] = CartesianDifferential(
+            self.coordinates_g.differentials["s"].d_xyz + v_vectors
+        )
         self.skycoords = SkyCoord(
             self.coordinates_g, frame=self.coordinate_frame, copy=True
         )
@@ -237,7 +248,9 @@ class SPHSource(object):
             observer=origin_skycoord,
         )
         if _reset:
-            self.boost(-vsys_vector)
+            self.coordinates_g.differentials["s"] = CartesianDifferential(
+                self.coordinates_g.differentials["s"].d_xyz - v_vectors
+            )
             self.translate(-distance_vector)
             self.rotate(axis_angle=("z", -self.ra))
             self.rotate(axis_angle=("y", self.dec))
