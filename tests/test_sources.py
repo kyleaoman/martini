@@ -143,7 +143,13 @@ class TestSPHSource:
         vxyz_g = np.arange(3).reshape((1, 3)) * U.km / U.s
         mHI_g = np.zeros(3) * U.Msun
         s = SPHSource(
-            xyz_g=xyz_g, vxyz_g=vxyz_g, mHI_g=mHI_g, ra=ra, dec=dec, distance=0 * U.Mpc
+            xyz_g=xyz_g,
+            vxyz_g=vxyz_g,
+            mHI_g=mHI_g,
+            ra=ra,
+            dec=dec,
+            distance=0 * U.Mpc,  # avoid translation
+            h=0.0,  # avoid Hubble flow boosts
         )
         s._init_skycoords(_reset=False)
         R_y = np.array(
@@ -188,10 +194,6 @@ class TestSPHSource:
             vpeculiar=vpeculiar,
         )
         s._init_skycoords(_reset=False)
-        distances = np.sqrt(
-            (distance + xyz_g[:, 0]) ** 2 + xyz_g[:, 1] ** 2 + xyz_g[:, 2] ** 2
-        )
-        vsys = s.h * 100 * U.km / U.s / U.Mpc * distances + vpeculiar
         R_y = np.array(
             [
                 [np.cos(dec), 0, np.sin(dec)],
@@ -208,12 +210,18 @@ class TestSPHSource:
         )
         rotmat = R_y.dot(R_z)
         direction_vector = rotmat.T.dot(np.array([[1], [0], [0]]))
-        assert U.allclose(
-            s.coordinates_g.xyz.T, xyz_g.dot(rotmat) + direction_vector.T * distance
+        displaced_positions = xyz_g.dot(rotmat) + direction_vector.T * distance
+        distances = np.sqrt(np.power(displaced_positions, 2).sum(axis=1))
+        vhubble = s.h * 100 * U.km / U.s / U.Mpc * distances
+        v_direction_vectors = displaced_positions / distances
+        displaced_velocities = (
+            vxyz_g.dot(rotmat)
+            + v_direction_vectors * vhubble
+            + (direction_vector * vpeculiar).T
         )
+        assert U.allclose(s.coordinates_g.xyz.T, displaced_positions)
         assert U.allclose(
-            s.coordinates_g.differentials["s"].d_xyz.T,
-            vxyz_g.dot(rotmat) + direction_vector.T * vsys,
+            s.coordinates_g.differentials["s"].d_xyz.T, displaced_velocities
         )
 
     def test_init_skycoords_resets(self, s):
