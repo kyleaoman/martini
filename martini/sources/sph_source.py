@@ -208,10 +208,12 @@ class SPHSource(object):
             ]
         )
         distance_vector = direction_vector * self.distance
-        vsys_vector = direction_vector * self.vsys
         self.rotate(axis_angle=("y", -self.dec))
         self.rotate(axis_angle=("z", self.ra))
         self.translate(distance_vector)
+        distances = np.sqrt(np.power(self.coordinates_g.xyz, 2).sum(axis=0))
+        vhubbles = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * distances
+        vsys_vector = direction_vector * (vhubbles + self.vpeculiar)
         self.boost(vsys_vector)
         self.skycoords = SkyCoord(
             self.coordinates_g, frame=self.coordinate_frame, copy=True
