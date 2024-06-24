@@ -174,9 +174,10 @@ class TestSPHSource:
         """
         Check that coordinates translate correctly to observed position.
         """
-        xyz_g = np.arange(3).reshape((1, 3)) * U.kpc
-        vxyz_g = np.arange(3).reshape((1, 3)) * U.km / U.s
-        mHI_g = np.zeros(3) * U.Msun
+        # avoid 0 values to check vhubble per particle works:
+        xyz_g = np.arange(1, 4).reshape((1, 3)) * U.kpc
+        vxyz_g = np.arange(1, 4).reshape((1, 3)) * U.km / U.s
+        mHI_g = np.ones(3) * U.Msun
         s = SPHSource(
             xyz_g=xyz_g,
             vxyz_g=vxyz_g,
@@ -187,7 +188,10 @@ class TestSPHSource:
             vpeculiar=vpeculiar,
         )
         s._init_skycoords(_reset=False)
-        vsys = s.h * 100 * U.km / U.s / U.Mpc * distance + vpeculiar
+        distances = np.sqrt(
+            (distance + xyz_g[:, 0]) ** 2 + xyz_g[:, 1] ** 2 + xyz_g[:, 2] ** 2
+        )
+        vsys = s.h * 100 * U.km / U.s / U.Mpc * distances + vpeculiar
         R_y = np.array(
             [
                 [np.cos(dec), 0, np.sin(dec)],
