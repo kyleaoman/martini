@@ -89,7 +89,7 @@ Distance, peculiar velocity, right ascension and declination
 
 Any source module can be configured with the ``distance``, ``vpeculiar``, ``ra`` and ``dec`` keyword arguments. The distance, RA and Dec define the offset of the particles relative to the observer. The source is given a recession velocity that places it in the Hubble flow according to its distance and the Hubble constant :math:`H_0=h(100\,\mathrm{km}\,\mathrm{s}^{-1}\,\mathrm{Mpc}^{-1})`. By default `h=0.7`, but this can be adjusted with the ``h`` keyword argument.
 
-The systemic velocity of the source is defined as the sum of the Hubble and peculiar velocities: :math:`v_\mathrm{sys}=v_\mathrm{Hubble}+v_\mathrm{peculiar}`. A positive peculiar velocity therefore makes the source recede faster than :math:`v_\mathrm{Hubble}=H_0D`, and vice-versa.
+The systemic velocity of the source is defined as the sum of the Hubble and peculiar velocities: :math:`v_\mathrm{sys}=v_\mathrm{Hubble}+v_\mathrm{peculiar}`. A positive peculiar velocity therefore makes the source recede faster than :math:`v_\mathrm{Hubble}=H_0D`, and vice-versa. The source is assigned a nominal systemic velocity accessible as the ``vsys`` attribute, but particle velocities are shifted according to their individual distances (this avoids errors in sources with large extents along the line of sight).
 
 Coordinate frame
 ++++++++++++++++
