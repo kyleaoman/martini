@@ -2,6 +2,7 @@ import numpy as np
 from astropy.coordinates import (
     CartesianRepresentation,
     CartesianDifferential,
+    SphericalRepresentation,
     SkyCoord,
     SpectralCoord,
     ICRS,
@@ -42,7 +43,7 @@ class SPHSource(object):
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
-        Source peculiar velocity, added to the velocity from Hubble's law.
+        Source peculiar velocity along the direction to the source centre.
         (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
@@ -200,19 +201,27 @@ class SPHSource(object):
 
     def _init_skycoords(self, _reset=True):
         # _reset False only for unit testing
-        direction_vector = np.array(
-            [
-                np.cos(self.ra) * np.cos(self.dec),
-                np.sin(self.ra) * np.cos(self.dec),
-                np.sin(self.dec),
-            ]
+        distance_unit_vector = (
+            SphericalRepresentation(self.ra, self.dec, 1)
+            .represent_as(CartesianRepresentation)
+            .xyz
         )
-        distance_vector = direction_vector * self.distance
-        vsys_vector = direction_vector * self.vsys
+        distance_vector = distance_unit_vector * self.distance
+        vpeculiar_vector = distance_unit_vector * self.vpeculiar
+
         self.rotate(axis_angle=("y", -self.dec))
         self.rotate(axis_angle=("z", self.ra))
         self.translate(distance_vector)
-        self.boost(vsys_vector)
+        # must be after translate:
+        # \vec{v_H} = (100 h km/s/Mpc * D) * r^, but D * r^ is just \vec{r}:
+        vhubble_vectors = (
+            self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1
+        ) * self.coordinates_g.xyz
+        self.boost(vpeculiar_vector)
+        # can't use boost for particle-by-particle velocities:
+        self.coordinates_g.differentials["s"] = CartesianDifferential(
+            self.coordinates_g.differentials["s"].d_xyz + vhubble_vectors
+        )
         self.skycoords = SkyCoord(
             self.coordinates_g, frame=self.coordinate_frame, copy=True
         )
@@ -235,7 +244,10 @@ class SPHSource(object):
             observer=origin_skycoord,
         )
         if _reset:
-            self.boost(-vsys_vector)
+            self.coordinates_g.differentials["s"] = CartesianDifferential(
+                self.coordinates_g.differentials["s"].d_xyz - vhubble_vectors
+            )
+            self.boost(-vpeculiar_vector)
             self.translate(-distance_vector)
             self.rotate(axis_angle=("z", -self.ra))
             self.rotate(axis_angle=("y", self.dec))
