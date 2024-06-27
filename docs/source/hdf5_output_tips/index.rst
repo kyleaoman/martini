@@ -3,6 +3,10 @@ Using MARTINI's HDF5 output
 
 MARTINI offers an option to output mock observation data cubes in `HDF5`_ format. Below is an example illustrating reading the output and making a plot of the first three moments of a data cube.
 
+.. note::
+
+    This example script requires MARTINI v2.1.3 or newer.
+
 .. _HDF5: https://www.hdfgroup.org/solutions/hdf5/
 
 .. code-block:: python
