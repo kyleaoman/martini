@@ -1204,11 +1204,11 @@ class Martini(_BaseMartini):
         h5_kwargs = {"backing_store": False} if memmap else dict()
         f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
         datacube_array_units = self._datacube._array.unit
-        s = np.s_[..., 0] if self._datacube.stokes_axis else np.s_[...]
-        f["FluxCube"] = self._datacube._array.to_value(datacube_array_units)[s]
+        f["FluxCube"] = self._datacube._array.to_value(datacube_array_units).squeeze()
         c = f["FluxCube"]
         origin = 0  # index from 0 like numpy, not from 1
         if not compact:
+            # pixel centre coordinates:
             xgrid, ygrid, vgrid = np.meshgrid(
                 np.arange(self._datacube._array.shape[0]),
                 np.arange(self._datacube._array.shape[1]),
@@ -1234,13 +1234,59 @@ class Martini(_BaseMartini):
                 ).T
             )
             wgrid = self._datacube.wcs.all_pix2world(cgrid, origin)
-            ragrid = wgrid[:, 0].reshape(self._datacube._array.shape)[s]
-            decgrid = wgrid[:, 1].reshape(self._datacube._array.shape)[s]
-            chgrid = wgrid[:, 2].reshape(self._datacube._array.shape)[s]
+            grid_shape = (
+                self.datacube.n_px_x,
+                self.datacube.n_px_y,
+                self.datacube.n_channels,
+            )
+            ragrid = wgrid[:, 0].reshape(grid_shape)
+            decgrid = wgrid[:, 1].reshape(grid_shape)
+            chgrid = wgrid[:, 2].reshape(grid_shape)
             f["RA"] = ragrid
             f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
             f["Dec"] = decgrid
             f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
+            # pixel vertex coordinates (for e.g. pyplot.pcolormesh):
+            xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
+                np.arange(self._datacube._array.shape[0] + 1) - 0.5,
+                np.arange(self._datacube._array.shape[1] + 1) - 0.5,
+                np.arange(self._datacube._array.shape[2] + 1) - 0.5,
+                indexing="ij",
+            )
+            cgrid_vertices = (
+                np.vstack(
+                    (
+                        xgrid_vertices.flatten(),
+                        ygrid_vertices.flatten(),
+                        vgrid_vertices.flatten(),
+                        np.zeros(vgrid_vertices.shape).flatten(),
+                    )
+                ).T
+                if self._datacube.stokes_axis
+                else np.vstack(
+                    (
+                        xgrid_vertices.flatten(),
+                        ygrid_vertices.flatten(),
+                        vgrid_vertices.flatten(),
+                    )
+                ).T
+            )
+            wgrid_vertices = self._datacube.wcs.all_pix2world(cgrid_vertices, origin)
+            vertices_grid_shape = (
+                self.datacube.n_px_x + 1,
+                self.datacube.n_px_y + 1,
+                self.datacube.n_channels + 1,
+            )
+            ragrid_vertices = wgrid_vertices[:, 0].reshape(vertices_grid_shape)
+            decgrid_vertices = wgrid_vertices[:, 1].reshape(vertices_grid_shape)
+            chgrid_vertices = wgrid_vertices[:, 2].reshape(vertices_grid_shape)
+            f["RA_vertices"] = ragrid_vertices
+            f["RA_vertices"].attrs["Unit"] = wcs_header["CUNIT1"]
+            f["Dec_vertices"] = decgrid_vertices
+            f["Dec_vertices"].attrs["Unit"] = wcs_header["CUNIT2"]
+            f["channel_vertices"] = chgrid_vertices
+            f["channel_vertices"].attrs["Unit"] = wcs_header["CUNIT3"]
+            # channels:
             f["channel_mids"] = chgrid
             f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
             for dataset_name in (
