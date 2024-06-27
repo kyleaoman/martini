@@ -1208,7 +1208,7 @@ class Martini(_BaseMartini):
         c = f["FluxCube"]
         origin = 0  # index from 0 like numpy, not from 1
         if not compact:
-            # pixel centre coordinates:
+            # voxel centre coordinates:
             xgrid, ygrid, vgrid = np.meshgrid(
                 np.arange(self._datacube._array.shape[0]),
                 np.arange(self._datacube._array.shape[1]),
@@ -1246,7 +1246,9 @@ class Martini(_BaseMartini):
             f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
             f["Dec"] = decgrid
             f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
-            # pixel vertex coordinates (for e.g. pyplot.pcolormesh):
+            f["channel_mids"] = chgrid
+            f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
+            # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
             xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
                 np.arange(self._datacube._array.shape[0] + 1) - 0.5,
                 np.arange(self._datacube._array.shape[1] + 1) - 0.5,
@@ -1287,8 +1289,6 @@ class Martini(_BaseMartini):
             f["channel_vertices"] = chgrid_vertices
             f["channel_vertices"].attrs["Unit"] = wcs_header["CUNIT3"]
             # channels:
-            f["channel_mids"] = chgrid
-            f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
             for dataset_name in (
                 "velocity_channel_mids",
                 "velocity_channel_edges",
