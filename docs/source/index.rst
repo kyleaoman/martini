@@ -26,6 +26,7 @@ Overview
    spectral_models/index
    martini/index
    global_profile/index
+   hdf5_output_tips/index
    modules/index
 
 Citing Martini

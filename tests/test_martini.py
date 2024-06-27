@@ -27,13 +27,17 @@ except ImportError:
 else:
     have_matplotlib = True
 
+try:
+    import h5py
+except ImportError:
+    have_h5py = False
+else:
+    have_h5py = True
+
 
 def check_mass_accuracy(m, out_mode):
-    if out_mode == "hdf5":
-        try:
-            import h5py
-        except ImportError:
-            pytest.skip()
+    if out_mode == "hdf5" and not have_h5py:
+        pytest.skip()
 
     # flux in channels
     F = (m.datacube._array * m.datacube.px_size**2).sum((0, 1)).squeeze()  # Jy
@@ -566,6 +570,83 @@ class TestMartini:
                 sph_kernel=DiracDeltaKernel(),
                 spectral_model=DiracDeltaSpectrum(),
             )
+
+    @pytest.mark.skipif(
+        not have_h5py, reason="h5py (optional dependency) not available."
+    )
+    def test_hdf5_grids(self, m):
+        origin = 0  # numpy-like, not fits-like, indexing
+        filename = "cube.hdf5"
+        try:
+            m.write_hdf5(filename)
+            with h5py.File(filename, "r") as f:
+                voxel_coords = np.vstack(
+                    (
+                        (
+                            f["RA"][()].flatten()
+                            * U.Unit(f["RA"].attrs["Unit"], format="fits")
+                        ).to_value(m.datacube.wcs.wcs.cunit[0]),
+                        (
+                            f["Dec"][()].flatten()
+                            * U.Unit(f["Dec"].attrs["Unit"], format="fits")
+                        ).to_value(m.datacube.wcs.wcs.cunit[1]),
+                        (
+                            f["channel_mids"][()].flatten()
+                            * U.Unit(f["channel_mids"].attrs["Unit"], format="fits")
+                        ).to_value(m.datacube.wcs.wcs.cunit[2]),
+                    )
+                ).T
+                ra_idx, dec_idx, spec_idx = m.datacube.wcs.all_world2pix(
+                    voxel_coords, origin
+                ).T
+                ra_idx = ra_idx.reshape((m.datacube._array.shape))
+                dec_idx = dec_idx.reshape((m.datacube._array.shape))
+                spec_idx = spec_idx.reshape((m.datacube._array.shape))
+                expected_idx = np.meshgrid(
+                    np.arange(m.datacube.n_px_x),
+                    np.arange(m.datacube.n_px_y),
+                    np.arange(m.datacube.n_channels),
+                    indexing="ij",
+                )
+                assert np.allclose(ra_idx, expected_idx[0])
+                assert np.allclose(dec_idx, expected_idx[1])
+                assert np.allclose(spec_idx, expected_idx[2])
+                vertex_coords = np.vstack(
+                    (
+                        (
+                            f["RA_vertices"][()].flatten()
+                            * U.Unit(f["RA_vertices"].attrs["Unit"], format="fits")
+                        ).to_value(m.datacube.wcs.wcs.cunit[0]),
+                        (
+                            f["Dec_vertices"][()].flatten()
+                            * U.Unit(f["Dec_vertices"].attrs["Unit"], format="fits")
+                        ).to_value(m.datacube.wcs.wcs.cunit[1]),
+                        (
+                            f["channel_vertices"][()].flatten()
+                            * U.Unit(f["channel_vertices"].attrs["Unit"], format="fits")
+                        ).to_value(m.datacube.wcs.wcs.cunit[2]),
+                    )
+                ).T
+                ra_vx_idx, dec_vx_idx, spec_vx_idx = m.datacube.wcs.all_world2pix(
+                    vertex_coords, origin
+                ).T
+                shape = [s + 1 for s in m.datacube._array.shape]
+                ra_vx_idx = ra_vx_idx.reshape(shape)
+                dec_vx_idx = dec_vx_idx.reshape(shape)
+                spec_vx_idx = spec_vx_idx.reshape(shape)
+                expected_vx_idx = np.meshgrid(
+                    np.arange(m.datacube.n_px_x + 1) - 0.5,
+                    np.arange(m.datacube.n_px_y + 1) - 0.5,
+                    np.arange(m.datacube.n_channels + 1) - 0.5,
+                    indexing="ij",
+                )
+                assert np.allclose(ra_vx_idx, expected_vx_idx[0])
+                assert np.allclose(dec_vx_idx, expected_vx_idx[1])
+                assert np.allclose(spec_vx_idx, expected_vx_idx[2])
+
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
 
 
 @pytest.mark.skipif(
