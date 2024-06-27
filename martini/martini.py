@@ -1213,6 +1213,7 @@ class Martini(_BaseMartini):
                 np.arange(self._datacube._array.shape[0]),
                 np.arange(self._datacube._array.shape[1]),
                 np.arange(self._datacube._array.shape[2]),
+                indexing="ij",
             )
             cgrid = (
                 np.vstack(
