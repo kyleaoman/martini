@@ -2,6 +2,7 @@ import numpy as np
 from astropy import units as U
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
+import gizmo_analysis as gizmo
 
 
 class FIRESource(SPHSource):
@@ -71,6 +72,7 @@ class FIRESource(SPHSource):
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
     ):
+        gizmo
         particles = dict()
         super().__init__(
             **particles,
