@@ -104,6 +104,12 @@ MARTINI offers an option to output mock observation data cubes in `HDF5`_ format
         sp.set_xlabel(f"RA [{ra_unit}]")
         sp.set_ylabel(f"Dec [{dec_unit}]")
         sp.set_xlim(sp.get_xlim()[::-1])
+
     plt.subplots_adjust(wspace=0.3)
     plt.show()
     
+This produces the figure:
+
+.. image:: demo_mom_maps.png
+    :width: 800
+    :alt: 0th moment (surface density map), 1st moment (velocity map) and 2nd moment (velocity dispersion map) of the demo data cube.
