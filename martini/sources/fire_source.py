@@ -1,5 +1,5 @@
 import numpy as np
-from astropy import units as U
+from astropy import units as U, constants as C
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 import gizmo_analysis as gizmo
@@ -8,6 +8,12 @@ import gizmo_analysis as gizmo
 class FIRESource(SPHSource):
     """
     Class abstracting HI sources designed to work with FIRE simulations.
+
+    gizmo_analysis asks for:
+
+    If you use this package in work that you publish, please cite it, along the lines
+    of: 'This work used GizmoAnalysis (http://ascl.net/2002.015), which first was used
+    in Wetzel et al 2016 (https://ui.adsabs.harvard.edu/abs/2016ApJ...827L..23W).'
 
     Parameters
     ----------
@@ -65,15 +71,78 @@ class FIRESource(SPHSource):
 
     def __init__(
         self,
+        simulation_directory=".",
+        snapshot=("redshift", 0),
+        host_number=1,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
+        assign_hosts="mass",
+        snapshot_directory=None,
+        particle_subsample_factor=None,
+        convert_float32=False,
     ):
-        gizmo
-        particles = dict()
+        gizmo_read_kwargs = dict(
+            species=["gas", "star"],
+            properties=[
+                "position",
+                "velocity",
+                "temperature",
+                "size",
+                "density",
+                "mass",
+                "potential",
+                "massfraction.metals.hydrogen",
+                "hydrogen.neutral.fraction",
+            ],
+            simulation_directory=simulation_directory,
+            snapshot_value_kind=snapshot[0],
+            snapshot_values=snapshot[1],
+            assign_hosts=assign_hosts,
+            host_number=host_number,
+            particle_subsample_factor=particle_subsample_factor,
+            convert_float32=convert_float32,
+        )
+        if snapshot_directory is not None:
+            gizmo_read_kwargs["snapshot_directory"] = snapshot_directory
+        # seems like there is no way to make gizmo.io be quiet,
+        # gizmo.io.ReadClass(verbose=False) is not respected
+        gizmo_snap = gizmo.io.Read.read_snapshots(
+            **gizmo_read_kwargs,
+        )
+        particles = dict(
+            xyz_g=(
+                gizmo_snap["gas"]["position"]
+                - gizmo_snap.host["position"][host_number - 1]
+            )
+            * gizmo_snap.snapshot["scalefactor"]
+            * U.kpc,
+            vxyz_g=(
+                gizmo_snap["gas"]["velocity"]
+                - gizmo_snap.host["velocity"][host_number - 1]
+            )
+            * U.km
+            * U.s**-1,
+            T_g=gizmo_snap["gas"]["temperature"] * U.K,
+            # see doi:10.1093/mnras/sty1241 Appendix B for molecular partition:
+            mHI_g=np.where(
+                np.logical_and(
+                    gizmo_snap["gas"]["temperature"] * U.K < 300 * U.K,
+                    gizmo_snap["gas"]["density"]
+                    / gizmo_snap.snapshot["scalefactor"] ** 3  # comoving, I think?
+                    * U.Msun
+                    * U.kpc**-3
+                    > C.m_p * 10 * U.cm**-3,
+                ),
+                0,
+                gizmo_snap["gas"].prop("mass.hydrogen.neutral"),
+            )
+            * U.Msun,
+            hsm_g=gizmo_snap["gas"]["size"] * U.kpc,  # what is hsm definition?
+        )
         super().__init__(
             **particles,
             distance=distance,
@@ -81,6 +150,7 @@ class FIRESource(SPHSource):
             rotation=rotation,
             ra=ra,
             dec=dec,
+            h=gizmo_snap.info["hubble"],
             coordinate_frame=coordinate_frame,
         )
         return
