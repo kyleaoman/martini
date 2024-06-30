@@ -68,7 +68,7 @@ It often makes sense to place the source centre (defined by its RA, Dec and syst
 	vxyz_g=...,
 	hsm_g=...,
     )
-    # the source defines a property called vsys
+    # the source provides an attribute called vsys
     # defined as h * 100km/s * distance + vpeculiar
     datacube = DataCube(
         n_px_x=256,

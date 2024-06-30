@@ -45,7 +45,7 @@ class SimbaSource(SPHSource):
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
-        Source peculiar velocity, added to the velocity from Hubble's law.
+        Source peculiar velocity along the direction to the source centre.
         (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
