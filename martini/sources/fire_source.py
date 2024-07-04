@@ -7,16 +7,48 @@ import gizmo_analysis as gizmo
 
 class FIRESource(SPHSource):
     """
-    Class abstracting HI sources designed to work with FIRE simulations.
+    Class abstracting HI sources designed to work with publicly available FIRE
+    snapshot and group data.
 
-    gizmo_analysis asks for:
+    For file access, see https://flathub.flatironinstitute.org/fire
 
-    If you use this package in work that you publish, please cite it, along the lines
-    of: 'This work used GizmoAnalysis (http://ascl.net/2002.015), which first was used
-    in Wetzel et al 2016 (https://ui.adsabs.harvard.edu/abs/2016ApJ...827L..23W).'
+    The authors of the :mod:`gizmo_analysis` package request the folowing: "If you use
+    this package in work that you publish, please cite it, along the lines of: 'This work
+    used GizmoAnalysis (http://ascl.net/2002.015), which first was used in Wetzel et al.
+    2016 (https://ui.adsabs.harvard.edu/abs/2016ApJ...827L..23W).'"
 
     Parameters
     ----------
+    simulation_directory : str, optional
+        Base directory containing FIRE simulation output. (Default: ``"."``)
+
+    snapshot_directory : str, optional
+        Directory within ``simulation_directory`` containing snapshots. If ``None``,
+        the default defined by :mod:`gizmo_analysis` is assumed (Default: ``None``)
+
+    snapshot : tuple, optional
+        A 2-tuple specifying the snapshot. The first element is the type of identifier,
+        a string chosen from ``"index"``, ``"redshift"`` or ``"scalefactor"``. The
+        second element is the desired value of the identifier. For example setting
+        ``snapshot=("scalefactor", 0.2)`` will select the closest snapshot to
+        :math:`a=0.2`. (Default: ``("redshift", 0)``)
+
+    host_number : int, optional
+        Galaxy ("host") position in the catalogue, indexed from 1. (Default: ``1``)
+
+    assign_hosts : str, optional
+        Method to compute galaxy centres. Iterative zoom-in based methods are
+        recommended, options include ``"mass"`` (mass-weighted), ``"potential"``
+        (potential-weighted) and ``"massfraction.metals"`` (metallicity-weighted).
+        Other options are ``"track"`` (time-interpolated position) and ``"halo"``
+        (from Rockstar halo catalogue). Setting ``True`` will attempt to find a
+        sensible default by first trying ``"track"`` then ``"mass"``.
+        (Default: ``"mass"``)
+
+    convert_float32 : bool, optional
+        If ``True``, convert floating point values to 32 bit precision to reduce
+        memory usage. (Default: ``False``)
+
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
@@ -72,18 +104,17 @@ class FIRESource(SPHSource):
     def __init__(
         self,
         simulation_directory=".",
+        snapshot_directory=None,
         snapshot=("redshift", 0),
         host_number=1,
+        assign_hosts="mass",
+        convert_float32=False,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"rotmat": np.eye(3)},
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
-        assign_hosts="mass",
-        snapshot_directory=None,
-        particle_subsample_factor=None,
-        convert_float32=False,
     ):
         gizmo_read_kwargs = dict(
             species=["gas", "star"],
@@ -103,7 +134,6 @@ class FIRESource(SPHSource):
             snapshot_values=snapshot[1],
             assign_hosts=assign_hosts,
             host_number=host_number,
-            particle_subsample_factor=particle_subsample_factor,
             convert_float32=convert_float32,
         )
         if snapshot_directory is not None:
