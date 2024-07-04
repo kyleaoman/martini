@@ -43,7 +43,7 @@ class _BaseBeam(object):
 
     See Also
     --------
-    ~martini.beams.GaussianBeam
+    martini.beams.GaussianBeam
     """
 
     __metaclass__ = ABCMeta

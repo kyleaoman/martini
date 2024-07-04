@@ -13,6 +13,11 @@ def demo_source(N=500):
     """
     Create a simple toy model of a galaxy.
 
+    Parameters
+    ----------
+    N : int
+        Number of particles to generate in source.
+
     Returns
     -------
     out : martini.source.SPHSource

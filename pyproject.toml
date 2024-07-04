@@ -47,3 +47,8 @@ colibresource = [
     "swiftgalaxy",
     "velociraptor",
 ]
+
+[tool.numpydoc_validation]
+checks = [
+       "PR01",
+]

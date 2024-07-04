@@ -15,7 +15,7 @@ class _BaseNoise(object):
 
     See Also
     --------
-    ~martini.noise.GaussianNoise
+    martini.noise.GaussianNoise
     """
 
     __metaclass__ = ABCMeta

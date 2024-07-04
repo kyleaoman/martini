@@ -41,8 +41,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     See Also
     --------
-    ~martini.spectral_models.GaussianSpectrum
-    ~martini.spectral_models.DiracDeltaSpectrum
+    martini.spectral_models.GaussianSpectrum
+    martini.spectral_models.DiracDeltaSpectrum
     """
 
     def __init__(self, ncpu=None, spec_dtype=np.float64):
@@ -221,7 +221,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         See Also
         --------
-        ~martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data
+        martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data
         """
 
         pass
@@ -250,7 +250,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         See Also
         --------
-        ~martini.spectral_models.GaussianSpectrum.init_spectral_function_extra_data
+        martini.spectral_models.GaussianSpectrum.init_spectral_function_extra_data
         """
         if self.spectral_function_extra_data is None:
             self.spectral_function_extra_data = dict()
@@ -295,8 +295,8 @@ class GaussianSpectrum(_BaseSpectrum):
 
     See Also
     --------
-    ~martini.spectral_models._BaseSpectrum
-    ~martini.spectral_models.DiracDeltaSpectrum
+    martini.spectral_models._BaseSpectrum
+    martini.spectral_models.DiracDeltaSpectrum
     """
 
     def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64):

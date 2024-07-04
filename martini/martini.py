@@ -76,13 +76,13 @@ class _BaseMartini:
 
     See Also
     --------
-    ~martini.sources.sph_source.SPHSource
-    ~martini.datacube.DataCube
+    martini.sources.sph_source.SPHSource
+    martini.datacube.DataCube
     martini.beams
     martini.noise
     martini.sph_kernels
     martini.spectral_models
-    ~martini.martini.GlobalProfile
+    martini.martini.GlobalProfile
     """
 
     def __init__(
@@ -698,13 +698,13 @@ class Martini(_BaseMartini):
 
     See Also
     --------
-    ~martini.sources.sph_source.SPHSource
-    ~martini.datacube.DataCube
+    martini.sources.sph_source.SPHSource
+    martini.datacube.DataCube
     martini.beams
     martini.noise
     martini.sph_kernels
     martini.spectral_models
-    ~martini.martini.GlobalProfile
+    martini.martini.GlobalProfile
 
     Examples
     --------
@@ -1495,9 +1495,9 @@ class GlobalProfile(_BaseMartini):
 
     See Also
     --------
-    ~martini.sources.sph_source.SPHSource
+    martini.sources.sph_source.SPHSource
     martini.spectral_models
-    ~martini.martini.Martini
+    martini.martini.Martini
     """
 
     def __init__(
@@ -1621,11 +1621,11 @@ class GlobalProfile(_BaseMartini):
 
         See Also
         --------
-        ~martini.martini.GlobalProfile.channel_mids
-        ~martini.martini.GlobalProfile.velocity_channel_mids
-        ~martini.martini.GlobalProfile.velocity_channel_edges
-        ~martini.martini.GlobalProfile.frequency_channel_mids
-        ~martini.martini.GlobalProfile.frequency_channel_edges
+        martini.martini.GlobalProfile.channel_mids
+        martini.martini.GlobalProfile.velocity_channel_mids
+        martini.martini.GlobalProfile.velocity_channel_edges
+        martini.martini.GlobalProfile.frequency_channel_mids
+        martini.martini.GlobalProfile.frequency_channel_edges
         """
         return self._datacube.channel_edges
 
@@ -1643,11 +1643,11 @@ class GlobalProfile(_BaseMartini):
 
         See Also
         --------
-        ~martini.martini.GlobalProfile.channel_edges
-        ~martini.martini.GlobalProfile.velocity_channel_mids
-        ~martini.martini.GlobalProfile.velocity_channel_edges
-        ~martini.martini.GlobalProfile.frequency_channel_mids
-        ~martini.martini.GlobalProfile.frequency_channel_edges
+        martini.martini.GlobalProfile.channel_edges
+        martini.martini.GlobalProfile.velocity_channel_mids
+        martini.martini.GlobalProfile.velocity_channel_edges
+        martini.martini.GlobalProfile.frequency_channel_mids
+        martini.martini.GlobalProfile.frequency_channel_edges
         """
         return self._datacube.channel_mids
 
@@ -1664,9 +1664,9 @@ class GlobalProfile(_BaseMartini):
 
         See Also
         --------
-        ~martini.martini.GlobalProfile.velocity_channel_mids
-        ~martini.martini.GlobalProfile.velocity_channel_edges
-        ~martini.martini.GlobalProfile.frequency_channel_mids
+        martini.martini.GlobalProfile.velocity_channel_mids
+        martini.martini.GlobalProfile.velocity_channel_edges
+        martini.martini.GlobalProfile.frequency_channel_mids
         """
         return self._datacube.channel_edges
 
@@ -1683,9 +1683,9 @@ class GlobalProfile(_BaseMartini):
 
         See Also
         --------
-        ~martini.martini.GlobalProfile.velocity_channel_mids
-        ~martini.martini.GlobalProfile.velocity_channel_edges
-        ~martini.martini.GlobalProfile.frequency_channel_edges
+        martini.martini.GlobalProfile.velocity_channel_mids
+        martini.martini.GlobalProfile.velocity_channel_edges
+        martini.martini.GlobalProfile.frequency_channel_edges
         """
         return self._datacube.channel_mids
 
@@ -1702,9 +1702,9 @@ class GlobalProfile(_BaseMartini):
 
         See Also
         --------
-        ~martini.martini.GlobalProfile.velocity_channel_mids
-        ~martini.martini.GlobalProfile.frequency_channel_mids
-        ~martini.martini.GlobalProfile.frequency_channel_edges
+        martini.martini.GlobalProfile.velocity_channel_mids
+        martini.martini.GlobalProfile.frequency_channel_mids
+        martini.martini.GlobalProfile.frequency_channel_edges
         """
         return self._datacube.channel_edges
 
@@ -1721,9 +1721,9 @@ class GlobalProfile(_BaseMartini):
 
         See Also
         --------
-        ~martini.martini.GlobalProfile.velocity_channel_edges
-        ~martini.martini.GlobalProfile.frequency_channel_mids
-        ~martini.martini.GlobalProfile.frequency_channel_edges
+        martini.martini.GlobalProfile.velocity_channel_edges
+        martini.martini.GlobalProfile.frequency_channel_mids
+        martini.martini.GlobalProfile.frequency_channel_edges
         """
         return self._datacube.channel_mids
 

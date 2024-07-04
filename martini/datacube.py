@@ -87,8 +87,8 @@ class DataCube(object):
 
     See Also
     --------
-    ~martini.datacube.DataCube.load_state
-    ~martini.datacube.DataCube.from_wcs
+    martini.datacube.DataCube.load_state
+    martini.datacube.DataCube.from_wcs
 
     Notes
     -----
@@ -212,7 +212,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube
+        martini.datacube.DataCube
 
         Notes
         -----
@@ -614,7 +614,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.drop_pad
+        martini.datacube.DataCube.drop_pad
         """
 
         if self.padx > 0 or self.pady > 0:
@@ -644,7 +644,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.add_pad
+        martini.datacube.DataCube.add_pad
         """
 
         if (self.padx == 0) and (self.pady == 0):
@@ -705,7 +705,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.load_state
+        martini.datacube.DataCube.load_state
         """
         import h5py
 
@@ -763,7 +763,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.save_state
+        martini.datacube.DataCube.save_state
         """
         import h5py
 
