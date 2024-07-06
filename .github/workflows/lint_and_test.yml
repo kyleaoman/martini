@@ -38,6 +38,10 @@ jobs:
           pip install -e .
       - name: Run stubtest
         run: ./run_stubtest
+      - name: Install numpydoc
+        run: pip install numpydoc
+      - name: Run docstring validation
+        run: ./run_validate_docstrings
       
   tests:
     needs: lint
