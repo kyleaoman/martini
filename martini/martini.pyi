@@ -29,8 +29,8 @@ class _BaseMartini:
         noise: T.Optional[_BaseNoise] = ...,
         sph_kernel: T.Optional[_BaseSPHKernel] = ...,
         spectral_model: T.Optional[_BaseSpectrum] = ...,
-        _prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
         quiet: T.Optional[bool] = ...,
+        _prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
     ) -> None: ...
     def _prune_particles(
         self, spatial: bool = ..., spectral: bool = ..., obj_type_str: str = ...
