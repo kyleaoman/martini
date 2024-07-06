@@ -79,5 +79,5 @@ exclude = [
        '\.__init__$',
        '__init__',
        '__version__',
-       '_illustris_tools'
+       '_illustris_tools',
 ]
