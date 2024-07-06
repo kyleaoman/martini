@@ -1,10 +1,10 @@
-from astropy.coordinates import CartesianRepresentation, CartesianDifferential
-
 """
 Functions which can be used to extend the
 :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation` and
 :class:`~astropy.coordinates.representation.cartesian.CartesianDifferential` classes from
-:mod:`astropy.coordinates`. These should be imported, then use:
+:mod:`astropy.coordinates`.
+
+These should be imported, then use:
 
 .. code-block:: python
 
@@ -15,13 +15,14 @@ Functions which can be used to extend the
     # translation
     setattr(CartesianDifferential, 'translate', translate_d)
 
+Copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
+commit-id 81e08768bcf3f910d86757c07b44632f393f29aa
+Note: No git-based solution (e.g. via submodules) seems practical to include
+selected files from external repositories; a direct copy is included here
+to produce a self-contained package.
 """
 
-# copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
-# commit-id 81e08768bcf3f910d86757c07b44632f393f29aa
-# Note: No git-based solution (e.g. via submodules) seems practical to include
-# selected files from external repositories; a direct copy is included here
-# to produce a self-contained package.
+from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 
 
 def translate(cls, translation_vector):
@@ -30,9 +31,6 @@ def translate(cls, translation_vector):
 
     Parameters
     ----------
-    cls : ~astropy.coordinates.representation.cartesian.CartesianRepresentation
-        Equivalent to the ``self`` argument for methods.
-
     translation_vector : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         3-vector by which to translate.
@@ -57,9 +55,6 @@ def translate_d(cls, translation_vector):
 
     Parameters
     ----------
-    cls : ~astropy.coordinates.representation.cartesian.CartesianDifferential
-        Equivalent to the ``self`` argument for methods.
-
     translation_vector : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity` with dimensions of velocity (or other
         differential) 3-vector by which to translate.

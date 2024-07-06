@@ -1,3 +1,7 @@
+"""
+Provides classes to generate noise for data cubes.
+"""
+
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
@@ -58,7 +62,6 @@ class _BaseNoise(object):
             :class:`~astropy.units.Quantity`, with dimensions of flux density.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
-
         """
         pass
 

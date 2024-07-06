@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.so_source.SOSource` class for working with the
+:mod:`simobj` interface to simulations.
+"""
+
 import numpy as np
 import astropy.units as U
 from astropy.coordinates import ICRS

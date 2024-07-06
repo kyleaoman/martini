@@ -1,3 +1,7 @@
+"""
+Provides classes to represent the beam of a radio telescope.
+"""
+
 from abc import ABCMeta, abstractmethod
 import scipy.interpolate
 import numpy as np
@@ -232,6 +236,14 @@ class GaussianBeam(_BaseBeam):
         """
 
         def fwhm_to_sigma(fwhm):
+            """
+            Convert full-width at half-maximum to Gaussian sigma.
+
+            Parameters
+            ----------
+            fwhm : ~astropy.units.Quantity
+                Full-width at half-maximum.
+            """
             return fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
 
         sigmamaj = fwhm_to_sigma(self.bmaj)  # arcsec

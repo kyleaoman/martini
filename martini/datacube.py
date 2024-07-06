@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.datacube.DataCube` class for creating a data cube for a mock
+observation.
+"""
+
 import numpy as np
 import astropy.units as U
 from astropy import wcs
@@ -109,7 +114,6 @@ class DataCube(object):
     velocity. The ``spectral_centre`` is related and can also have units
     of frequency or velocity, but will be converted to have the same units
     as the ``channel_width`` in order to define the channels.
-
     """
 
     def __init__(
@@ -172,6 +176,9 @@ class DataCube(object):
         return
 
     def velocity_channels(self):
+        """
+        Deprecated - issues a warning then does nothing.
+        """
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -183,6 +190,9 @@ class DataCube(object):
         pass
 
     def freq_channels(self):
+        """
+        Deprecated - issues a warning then does nothing.
+        """
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -250,7 +260,6 @@ class DataCube(object):
                 fits_hdr = fitsfile[0].header  # header of the main HDU
             fits_wcs = wcs.WCS(fits_hdr)
             datacube = DataCube.from_wcs(fits_wcs)
-
         """
 
         init_args = dict(

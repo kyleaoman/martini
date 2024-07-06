@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.tng_source.TNGSource` class for working with
+IllustrisTNG simulations as input.
+"""
+
 import io
 import os
 import numpy as np

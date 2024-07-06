@@ -1,3 +1,9 @@
+"""
+Provides :class:`~martini.martini.Martini`, the main class of the package, and a
+simplified :class:`~martini.martini.GlobalProfile` class for use when only a spectrum (no
+spatial information) is desired.
+"""
+
 import warnings
 import subprocess
 import os
@@ -269,10 +275,10 @@ class _BaseMartini:
 
         Parameters
         ----------
-        insertion_slice : integer, tuple or slice
+        insertion_slice : int, tuple or slice
             Index into the datacube's _array specifying the insertion location.
 
-        insertion_data : array-like
+        insertion_data : ~numpy.typing.ArrayLike
             1D array containing the spectrum at the location specified by insertion_slice.
         """
         self._datacube._array[insertion_slice] = insertion_data
@@ -865,7 +871,6 @@ class Martini(_BaseMartini):
             Number of processes to use in main source insertion loop. Using more than
             one cpu requires the :mod:`multiprocess` module (n.b. not the same as
             ``multiprocessing``). (Default: ``1``)
-
         """
 
         super()._insert_source_in_cube(
@@ -1184,7 +1189,6 @@ class Martini(_BaseMartini):
         channels : str, deprecated
             Deprecated, channels and their units now fixed at
             :class:`~martini.datacube.DataCube` initialization.
-
         """
 
         if channels is not None:
@@ -1430,6 +1434,12 @@ class GlobalProfile(_BaseMartini):
         Deprecated, channels and their units now fixed at
         :class:`~martini.datacube.DataCube` initialization.
 
+    See Also
+    --------
+    martini.sources.sph_source.SPHSource
+    martini.spectral_models
+    martini.martini.Martini
+
     Examples
     --------
     ::
@@ -1496,12 +1506,6 @@ class GlobalProfile(_BaseMartini):
 
         # the spectrum can be explicitly evaluated with:
         M.insert_source_in_spectrum()
-
-    See Also
-    --------
-    martini.sources.sph_source.SPHSource
-    martini.spectral_models
-    martini.martini.Martini
     """
 
     def __init__(

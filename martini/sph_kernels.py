@@ -1,3 +1,7 @@
+"""
+Provides classes to represent SPH kernels for smoothing particles onto the pixel grid.
+"""
+
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
@@ -309,7 +313,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
     across the pixel, which converges to within 1% of the exact integral
     provided the SPH smoothing lengths are at least 1.51 pixels in size.
 
-    The WendlandC2 kernel is here defined as:
+    The expression:
 
     .. math::
         W(q) = \\begin{cases}
@@ -318,6 +322,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         0 &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
+    defines the WendlandC2 kernel.
     """
 
     min_valid_size = 1.51
@@ -443,7 +448,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
     across the pixel, which converges to within 1% of the exact integral
     provided the SPH smoothing lengths are at least 1.29 pixels in size.
 
-    The WendlandC6 kernel is here defined as:
+    The expression:
 
     .. math::
         W(q) = \\begin{cases}
@@ -452,6 +457,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         0 &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
+    defines the WendlandC6 kernel.
     """
 
     min_valid_size = 1.29
@@ -523,6 +529,23 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         """
 
         def indef(R, z):
+            """
+            Evaluate expression involved in the integral.
+
+            Parameters
+            ----------
+            R : ~numpy.typing.ArrayLike
+                Dimensionless cylindrical radii.
+
+            z : ~numpy.typing.ArrayLike
+                Dimensionless vertical coordinates.
+
+            Returns
+            -------
+            out : ~numpy.typing.ArrayLike
+                Result of the expression.
+            """
+
             return (
                 -231 * np.power(R, 10) * z
                 - 385 * np.power(R, 8) * np.power(z, 3)
@@ -664,7 +687,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
     the exact integral provided the SPH smoothing lengths are at least 1.16
     pixels in size.
 
-    The cubic spline kernel is here defined as:
+    The expression:
 
     .. math ::
         W(q) = \\frac{8}{\\pi}\\begin{cases}
@@ -676,6 +699,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
+    defines the cubic spline kernel.
     """
 
     min_valid_size = 1.16
@@ -1018,7 +1042,6 @@ class DiracDeltaKernel(_BaseSPHKernel):
         be set to approximately the size of the pixel, but setting it to
         the smoothing length (1.0) is acceptable given the validation condition.
         (Default: 1.0)
-
     """
 
     max_valid_size = 0.5
@@ -1141,7 +1164,6 @@ class _AdaptiveKernel(_BaseSPHKernel):
         An iterable containing classes inheriting from
         :class:`~martini.sph_kernels._BaseSPHKernel`.
         Kernels to use, ordered by decreasing priority.
-
     """
 
     def __init__(self, kernels):
@@ -1313,7 +1335,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
     within 1% of the exact integral provided the SPH smoothing lengths are at least 1.2385
     pixels in size.
 
-    The quartic spline kernel is here defined as:
+    The expression:
 
     .. math ::
         W(q) = \\frac{15625}{512\\pi}\\begin{cases}
@@ -1327,6 +1349,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         &{\\rm for}\\;q \\geq 1
         \\end{cases}
 
+    defines the quartic spline kernel.
     """
 
     min_valid_size = 1.2385
@@ -1412,6 +1435,25 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         R = (dr / h).to_value(U.dimensionless_unscaled)
 
         def IA(R, z, A):
+            """
+            Evaluate expression involved in the integral.
+
+            Parameters
+            ----------
+            R : ~numpy.typing.ArrayLike
+                Dimensionless cylindrical radii.
+
+            z : ~numpy.typing.ArrayLike
+                Dimensionless vertical coordinates.
+
+            A : ~numpy.typing.ArrayLike
+                Dimensionless amplitudes.
+
+            Returns
+            -------
+            out : ~numpy.typing.ArrayLike
+                Result of the expression.
+            """
             q = np.sqrt(np.power(z, 2) + np.power(R, 2))
             R2 = np.power(R, 2)
             return (
@@ -1807,10 +1849,26 @@ class QuarticSplineKernel(_AdaptiveKernel):
 
 
 class AdaptiveKernel(object):
+    """
+    Pre-configured adaptive kernels have been implemented in v2.0.3.
+
+    See the SPH Kernels page in the documentation for details. You most likely
+    want to use ``WendlandC2Kernel()``, ``WendlandC6Kernel()``, ``CubicSplineKernel()`` or
+    ``QuarticSplineKernel()`` where you previously used ``AdaptiveKernel(...)``.
+
+    Parameters
+    ----------
+    *args : any
+        Any arguments, this class just raises an exception on attempted use.
+
+    **kwargs : any
+        Any keyword arguemnts; this class just raises an exception on attempted use.
+    """
+
     def __init__(self, *args, **kwargs):
         raise NotImplementedError(
-            "New pre-configured adaptive kernels have been implemented in v2.0.3, see "
-            "the new SPH Kernels page in the documentation for details. You most likely "
+            "Pre-configured adaptive kernels have been implemented in v2.0.3, see "
+            "the SPH Kernels page in the documentation for details. You most likely "
             "want to use WendlandC2Kernel(), WendlandC6Kernel(), CubicSplineKernel() or "
             "QuarticSplineKernel() where you previously used AdaptiveKernel(...)."
         )

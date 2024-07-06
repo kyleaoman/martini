@@ -1,3 +1,7 @@
+"""
+Provides classes for modelling the 21-cm spectral line emitted by a SPH particle.
+"""
+
 import numpy as np
 import astropy.units as U
 from astropy import constants as C
