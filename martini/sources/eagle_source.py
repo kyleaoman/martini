@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.eagle_source.EAGLESource` class for working with
+EAGLE simulations as input.
+"""
+
 import numpy as np
 from .sph_source import SPHSource
 from ..sph_kernels import _WendlandC2Kernel, find_fwhm

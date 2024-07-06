@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.datacube.DataCube` class for creating a data cube for a mock
+observation.
+"""
+
 import numpy as np
 import astropy.units as U
 from astropy import wcs
@@ -12,6 +17,16 @@ _supported_specsys = frame_transform_graph.get_names()
 def _validate_specsys(specsys):
     """
     Check if a specsys is one recognized by astropy.
+
+    Parameters
+    ----------
+    specsys : str
+        A string specifying a specsys to be checked against the list supported by astropy.
+
+    Returns
+    -------
+    out : str
+        The input specsys string.
     """
     if specsys is not None and specsys not in _supported_specsys:
         raise ValueError(f"Supported specsys values are {_supported_specsys}.")
@@ -87,8 +102,8 @@ class DataCube(object):
 
     See Also
     --------
-    ~martini.datacube.DataCube.load_state
-    ~martini.datacube.DataCube.from_wcs
+    martini.datacube.DataCube.load_state
+    martini.datacube.DataCube.from_wcs
 
     Notes
     -----
@@ -99,7 +114,6 @@ class DataCube(object):
     velocity. The ``spectral_centre`` is related and can also have units
     of frequency or velocity, but will be converted to have the same units
     as the ``channel_width`` in order to define the channels.
-
     """
 
     def __init__(
@@ -162,6 +176,9 @@ class DataCube(object):
         return
 
     def velocity_channels(self):
+        """
+        Deprecated - issues a warning then does nothing.
+        """
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -173,6 +190,9 @@ class DataCube(object):
         pass
 
     def freq_channels(self):
+        """
+        Deprecated - issues a warning then does nothing.
+        """
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -212,7 +232,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube
+        martini.datacube.DataCube
 
         Notes
         -----
@@ -240,7 +260,6 @@ class DataCube(object):
                 fits_hdr = fitsfile[0].header  # header of the main HDU
             fits_wcs = wcs.WCS(fits_hdr)
             datacube = DataCube.from_wcs(fits_wcs)
-
         """
 
         init_args = dict(
@@ -614,7 +633,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.drop_pad
+        martini.datacube.DataCube.drop_pad
         """
 
         if self.padx > 0 or self.pady > 0:
@@ -644,7 +663,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.add_pad
+        martini.datacube.DataCube.add_pad
         """
 
         if (self.padx == 0) and (self.pady == 0):
@@ -705,7 +724,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.load_state
+        martini.datacube.DataCube.load_state
         """
         import h5py
 
@@ -763,7 +782,7 @@ class DataCube(object):
 
         See Also
         --------
-        ~martini.datacube.DataCube.save_state
+        martini.datacube.DataCube.save_state
         """
         import h5py
 

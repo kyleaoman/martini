@@ -1,3 +1,7 @@
+"""
+Provides classes to generate noise for data cubes.
+"""
+
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
@@ -13,9 +17,14 @@ class _BaseNoise(object):
     should return an :class:`~astropy.units.Quantity` array with the same shape as the
     datacube array, and units of Jy (or compatible).
 
+    Parameters
+    ----------
+    seed : int, optional
+        The integer to seed the random number generator. (Default: ``None``)
+
     See Also
     --------
-    ~martini.noise.GaussianNoise
+    martini.noise.GaussianNoise
     """
 
     __metaclass__ = ABCMeta
@@ -32,6 +41,27 @@ class _BaseNoise(object):
 
         Any random number generation should use the :attr:`~martini.noise._BaseNoise.rng`
         generator.
+
+        Parameters
+        ----------
+        datacube : ~martini.datacube.DataCube
+            This method will be called passing the :class:`~martini.datacube.DataCube`
+            instance as an argument; its attributes can thus be accessed here.
+            ``datacube._array.shape`` is particularly relevant.
+
+        beam : ~martini.beams._BaseBeam
+            This method will be called passing the object derived from
+            :class:`~martini.beams._BaseBeam` (for example a
+            :class:`~martini.beams.GaussianBeam`) as an argument. Its attributes can thus
+            be accessed here. The beam size is needed to estimate the pre-convolution rms
+            required to obtain the desired post-convolution rms.
+
+        Returns
+        -------
+        out : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of flux density.
+            Noise realization with size matching the
+            :attr:`~martini.datacube.DataCube._array`.
         """
         pass
 

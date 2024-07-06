@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.simba_source.SimbaSource` class for working with
+Simba simulations as input.
+"""
+
 import numpy as np
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm

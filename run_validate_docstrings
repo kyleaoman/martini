@@ -1,0 +1,1 @@
+python -m numpydoc.hooks.validate_docstrings martini**/*.py

@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.colibre_source.ColibreSource` class for working with
+Colibre simulations as input.
+"""
+
 import numpy as np
 from astropy import units as U
 from astropy.coordinates import ICRS
@@ -11,7 +16,7 @@ class ColibreSource(SWIFTGalaxySource):
 
     Parameters
     ----------
-    galaxy: ~swiftgalaxy.reader.SWIFTGalaxy
+    galaxy : ~swiftgalaxy.reader.SWIFTGalaxy
         Instance of a :class:`~swiftgalaxy.reader.SWIFTGalaxy`.
 
     distance : ~astropy.units.Quantity, optional

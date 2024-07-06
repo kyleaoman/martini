@@ -1,11 +1,16 @@
+"""
+Provides the :func:`~martini.sources._L_align.L_align` function to align particles
+according to their angular momentum vector.
+
+Copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
+commit-id 63dc535c5de1a0dc3caf09f98a33c9d09aa0eddc
+Note: No git-based solution (e.g. via submodules) seems practical to include
+selected files from external repositories; a direct copy is included here
+to produce a self-contained package.
+"""
+
 import numpy as np
 import astropy.units as U
-
-# copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
-# commit-id 63dc535c5de1a0dc3caf09f98a33c9d09aa0eddc
-# Note: No git-based solution (e.g. via submodules) seems practical to include
-# selected files from external repositories; a direct copy is included here
-# to produce a self-contained package.
 
 
 def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):

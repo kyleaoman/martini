@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.swiftgalaxy_source.SWIFTGalaxySource` class for
+working with SWIFT simulations as input.
+"""
+
 import numpy as np
 from .sph_source import SPHSource
 from astropy import units as U
@@ -11,7 +16,7 @@ class SWIFTGalaxySource(SPHSource):
 
     Parameters
     ----------
-    galaxy: ~swiftgalaxy.reader.SWIFTGalaxy
+    galaxy : ~swiftgalaxy.reader.SWIFTGalaxy
         Instance of a :class:`~swiftgalaxy.reader.SWIFTGalaxy`.
 
     distance : ~astropy.units.Quantity, optional

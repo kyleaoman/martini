@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.so_source.SOSource` class for working with the
+:mod:`simobj` interface to simulations.
+"""
+
 import numpy as np
 import astropy.units as U
 from astropy.coordinates import ICRS
@@ -77,6 +82,10 @@ class SOSource(SPHSource):
     SO_instance : simobj.simobj.SimObj, optional
         An initialized :class:`simobj.simobj.SimObj` object. Provide ``SO_instance``
         or ``SO_args``, not both.
+
+    rescale_hsm_g : float
+        Factor by which to multiply the smoothing lengths returned by the
+        :class:`simobj.simobj.SimObj` class to obtain FWHM smoothing lenghts.
     """
 
     def __init__(
@@ -89,7 +98,7 @@ class SOSource(SPHSource):
         coordinate_frame=ICRS(),
         SO_args=None,
         SO_instance=None,
-        rescale_hsm_g=1,
+        rescale_hsm_g=1.0,
     ):
         from simobj import SimObj  # optional dependency for this source class
 

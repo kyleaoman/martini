@@ -10,3 +10,4 @@ swiftsimio
 swiftgalaxy
 g3t
 pytest-cov
+numpydoc

@@ -1,3 +1,8 @@
+"""
+Provides the :class:`~martini.sources.magneticum_source.MagneticumSource` class for
+working with Magneticum simulations as input.
+"""
+
 import numpy as np
 import astropy.units as U
 from astropy.coordinates import ICRS
@@ -42,6 +47,12 @@ class MagneticumSource(SPHSource):
     subhaloID : int
         ID of subhalo to use as source.
 
+    rescaleRadius : float
+        Factor by which to multiply the haloRadius to define the aperture
+        within which particles are selected. Useful in conjunction with
+        arguments ``groupFile`` and ``haloID`` or ``subhaloID``: by default the aperture
+        will be the halo virial radius, use this argument to adjust as needed.
+
     xH : float
         Primordial hydrogen fraction. (Default: ``0.76``)
 
@@ -54,12 +65,6 @@ class MagneticumSource(SPHSource):
         should be ``L`` (length), ``M`` (mass), ``V`` (velocity), ``T`` (temperature).
         The values should use :class:`~astropy.units.Quantity`.
         (Default: ``dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K)``)
-
-    rescaleRadius : float
-        Factor by which to multiply the haloRadius to define the aperture
-        within which particles are selected. Useful in conjunction with
-        arguments ``groupFile`` and ``haloID`` or ``subhaloID``: by default the aperture
-        will be the halo virial radius, use this argument to adjust as needed.
 
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
