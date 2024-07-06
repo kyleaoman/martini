@@ -70,9 +70,14 @@ checks = [
        "PR06",
        "PR07",
        "PR08",
-       "PR09",
        "PR10",
        "RT03",
        "RT04",
        "RT05",
+]
+exclude = [
+       '\.__init__$',
+       '__init__',
+       '__version__',
+       '_illustris_tools'
 ]
