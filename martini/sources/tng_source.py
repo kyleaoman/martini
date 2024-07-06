@@ -96,14 +96,14 @@ class TNGSource(SPHSource):
         found using https://www.tng-project.org/data/search/, for instance. The
         "ID" column in the search results on that page is the subID.
 
-    api_key: str, optional
+    api_key : str, optional
         Use of the TNG web API requires an API key: login at
         https://www.tng-project.org/users/login/ or register at
         https://www.tng-project.org/users/register/ then obtain your API
         key from https://www.tng-project.org/users/profile/ and provide as a string. An
         API key is not required if logged into the TNG JupyterLab. (Default: ``None``)
 
-    cutout_dir: str, optional
+    cutout_dir : str, optional
         Ignored if running on the TNG JupyterLab. Directory in which to search for and
         save cutout files (see documentation at
         https://www.tng-project.org/data/docs/api/ for a description of cutouts). Cutout

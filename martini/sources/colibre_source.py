@@ -11,7 +11,7 @@ class ColibreSource(SWIFTGalaxySource):
 
     Parameters
     ----------
-    galaxy: ~swiftgalaxy.reader.SWIFTGalaxy
+    galaxy : ~swiftgalaxy.reader.SWIFTGalaxy
         Instance of a :class:`~swiftgalaxy.reader.SWIFTGalaxy`.
 
     distance : ~astropy.units.Quantity, optional

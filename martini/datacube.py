@@ -12,6 +12,16 @@ _supported_specsys = frame_transform_graph.get_names()
 def _validate_specsys(specsys):
     """
     Check if a specsys is one recognized by astropy.
+
+    Parameters
+    ----------
+    specsys : str
+        A string specifying a specsys to be checked against the list supported by astropy.
+
+    Returns
+    -------
+    out : str
+        The input specsys string.
     """
     if specsys is not None and specsys not in _supported_specsys:
         raise ValueError(f"Supported specsys values are {_supported_specsys}.")

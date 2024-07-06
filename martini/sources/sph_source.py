@@ -110,7 +110,7 @@ class SPHSource(object):
         choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
         ambiguity in the definition.
 
-    coordinate_axis: int, optional
+    coordinate_axis : int, optional
         Rank of axis corresponding to position or velocity of a single
         particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
         Usually prefer to omit this as it can be determined automatically, but is
@@ -397,7 +397,7 @@ class SPHSource(object):
 
         Parameters
         ----------
-        translation_vector : ~astropy.units.Quantity
+        boost_vector : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of
             velocity.
             Vector by which to offset the source particle velocities.

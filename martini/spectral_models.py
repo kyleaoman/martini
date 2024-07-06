@@ -348,7 +348,7 @@ class GaussianSpectrum(_BaseSpectrum):
         source : ~martini.sources.sph_source.SPHSource
             Source object.
 
-        datacube: ~martini.datacube.DataCube
+        datacube : ~martini.datacube.DataCube
             :class:`~martini.datacube.DataCube` object.
 
         mask : slice, optional

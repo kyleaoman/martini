@@ -69,6 +69,9 @@ class _BaseSPHKernel(object):
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
 
+        mask : ~numpy.typing.ArrayLike or slice, optional
+            Boolean mask to apply to any maskable attributes. (Default: ``None``)
+
         Returns
         -------
         out : ~astropy.units.Quantity
@@ -1067,6 +1070,8 @@ class DiracDeltaKernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
+        mask : ~numpy.typing.ArrayLike or slice, optional
+            Boolean mask to apply to any maskable attributes. (Default: ``np.s_[...]``)
 
         Returns
         -------

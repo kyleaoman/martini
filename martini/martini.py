@@ -74,6 +74,10 @@ class _BaseMartini:
     quiet : bool, optional
         If ``True``, suppress output to stdout. (Default: ``False``)
 
+    _prune_kwargs : dict
+        Arguments to pass through to the :meth:`martini.martini.Martini._prune_particles`
+        function, intended for internal use only. (Default: ``dict()``)
+
     See Also
     --------
     martini.sources.sph_source.SPHSource
@@ -93,8 +97,8 @@ class _BaseMartini:
         noise=None,
         sph_kernel=None,
         spectral_model=None,
-        _prune_kwargs=dict(),
         quiet=False,
+        _prune_kwargs=dict(),
     ):
         self.quiet = quiet
         if source is not None:
@@ -216,7 +220,7 @@ class _BaseMartini:
 
         Parameters
         ----------
-        rank_and_ij_pxs : tuple
+        ranks_and_ij_pxs : tuple
             A 2-tuple containing an integer (cpu "rank" in the case of parallel execution)
             and a list of 2-tuples specifying the indices (i, j) of pixels in the grid.
 
@@ -268,7 +272,7 @@ class _BaseMartini:
         insertion_slice : integer, tuple or slice
             Index into the datacube's _array specifying the insertion location.
 
-        insertion data : array-like
+        insertion_data : array-like
             1D array containing the spectrum at the location specified by insertion_slice.
         """
         self._datacube._array[insertion_slice] = insertion_data
@@ -1065,7 +1069,7 @@ class Martini(_BaseMartini):
             Name of the file to write. ``".fits"`` will be appended if not already
             present.
 
-        overwrite: bool, optional
+        overwrite : bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
 
         channels : str, deprecated
@@ -1165,14 +1169,14 @@ class Martini(_BaseMartini):
             Name of the file to write. ``'.hdf5'`` will be appended if not already
             present.
 
-        overwrite: bool, optional
+        overwrite : bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
 
-        memmap: bool, optional
+        memmap : bool, optional
             If ``True``, create a file-like object in memory and return it instead
             of writing file to disk. (Default: ``False``)
 
-        compact: bool, optional
+        compact : bool, optional
             If ``True``, omit pixel coordinate arrays to save disk space. In this
             case pixel coordinates can still be reconstructed from FITS-style
             keywords stored in the FluxCube attributes. (Default: ``False``)
