@@ -532,7 +532,30 @@ class TestSimbaSource:
         raise NotImplementedError
 
 
+@pytest.mark.skipif(
+    not os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy")
+)
+@pytest.mark.skipif(not os.path.isfile("examples/martini-cutout-TNG100-1-99-517.npy"))
 class TestTNGSource:
-    @pytest.mark.xfail
-    def test_stuff(self):
-        raise NotImplementedError
+    def test_tng_notebook(self):
+        pytest.importorskip(
+            "nbmake", reason="nbmake (optional dependency) not available"
+        )
+        from nbmake.nb_run import NotebookRun
+        from nbmake.pytest_items import NotebookFailedException
+        import pathlib
+
+        nbr = NotebookRun(pathlib.Path("examples/martini_TNG.ipynb"), 3600)
+        try:
+            result = nbr.execute()
+            if result.error is not None:
+                raise NotebookFailedException(result)
+        finally:
+            files_to_cleanup = (
+                "examples/tng_martini_demo_beam.fits",
+                "examples/tng_martini_demo.fits",
+                "examples/tng_martini_demo.hdf5",
+            )
+            for file_to_cleanup in files_to_cleanup:
+                if os.path.isfile(file_to_cleanup):
+                    os.remove(file_to_cleanup)
