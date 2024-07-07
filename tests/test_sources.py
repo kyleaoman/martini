@@ -8,6 +8,7 @@ from martini.sources import SPHSource
 from martini.sources._cartesian_translation import translate, translate_d
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
+from martini.__version__ import __version__
 
 
 class TestSourceUtilities:
@@ -496,11 +497,24 @@ class TestSPHSource:
                 os.remove(testfile)
 
 
-@pytest.mark.skipif(
-    not os.path.isdir("examples/RefL0025N0376"),
-    reason="sample data not locally available",
-)
 class TestEagleSource:
+    def test_notebook_version(self):
+        """
+        Check that notebook installs current verison of martini.
+        """
+        with open("examples/martini_eagle.ipynb") as f:
+            nb_content = f.read()
+        assert (
+            '"!{sys.executable} -m pip install \\"astromartini[eaglesource]=='
+            + __version__
+            + '\\""'
+            in nb_content
+        )
+
+    @pytest.mark.skipif(
+        not os.path.isdir("examples/RefL0025N0376"),
+        reason="sample data not locally available",
+    )
     def test_eagle_notebook(self):
         """
         Check that the EAGLE example notebook runs.
@@ -529,15 +543,25 @@ class TestEagleSource:
                     os.remove(file_to_cleanup)
 
 
-@pytest.mark.skipif(
-    not os.path.isfile("examples/m25n512_151.hdf5"),
-    reason="sample data not locally available",
-)
-@pytest.mark.skipif(
-    not os.path.isfile("examples/snap_m25n512_151.hdf5"),
-    reason="sample data not locally available",
-)
 class TestSimbaSource:
+    def test_notebook_version(self):
+        """
+        Check that notebook installs current verison of martini.
+        """
+        with open("examples/martini_simba.ipynb") as f:
+            nb_content = f.read()
+        assert (
+            '"!{sys.executable} -m pip install \\"astromartini[simbasource]=='
+            + __version__
+            + '\\""'
+            in nb_content
+        )
+
+    @pytest.mark.skipif(
+        not os.path.isfile("examples/m25n512_151.hdf5")
+        or not os.path.isfile("examples/snap_m25n512_151.hdf5"),
+        reason="sample data not locally available",
+    )
     def test_simba_notebook(self):
         """
         Check that the Simba example notebook runs.
@@ -565,15 +589,25 @@ class TestSimbaSource:
                     os.remove(file_to_cleanup)
 
 
-@pytest.mark.skipif(
-    not os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy"),
-    reason="sample data not locally available",
-)
-@pytest.mark.skipif(
-    not os.path.isfile("examples/martini-cutout-TNG100-1-99-517.hdf5"),
-    reason="sample data not locally available",
-)
 class TestTNGSource:
+    def test_notebook_version(self):
+        """
+        Check that notebook installs current verison of martini.
+        """
+        with open("examples/martini_TNG.ipynb") as f:
+            nb_content = f.read()
+        assert (
+            '"!{sys.executable} -m pip install \\"astromartini[tngsource]=='
+            + __version__
+            + '\\""'
+            in nb_content
+        )
+
+    @pytest.mark.skipif(
+        not os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy")
+        or not os.path.isfile("examples/martini-cutout-TNG100-1-99-517.hdf5"),
+        reason="sample data not locally available",
+    )
     def test_tng_notebook(self):
         """
         Check that the TNG example notebook runs.
