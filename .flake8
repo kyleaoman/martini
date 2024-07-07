@@ -9,7 +9,3 @@ exclude =
 per-file-ignores = 
     martini/__init__.py:F401
     martini/sources/__init__.py:F401
-    tests/test_martini.py:F401
-    tests/test_datacube.py:F401
-    tests/test_sources.py:F401
-    tests/test_spectral_models.py:F401

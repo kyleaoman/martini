@@ -4,13 +4,6 @@ from martini import DataCube
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from astropy import units as U
 
-try:
-    import multiprocess
-except ImportError:
-    have_multiprocess = False
-else:
-    have_multiprocess = True
-
 spectral_models = GaussianSpectrum, DiracDeltaSpectrum
 
 
@@ -164,15 +157,15 @@ class TestSpectrumPrecision:
         assert spectral_model.spectra.dtype == dtype
 
 
-@pytest.mark.skipif(
-    not have_multiprocess, reason="multiprocess (optional dependency) not available."
-)
 class TestParallelSpectra:
     @pytest.mark.parametrize("SpectralModel", spectral_models)
     def test_parallel_spectra(self, SpectralModel, cross_source):
         """
         Check that spectra calculated in serial and parallel are consistent.
         """
+        pytest.importorskip(
+            "multiprocess", reason="multiprocess (optional dependency) not available."
+        )
         source = cross_source()
         source._init_skycoords()
         spectral_model_serial = SpectralModel()
