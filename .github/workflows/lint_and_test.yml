@@ -73,7 +73,7 @@ jobs:
         pip install -e .
     - name: Test with pytest
       env:
-	TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+        TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
       run: pytest
 
   tests-and-coverage:
