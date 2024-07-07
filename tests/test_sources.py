@@ -533,9 +533,13 @@ class TestSimbaSource:
 
 
 @pytest.mark.skipif(
-    not os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy")
+    not os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy"),
+    reason="sample data not locally available",
 )
-@pytest.mark.skipif(not os.path.isfile("examples/martini-cutout-TNG100-1-99-517.npy"))
+@pytest.mark.skipif(
+    not os.path.isfile("examples/martini-cutout-TNG100-1-99-517.hdf5"),
+    reason="sample data not locally available",
+)
 class TestTNGSource:
     def test_tng_notebook(self):
         pytest.importorskip(
