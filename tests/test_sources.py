@@ -500,7 +500,6 @@ class TestSPHSource:
     not os.path.isdir("examples/RefL0025N0376"),
     reason="sample data not locally available",
 )
-@pytest.mark.skip  # until we figure out how to deal with db password
 class TestEagleSource:
     def test_eagle_notebook(self):
         """
@@ -513,6 +512,7 @@ class TestEagleSource:
         from nbmake.pytest_items import NotebookFailedException
         import pathlib
 
+        assert os.path.isfile("examples/eagle_db.password")
         nbr = NotebookRun(pathlib.Path("examples/martini_eagle.ipynb"), 3600)
         try:
             result = nbr.execute()
