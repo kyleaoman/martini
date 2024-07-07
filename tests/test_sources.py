@@ -603,11 +603,6 @@ class TestTNGSource:
             in nb_content
         )
 
-    @pytest.mark.skipif(
-        not os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy")
-        or not os.path.isfile("examples/martini-cutout-TNG100-1-99-517.hdf5"),
-        reason="sample data not locally available",
-    )
     def test_tng_notebook(self):
         """
         Check that the TNG example notebook runs.
@@ -619,6 +614,13 @@ class TestTNGSource:
         from nbmake.pytest_items import NotebookFailedException
         import pathlib
 
+        assert "TNG_API_KEY" in os.environ or os.path.isfile("examples/tng_api.key")
+
+        if os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy"):
+            os.remove("examples/martini-cutout-grnr-TNG100-1-99-400547.npy")
+        if os.path.isfile("examples/martini-cutout-TNG100-1-99-517.hdf5"):
+            os.remove("examples/martini-cutout-TNG100-1-99-517.hdf5")
+
         nbr = NotebookRun(pathlib.Path("examples/martini_TNG.ipynb"), 3600)
         try:
             result = nbr.execute()
@@ -629,6 +631,8 @@ class TestTNGSource:
                 "examples/tng_martini_demo_beam.fits",
                 "examples/tng_martini_demo.fits",
                 "examples/tng_martini_demo.hdf5",
+                "examples/martini-cutout-TNG100-1-99-517.hdf5",
+                "examples/martini-cutout-grnr-TNG100-1-99-400547.npy",
             )
             for file_to_cleanup in files_to_cleanup:
                 if os.path.isfile(file_to_cleanup):
