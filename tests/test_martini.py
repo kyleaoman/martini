@@ -17,7 +17,7 @@ from scipy.signal import fftconvolve
 def check_mass_accuracy(m, out_mode):
     if out_mode == "hdf5":
         h5py = pytest.importorskip(
-            "hdf5", reason="h5py (optional dependency) not available"
+            "h5py", reason="h5py (optional dependency) not available"
         )
 
     # flux in channels
