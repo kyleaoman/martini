@@ -10,10 +10,11 @@ class TestExamples:
         """
         with open("examples/martini_source_injection.ipynb") as f:
             nb_content = f.read()
+        print(nb_content)
         assert (
-            '"!{sys.executable} -m pip install "astromartini[tngsource]=='
+            '"!{sys.executable} -m pip install \\"astromartini[tngsource]=='
             + __version__
-            + '"'
+            + '\\"'
             in nb_content
         )
 
