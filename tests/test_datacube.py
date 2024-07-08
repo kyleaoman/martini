@@ -6,13 +6,6 @@ from astropy import units as U
 from martini import DataCube
 from martini.datacube import HIfreq
 
-try:
-    import h5py
-except ImportError:
-    have_h5py = False
-else:
-    have_h5py = True
-
 
 def check_wcs_match(wcs1, wcs2):
     assert set(wcs1.to_header().keys()) == set(wcs2.to_header().keys())
@@ -223,14 +216,12 @@ class TestDataCube:
                 assert getattr(copy, attr) is None
         check_wcs_match(dc_random.wcs, copy.wcs)
 
-    @pytest.mark.skipif(
-        not have_h5py, reason="h5py (optional dependency) not available."
-    )
     @pytest.mark.parametrize("with_pad", (False, True))
     def test_save_and_load_state(self, dc_random, with_pad):
         """
         Check that we can recover a datacube from a save file.
         """
+        pytest.importorskip("h5py", reason="h5py (optional dependency) not available.")
         try:
             if with_pad:
                 dc_random.add_pad((3, 3))

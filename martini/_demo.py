@@ -1,3 +1,8 @@
+"""
+Provides the :func:`~martini._demo.demo_source` and :func:`~martini._demo.demo` functions
+that demonstrate basic usage of :mod:`martini`.
+"""
+
 from . import Martini, DataCube
 from .beams import GaussianBeam
 from .noise import GaussianNoise
@@ -12,6 +17,11 @@ from scipy.optimize import fsolve
 def demo_source(N=500):
     """
     Create a simple toy model of a galaxy.
+
+    Parameters
+    ----------
+    N : int
+        Number of particles to generate in source.
 
     Returns
     -------

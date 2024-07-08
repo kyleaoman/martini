@@ -13,31 +13,12 @@ from astropy import wcs
 from astropy.coordinates import FK5, ICRS
 from scipy.signal import fftconvolve
 
-try:
-    import multiprocess
-except ImportError:
-    have_multiprocess = False
-else:
-    have_multiprocess = True
-
-try:
-    import matplotlib
-except ImportError:
-    have_matplotlib = False
-else:
-    have_matplotlib = True
-
-try:
-    import h5py
-except ImportError:
-    have_h5py = False
-else:
-    have_h5py = True
-
 
 def check_mass_accuracy(m, out_mode):
-    if out_mode == "hdf5" and not have_h5py:
-        pytest.skip()
+    if out_mode == "hdf5":
+        h5py = pytest.importorskip(
+            "h5py", reason="h5py (optional dependency) not available"
+        )
 
     # flux in channels
     F = (m.datacube._array * m.datacube.px_size**2).sum((0, 1)).squeeze()  # Jy
@@ -419,13 +400,13 @@ class TestMartini:
         m.reset()
         assert m.datacube._array.shape == expected_shape
 
-    @pytest.mark.skipif(
-        not have_matplotlib, reason="matplotlib (optional dependency) not available."
-    )
     def test_preview(self, m_init):
         """
         Simply check that the preview visualisation runs without error.
         """
+        pytest.importorskip(
+            "matplotlib", reason="matplotlib (optional dependency) not available."
+        )
         # with default arguments
         with pytest.warns(UserWarning, match="singular"):
             # warning: single-particle source is used, so axis limits try to be equal
@@ -571,10 +552,10 @@ class TestMartini:
                 spectral_model=DiracDeltaSpectrum(),
             )
 
-    @pytest.mark.skipif(
-        not have_h5py, reason="h5py (optional dependency) not available."
-    )
     def test_hdf5_grids(self, m):
+        h5py = pytest.importorskip(
+            "h5py", reason="h5py (optional dependency) not available."
+        )
         origin = 0  # numpy-like, not fits-like, indexing
         filename = "cube.hdf5"
         try:
@@ -649,15 +630,15 @@ class TestMartini:
                 os.remove(filename)
 
 
-@pytest.mark.skipif(
-    not have_multiprocess, reason="multiprocess (optional dependency) not available"
-)
 class TestParallel:
     def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
         """
         Check that running the source insertion loop in parallel gives the same result
         as running in serial.
         """
+        pytest.importorskip(
+            "multiprocess", reason="multiprocess (optional dependency) not available"
+        )
 
         m = Martini(
             source=many_particle_source(),
@@ -811,13 +792,13 @@ class TestGlobalProfile:
         gp.reset()
         gp.reset()
 
-    @pytest.mark.skipif(
-        not have_matplotlib, reason="matplotlib (optional dependency) not available."
-    )
     def test_preview(self, gp):
         """
         Simply check that the preview visualisation runs without error.
         """
+        pytest.importorskip(
+            "matplotlib", reason="matplotlib (optional dependency) not available."
+        )
         # with default arguments
         with pytest.warns(UserWarning, match="singular"):
             # warning: single-particle source is used, so axis limits try to be equal
@@ -850,13 +831,13 @@ class TestGlobalProfile:
         m.channel_edges.to(expected_units)
         m.channel_mids.to(expected_units)
 
-    @pytest.mark.skipif(
-        not have_matplotlib, reason="matplotlib (optional dependency) not available."
-    )
     def test_view_spectrum(self, gp):
         """
         Simply check that plotting spectrum runs without error.
         """
+        pytest.importorskip(
+            "matplotlib", reason="matplotlib (optional dependency) not available."
+        )
         # with default arguments
         gp.plot_spectrum()
         # with non-default arguments

@@ -1,3 +1,8 @@
+"""
+Provides the generic :class:`~martini.sources.sph_source.SPHSource` class for working
+with any SPH or similar simulation as input.
+"""
+
 import numpy as np
 from astropy.coordinates import (
     CartesianRepresentation,
@@ -110,7 +115,7 @@ class SPHSource(object):
         choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
         ambiguity in the definition.
 
-    coordinate_axis: int, optional
+    coordinate_axis : int, optional
         Rank of axis corresponding to position or velocity of a single
         particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
         Usually prefer to omit this as it can be determined automatically, but is
@@ -200,6 +205,15 @@ class SPHSource(object):
         return
 
     def _init_skycoords(self, _reset=True):
+        """
+        Initialize the sky coordinates of the particles.
+
+        Parameters
+        ----------
+        _reset : bool
+            If ``True``, return particles to their original positions. Setting to
+            ``False`` is only intended for testing. (Default: ``True``)
+        """
         # _reset False only for unit testing
         distance_unit_vector = (
             SphericalRepresentation(self.ra, self.dec, 1)
@@ -254,6 +268,17 @@ class SPHSource(object):
         return
 
     def _init_pixcoords(self, datacube, origin=0):
+        """
+        Initialize pixel coordinates of the particles.
+
+        Parameters
+        ----------
+        datacube : ~martini.datacube.DataCube
+            The DataCube (including its WCS) for which to calculate coordinates.
+
+        origin : int
+            Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
+        """
         skycoords_df_frame = self.skycoords.transform_to(datacube.coordinate_frame)
         spectralcoords_df_specsys = (
             self.spectralcoords.with_observer_stationary_relative_to(datacube.specsys)
@@ -397,7 +422,7 @@ class SPHSource(object):
 
         Parameters
         ----------
-        translation_vector : ~astropy.units.Quantity
+        boost_vector : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of
             velocity.
             Vector by which to offset the source particle velocities.
