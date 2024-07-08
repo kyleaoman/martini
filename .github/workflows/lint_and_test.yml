@@ -77,7 +77,7 @@ jobs:
         TNG_API_KEY=${{ secrets.TNG_API_KEY }}
       run: |
         env
-	pytest -k test_tng_notebook
+        pytest -k test_tng_notebook
 
   tests-and-coverage:
     needs: lint
