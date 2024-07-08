@@ -639,6 +639,51 @@ class TestTNGSource:
                     os.remove(file_to_cleanup)
 
 
+class TestFIRESource:
+    def test_notebook_version(self):
+        """
+        Check that notebook installs current verison of martini.
+        """
+        with open("examples/martini_fire.ipynb") as f:
+            nb_content = f.read()
+        assert (
+            '"!{sys.executable} -m pip install \\"astromartini[firesource]=='
+            + __version__
+            + '\\""'
+            in nb_content
+        )
+
+    @pytest.mark.skipif(
+        not os.path.isfile("examples/m11e_res7100/output/snapshot_600.hdf5"),
+        reason="sample data not locally available",
+    )
+    def test_fire_notebook(self):
+        """
+        Check that the FIRE example notebook runs.
+        """
+        pytest.importorskip(
+            "nbmake", reason="nbmake (optional dependency) not available"
+        )
+        from nbmake.nb_run import NotebookRun
+        from nbmake.pytest_items import NotebookFailedException
+        import pathlib
+
+        nbr = NotebookRun(pathlib.Path("examples/martini_fire.ipynb"), 3600)
+        try:
+            result = nbr.execute()
+            if result.error is not None:
+                raise NotebookFailedException(result)
+        finally:
+            files_to_cleanup = (
+                "examples/fire_martini_demo_beam.fits",
+                "examples/fire_martini_demo.fits",
+                "examples/fire_martini_demo.hdf5",
+            )
+            for file_to_cleanup in files_to_cleanup:
+                if os.path.isfile(file_to_cleanup):
+                    os.remove(file_to_cleanup)
+
+
 class TestMagneticumSource:
     @pytest.mark.xfail
     def test_stuff(self):
