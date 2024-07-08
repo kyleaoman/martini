@@ -11,3 +11,4 @@ ignore:
   - "martini/sources/tng_source.py"
   - "martini/sources/eagle_source.py"
   - "martini/sources/simba_source.py"
+  - "martini/sources/fire_source.py"
