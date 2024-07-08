@@ -73,11 +73,9 @@ jobs:
         pip install -e .
     - name: Test with pytest
       env:
-        VAR1: 999
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
       run: |
-        env
-        pytest -k test_tng_notebook
+        pytest
 
   tests-and-coverage:
     needs: lint
@@ -104,7 +102,10 @@ jobs:
         if [ -f optional_requirements.txt ]; then pip install -r optional_requirements.txt; fi
         pip install -e .
     - name: Test with pytest including coverage report
-      run: pytest --cov=./ --cov-report=xml
+      env:
+        TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+      run: |
+        pytest --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       env:
