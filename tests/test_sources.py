@@ -615,7 +615,6 @@ class TestTNGSource:
         import pathlib
 
         print(os.environ)
-        print("VAR1", os.environ["VAR1"])
         print("TNG_API_KEY", os.environ["TNG_API_KEY"])
         assert "TNG_API_KEY" in os.environ or os.path.isfile("examples/tng_api.key")
 
