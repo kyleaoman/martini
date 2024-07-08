@@ -15,4 +15,6 @@ examples/*.hdf5
 examples/*.npy
 examples/*.tar
 examples/sql_cookies.txt
+examples/eagle_db.password
+examples/tng_api.key
 .coverage

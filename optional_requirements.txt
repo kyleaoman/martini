@@ -11,3 +11,4 @@ swiftgalaxy
 g3t
 pytest-cov
 numpydoc
+nbmake

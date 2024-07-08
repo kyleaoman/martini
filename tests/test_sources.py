@@ -8,6 +8,7 @@ from martini.sources import SPHSource
 from martini.sources._cartesian_translation import translate, translate_d
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
+from martini.__version__ import __version__
 
 
 class TestSourceUtilities:
@@ -496,6 +497,154 @@ class TestSPHSource:
                 os.remove(testfile)
 
 
+class TestEagleSource:
+    def test_notebook_version(self):
+        """
+        Check that notebook installs current verison of martini.
+        """
+        with open("examples/martini_eagle.ipynb") as f:
+            nb_content = f.read()
+        assert (
+            '"!{sys.executable} -m pip install \\"astromartini[eaglesource]=='
+            + __version__
+            + '\\""'
+            in nb_content
+        )
+
+    @pytest.mark.skipif(
+        not os.path.isdir("examples/RefL0025N0376"),
+        reason="sample data not locally available",
+    )
+    def test_eagle_notebook(self):
+        """
+        Check that the EAGLE example notebook runs.
+        """
+        pytest.importorskip(
+            "nbmake", reason="nbmake (optional dependency) not available"
+        )
+        from nbmake.nb_run import NotebookRun
+        from nbmake.pytest_items import NotebookFailedException
+        import pathlib
+
+        assert os.path.isfile("examples/eagle_db.password")
+        nbr = NotebookRun(pathlib.Path("examples/martini_eagle.ipynb"), 3600)
+        try:
+            result = nbr.execute()
+            if result.error is not None:
+                raise NotebookFailedException(result)
+        finally:
+            files_to_cleanup = (
+                "examples/eagle_martini_demo_beam.fits",
+                "examples/eagle_martini_demo.fits",
+                "examples/eagle_martini_demo.hdf5",
+            )
+            for file_to_cleanup in files_to_cleanup:
+                if os.path.isfile(file_to_cleanup):
+                    os.remove(file_to_cleanup)
+
+
+class TestSimbaSource:
+    def test_notebook_version(self):
+        """
+        Check that notebook installs current verison of martini.
+        """
+        with open("examples/martini_simba.ipynb") as f:
+            nb_content = f.read()
+        assert (
+            '"!{sys.executable} -m pip install \\"astromartini[simbasource]=='
+            + __version__
+            + '\\""'
+            in nb_content
+        )
+
+    @pytest.mark.skipif(
+        not os.path.isfile("examples/m25n512_151.hdf5")
+        or not os.path.isfile("examples/snap_m25n512_151.hdf5"),
+        reason="sample data not locally available",
+    )
+    def test_simba_notebook(self):
+        """
+        Check that the Simba example notebook runs.
+        """
+        pytest.importorskip(
+            "nbmake", reason="nbmake (optional dependency) not available"
+        )
+        from nbmake.nb_run import NotebookRun
+        from nbmake.pytest_items import NotebookFailedException
+        import pathlib
+
+        nbr = NotebookRun(pathlib.Path("examples/martini_simba.ipynb"), 3600)
+        try:
+            result = nbr.execute()
+            if result.error is not None:
+                raise NotebookFailedException(result)
+        finally:
+            files_to_cleanup = (
+                "examples/simba_martini_demo_beam.fits",
+                "examples/simba_martini_demo.fits",
+                "examples/simba_martini_demo.hdf5",
+            )
+            for file_to_cleanup in files_to_cleanup:
+                if os.path.isfile(file_to_cleanup):
+                    os.remove(file_to_cleanup)
+
+
+class TestTNGSource:
+    def test_notebook_version(self):
+        """
+        Check that notebook installs current verison of martini.
+        """
+        with open("examples/martini_TNG.ipynb") as f:
+            nb_content = f.read()
+        assert (
+            '"!{sys.executable} -m pip install \\"astromartini[tngsource]=='
+            + __version__
+            + '\\""'
+            in nb_content
+        )
+
+    def test_tng_notebook(self):
+        """
+        Check that the TNG example notebook runs.
+        """
+        pytest.importorskip(
+            "nbmake", reason="nbmake (optional dependency) not available"
+        )
+        from nbmake.nb_run import NotebookRun
+        from nbmake.pytest_items import NotebookFailedException
+        import pathlib
+
+        assert "TNG_API_KEY" in os.environ or os.path.isfile("examples/tng_api.key")
+
+        if os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy"):
+            os.remove("examples/martini-cutout-grnr-TNG100-1-99-400547.npy")
+        if os.path.isfile("examples/martini-cutout-TNG100-1-99-517.hdf5"):
+            os.remove("examples/martini-cutout-TNG100-1-99-517.hdf5")
+
+        nbr = NotebookRun(pathlib.Path("examples/martini_TNG.ipynb"), 3600)
+        try:
+            result = nbr.execute()
+            if result.error is not None:
+                raise NotebookFailedException(result)
+        finally:
+            files_to_cleanup = (
+                "examples/tng_martini_demo_beam.fits",
+                "examples/tng_martini_demo.fits",
+                "examples/tng_martini_demo.hdf5",
+                "examples/martini-cutout-TNG100-1-99-517.hdf5",
+                "examples/martini-cutout-grnr-TNG100-1-99-400547.npy",
+            )
+            for file_to_cleanup in files_to_cleanup:
+                if os.path.isfile(file_to_cleanup):
+                    os.remove(file_to_cleanup)
+
+
+class TestMagneticumSource:
+    @pytest.mark.xfail
+    def test_stuff(self):
+        raise NotImplementedError
+
+
 class TestSOSource:
     @pytest.mark.xfail
     def test_stuff(self):
@@ -509,30 +658,6 @@ class TestSWIFTGalaxySource:
 
 
 class TestColibreSource:
-    @pytest.mark.xfail
-    def test_stuff(self):
-        raise NotImplementedError
-
-
-class TestEagleSource:
-    @pytest.mark.xfail
-    def test_stuff(self):
-        raise NotImplementedError
-
-
-class TestMagneticumSource:
-    @pytest.mark.xfail
-    def test_stuff(self):
-        raise NotImplementedError
-
-
-class TestSimbaSource:
-    @pytest.mark.xfail
-    def test_stuff(self):
-        raise NotImplementedError
-
-
-class TestTNGSource:
     @pytest.mark.xfail
     def test_stuff(self):
         raise NotImplementedError

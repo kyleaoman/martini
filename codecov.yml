@@ -1,0 +1,13 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 100%
+        threshold: 10%
+ignore:
+  - "tests"
+  - "docs"
+  - "martini/sources/_illustris_tools.py"
+  - "martini/sources/tng_source.py"
+  - "martini/sources/eagle_source.py"
+  - "martini/sources/simba_source.py"
