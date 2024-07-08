@@ -149,7 +149,7 @@ and the numbered releases (starting from ``2.0.0``) on github. The github main b
 .. _PyPI: https://pypi.org/project/astromartini/
 .. _kyle.a.oman@durham.ac.uk: mailto:kyle.a.oman@durham.ac.uk
 
-The easiest way to install MARTINI is from PyPI by doing ``python3 -m pip install astromartini``. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install "astromartini[hdf5_output]"`` instead. This will also handle the installation of the required dependencies. Other optional features require additional dependencies hosted on PyPI. In particular, EAGLE, Illustris/TNG and Simba users who wish to use the custom source modules for those simulations in MARTINI can automatically install the optional dependencies with ``python3 -m pip install "astromartini[eaglesource]"``, or ``python3 -m pip install "astromartini[simbasource]"`` or ``python3 -m pip install "astromartini[tngsource]"``.
+The easiest way to install MARTINI is from PyPI by doing ``python3 -m pip install astromartini``. Output to ``.fits`` files is supported by default; if output to ``.hdf5`` format is desired use ``python3 -m pip install "astromartini[hdf5_output]"`` instead. This will also handle the installation of the required dependencies. Other optional features require additional dependencies hosted on PyPI. In particular, EAGLE, Illustris/TNG, Simba and FIRE users who wish to use the custom source modules for those simulations in MARTINI can automatically install the optional dependencies with ``python3 -m pip install "astromartini[eaglesource]"``, ``python3 -m pip install "astromartini[simbasource]"``, ``python3 -m pip install "astromartini[tngsource]"``, or ``python3 -m pip install "astromartini[firesource]"``.
 
 .. INSTALLATION_NOTES_END_LABEL
 
@@ -192,15 +192,13 @@ See the help for |martini.Martini| for an example script to configure MARTINI an
 
 MARTINI has (so far) been successfully run on the output of these simulations:
 
-* EAGLE
-* APOSTLE
-* C-EAGLE/Hydrangea
-* Illustris
-* IllustrisTNG
-* Auriga
-* MaGICC (and therefore in principle NIHAO)
-* Magneticum
+* EAGLE (also APOSTLE, C-EAGLE/Hydrangea)
+* IllustrisTNG (also Illustris, Auriga)
 * Simba
+* FIRE
+* Magneticum
+* MaGICC (and therefore in principle NIHAO)
+* Colibre (test runs)
 
 I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please `contact me`_. Currently custom source modules exist for:
 
@@ -208,10 +206,12 @@ I attempt to support publicly available simulations with a customized source mod
 
 * EAGLE (|martini.sources.EAGLESource|)
 * IllustrisTNG (|martini.sources.TNGSource|; also works with Illustris)
-* Magneticum (|martini.sources.MagneticumSource|)
+* FIRE (|martini.sources.FIRESource|)
 * Simba (|martini.sources.SimbaSource|)
+* Magneticum (|martini.sources.MagneticumSource|)
+* Colibre (|martini.sources.ColibreSource|)
 
-Example notebooks_ are available for supported simulations.
+Example notebooks_ are available for supported, publicly available simulations.
 
 .. _notebooks: https://github.com/kyleaoman/martini/tree/main/examples
 
@@ -220,6 +220,8 @@ Example notebooks_ are available for supported simulations.
 .. |martini.Martini| replace:: `martini.Martini <https://martini.readthedocs.io/en/latest/modules/martini.martini.html#martini.martini.Martini>`__
 .. |martini.sources.EAGLESource| replace:: `martini.sources.EAGLESource <https://martini.readthedocs.io/en/latest/modules/martini.sources.eagle_source.html#martini.sources.eagle_source.EAGLESource>`__
 .. |martini.sources.TNGSource| replace:: `martini.sources.TNGSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.tng_source.html#martini.sources.tng_source.TNGSource>`__
+.. |martini.sources.FIRESource| replace:: `martini.sources.FIRESource <https://martini.readthedocs.io/en/latest/modules/martini.sources.fire_source.html#martini.sources.fire_source.FIRESource>`__					 
 .. |martini.sources.MagneticumSource| replace:: `martini.sources.MagneticumSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.magneticum_source.html#martini.sources.magneticum_source.MagneticumSource>`__
 .. |martini.sources.SimbaSource| replace:: `martini.sources.SimbaSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource>`__
 .. |martini.sources.SOSource| replace:: `martini.sources.SOSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource>`__
+.. |martini.sources.ColibreSource| replace:: `martini.sources.ColibreSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.colibre_source.html#martini.sources.colibre_source.ColibreSource>`__

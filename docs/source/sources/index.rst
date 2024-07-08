@@ -6,11 +6,12 @@ In the context of mock observations of a simulation, the source is the collectio
 Sources in MARTINI
 ------------------
 
-MARTINI has a collection of classes used to store and manipulate the properties of the source particles. All of these inherit from the :class:`martini.sources.sph_source.SPHSource` class. This base class can be created by providing arrays containing the particle coordinates, velocities, masses, etc. The other source classes are tailored to specific simulations or data formats and will typically expect one or more filenames as input, along with an identifier specifying a group of particles (as defined in a group catalogue, for example). These classes will then take care of reading data from the input files, annotating them with units, doing any required calculations or conversions, and so on. There are source classes for the EAGLE_, IllustrisTNG_, Simba_, Colibre and Magneticum_ simulations. The SWIFTGalaxy_ interface to `SWIFT`_-based simulations with a variety of halo catalogue formats is also supported.
+MARTINI has a collection of classes used to store and manipulate the properties of the source particles. All of these inherit from the :class:`martini.sources.sph_source.SPHSource` class. This base class can be created by providing arrays containing the particle coordinates, velocities, masses, etc. The other source classes are tailored to specific simulations or data formats and will typically expect one or more filenames as input, along with an identifier specifying a group of particles (as defined in a group catalogue, for example). These classes will then take care of reading data from the input files, annotating them with units, doing any required calculations or conversions, and so on. There are source classes for the EAGLE_, IllustrisTNG_, Simba_, FIRE_, Colibre and Magneticum_ simulations. The SWIFTGalaxy_ interface to `SWIFT`_-based simulations with a variety of halo catalogue formats is also supported.
 
 .. _EAGLE: https://icc.dur.ac.uk/Eagle
 .. _IllustrisTNG: https://www.tng-project.org
 .. _Simba: http://simba.roe.ac.uk
+.. _FIRE: https://fire.northwestern.edu/
 .. _Magneticum: http://www.magneticum.org/
 .. _SWIFTGalaxy: https://github.com/SWIFTSIM/swiftgalaxy
 .. _SWIFT: https://github.com/SWIFTSIM/SWIFT
@@ -69,11 +70,11 @@ The smoothing lengths are defined as the full width at half-maximum (FWHM) of th
 Simulation-specific source modules
 ++++++++++++++++++++++++++++++++++
 
-MARTINI provides source modules to simplify working with publicly-available simulation data sets. These currently include the :class:`~martini.sources.eagle_source.EAGLESource`, :class:`~martini.sources.tng_source.TNGSource` and :class:`~martini.sources.simba_source.SimbaSource`. Example usage including how to obtain publicly available data is provided in a set of `Jupyter notebooks`_.
+MARTINI provides source modules to simplify working with publicly-available simulation data sets. These currently include the :class:`~martini.sources.eagle_source.EAGLESource`, :class:`~martini.sources.tng_source.TNGSource`, :class:`~martini.sources.simba_source.SimbaSource` and :class:`~martini.sources.fire_source.FIRESource`. Example usage including how to obtain publicly available data is provided in a set of `Jupyter notebooks`_.
 
 The Magneticum_ simulations are supported with the :class:`~martini.sources.magneticum_source.MagneticumSource`, however detailed examples are not provided due to the lack of publicly available snapshot data. Interested users can refer to the API documentation of the class.
 
-There is also a :class:`~martini.sources.swiftgalaxy_source.SWIFTGalaxySource` source module for SWIFT_ simulation data in conjunction with Velociraptor_ or Caesar_ halo catalogues; support for `HBT+`_ and SOAP_ is also planned. A :class:`~martini.sources.colibre_source.ColibreSource` module exists, but since this galaxy formation model is still under development this is currently experimental functionality.
+There is also a :class:`~martini.sources.swiftgalaxy_source.SWIFTGalaxySource` source module for SWIFT_ simulation data in conjunction with Velociraptor_ or Caesar_ halo catalogues; support for `HBT+`_ and/or SOAP_ is also planned. A :class:`~martini.sources.colibre_source.ColibreSource` module exists, but since this galaxy formation model is still under development this is currently experimental functionality.
 
 Finally, there is an :class:`~martini.sources.so_source.SOSource` module that interfaces with the SimObj_ package. That package is no longer maintained, but may facilitate working with some simulations including APOSTLE, C-EAGLE/Hydrangea and Auriga.
 
