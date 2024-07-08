@@ -12,3 +12,7 @@ g3t
 pytest-cov
 numpydoc
 nbmake
+beautifulsoup4
+gizmo-analysis
+halo-analysis
+utilities-awetzel
