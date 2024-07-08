@@ -73,8 +73,8 @@ jobs:
         pip install -e .
     - name: Test with pytest
       env:
-        VAR1=999
-        TNG_API_KEY=${{ secrets.TNG_API_KEY }}
+        VAR1: 999
+        TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
       run: |
         env
         pytest -k test_tng_notebook
