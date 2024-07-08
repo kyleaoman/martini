@@ -47,6 +47,11 @@ colibresource = [
     "swiftgalaxy",
     "velociraptor",
 ]
+firesource = [
+    "utilities-awetzel",
+    "gizmo-analysis",
+    "halo-analysis",
+]
 
 [tool.numpydoc_validation]
 checks = [
