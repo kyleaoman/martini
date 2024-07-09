@@ -136,7 +136,7 @@ Installation Notes
 
 .. INSTALLATION_NOTES_START_LABEL
 
-MARTINI works with ``python3`` (version ``3.8`` or higher), and does not support ``python2``.
+MARTINI works with ``python3`` (version ``3.9`` or higher), and does not support ``python2``.
 
 Stable releases are available via PyPI_:
 
