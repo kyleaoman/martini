@@ -29,3 +29,5 @@ Quickstart guide
 .. |martini.sources.MagneticumSource| replace:: :class:`~martini.sources.magneticum_source.MagneticumSource`
 .. |martini.sources.SimbaSource| replace:: :class:`~martini.sources.simba_source.SimbaSource`
 .. |martini.sources.SOSource| replace:: :class:`~martini.sources.so_source.SOSource`
+.. |martini.sources.FIRESource| replace:: :class:`~martini.sources.fire_source.FIRESource`
+.. |martini.sources.ColibreSource| replace:: :class:`~martini.sources.colibre_source.ColibreSource`
