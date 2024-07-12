@@ -49,6 +49,10 @@ class FIRESource(SPHSource):
         If ``True``, convert floating point values to 32 bit precision to reduce
         memory usage. (Default: ``False``)
 
+    gizmo_io_verbose : bool, optional
+        If ``True``, allow the gizmo.io module to print progress and diagnostic messages.
+        (Default: ``False``)
+
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
@@ -109,6 +113,7 @@ class FIRESource(SPHSource):
         host_number=1,
         assign_hosts="mass",
         convert_float32=False,
+        gizmo_io_verbose=False,
         distance=3.0 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"rotmat": np.eye(3)},
@@ -137,11 +142,10 @@ class FIRESource(SPHSource):
             assign_hosts=assign_hosts,
             host_number=host_number,
             convert_float32=convert_float32,
+            verbose=gizmo_io_verbose,
         )
         if snapshot_directory is not None:
             gizmo_read_kwargs["snapshot_directory"] = snapshot_directory
-        # seems like there is no way to make gizmo.io be quiet,
-        # gizmo.io.ReadClass(verbose=False) is not respected
         gizmo_snap = gizmo.io.Read.read_snapshots(
             **gizmo_read_kwargs,
         )
@@ -163,9 +167,7 @@ class FIRESource(SPHSource):
             mHI_g=np.where(
                 np.logical_and(
                     gizmo_snap["gas"]["temperature"] * U.K < 300 * U.K,
-                    gizmo_snap["gas"]["density"]
-                    * U.Msun
-                    * U.kpc**-3
+                    gizmo_snap["gas"]["density"] * U.Msun * U.kpc**-3
                     > C.m_p * 10 * U.cm**-3,
                 ),
                 0,
@@ -174,8 +176,8 @@ class FIRESource(SPHSource):
             * U.Msun,
             # per A. Wetzel, size / 0.5077 is radius of cpmpact support
             hsm_g=gizmo_snap["gas"]["size"]
-            / 0.5077 
-            * U.kpc 
+            / 0.5077
+            * U.kpc
             * find_fwhm(_CubicSplineKernel().kernel),
         )
         super().__init__(
