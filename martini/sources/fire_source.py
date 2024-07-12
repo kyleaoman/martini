@@ -1,4 +1,5 @@
 import numpy as np
+from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from astropy import units as U, constants as C
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
@@ -163,7 +164,6 @@ class FIRESource(SPHSource):
                 np.logical_and(
                     gizmo_snap["gas"]["temperature"] * U.K < 300 * U.K,
                     gizmo_snap["gas"]["density"]
-                    / gizmo_snap.snapshot["scalefactor"] ** 3  # comoving, I think?
                     * U.Msun
                     * U.kpc**-3
                     > C.m_p * 10 * U.cm**-3,
@@ -172,7 +172,11 @@ class FIRESource(SPHSource):
                 gizmo_snap["gas"].prop("mass.hydrogen.neutral"),
             )
             * U.Msun,
-            hsm_g=gizmo_snap["gas"]["size"] * U.kpc,  # what is hsm definition?
+            # per A. Wetzel, size / 0.5077 is radius of cpmpact support
+            hsm_g=gizmo_snap["gas"]["size"]
+            / 0.5077 
+            * U.kpc 
+            * find_fwhm(_CubicSplineKernel().kernel),
         )
         super().__init__(
             **particles,
