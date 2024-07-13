@@ -603,7 +603,6 @@ class TestTNGSource:
             in nb_content
         )
 
-    @pytest.mark.xfail  # TNG server returning 403, xfail for now
     def test_tng_notebook(self):
         """
         Check that the TNG example notebook runs.
