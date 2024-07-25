@@ -213,9 +213,11 @@ class EAGLESource(SPHSource):
             rho_g = fetch("Density") * U.g * U.cm**-3
             SFR_g = fetch("StarFormationRate")
             Habundance_g = fetch("ElementAbundance/Hydrogen")
+            m_g = fetch("Mass")  # raw, converted in mHI_g below
 
         particles["mHI_g"] = (
-            atomic_frac(
+            m_g
+            * atomic_frac(
                 redshift,
                 rho_g * Habundance_g / (mu * proton_mass),
                 particles["T_g"],
