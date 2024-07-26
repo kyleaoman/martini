@@ -5,7 +5,10 @@ on:
     - cron: '19 3 * * 1-5'
   push:
   pull_request:
-  workflow_call:  
+  workflow_call:
+    secrets:
+      TNG_API_KEY:
+        required: true
 
 jobs:
 

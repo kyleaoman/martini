@@ -8,6 +8,7 @@ on:
 jobs:
   lint-and-test:
     uses: ./.github/workflows/lint_and_test.yml
+    secrets: inherit
   pypi-publish:
     name: Upload release to PyPI
     needs: [lint-and-test]
