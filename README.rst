@@ -197,7 +197,7 @@ MARTINI has (so far) been successfully run on the output of these simulations:
 * Simba
 * FIRE
 * Magneticum
-* MaGICC (and therefore in principle other N-body shop projects)
+* MaGICC, Marvelous-Merian (and therefore in principle other N-body shop projects)
 * Colibre (test runs)
 
 I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please `contact me`_. Currently custom source modules exist for:
