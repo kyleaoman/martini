@@ -124,9 +124,9 @@ Work that has used MARTINI includes: `Oman et al. (2019)`_, `Mancera Piña et al
 .. _Bilimogga et al. (2022): https://doi.org/10.1093/mnras/stac1213
 .. _Glowacki et al. (2022): https://doi.org/10.1093/mnras/stac2684
 .. _Roper et al. (2023): https://doi.org/10.1093/mnras/stad549
-.. _Oman et al. (2024): https://doi.org/10.48550/arXiv.2401.11878
+.. _Oman et al. (2024): https://doi.org/10.1093/mnras/stae1772
 .. _ALMASim: https://github.com/MicheleDelliVeneri/ALMASim
-.. _Guglielmetti et al. 2023: https://doi.org/10.48550/arXiv.2311.10657
+.. _Guglielmetti et al. 2023: https://doi.org/10.3390/psf2023009018
 .. _email: mailto:kyle.a.oman@durham.ac.uk
 
 .. CITING_END_LABEL
@@ -197,7 +197,7 @@ MARTINI has (so far) been successfully run on the output of these simulations:
 * Simba
 * FIRE
 * Magneticum
-* MaGICC (and therefore in principle NIHAO)
+* MaGICC (and therefore in principle other N-body shop projects)
 * Colibre (test runs)
 
 I attempt to support publicly available simulations with a customized source module. If your simulation is public and not supported, please `contact me`_. Currently custom source modules exist for:
