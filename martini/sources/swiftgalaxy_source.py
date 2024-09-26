@@ -80,17 +80,20 @@ class SWIFTGalaxySource(SPHSource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
+        _mHI_g=None,
     ):
         h = galaxy.metadata.cosmology.h
+        mHI_g = (
+            galaxy.gas.atomic_hydrogen_masses.to_astropy() if _mHI_g is None else _mHI_g
+        )
         particles = dict(
             xyz_g=galaxy.gas.coordinates.to_astropy(),
             vxyz_g=galaxy.gas.velocities.to_astropy(),
             T_g=galaxy.gas.temperatures.to_astropy(),
             # SWIFT guarantees smoothing lengths are kernel FWHM, use directly:
             hsm_g=galaxy.gas.smoothing_lengths.to_astropy(),
-            mHI_g=galaxy.gas.atomic_hydrogen_masses.to_astropy(),
+            mHI_g=mHI_g,
         )
-
         super().__init__(
             distance=distance,
             vpeculiar=vpeculiar,
@@ -99,6 +102,7 @@ class SWIFTGalaxySource(SPHSource):
             dec=dec,
             h=h,
             coordinate_frame=coordinate_frame,
+            coordinate_axis=1,
             **particles,
         )
         return

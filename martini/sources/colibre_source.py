@@ -90,5 +90,8 @@ class ColibreSource(SWIFTGalaxySource):
             ra=ra,
             dec=dec,
             coordinate_frame=coordinate_frame,
+            _mHI_g=galaxy.gas.masses.to_astropy()
+            * galaxy.gas.element_mass_fractions.hydrogen.to_astropy()
+            * galaxy.gas.species_fractions.HI.to_astropy(),
         )
         return
