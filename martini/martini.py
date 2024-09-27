@@ -957,6 +957,7 @@ class Martini(_BaseMartini):
         self,
         filename,
         overwrite=True,
+        obj_name="MOCK",
         channels=None,  # deprecated
     ):
         """
@@ -970,6 +971,10 @@ class Martini(_BaseMartini):
 
         overwrite : bool, optional
             Whether to allow overwriting existing files. (Default: ``True``)
+
+        obj_name : str
+            Name to write in the ``OBJECT`` FITS header field (max 16 characters).
+            (Default: ``"MOCK"``)
 
         channels : str, deprecated
             Deprecated, channels and their units now fixed at
@@ -1034,6 +1039,11 @@ class Martini(_BaseMartini):
         )
         header.append(("ORIGIN", "astropy v" + astropy_version))
         # long names break fits format, don't let the user set this
+        if len(obj_name) > 16:
+            warnings.warn(
+                "obj_name longer than 16 characters, truncating", RuntimeWarning
+            )
+            obj_name = obj_name[:16]
         header.append(("OBJECT", "MOCK"))
         if self.beam is not None:
             header.append(("BPA", self.beam.bpa.to_value(U.deg)))
