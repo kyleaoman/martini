@@ -1044,7 +1044,7 @@ class Martini(_BaseMartini):
                 "obj_name longer than 16 characters, truncating", RuntimeWarning
             )
             obj_name = obj_name[:16]
-        header.append(("OBJECT", "MOCK"))
+        header.append(("OBJECT", obj_name))
         if self.beam is not None:
             header.append(("BPA", self.beam.bpa.to_value(U.deg)))
         header.append(("OBSERVER", "K. Oman"))
