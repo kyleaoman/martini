@@ -348,12 +348,19 @@ class TNGSource(SPHSource):
         xe_g = data_g["ElectronAbundance"]
         rho_g = data_g["Density"] * 1e10 / h * U.Msun * np.power(a / h * U.kpc, -3)
         u_g = data_g["InternalEnergy"]  # unit conversion handled in T_g
-        mu_g = 4 * C.m_p.to(U.g).value / (1 + 3 * X_H_g + 4 * X_H_g * xe_g)
+        mu_g = 4 * C.m_p / (1 + 3 * X_H_g + 4 * X_H_g * xe_g)
         gamma = 5.0 / 3.0  # see http://www.tng-project.org/data/docs/faq/#gen4
-        T_g = (gamma - 1) * u_g / C.k_B.to(U.erg / U.K).value * 1e10 * mu_g * U.K
+        T_g = (
+            (gamma - 1)
+            * u_g
+            / C.k_B.to_value(U.erg / U.K)
+            * 1e10
+            * mu_g.to_value(U.g)
+            * U.K
+        )
         m_g = data_g["Masses"] * 1e10 / h * U.Msun
         # cast to float64 to avoid underflow error
-        nH_g = U.Quantity(rho_g * X_H_g / mu_g, dtype=np.float64) / C.m_p
+        nH_g = U.Quantity(rho_g * X_H_g / mu_g, dtype=np.float64)
         # In TNG_corrections I set f_neutral = 1 for particles with density
         # > .1cm^-3. Might be possible to do a bit better here, but HI & H2
         # tables for TNG will be available soon anyway.
