@@ -18,4 +18,5 @@ examples/*.tar
 examples/sql_cookies.txt
 examples/eagle_db.password
 examples/tng_api.key
+examples/m11e_res7100
 .coverage
