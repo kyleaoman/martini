@@ -355,7 +355,7 @@ class TNGSource(SPHSource):
             * u_g
             / C.k_B.to_value(U.erg / U.K)
             * 1e10
-            * mu_g.to_value(U.dimensionless_unscaled)
+            * mu_g
             * C.m_p.to_value(U.g)
             * U.K
         )
