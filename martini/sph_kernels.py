@@ -159,12 +159,6 @@ class _BaseSPHKernel(object):
         """
         Evaluate the kernel, handling array casting and rescaling.
 
-        The kernel parameter is defined:
-
-        .. math::
-
-            q = r / h
-
         Parameters
         ----------
         r : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
@@ -175,7 +169,7 @@ class _BaseSPHKernel(object):
         Returns
         -------
         out : ~numpy.typing.ArrayLike
-            Kernel value at position(s) ``r / h``.
+            Kernel value at position(s) ``r``.
         """
 
         q = np.array(r / h / self._rescale)
@@ -183,7 +177,7 @@ class _BaseSPHKernel(object):
             q = q.to_value(U.dimensionless_unscaled)
         scalar_input = q.ndim == 0
         W = self.kernel(q)
-        W /= np.power(self._rescale, 3)
+        W /= np.power(h * self._rescale, 3)
         if scalar_input:
             return W.item()
         else:
@@ -1237,7 +1231,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
         Returns
         -------
         out : ~numpy.typing.ArrayLike
-            Kernel value at position(s) ``r / h``.
+            Kernel value at position(s) ``r``.
         """
 
         return self.kernels[0].eval_kernel(r, h)

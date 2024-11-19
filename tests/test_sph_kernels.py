@@ -96,23 +96,23 @@ class TestSPHKernels:
                     dij * U.pix,
                 )
             )
-            x_2d.append(ri / h)
+            x_2d.append(ri)
             y_2d.append(IKi.to_value(U.pix**-2))
 
-        r = r / h
-        rmid = 0.5 * (r[1:] + r[:-1])
-        dr = r[1] - r[0]
-        xgrid, ygrid, zgrid = np.meshgrid(
+        xgrid_3d, ygrid_3d, zgrid_3d = np.meshgrid(
             np.r_[r[1:][::-1], r], np.r_[r[1:][::-1], r], np.r_[r[1:][::-1], r]
         )
-        rgrid = np.sqrt(np.power(xgrid, 2) + np.power(ygrid, 2) + np.power(zgrid, 2))
-        Rgrid = np.sqrt(np.power(xgrid, 2) + np.power(ygrid, 2))
+        rgrid_3d = np.sqrt(
+            np.power(xgrid_3d, 2) + np.power(ygrid_3d, 2) + np.power(zgrid_3d, 2)
+        )
+        Rgrid_3d = np.sqrt(np.power(xgrid_3d, 2) + np.power(ygrid_3d, 2))
         for ri in rmid:
-            eval_grid = Rgrid <= ri
+            eval_grid_3d = Rgrid_3d <= ri
             x_3d.append(ri)
-            y_3d.append(dr**3 * np.sum(k.eval_kernel(rgrid[eval_grid], 1)))
+            y_3d.append(dr**3 * np.sum(k.eval_kernel(rgrid_3d[eval_grid_3d], h)))
 
         assert np.allclose(x_2d, x_3d)  # we evaluated integrals at same radii
+        assert np.isclose(y_3d[-1], 1.0, rtol=1.0e-2)  # kernel integrates to 1.0 in 3D
         assert np.allclose(y_2d, y_3d, rtol=2.0e-2)  # integrals within 2%
 
     @pytest.mark.parametrize(

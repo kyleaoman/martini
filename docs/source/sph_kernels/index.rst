@@ -75,7 +75,7 @@ Although generally not needed for routine use of MARTINI, there are functions th
 
     sph_kernel.kernel(np.linspace(0, 1, 200))
 
-returns a finely-sampled smoothing kernel. Note that this function expects a dimensionless array as input.
+returns a finely-sampled smoothing kernel. Note that this function expects a dimensionless array (radius normalized by the radius of compact support, that is the radius where the kernel function reaches 0; in other words the kernel function is non-zero between 0 and 1) as input.
 
 There are also functions that evaluate the kernel at a given radius for a given smoothing length (FWHM). These are available as:
 
