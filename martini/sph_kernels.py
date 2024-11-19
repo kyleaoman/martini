@@ -353,7 +353,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
             Kernel value at positions ``q``.
         """
 
-        W = np.where(q < 1, np.power(1 - q, 4) * (4 * q + 1), np.zeros(q.shape))
+        W = np.where(q < 1, np.power(1 - q, 4) * (4 * q + 1), 0)
         W *= 21 / 2 / np.pi
         return W
 
@@ -491,7 +491,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
             q < 1,
             np.power(1 - q, 8)
             * (1 + 8 * q + 25 * np.power(q, 2) + 32 * np.power(q, 3)),
-            np.zeros(q.shape),
+            0,
         )
         W *= 1365 / 64 / np.pi
         return W
@@ -929,7 +929,7 @@ class _GaussianKernel(_BaseSPHKernel):
                 q < self.truncate * sig,
                 np.power(sig * np.sqrt(2 * np.pi), -3)
                 * np.exp(-np.power(q / sig, 2) / 2),
-                np.zeros(q.shape),
+                0,
             )
             / self.norm
         )
@@ -1069,7 +1069,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
             Kernel value at positions ``q``.
         """
 
-        return np.where(q, np.zeros(q.shape), np.inf * np.ones(q.shape))
+        return np.where(q, 0, np.inf)
 
     def _kernel_integral(self, dij, h, mask=np.s_[...]):
         """
@@ -1384,7 +1384,10 @@ class _QuarticSplineKernel(_BaseSPHKernel):
             Kernel value at positions ``q``.
         """
 
-        W = np.zeros(q.shape)
+        if hasattr(q, "shape"):
+            W = np.zeros(q.shape)
+        else:
+            W = np.zeros(1)
         mask1 = q < 0.2
         W[mask1] = (
             np.power(1 - q[mask1], 4)
@@ -1396,6 +1399,8 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         mask3 = np.logical_and(q >= 0.6, q < 1)
         W[mask3] = np.power(1 - q[mask3], 4)
         W *= 15625 / 512 / np.pi
+        if not hasattr(q, "shape"):
+            W = W.squeeze()
         return W
 
     def _kernel_integral(self, dij, h, mask=np.s_[...]):
