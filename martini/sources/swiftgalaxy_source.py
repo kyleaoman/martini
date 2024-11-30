@@ -86,12 +86,37 @@ class SWIFTGalaxySource(SPHSource):
         mHI_g = (
             galaxy.gas.atomic_hydrogen_masses.to_astropy() if _mHI_g is None else _mHI_g
         )
+        # SWIFT guarantees smoothing lengths are 2x kernel std
+        # We should convert the 2x std of the kernel intrinsically used in the simulation
+        # to the FWHM of the same kernel. For this we need to detect which kernel was
+        # used.
+        kernel_function = galaxy.metadata.hydro_scheme["Kernel function"].decode()
+        compact_support_per_h = {
+            "Quartic Spline (M5)": 2.018932,
+            "Quintic Spline (M6)": 2.195775,
+            "Cubic Spline (M4)": 1.825742,
+            "Wendland C2": 1.936492,
+            "Wendland C4": 2.207940,
+            "Wendland C6": 2.449490,
+        }[kernel_function]
+        fwhm_per_compact_support = {
+            "Quartic Spline (M5)": 0.637756,
+            "Quintic Spline (M6)": 0.577395,
+            "Cubic Spline (M4)": 0.722352,
+            "Wendland C2": 0.627620,
+            "Wendland C4": 0.560649,
+            "Wendland C6": 0.504964,
+        }[kernel_function]
+        hsm_g = (
+            galaxy.gas.smoothing_lengths.to_astropy()
+            * compact_support_per_h
+            * fwhm_per_compact_support
+        )
         particles = dict(
             xyz_g=galaxy.gas.coordinates.to_astropy(),
             vxyz_g=galaxy.gas.velocities.to_astropy(),
             T_g=galaxy.gas.temperatures.to_astropy(),
-            # SWIFT guarantees smoothing lengths are kernel FWHM, use directly:
-            hsm_g=galaxy.gas.smoothing_lengths.to_astropy(),
+            hsm_g=hsm_g,
             mHI_g=mHI_g,
         )
         super().__init__(
