@@ -92,17 +92,17 @@ class SWIFTGalaxySource(SPHSource):
         # used.
         kernel_function = galaxy.metadata.hydro_scheme["Kernel function"].decode()
         compact_support_per_h = {
-            "Quartic Spline (M5)": 2.018932,
-            "Quintic Spline (M6)": 2.195775,
-            "Cubic Spline (M4)": 1.825742,
+            "Quartic spline (M5)": 2.018932,
+            "Quintic spline (M6)": 2.195775,
+            "Cubic spline (M4)": 1.825742,
             "Wendland C2": 1.936492,
             "Wendland C4": 2.207940,
             "Wendland C6": 2.449490,
         }[kernel_function]
         fwhm_per_compact_support = {
-            "Quartic Spline (M5)": 0.637756,
-            "Quintic Spline (M6)": 0.577395,
-            "Cubic Spline (M4)": 0.722352,
+            "Quartic spline (M5)": 0.637756,
+            "Quintic spline (M6)": 0.577395,
+            "Cubic spline (M4)": 0.722352,
             "Wendland C2": 0.627620,
             "Wendland C4": 0.560649,
             "Wendland C6": 0.504964,
