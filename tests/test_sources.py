@@ -339,7 +339,9 @@ class TestSPHSource:
             ValueError, match="Mask must have same length as particle arrays."
         ):
             s.apply_mask(np.array([1, 2, 3]))
-        with pytest.raises(RuntimeError, match="No source particles in target region."):
+        with pytest.raises(
+            RuntimeError, match="No non-zero mHI source particles in target region."
+        ):
             s.apply_mask(np.zeros(s.npart, dtype=int))
 
     def test_rotate_axis_angle(self, s):

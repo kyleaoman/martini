@@ -1559,6 +1559,7 @@ class GlobalProfile(_BaseMartini):
             _prune_kwargs=dict(
                 spatial=False,
                 spectral=True,
+                mass=True,
                 obj_type_str="spectrum",
             ),
             quiet=quiet,

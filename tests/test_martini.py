@@ -348,9 +348,12 @@ class TestMartini:
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         source = single_particle_source(
-            distance=distance, ra=ra_off, dec=dec_off, vpeculiar=v_off
+            distance=distance,
+            ra=ra_off,
+            dec=dec_off,
+            vpeculiar=v_off,
+            mHI_g=mass_off * np.ones(1) * 1.0e4 * U.Msun,
         )
-        source.mHI_g *= mass_off
         datacube = DataCube(
             n_px_x=2,
             n_px_y=2,
@@ -380,8 +383,7 @@ class TestMartini:
         if not expect_particle:
             with pytest.raises(
                 RuntimeError,
-                match="No source particles in target region. "
-                "(Or they all have zero HI mass.)",
+                match="No non-zero mHI source particles in target region.",
             ):
                 _BaseMartini(**kwargs)
         else:
@@ -498,8 +500,7 @@ class TestMartini:
         )
         with pytest.raises(
             RuntimeError,
-            match="No source particles in target region. "
-            "(Or they all have zero HI mass.)",
+            match="No non-zero mHI source particles in target region.",
         ):
             Martini(
                 source=source,
@@ -564,8 +565,7 @@ class TestMartini:
         assert datacube_galactocentric.wcs.wcs.specsys == "galactocentric"
         with pytest.raises(
             RuntimeError,
-            match="No source particles in target region. "
-            "(Or they all have zero HI mass.)",
+            match="No non-zero mHI source particles in target region.",
         ):
             Martini(
                 source=source,
@@ -792,8 +792,7 @@ class TestGlobalProfile:
         if not expect_particle:
             with pytest.raises(
                 RuntimeError,
-                match="No source particles in target region. "
-                "(Or they all have zero HI mass.)",
+                match="No non-zero mHI source particles in target region.",
             ):
                 GlobalProfile(**kwargs)
         else:
