@@ -306,7 +306,7 @@ class TestMartini:
             (-7 * U.km / U.s, False),
         ),
     )
-    @pytest.mask.parametrize(("mass_off", "mass_in"), ((0, False), (1, True)))
+    @pytest.mark.parametrize(("mass_off", "mass_in"), ((0, False), (1, True)))
     @pytest.mark.parametrize("spatial", (True, False))
     @pytest.mark.parametrize("spectral", (True, False))
     @pytest.mark.parametrize("mass", (True, False))
@@ -379,7 +379,9 @@ class TestMartini:
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
         if not expect_particle:
             with pytest.raises(
-                RuntimeError, match="No source particles in target region."
+                RuntimeError,
+                match="No source particles in target region. "
+                "(Or they all have zero HI mass.)",
             ):
                 _BaseMartini(**kwargs)
         else:
@@ -494,7 +496,11 @@ class TestMartini:
             dec=source.dec,
             coordinate_frame=FK5(equinox="J1950"),
         )
-        with pytest.raises(RuntimeError, match="No source particles in target region."):
+        with pytest.raises(
+            RuntimeError,
+            match="No source particles in target region. "
+            "(Or they all have zero HI mass.)",
+        ):
             Martini(
                 source=source,
                 datacube=datacube_fk5_J1950,
@@ -556,7 +562,11 @@ class TestMartini:
             specsys="galactocentric",
         )
         assert datacube_galactocentric.wcs.wcs.specsys == "galactocentric"
-        with pytest.raises(RuntimeError, match="No source particles in target region."):
+        with pytest.raises(
+            RuntimeError,
+            match="No source particles in target region. "
+            "(Or they all have zero HI mass.)",
+        ):
             Martini(
                 source=source,
                 datacube=datacube_galactocentric,
@@ -781,7 +791,9 @@ class TestGlobalProfile:
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
         if not expect_particle:
             with pytest.raises(
-                RuntimeError, match="No source particles in target region."
+                RuntimeError,
+                match="No source particles in target region. "
+                "(Or they all have zero HI mass.)",
             ):
                 GlobalProfile(**kwargs)
         else:
