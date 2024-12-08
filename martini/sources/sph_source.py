@@ -312,7 +312,9 @@ class SPHSource(object):
             raise ValueError("Mask must have same length as particle arrays.")
         mask_sum = np.sum(mask)
         if mask_sum == 0:
-            raise RuntimeError("No source particles in target region.")
+            raise RuntimeError(
+                "No source particles in target region. (Or they all have zero HI mass.)"
+            )
         self.npart = mask_sum
         if not self.T_g.isscalar:
             self.T_g = self.T_g[mask]

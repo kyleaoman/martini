@@ -306,8 +306,10 @@ class TestMartini:
             (-7 * U.km / U.s, False),
         ),
     )
+    @pytest.mask.parametrize(("mass_off", "mass_in"), ((0, False), (1, True)))
     @pytest.mark.parametrize("spatial", (True, False))
     @pytest.mark.parametrize("spectral", (True, False))
+    @pytest.mark.parametrize("mass", (True, False))
     def test_prune_particles(
         self,
         ra_off,
@@ -316,27 +318,39 @@ class TestMartini:
         dec_in,
         v_off,
         v_in,
+        mass_off,
+        mass_in,
         single_particle_source,
         spatial,
         spectral,
+        mass,
     ):
         """
         Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
         the cube as expected.
         """
-        if spatial and spectral:
+        if spatial and spectral and mass:
+            expect_particle = all((ra_in, dec_in, v_in, mass_in))
+        elif spatial and spectral and not mass:
             expect_particle = all((ra_in, dec_in, v_in))
-        elif spatial and not spectral:
+        elif spatial and not spectral and mass:
+            expect_particle = all((ra_in, dec_in, mass_in))
+        elif spatial and not spectral and not mass:
             expect_particle = all((ra_in, dec_in))
-        elif spectral and not spatial:
+        elif not spatial and spectral and mass:
+            expect_particle = all((v_in, mass_in))
+        elif not spatial and spectral and not mass:
             expect_particle = v_in
-        elif not spectral and not spatial:
+        elif not spectral and not spatial and mass:
+            expect_particle = mass_in
+        elif not spectral and not spatial and not mass:
             expect_particle = True
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         source = single_particle_source(
             distance=distance, ra=ra_off, dec=dec_off, vpeculiar=v_off
         )
+        source.mHI_g *= mass_off
         datacube = DataCube(
             n_px_x=2,
             n_px_y=2,
@@ -359,7 +373,7 @@ class TestMartini:
             noise=None,
             sph_kernel=sph_kernel,
             spectral_model=spectral_model,
-            _prune_kwargs=dict(spatial=spatial, spectral=spectral),
+            _prune_kwargs=dict(spatial=spatial, spectral=spectral, mass=mass),
         )
         # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune

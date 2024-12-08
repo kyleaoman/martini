@@ -206,8 +206,8 @@ class _BaseMartini:
                 + mass_reject_conditions
             )
         )
-        self.source.apply_mask(np.logical_not(accept_mask))
-        self.sph_kernel._apply_mask(np.logical_not(accept_mask))
+        self.source.apply_mask(accept_mask)
+        self.sph_kernel._apply_mask(accept_mask)
         if not self.quiet:
             print(
                 f"Pruned particles that will not contribute to {obj_type_str}, "
