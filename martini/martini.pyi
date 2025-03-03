@@ -33,7 +33,11 @@ class _BaseMartini:
         _prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
     ) -> None: ...
     def _prune_particles(
-        self, spatial: bool = ..., spectral: bool = ..., obj_type_str: str = ...
+        self,
+        spatial: bool = ...,
+        spectral: bool = ...,
+        mass: bool = ...,
+        obj_type_str: str = ...,
     ) -> None: ...
     def _evaluate_pixel_spectrum(
         self,
