@@ -7,7 +7,6 @@ spatial information) is desired.
 import warnings
 import subprocess
 import os
-import tqdm
 from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
@@ -208,7 +207,7 @@ class _BaseMartini:
             )
         return
 
-    def _evaluate_pixel_spectrum(self, ranks_and_ij_pxs, progressbar=True):
+    def _evaluate_pixel_spectrum(self, ij_px):
         """
         Add up contributions of particles to the spectrum in a pixel.
 
@@ -242,32 +241,22 @@ class _BaseMartini:
             spectrum, whose length must match the length of the spectral axis of the
             datacube.
         """
-        result = list()
-        rank, ij_pxs = ranks_and_ij_pxs
-        if progressbar:
-            ij_pxs = tqdm.tqdm(ij_pxs, position=rank)
-        for ij_px in ij_pxs:
-            ij = np.array(ij_px)[..., np.newaxis] * U.pix
-            mask = (
-                np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
-            ).all(axis=0)
-            weights = self.sph_kernel._px_weight(
-                self.source.pixcoords[:2, mask] - ij, mask=mask
-            )
-            insertion_slice = (
-                np.s_[ij_px[0], ij_px[1], :, 0]
-                if self._datacube.stokes_axis
-                else np.s_[ij_px[0], ij_px[1], :]
-            )
-            result.append(
-                (
-                    insertion_slice,
-                    (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(
-                        axis=-2
-                    ),
-                )
-            )
-        return result
+        ij = np.array(ij_px)[..., np.newaxis] * U.pix
+        mask = (
+            np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
+        ).all(axis=0)
+        weights = self.sph_kernel._px_weight(
+            self.source.pixcoords[:2, mask] - ij, mask=mask
+        )
+        insertion_slice = (
+            np.s_[ij_px[0], ij_px[1], :, 0]
+            if self._datacube.stokes_axis
+            else np.s_[ij_px[0], ij_px[1], :]
+        )
+        return (
+            insertion_slice,
+            (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(axis=-2),
+        )
 
     def _insert_pixel(self, insertion_slice, insertion_data):
         """
@@ -331,22 +320,37 @@ class _BaseMartini:
             )
         )
 
-        if ncpu == 1:
-            for insertion_slice, insertion_data in self._evaluate_pixel_spectrum(
-                (0, ij_pxs), progressbar=progressbar
-            ):
-                self._insert_pixel(insertion_slice, insertion_data)
+        # figure out which progressbar style to use
+        from tqdm.notebook import tqdm_notebook
+        from tqdm import tqdm as tqdm_standard
+
+        try:
+            tqdm_notebook(leave=False).close()
+        except ImportError:
+            tqdm = tqdm_standard
         else:
-            # not multiprocessing, need serialization from dill not pickle
+            tqdm = tqdm_notebook
+
+        if ncpu == 1:
+            for ij_px in tqdm(ij_pxs, disable=not progressbar):
+                self._insert_pixel(*self._evaluate_pixel_spectrum(ij_px))
+        else:
             from multiprocess import Pool
 
-            with Pool(processes=ncpu) as pool:
-                for result in pool.imap_unordered(
-                    lambda x: self._evaluate_pixel_spectrum(x, progressbar=progressbar),
-                    [(icpu, ij_pxs[icpu::ncpu]) for icpu in range(ncpu)],
+            # not multiprocessing, need serialization from dill not pickle
+
+            total = len(ij_pxs)
+            chunksize = 500
+            with Pool(processes=ncpu) as pool, tqdm(
+                total=total, disable=not progressbar
+            ) as pb:
+                for insertion_slice, insertion_data in pool.imap_unordered(
+                    self._evaluate_pixel_spectrum,
+                    ij_pxs,
+                    chunksize=chunksize,
                 ):
-                    for insertion_slice, insertion_data in result:
-                        self._insert_pixel(insertion_slice, insertion_data)
+                    pb.update(1)
+                    self._insert_pixel(insertion_slice, insertion_data)
 
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
