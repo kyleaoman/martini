@@ -95,7 +95,7 @@ class DataCube(object):
         (WCS) associated with the data cube. Some common options include ``"gcrs"``,
         ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. For a complete list,
         use :meth:`astropy.coordinates.frame_transform_graph.get_names`.
-        (Default: ``"lsrk"``)
+        (Default: ``"icrs"``)
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.
@@ -128,7 +128,7 @@ class DataCube(object):
         dec=0.0 * U.deg,
         stokes_axis=False,
         coordinate_frame=ICRS(),
-        specsys="lsrk",
+        specsys="icrs",
         velocity_centre=None,  # deprecated
     ):
         if velocity_centre is not None:
@@ -228,7 +228,7 @@ class DataCube(object):
             The spectral reference frame (standard of rest) of the World Coordinate System
             (WCS) associated with the data cube, selected from the list ``"gcrs"``,
             ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
-            (Default: ``"lsrk"``)
+            (Default: ``"icrs"``)
 
         See Also
         --------
@@ -853,7 +853,7 @@ class _GlobalProfileDataCube(DataCube):
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube, selected from the list ``"gcrs"``,
-        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"lsrk"``)
+        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``)
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.
@@ -864,7 +864,7 @@ class _GlobalProfileDataCube(DataCube):
         n_channels=64,
         channel_width=4.0 * U.km * U.s**-1,
         spectral_centre=0.0 * U.km * U.s**-1,
-        specsys="lsrk",
+        specsys="icrs",
         velocity_centre=None,  # deprecated
     ):
         super().__init__(
