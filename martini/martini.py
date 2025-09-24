@@ -142,7 +142,9 @@ class _BaseMartini:
 
         return
 
-    def _prune_particles(self, spatial=True, spectral=True, obj_type_str="data cube"):
+    def _prune_particles(
+        self, spatial=True, spectral=True, mass=True, obj_type_str="data cube"
+    ):
         """
         Determines which particles cannot contribute to the DataCube and
         removes them to speed up calculation. Assumes the kernel is 0 at
@@ -157,6 +159,8 @@ class _BaseMartini:
         spectral : bool
             If ``True``, prune particles that fall outside the spectral bandwidth.
             (Default: ``True``)
+        mass : bool
+            If ``True``, prune particles that have zero HI mass. (Default: ``True``)
         obj_type_str : str
             String describing the object to be pruned for messages.
             (Default: ``"data cube"``)
@@ -193,12 +197,16 @@ class _BaseMartini:
             if spectral
             else tuple()
         )
-        reject_mask = np.zeros(self.source.pixcoords[0].shape)
-        # this could be a logical_or.reduce?:
-        for condition in spatial_reject_conditions + spectral_reject_conditions:
-            reject_mask = np.logical_or(reject_mask, condition)
-        self.source.apply_mask(np.logical_not(reject_mask))
-        self.sph_kernel._apply_mask(np.logical_not(reject_mask))
+        mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
+        accept_mask = np.logical_not(
+            np.logical_or.reduce(
+                spatial_reject_conditions
+                + spectral_reject_conditions
+                + mass_reject_conditions
+            )
+        )
+        self.source.apply_mask(accept_mask)
+        self.sph_kernel._apply_mask(accept_mask)
         if not self.quiet:
             print(
                 f"Pruned particles that will not contribute to {obj_type_str}, "
@@ -1549,6 +1557,7 @@ class GlobalProfile(_BaseMartini):
             _prune_kwargs=dict(
                 spatial=False,
                 spectral=True,
+                mass=True,
                 obj_type_str="spectrum",
             ),
             quiet=quiet,
