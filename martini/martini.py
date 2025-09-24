@@ -211,32 +211,26 @@ class _BaseMartini:
         """
         Add up contributions of particles to the spectrum in a pixel.
 
-        This is the core loop of MARTINI. It is embarrassingly parallel. To support
-        parallel excecution we accept storing up to a copy of the entire (future) datacube
-        in one-pixel pieces. This avoids the need for concurrent access to the datacube
-        by parallel processes, which would in the simplest case duplicate a copy of the
-        datacube array per parallel process! In realistic use cases the memory overhead
-        from the equivalent of a second datacube array should be minimal - memory-
-        limited applications should be limited by the memory consumed by particle data,
-        which is not duplicated in parallel execution.
-
-        The arguments that differ between parallel ranks must be bundled into one for
-        compatibility with `multiprocess`.
+        This is the main operation in the core loop of MARTINI. It is embarrassingly
+        parallel. To support parallel excecution we accept storing up to a copy of the
+        entire (future) datacube in one-pixel pieces. This avoids the need for concurrent
+        access to the datacube by parallel processes, which would in the simplest case
+        duplicate a copy of the datacube array per parallel process! In realistic use
+        cases the memory overhead from the equivalent of a second datacube array should be
+        minimal - memory-limited applications should be limited by the memory consumed by
+        particle data, which is not duplicated in parallel execution.
 
         Parameters
         ----------
-        ranks_and_ij_pxs : tuple
-            A 2-tuple containing an integer (cpu "rank" in the case of parallel execution)
-            and a list of 2-tuples specifying the indices (i, j) of pixels in the grid.
-
-        progressbar : bool, optional
-            Whether to display a :mod:`tqdm` progressbar. (Default: ``True``)
+        ij_px : tuple
+            A 2-tuple containing integers specifying the indices (i, j) of pixels in the
+            grid where the spectrum should be calculated.
 
         Returns
         -------
-        out : list
-            A list containing 2-tuples. Each 2-tuple contains and "insertion slice" that
-            is an index into the datacube._array instance held by this martini instance
+        out : tuple
+            A 2-tuple containing an "insertion slice" that is an index into the
+            ``datacube._array`` instance held by this martini instance
             where the pixel spectrum is to be placed, and a 1D array containing the
             spectrum, whose length must match the length of the spectral axis of the
             datacube.
@@ -291,8 +285,7 @@ class _BaseMartini:
             of accuracy!) by setting this parameter True. (Default: ``False``)
 
         progressbar : bool, optional
-            A progress bar is shown by default. Progress bars work, with perhaps
-            some visual glitches, in parallel. If martini was initialised with
+            A progress bar is shown by default. If martini was initialised with
             `quiet` set to `True`, progress bars are switched off unless explicitly
             turned on. (Default: ``None``)
 
@@ -340,10 +333,11 @@ class _BaseMartini:
             # not multiprocessing, need serialization from dill not pickle
 
             total = len(ij_pxs)
-            chunksize = 500
-            with Pool(processes=ncpu) as pool, tqdm(
-                total=total, disable=not progressbar
-            ) as pb:
+            chunksize = 1000
+            with (
+                Pool(processes=ncpu) as pool,
+                tqdm(total=total, disable=not progressbar) as pb,
+            ):
                 for insertion_slice, insertion_data in pool.imap_unordered(
                     self._evaluate_pixel_spectrum,
                     ij_pxs,

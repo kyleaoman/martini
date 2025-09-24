@@ -37,8 +37,7 @@ class _BaseMartini:
     ) -> None: ...
     def _evaluate_pixel_spectrum(
         self,
-        ranks_and_ij_pxs: T.Tuple[int, T.List[T.Tuple[int, int]]],
-        progressbar: bool = ...,
+        ij_px: T.Tuple[int, int],
     ) -> T.Tuple[slice, U.Quantity[U.Jy / U.arcsec**2]]: ...
     def _insert_pixel(
         self, insertion_slice: T.Union[int, T.Tuple, slice], insertion_data: ndarray
