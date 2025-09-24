@@ -527,7 +527,7 @@ class TestMartini:
             ra=source.ra,
             dec=source.dec,
             coordinate_frame=ICRS(),
-            specsys="icrs",
+            specsys="lsrk",
         )
         m_icrs = Martini(
             source=source,
@@ -548,7 +548,7 @@ class TestMartini:
         m_icrs.insert_source_in_cube(progressbar=False)
         assert np.sum(centre_channels_slice(m_icrs).sum()) > 0
 
-        # ICRS and Galactocentric are offset by many km/s depending on direction
+        # LSRK and Galactocentric are offset by many km/s depending on direction
         # so with 4 channels of 1 km/s we should completely miss the cube
         datacube_galactocentric = DataCube(
             n_px_x=16,
