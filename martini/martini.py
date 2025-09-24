@@ -329,7 +329,7 @@ class _BaseMartini:
             tqdm_notebook(leave=False).close()
         except ImportError:
             tqdm = tqdm_standard
-        else:
+        else:  # pragma: no cover
             tqdm = tqdm_notebook
 
         if ncpu == 1:
