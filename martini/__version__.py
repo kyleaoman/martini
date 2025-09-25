@@ -1,1 +1,3 @@
-__version__ = "2.1.9"
+import importlib.metadata
+
+__version__ = importlib.metadata.version("astromartini")

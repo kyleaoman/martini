@@ -1,14 +1,13 @@
-from martini.__version__ import __version__
+import importlib.metadata
+import martini
 
 
 class TestVersion:
-    def test_pyproject_version(self):
+    def test_code_version(self):
         """
-        Check that pyproject version matches version file.
+        Check that code version matches pyproject.toml version.
         """
-        with open("pyproject.toml") as f:
-            pyproject_content = f.read()
-        assert 'version = "' + __version__ + '"' in pyproject_content
+        assert importlib.metadata.version("astromartini") == martini.__version__
 
     def test_codemeta_version(self):
         """
@@ -16,4 +15,7 @@ class TestVersion:
         """
         with open("codemeta.json") as f:
             codemeta_content = f.read()
-        assert '"version": "' + __version__ + '",' in codemeta_content
+        assert (
+            f'"version": "{importlib.metadata.version("astromartini")}",'
+            in codemeta_content
+        )
