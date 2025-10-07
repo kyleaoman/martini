@@ -8,10 +8,11 @@ pyread_eagle
 eaglesqltools
 swiftsimio
 swiftgalaxy
-g3t
+g3read
 pytest-cov
 numpydoc
 nbmake
+mypy
 beautifulsoup4
 gizmo-analysis
 halo-analysis
