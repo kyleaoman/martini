@@ -138,7 +138,7 @@ class MagneticumSource(SPHSource):
         dec=0 * U.deg,
         coordinate_frame=ICRS(),
     ):
-        from g3t.stable.g3read import GadgetFile, read_particles_in_box
+        from g3read import GadgetFile, read_particles_in_box
 
         # I guess I should allow rescaling of radius to get fore/background
 
