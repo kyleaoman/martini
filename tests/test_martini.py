@@ -418,6 +418,15 @@ class TestMartini:
         m.reset()
         assert m.datacube._array.shape == expected_shape
 
+    def test_explicit_init_spectra(self, m_init):
+        """
+        Check that we can explicitly initialize the spectra (usually it happens later when
+        insert_source_in_cube is called).
+        """
+        assert m_init.spectral_model.spectra is None
+        m_init.init_spectra()
+        assert m_init.spectral_model.spectra is not None
+
     def test_preview(self, m_init):
         """
         Simply check that the preview visualisation runs without error.
@@ -870,7 +879,6 @@ class TestGlobalProfile:
 
 
 class TestMartiniWithDataCubeFromWCS:
-
     @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
     def test_source_insertion(self, dc_wcs, single_particle_source, out_mode):
         datacube = dc_wcs

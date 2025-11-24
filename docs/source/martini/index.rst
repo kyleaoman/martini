@@ -33,7 +33,6 @@ A few things happen behind the scenes when the :class:`~martini.martini.Martini`
  - First, if you provided a beam, your :class:`~martini.datacube.DataCube` instance is padded in preparation for convolution with the beam. This is because a beam centred near the edge of the region of interest will pick up flux from outside of it, so MARTINI needs to fill a buffer region. This padding will be removed after convolution, or before any output files are written, but you may notice that your datacube doesn't have the shape that you expect if you inspect it closely in the interim.
  - Second, the source is moved to its orientation and location in the "sky" through a series of rotations and translations (in both position and velocity). The source modules allow for some inspection of the particles before making a mock observation (see source module documentation pages). This is almost always best done before passing the source to :class:`~martini.martini.Martini`.
  - Next, the source is checked for particles that are guaranteed not to contribute to the datacube because they have no overlap with it in position (including their smoothing kernel and the padding region) and/or velocity (including spectral broadening). This speeds up later calculations, but you may notice that some particles have disappeared from your source object.
- - Finally, the spectra of all (remaining) particles are calculated on the spectral axis grid. For sources with many particles this can take a bit of time, but the calculation is vectorized and so scales efficiently to large numbers of particles.
 
 Mock observation preview
 ++++++++++++++++++++++++
@@ -107,6 +106,11 @@ The red box marks the extent of the datacube in right ascension, declination and
     :alt: Approximate moment 1 map and major & minor axis PV diagrams, with axes clipped to datacube extent.
 
 Check the :doc:`source module documentation </sources/index>` for further usage examples. Analogous usage works with the :class:`~martini.martini.Martini` :func:`~martini.martini.Martini.preview` function (except that the extent of the data cube will be overlaid).
+
+Initializing the spectra
+------------------------
+
+Before the source can be inserted into the datacube, the spectra of all (remaining) particles need to be calculated on the spectral axis grid. For sources with many particles this can take a bit of time, but the calculation is vectorized and so scales efficiently to large numbers of particles. By default this calculation happens when :meth:`~martini.martini.Martini.insert_source_in_cube` is called (see below), but it can be explicitly triggered earlier by calling :meth:`~martini.martini.Martini.init_spectra`. After the actual source insertion, this is usually the most computationally expensive step. For sources with large numbers of particles see :ref:`the guidance on parallelization <spec-parallel>` for this step.
 
 Inserting the source
 --------------------

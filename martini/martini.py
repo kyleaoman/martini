@@ -138,7 +138,19 @@ class _BaseMartini:
             **_prune_kwargs
         )  # prunes both source, and kernel if applicable
 
+        return
+
+    def init_spectra(self):
+        """
+        Explicitly trigger evaluation of particle spectra. Triggered when
+        :meth:`~martini.martini.Martini.insert_source_in_cube` is called if not called
+        explicitly before this.
+        """
+        if not self.quiet:
+            print("Initializing spectra...")
         self.spectral_model.init_spectra(self.source, self._datacube)
+        if not self.quiet:
+            print("Spectra initialized.")
 
         return
 
@@ -307,7 +319,8 @@ class _BaseMartini:
             quiet parameter of class. (Default: ``None``)
         """
 
-        assert self.spectral_model.spectra is not None
+        if self.spectral_model.spectra is None:
+            self.init_spectra()
 
         if progressbar is None:
             progressbar = not self.quiet
@@ -1112,9 +1125,7 @@ class Martini(_BaseMartini):
             )
 
         if self.beam is None:
-            raise ValueError(
-                "Martini.write_beam_fits: Called with beam set " "to 'None'."
-            )
+            raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
         assert self.beam.kernel is not None
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"
