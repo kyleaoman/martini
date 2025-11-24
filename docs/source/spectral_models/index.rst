@@ -35,10 +35,12 @@ Simply choose the class corresponding to your preferred line shape and initialis
     spectral_model = GaussianSpectrum(sigma="thermal")
     M = Martini(spectral_model=spectral_model, ...)
 
+.. _spec-parallel:
+    
 Parallelization
 +++++++++++++++
 
-The spectra of all input particles are computed when a :class:`~martini.martini.Martini` object is initialized, before the particles are inserted into the data cube (which is triggered by calling :meth:`~martini.martini.Martini.insert_source_in_cube`). After the main source insertion loop, calculation of the spectra is often the most computationally expensive step, although typically this is only noticeable for very large numbers of particles. If initializing the :class:`~martini.martini.Martini` class is found to be slow, it may be significantly faster to calculate the spectra in parallel. For lower particle counts, however, running in parallel is usually significantly slower because of the overheads involved in the parallel implementation chosen for the calculation. Parallel execution is specified when the spectral model module is initialized, for example:
+The spectra of all input particles are computed by default when :meth:`~martini.martini.Martini.insert_source_in_cube` is called, before the main particle insertion loop. After the main source insertion loop, calculation of the spectra is often the most computationally expensive step, although typically this is only noticeable for very large numbers of particles. If initializing the spectra is found to be slow, it may be significantly faster to calculate the spectra in parallel. For lower particle counts, however, running in parallel is usually significantly slower because of the overheads involved in the parallel implementation chosen for the calculation. Parallel execution is specified when the spectral model module is initialized, for example:
 
 .. code-block:: python
 

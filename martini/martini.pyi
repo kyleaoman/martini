@@ -32,6 +32,7 @@ class _BaseMartini:
         quiet: T.Optional[bool] = ...,
         _prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
     ) -> None: ...
+    def init_spectra(self) -> None: ...
     def _prune_particles(
         self,
         spatial: bool = ...,
