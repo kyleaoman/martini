@@ -551,7 +551,9 @@ class SPHSource(object):
             if (self.hsm_g.isscalar or mask.size <= 1)
             else (1 - (self.hsm_g[mask] / self.hsm_g[mask].max()) ** 0.1).to_value(
                 U.dimensionless_unscaled
-            )
+            )  # larger -> more transparent
+            + (self.hsm_g[mask].min() == self.hsm_g[mask].max())
+            * 0.5  # guard against getting all 0s
         )
         alpha = hsm_factor if point_scaling == "auto" else 1.0
         size_scale = (
@@ -560,6 +562,7 @@ class SPHSource(object):
             else (self.hsm_g[mask].to_value(U.kpc) / lim)
         )
         size = 300 * size_scale if point_scaling == "auto" else 10
+        print(f"{hsm_factor=} {size=}")
         fig = plt.figure(fig, figsize=(12, 4))
         fig.clf()
         fig.suptitle(title)

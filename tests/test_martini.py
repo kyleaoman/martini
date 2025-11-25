@@ -7,6 +7,7 @@ from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels
 from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
+from martini.sources import SPHSource
 from astropy import units as U
 from astropy.io import fits
 from astropy import wcs
@@ -388,6 +389,54 @@ class TestMartini:
                 _BaseMartini(**kwargs)
         else:
             assert _BaseMartini(**kwargs).source.npart == 1
+
+    def test_prune_nan(self, single_particle_source):
+        """
+        Particles can have nan pixel coordinates if they're more than 90deg in longitude
+        away from the reference pixel location of the WCS (pretty sure that's the
+        condition, else maybe 90deg longitude away from the 0 pixel). We want these to
+        be rejected in pruning if spatial pruning is active.
+
+        The source has two particles, once translated to 10 Mpc distance they are at
+        +10 and -10 Mpc diametrically opposed w.r.t. the observer. If we tested with just
+        one invalid particle Martini exits complaining that there are no particles in the
+        target region, so we put one valid and one invalid and check that only one
+        remains after pruning.
+        """
+        source = SPHSource(
+            xyz_g=U.Quantity([[0, -20], [0, 0], [0, 0]], U.Mpc),
+            vxyz_g=U.Quantity([[0, 0], [0, 0], [0, 0]], U.km / U.s),
+            T_g=U.Quantity([1e4, 1e4], U.K),
+            hsm_g=U.Quantity([0.1, 0.1], U.kpc),
+            mHI_g=U.Quantity([1e6, 1e6], U.Msun),
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+            distance=10 * U.Mpc,
+        )
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            channel_width=1 * U.km / U.s,
+            px_size=10 * U.arcsec,
+            spectral_centre=source.vsys,
+            ra=source.ra + 180 * U.deg,
+            dec=source.dec,
+        )
+        source._init_skycoords()
+        source._init_pixcoords(datacube)
+        print(source.pixcoords)
+        assert np.isnan(source.pixcoords[0][0])
+        assert np.isnan(source.pixcoords[1][0])
+        m = Martini(
+            source=source,
+            datacube=datacube,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=DiracDeltaSpectrum(),
+        )
+        assert m.source.pixcoords.shape == (3, 1)
 
     def test_reset(self, m_nn):
         """

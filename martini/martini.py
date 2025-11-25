@@ -196,6 +196,7 @@ class _BaseMartini:
                 > (self._datacube.n_px_x + self._datacube.padx * 2) * U.pix,
                 self.source.pixcoords[1] - self.sph_kernel.sm_ranges
                 > (self._datacube.n_px_y + self._datacube.pady * 2) * U.pix,
+                np.isnan(self.source.pixcoords[:2]).any(axis=0),
             )
             if spatial
             else tuple()
