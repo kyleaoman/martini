@@ -550,10 +550,11 @@ class SPHSource(object):
             1
             if (self.hsm_g.isscalar or mask.size <= 1)
             else (1 - (self.hsm_g[mask] / self.hsm_g[mask].max()) ** 0.1).to_value(
-                U.dimensionless_unscaled
+                U.dimensionless_unscaled  # larger -> more transparent
+                + (self.hsm_g[mask].min() == self.hsm_g[mask].max())
+                * 0.5  # guard against getting all 0s
             )
         )
-        hsm_factor += (hsm_factor == 0).all() * 0.5  # else if all equal we get all 0s
         alpha = hsm_factor if point_scaling == "auto" else 1.0
         size_scale = (
             self.hsm_g.to_value(U.kpc) / lim

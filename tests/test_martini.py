@@ -436,7 +436,7 @@ class TestMartini:
             sph_kernel=DiracDeltaKernel(),
             spectral_model=DiracDeltaSpectrum(),
         )
-        assert len(m.source.pixcoords) == 1
+        assert m.source.pixcoords.shape == (3, 1)
 
     def test_reset(self, m_nn):
         """
