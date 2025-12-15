@@ -93,6 +93,12 @@ class _BaseSpectrum(metaclass=ABCMeta):
             lambda x: (1 / 2.36e5) * x,
             lambda x: 2.36e5 * x,
         )
+        MHI_Jy_inplace = (
+            U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
+            U.Jy,
+            lambda x: np.multiply(1 / 2.36e5, x, out=x),
+            lambda x: np.multiply(2.36e5, x, out=x),
+        )
         if self.ncpu == 1:
             self.spectra = (
                 self.evaluate_spectra(source, datacube) * U.dimensionless_unscaled
@@ -125,14 +131,15 @@ class _BaseSpectrum(metaclass=ABCMeta):
                     )
                     * U.dimensionless_unscaled
                 )
-        # ensure that self.spectra array is modified in place: keep memory usage minimal:
+        # ensure that self.spectra array is modified in place, keep memory usage minimal:
         np.multiply(
             A.astype(self.spec_dtype)[..., np.newaxis], self.spectra, out=self.spectra
         )
         np.divide(
             self.spectra, channel_widths.astype(self.spec_dtype), out=self.spectra
         )
-        self.spectra = self.spectra.to(U.Jy, equivalencies=[MHI_Jy])
+        with U.set_enabled_equivalencies([MHI_Jy_inplace]):
+            self.spectra <<= U.Jy
 
         return
 
@@ -169,33 +176,18 @@ class _BaseSpectrum(metaclass=ABCMeta):
             upper_edges_slice = np.s_[:-1]
         else:
             raise ValueError("Channel edges are not monotonic sequence.")
-        return self.spectral_function(
-            (
-                np.tile(
-                    self.channel_edges.to_value(self.channel_edges.unit)[
-                        lower_edges_slice
-                    ],
-                    vmids.shape + (1,),
-                )
-                * self.channel_edges.unit
-            ).astype(self.spec_dtype),
-            (
-                np.tile(
-                    self.channel_edges.to_value(self.channel_edges.unit)[
-                        upper_edges_slice
-                    ],
-                    vmids.shape + (1,),
-                )
-                * self.channel_edges.unit
-            ).astype(self.spec_dtype),
-            (
-                np.tile(
-                    vmids.to_value(vmids.unit),
-                    np.shape(self.channel_edges[:-1]) + (1,) * vmids.ndim,
-                ).T
-                * vmids.unit
-            ).astype(self.spec_dtype),
-        ).to_value(U.dimensionless_unscaled)
+        return (
+            self.spectral_function(
+                self.channel_edges[np.newaxis, lower_edges_slice].astype(
+                    self.spec_dtype
+                ),
+                self.channel_edges[np.newaxis, upper_edges_slice].astype(
+                    self.spec_dtype
+                ),
+                vmids[:, np.newaxis].astype(self.spec_dtype),
+            )
+            << U.dimensionless_unscaled
+        )
 
     @abstractmethod
     def half_width(self, source):
@@ -269,13 +261,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
         if self.spectral_function_extra_data is None:
             self.spectral_function_extra_data = dict()
         self.spectral_function_extra_data = {
-            k: np.tile(
-                v[mask] if not v.isscalar else v,
-                np.shape(datacube.channel_edges[:-1])
-                + (1,) * source.skycoords.radial_velocity.ndim,
-            )
-            .astype(self.spec_dtype)
-            .T
+            k: (v[mask, np.newaxis] if not v.isscalar else v).astype(self.spec_dtype)
             for k, v in self.spectral_function_extra_data.items()
         }
         return
@@ -347,10 +333,42 @@ class GaussianSpectrum(_BaseSpectrum):
         assert self.spectral_function_extra_data is not None
         sigma = self.spectral_function_extra_data["sigma"]
 
-        return self.spec_dtype(0.5) * (
-            erf((b - vmids) / (np.sqrt(self.spec_dtype(2.0)) * sigma))
-            - erf((a - vmids) / (np.sqrt(self.spec_dtype(2.0)) * sigma))
+        # work in-place as much as possible to limit memory usage:
+        def term_in_place(x, vmids, sigma):
+            """
+            Evaluate partial expression for spectrum, working in-place in memory.
+
+            Parameters
+            ----------
+            x : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity`, with dimensions of velocity.
+
+            vmids : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity`, with dimensions of velocity.
+
+            sigma : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity`, with dimensions of velocity.
+
+            Returns
+            -------
+            out : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity` (dimensionless).
+            """
+            term = x - vmids  # individually small, broadcast 2D array here
+            np.divide(term, np.sqrt(self.spec_dtype(2.0)), out=term)
+            np.divide(term, sigma, out=term)
+            term <<= U.dimensionless_unscaled
+            erf(term, out=term)
+            return term
+
+        spectrum = term_in_place(b, vmids, sigma)
+        np.subtract(
+            spectrum,
+            term_in_place(a, vmids, sigma),
+            out=spectrum,
         )
+        np.multiply(self.spec_dtype(0.5), spectrum, out=spectrum)
+        return spectrum
 
     def init_spectral_function_extra_data(self, source, datacube, mask=np.s_[...]):
         """
@@ -445,7 +463,31 @@ class DiracDeltaSpectrum(_BaseSpectrum):
             The evaluated spectral model (dimensionless).
         """
 
-        return np.heaviside(vmids - a, 1.0) * np.heaviside(b - vmids, 0.0)
+        def term_in_place(x1, x2):
+            """
+            Evaluate partial expression for spectrum, working in-place in memory.
+
+            Parameters
+            ----------
+            x1 : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity`, with dimensions of velocity.
+
+            x2 : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity`, with dimensions of velocity.
+
+            Returns
+            -------
+            out : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity` (dimensionless).
+            """
+            term = x1 - x2  # individually small, broadcast 2D array here
+            np.heaviside(term, 1.0, out=term)
+            term <<= U.dimensionless_unscaled
+            return term
+
+        spectrum = term_in_place(vmids, a)
+        np.multiply(spectrum, term_in_place(b, vmids), out=spectrum)
+        return spectrum
 
     def half_width(self, source):
         """
