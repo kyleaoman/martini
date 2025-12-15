@@ -94,35 +94,45 @@ class _BaseSpectrum(metaclass=ABCMeta):
             lambda x: 2.36e5 * x,
         )
         if self.ncpu == 1:
-            raw_spectra = self.evaluate_spectra(source, datacube)
+            self.spectra = (
+                self.evaluate_spectra(source, datacube) * U.dimensionless_unscaled
+            )
         else:
             from multiprocess.pool import Pool
 
             with Pool(processes=self.ncpu) as pool:
-                raw_spectra = np.vstack(
-                    pool.map(
-                        lambda mask: self.evaluate_spectra(source, datacube, mask=mask),
-                        [
-                            (
-                                np.s_[
-                                    icpu
-                                    * len(self.vmids)
-                                    // self.ncpu : (icpu + 1)
-                                    * len(self.vmids)
-                                    // self.ncpu
-                                ]
-                                if icpu is not None
-                                else np.s_[...]
-                            )
-                            for icpu in range(self.ncpu)
-                        ],
+                self.spectra = (
+                    np.vstack(
+                        pool.map(
+                            lambda mask: self.evaluate_spectra(
+                                source, datacube, mask=mask
+                            ),
+                            [
+                                (
+                                    np.s_[
+                                        icpu
+                                        * len(self.vmids)
+                                        // self.ncpu : (icpu + 1)
+                                        * len(self.vmids)
+                                        // self.ncpu
+                                    ]
+                                    if icpu is not None
+                                    else np.s_[...]
+                                )
+                                for icpu in range(self.ncpu)
+                            ],
+                        )
                     )
+                    * U.dimensionless_unscaled
                 )
-        self.spectra = (
-            A.astype(self.spec_dtype)[..., np.newaxis]
-            * raw_spectra
-            / channel_widths.astype(self.spec_dtype)
-        ).to(U.Jy, equivalencies=[MHI_Jy])
+        # ensure that self.spectra array is modified in place: keep memory usage minimal:
+        np.multiply(
+            A.astype(self.spec_dtype)[..., np.newaxis], self.spectra, out=self.spectra
+        )
+        np.divide(
+            self.spectra, channel_widths.astype(self.spec_dtype), out=self.spectra
+        )
+        self.spectra = self.spectra.to(U.Jy, equivalencies=[MHI_Jy])
 
         return
 
