@@ -255,9 +255,36 @@ class _BaseMartini:
             if self._datacube.stokes_axis
             else np.s_[ij_px[0], ij_px[1], :]
         )
+        # When astropy #19054 is fixed can pin the dependency and remove the units
+        # handling around weights here. Simplified expresion is then:
+        # insertion_values = np.multiply(
+        #     *np.average(
+        #         self.spectral_model.spectra
+        #         if np.all(mask)
+        #         else self.spectral_model.spectra[mask],
+        #         weights=weights,
+        #         axis=-2,
+        #         returned=True
+        #     )
+        # )
+        insertion_values, wsum = np.average(
+            (
+                self.spectral_model.spectra
+                if np.all(mask)
+                else self.spectral_model.spectra[mask]
+            ),
+            weights=weights.value,
+            axis=-2,
+            returned=True,
+        )
+        insertion_values = np.multiply(
+            insertion_values,
+            wsum * weights.unit,
+            out=insertion_values,
+        )
         return (
             insertion_slice,
-            (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(axis=-2),
+            insertion_values,
         )
 
     def _insert_pixel(self, insertion_slice, insertion_data):
