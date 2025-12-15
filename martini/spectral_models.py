@@ -87,12 +87,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
         channel_widths = np.abs(np.diff(self.channel_edges).to(U.km * U.s**-1))
         self.vmids = source.skycoords.radial_velocity
         A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
-        MHI_Jy = (
-            U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
-            U.Jy,
-            lambda x: (1 / 2.36e5) * x,
-            lambda x: 2.36e5 * x,
-        )
         MHI_Jy_inplace = (
             U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
             U.Jy,
