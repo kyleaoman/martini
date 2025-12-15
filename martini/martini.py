@@ -272,7 +272,7 @@ class _BaseMartini:
         insertion_data : ~numpy.typing.ArrayLike
             1D array containing the spectrum at the location specified by insertion_slice.
         """
-        self._datacube._array[insertion_slice] = insertion_data
+        self._datacube._array[insertion_slice] += insertion_data
         return
 
     def _insert_source_in_cube(
