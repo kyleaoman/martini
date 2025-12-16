@@ -40,7 +40,7 @@ Simply choose the class corresponding to your preferred line shape and initialis
 Parallelization
 +++++++++++++++
 
-The spectra of all input particles are computed by default when :meth:`~martini.martini.Martini.insert_source_in_cube` is called, before the main particle insertion loop. After the main source insertion loop, calculation of the spectra is often the most computationally expensive step, although typically this is only noticeable for very large numbers of particles. If initializing the spectra is found to be slow, it may be significantly faster to calculate the spectra in parallel. For lower particle counts, however, running in parallel is usually significantly slower because of the overheads involved in the parallel implementation chosen for the calculation. Parallel execution is specified when the spectral model module is initialized, for example:
+The spectra of all input particles are computed by default when :meth:`~martini.martini.Martini.insert_source_in_cube` is called, before the main particle insertion loop. After the main source insertion loop, calculation of the spectra is often the most computationally expensive step, although typically this is only noticeable for very large numbers of particles. If initializing the spectra is found to be slow, it may be significantly faster to calculate the spectra in parallel. There seems to be a limit to the acceleration that can be achieved because of the overheads involved in the parallel implementation. Parallel execution is specified when the spectral model module is initialized, for example:
 
 .. code-block:: python
 
@@ -51,7 +51,7 @@ There is also a parallel mode for :meth:`~martini.martini.Martini.insert_source_
 Memory usage and data type of spectra (advanced usage)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-The spectra are stored in a 2-dimensional array whose size is the product of the number of particles in the source and the number of channels in the data cube. For large numbers of particles (or channels) this can consume a lot of memory. The data type of this array can be controlled to help mitigate this, if less precision is acceptable. By default the spectra are stored with :class:`~numpy.float64`. This can be changed, for example:
+The spectra are stored in a 2-dimensional array whose size is the product of the number of particles in the source and the number of channels in the data cube. For large numbers of particles (or channels) this consumes a lot of memory. The data type of this array can be controlled to help mitigate this, if less precision is acceptable. By default the spectra are stored with :class:`~numpy.float64`. This can be changed, for example:
 
 .. code-block:: python
 

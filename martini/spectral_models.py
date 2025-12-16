@@ -96,9 +96,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
         if self.ncpu == 1:
             self.spectra = self.evaluate_spectra(source, datacube)
         else:
-            from multiprocess.pool import Pool
+            from multiprocess.pool import ThreadPool
 
-            with Pool(processes=self.ncpu) as pool:
+            with ThreadPool(processes=self.ncpu) as pool:
                 self.spectra = np.vstack(
                     pool.map(
                         lambda mask: self.evaluate_spectra(source, datacube, mask=mask),

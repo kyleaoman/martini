@@ -20,11 +20,12 @@ from martini.datacube import DataCube, _GlobalProfileDataCube
 from martini.sph_kernels import DiracDeltaKernel
 
 try:
-    gc = subprocess.check_output(
-        ["git", "describe", "--always"],
-        stderr=open(os.devnull, "w"),
-        cwd=os.path.dirname(os.path.realpath(__file__)),
-    )
+    with open(os.devnull, "w") as _devnull:
+        gc = subprocess.check_output(
+            ["git", "describe", "--always"],
+            stderr=_devnull,
+            cwd=os.path.dirname(os.path.realpath(__file__)),
+        )
 except (subprocess.CalledProcessError, FileNotFoundError):
     gc = b""
 else:
