@@ -87,18 +87,13 @@ class _BaseSpectrum(metaclass=ABCMeta):
         channel_widths = np.abs(np.diff(self.channel_edges).to(U.km * U.s**-1))
         self.vmids = source.skycoords.radial_velocity
         A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
-        MHI_Jy_inplace = (
-            U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1,
-            U.Jy,
-            lambda x: np.multiply(1 / 2.36e5, x, out=x),
-            lambda x: np.multiply(2.36e5, x, out=x),
-        )
+
         if self.ncpu == 1:
             self.spectra = self.evaluate_spectra(source, datacube)
         else:
-            from multiprocess.pool import Pool
+            from multiprocess.pool import ThreadPool
 
-            with Pool(processes=self.ncpu) as pool:
+            with ThreadPool(processes=self.ncpu) as pool:
                 self.spectra = np.vstack(
                     pool.map(
                         lambda mask: self.evaluate_spectra(source, datacube, mask=mask),
@@ -126,8 +121,26 @@ class _BaseSpectrum(metaclass=ABCMeta):
         np.divide(
             self.spectra, channel_widths.astype(self.spec_dtype), out=self.spectra
         )
-        with U.set_enabled_equivalencies([MHI_Jy_inplace]):
-            self.spectra <<= U.Jy
+
+        def MHI_to_Jy_inplace(x):
+            """
+            Apply the HI mass to flux density conversion, with no memory overhead.
+
+            The conversion is:
+            M_HI/Msun = 2.36x10^5 * (D/Mpc)^2 * (S_21/Jy km s^-1)
+
+            Parameters
+            ----------
+            x : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity`, with dimensions of
+                mass / length^2 / velocity.
+            """
+            input_units = U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1
+            np.divide(x, 2.36e5, out=x)
+            x *= U.Jy / input_units
+            return
+
+        MHI_to_Jy_inplace(self.spectra)
 
         return
 
