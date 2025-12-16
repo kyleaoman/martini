@@ -57,9 +57,10 @@ class TestGaussianSpectrum:
         )
         spectral_model.init_spectral_function_extra_data(source, datacube)
         spectrum = spectral_model.spectral_function(
-            datacube.channel_edges[1:],
-            datacube.channel_edges[:-1],
-            U.Quantity([source.vsys]),  # expected from single_particle_source
+            datacube.channel_edges[np.newaxis, 1:],
+            datacube.channel_edges[np.newaxis, :-1],
+            # expected from single_particle_source:
+            U.Quantity([source.vsys])[:, np.newaxis],
         )
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
@@ -78,10 +79,11 @@ class TestGaussianSpectrum:
         spectral_model.init_spectral_function_extra_data(source, datacube)
         extra_data = spectral_model.spectral_function_extra_data
         assert set(extra_data.keys()) == {"sigma"}
-        for column in extra_data["sigma"].T:
-            assert U.allclose(column, spectral_model.half_width(source))
-        expected_rows = 1 if sigma != "thermal" else source.npart
-        assert extra_data["sigma"].shape == (expected_rows, datacube.n_channels)
+        assert U.allclose(
+            extra_data["sigma"].squeeze(), spectral_model.half_width(source)
+        )
+        expected_shape = tuple() if sigma != "thermal" else (source.npart, 1)
+        assert extra_data["sigma"].shape == expected_shape
 
 
 class TestDiracDeltaSpectrum:

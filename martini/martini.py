@@ -268,9 +268,13 @@ class _BaseMartini:
             if self._datacube.stokes_axis
             else np.s_[ij_px[0], ij_px[1], :]
         )
+        tmp = self.spectral_model.spectra[mask]
+        np.multiply(tmp, weights[:, np.newaxis], out=tmp)
+        insertion_values = np.sum(tmp, axis=-2)
+        del tmp
         return (
             insertion_slice,
-            (self.spectral_model.spectra[mask] * weights[..., np.newaxis]).sum(axis=-2),
+            insertion_values,
         )
 
     def _insert_pixel(self, insertion_slice, insertion_data):
@@ -285,7 +289,7 @@ class _BaseMartini:
         insertion_data : ~numpy.typing.ArrayLike
             1D array containing the spectrum at the location specified by insertion_slice.
         """
-        self._datacube._array[insertion_slice] = insertion_data
+        self._datacube._array[insertion_slice] += insertion_data
         return
 
     def _insert_source_in_cube(
