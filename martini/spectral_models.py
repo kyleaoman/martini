@@ -27,7 +27,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
     separately.
 
     They may also override the method
-    :meth:`~martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data` to
+    :meth:`~martini.spectral_models._BaseSpectrum.get_spectral_function_extra_data` to
     make information that depends on the :class:`~martini.sources.sph_source.SPHSource`
     (or derived class) or :class:`~martini.datacube.DataCube` properties available
     internally. This is required because the source object is not accessible at class
@@ -51,7 +51,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     def __init__(self, ncpu=None, spec_dtype=np.float64):
         self.ncpu = ncpu if ncpu is not None else 1
-        self.spectral_function_extra_data = None
         self.spectra = None
         self.spec_dtype = spec_dtype
         return
@@ -149,10 +148,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
         The main portion of the calculation of the spectra.
 
         Separated into this function so that it can be called by a parallel
-        process pool. Initializes additional particle properties by calling
-        :meth:`~martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data`
-        which then becomes accessible via
-        :attr:`~martini.spectral_models._BaseSpectrum.spectral_function_extra_data`.
+        process pool.
 
         Parameters
         ----------
@@ -168,7 +164,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
             (Default: ``np.s_[...]``)
         """
         vmids = self.vmids[mask]
-        self.init_spectral_function_extra_data(source, datacube, mask=mask)
+        extra_data = self.get_spectral_function_extra_data(source, datacube, mask=mask)
         if all(np.diff(self.channel_edges) > 0):
             lower_edges_slice = np.s_[:-1]
             upper_edges_slice = np.s_[1:]
@@ -186,6 +182,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
                     self.spec_dtype
                 ),
                 vmids[:, np.newaxis].astype(self.spec_dtype),
+                extra_data=extra_data,
             )
             << U.dimensionless_unscaled
         )
@@ -205,7 +202,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def spectral_function(self, a, b, vmids):
+    def spectral_function(self, a, b, vmids, extra_data=None):
         """
         Abstract method; implementation of the spectral model.
 
@@ -226,21 +223,29 @@ class _BaseSpectrum(metaclass=ABCMeta):
             :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Particle velocities along the line of sight.
 
+        extra_data : dict, optional
+            ``dict`` containing arrays of extra data for the spectral function
+            evaluation.
+
         See Also
         --------
-        martini.spectral_models._BaseSpectrum.init_spectral_function_extra_data
+        martini.spectral_models._BaseSpectrum.get_spectral_function_extra_data
         """
 
         pass
 
-    def init_spectral_function_extra_data(self, source, datacube, mask=np.s_[...]):
+    def get_spectral_function_extra_data(
+        self, source, datacube, mask=np.s_[...], extra_data=None
+    ):
         """
         Initialize extra data needed by spectral function. Default is no extra data.
 
         Derived classes should override this function, if needed, to populate the dict
         with any information from the source that is required by the
         :meth:`~martini.spectral_models._BaseSpectrum.spectral_function`,
-        then call ``super().init_spectral_function_extra_data``.
+        then call ``super().get_spectral_function_extra_data`` with the ``extra_data``
+        argument set to the dictionary that they loaded. This function then handles
+        setting up the array for broadcasting.
 
         Parameters
         ----------
@@ -255,17 +260,26 @@ class _BaseSpectrum(metaclass=ABCMeta):
             Slice defining the subset of particles to operate on.
             (Default: ``np.s_[...]``)
 
+        extra_data : dict, optional
+            ``dict`` containing additional data arrays needed for the spectral function
+            evaluation. The dictionary entries should contain scalars or 1D arrays of
+            particle properties.
+
+        Returns
+        -------
+        out : dict
+            The extra data that have been read in and prepared for use.
+
         See Also
         --------
-        martini.spectral_models.GaussianSpectrum.init_spectral_function_extra_data
+        martini.spectral_models.GaussianSpectrum.get_spectral_function_extra_data
         """
-        if self.spectral_function_extra_data is None:
-            self.spectral_function_extra_data = dict()
-        self.spectral_function_extra_data = {
+        if extra_data is None:
+            return {}
+        return {
             k: (v[mask, np.newaxis] if not v.isscalar else v).astype(self.spec_dtype)
-            for k, v in self.spectral_function_extra_data.items()
+            for k, v in extra_data.items()
         }
-        return
 
 
 class GaussianSpectrum(_BaseSpectrum):
@@ -306,7 +320,7 @@ class GaussianSpectrum(_BaseSpectrum):
 
         return
 
-    def spectral_function(self, a, b, vmids):
+    def spectral_function(self, a, b, vmids, extra_data=None):
         """
         Evaluate a Gaussian integral in a channel. Requires sigma to be available from
         :attr:`~martini.spectral_models.GaussianSpectrum.spectral_function_extra_data`.
@@ -325,14 +339,18 @@ class GaussianSpectrum(_BaseSpectrum):
             :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Particle velocities along the line of sight.
 
+        extra_data : dict, optional
+            ``dict`` containing arrays of extra data for the spectral function
+            evaluation.
+
         Returns
         -------
         out : ~astropy.units.Quantity
             The evaluated spectral model (dimensionless).
         """
 
-        assert self.spectral_function_extra_data is not None
-        sigma = self.spectral_function_extra_data["sigma"]
+        assert extra_data is not None
+        sigma = extra_data["sigma"]
 
         # work in-place as much as possible to limit memory usage:
         def term_in_place(x, vmids, sigma):
@@ -371,7 +389,9 @@ class GaussianSpectrum(_BaseSpectrum):
         np.multiply(self.spec_dtype(0.5), spectrum, out=spectrum)
         return spectrum
 
-    def init_spectral_function_extra_data(self, source, datacube, mask=np.s_[...]):
+    def get_spectral_function_extra_data(
+        self, source, datacube, mask=np.s_[...], extra_data=None
+    ):
         """
         Helper function to expose particle velocity dispersions to
         :meth:`~martini.spectral_models.GaussianSpectrum.spectral_function`.
@@ -387,11 +407,21 @@ class GaussianSpectrum(_BaseSpectrum):
         mask : slice, optional
             Slice defining the subset of particles to operate on.
             (Default: ``np.s_[...]``)
+
+        extra_data : dict, optional
+            ``dict`` containing arrays of extra data for the spectral function
+            evaluation.
+
+        Returns
+        -------
+        out : dict
+            The extra data that have been read in and prepared for use.
         """
 
-        self.spectral_function_extra_data = dict(sigma=self.half_width(source))
-        super().init_spectral_function_extra_data(source, datacube, mask=mask)
-        return
+        extra_data = dict(sigma=self.half_width(source))
+        return super().get_spectral_function_extra_data(
+            source, datacube, mask=mask, extra_data=extra_data
+        )
 
     def half_width(self, source):
         """
@@ -440,7 +470,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
         return
 
-    def spectral_function(self, a, b, vmids):
+    def spectral_function(self, a, b, vmids, extra_data=None):
         """
         Evaluate a Dirac-delta function in a channel.
 
@@ -457,6 +487,10 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         vmids : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Particle velocities along the line of sight.
+
+        extra_data : dict, optional
+            ``dict`` containing arrays of extra data for the spectral function
+            evaluation.
 
         Returns
         -------

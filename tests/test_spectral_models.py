@@ -55,12 +55,13 @@ class TestGaussianSpectrum:
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
-        spectral_model.init_spectral_function_extra_data(source, datacube)
+        extra_data = spectral_model.get_spectral_function_extra_data(source, datacube)
         spectrum = spectral_model.spectral_function(
             datacube.channel_edges[np.newaxis, 1:],
             datacube.channel_edges[np.newaxis, :-1],
             # expected from single_particle_source:
             U.Quantity([source.vsys])[:, np.newaxis],
+            extra_data=extra_data,
         )
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
@@ -76,8 +77,7 @@ class TestGaussianSpectrum:
         datacube = DataCube(
             n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
-        spectral_model.init_spectral_function_extra_data(source, datacube)
-        extra_data = spectral_model.spectral_function_extra_data
+        extra_data = spectral_model.get_spectral_function_extra_data(source, datacube)
         assert set(extra_data.keys()) == {"sigma"}
         assert U.allclose(
             extra_data["sigma"].squeeze(), spectral_model.half_width(source)
@@ -139,8 +139,7 @@ class TestDiracDeltaSpectrum:
             n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
         )
         spectral_model = DiracDeltaSpectrum()
-        spectral_model.init_spectral_function_extra_data(source, datacube)
-        extra_data = spectral_model.spectral_function_extra_data
+        extra_data = spectral_model.get_spectral_function_extra_data(source, datacube)
         assert len(extra_data) == 0
 
 

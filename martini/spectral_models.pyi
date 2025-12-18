@@ -13,7 +13,6 @@ class _BaseSpectrum(metaclass=abc.ABCMeta):
     spectra: T.Optional[U.Quantity[U.Jy]]
     ncpu: int
     spec_dtype: type
-    spectral_function_extra_data: T.Optional[T.Dict[str, T.Any]]
 
     def __init__(self, ncpu: T.Optional[int] = ..., spec_dtype: type = ...) -> None: ...
     def init_spectra(self, source: SPHSource, datacube: DataCube) -> None: ...
@@ -31,13 +30,15 @@ class _BaseSpectrum(metaclass=abc.ABCMeta):
         a: U.Quantity[U.km / U.s],
         b: U.Quantity[U.km / U.s],
         vmids: U.Quantity[U.km / U.s],
+        extra_data: U.Optional[dict[str, U.Quantity]] = ...,
     ) -> U.Quantity[U.dimensionless_unscaled]: ...
-    def init_spectral_function_extra_data(
+    def get_spectral_function_extra_data(
         self,
         source: SPHSource,
         datacube: DataCube,
         mask: T.Union[slice, EllipsisType] = ...,
-    ) -> None: ...
+        extra_data: U.Optional[dict[str, U.Quantity]] = ...,
+    ) -> dict[str, U.Quantity]: ...
 
 class GaussianSpectrum(_BaseSpectrum):
     sigma_mode: T.Union[str, U.Quantity[U.km / U.s]]
@@ -53,13 +54,15 @@ class GaussianSpectrum(_BaseSpectrum):
         a: U.Quantity[U.km / U.s],
         b: U.Quantity[U.km / U.s],
         vmids: U.Quantity[U.km / U.s],
+        extra_data: U.Optional[dict[str, U.Quantity]] = ...,
     ) -> U.Quantity[U.dimensionless_unscaled]: ...
-    def init_spectral_function_extra_data(
+    def get_spectral_function_extra_data(
         self,
         source: SPHSource,
         datacube: DataCube,
         mask: T.Union[slice, EllipsisType] = ...,
-    ) -> None: ...
+        extra_data: U.Optional[dict[str, U.Quantity]] = ...,
+    ) -> dict[str, U.Quantity]: ...
     def half_width(self, source: SPHSource) -> U.Quantity[U.km / U.s]: ...
 
 class DiracDeltaSpectrum(_BaseSpectrum):
@@ -69,5 +72,6 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         a: U.Quantity[U.km / U.s],
         b: U.Quantity[U.km / U.s],
         vmids: U.Quantity[U.km / U.s],
+        extra_data: U.Optional[dict[str, U.Quantity]] = ...,
     ) -> U.Quantity[U.dimensionless_unscaled]: ...
     def half_width(self, source: SPHSource) -> U.Quantity[U.km / U.s]: ...
