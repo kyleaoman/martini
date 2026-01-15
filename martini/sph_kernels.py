@@ -1,6 +1,4 @@
-"""
-Provides classes to represent SPH kernels for smoothing particles onto the pixel grid.
-"""
+"""Provides classes to represent SPH kernels for smoothing particles onto the pixel grid."""
 
 from abc import ABCMeta, abstractmethod
 import numpy as np
@@ -55,7 +53,7 @@ class _BaseSPHKernel(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._rescale = 1
         return
 
@@ -107,10 +105,9 @@ class _BaseSPHKernel(object):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
-
         return self._validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
-    def _validate_error(self, msg, sm_lengths, valid, noraise=False, quiet=False):
+    def _validate_error(self, msg, sm_lengths, valid, noraise=False, quiet=False) -> None:
         """
         Function managing handling of kernel validation errors.
 
@@ -171,7 +168,6 @@ class _BaseSPHKernel(object):
         out : ~numpy.typing.ArrayLike
             Kernel value at position(s) ``r``.
         """
-
         q = np.array(r / h / self._rescale)
         if isinstance(q, U.Quantity):
             q = q.to_value(U.dimensionless_unscaled)
@@ -183,7 +179,7 @@ class _BaseSPHKernel(object):
         else:
             return W
 
-    def _apply_mask(self, mask):
+    def _apply_mask(self, mask) -> None:
         """
         Apply a mask to maskable attributes.
 
@@ -197,7 +193,7 @@ class _BaseSPHKernel(object):
 
         return
 
-    def _init_sm_lengths(self, source=None, datacube=None):
+    def _init_sm_lengths(self, source=None, datacube=None) -> None:
         """
         Determine kernel sizes in pixel units.
 
@@ -216,10 +212,8 @@ class _BaseSPHKernel(object):
 
         return
 
-    def _init_sm_ranges(self):
-        """
-        Determine maximum number of pixels reached by kernel.
-        """
+    def _init_sm_ranges(self) -> None:
+        """Determine maximum number of pixels reached by kernel."""
         # store as float: use case for np.inf in GlobalProfile:
         self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm)
 
@@ -265,7 +259,6 @@ class _BaseSPHKernel(object):
             :class:`~astropy.units.Quantity`, with dimensions of pixels^-2.
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
-
         pass
 
     @abstractmethod
@@ -293,12 +286,11 @@ class _BaseSPHKernel(object):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
-
         pass
 
 
 class _WendlandC2Kernel(_BaseSPHKernel):
-    """
+    r"""
     Implementation of the Wendland C2 kernel integral.
 
     The Wendland C2 kernel is used in the EAGLE code and derivatives (not in
@@ -321,7 +313,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
     min_valid_size = 1.51
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
@@ -330,7 +322,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function.
 
         The WendlandC2 kernel is here defined as:
@@ -352,7 +344,6 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
-
         W = np.where(q < 1, np.power(1 - q, 4) * (4 * q + 1), 0)
         W *= 21 / 2 / np.pi
         return W
@@ -382,7 +373,6 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
-
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
         R2 = dr2 / (h * h)
@@ -433,7 +423,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
 
 class _WendlandC6Kernel(_BaseSPHKernel):
-    """
+    r"""
     Implementation of the Wendland C6 kernel integral.
 
     The Wendland C6 kernel is used in the Magneticum code (not in
@@ -456,7 +446,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
     min_valid_size = 1.29
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
@@ -464,7 +454,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function.
 
         The WendlandC6 kernel is here defined as:
@@ -486,7 +476,6 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
-
         W = np.where(
             q < 1,
             np.power(1 - q, 8)
@@ -539,7 +528,6 @@ class _WendlandC6Kernel(_BaseSPHKernel):
             out : ~numpy.typing.ArrayLike
                 Result of the expression.
             """
-
             return (
                 -231 * np.power(R, 10) * z
                 - 385 * np.power(R, 8) * np.power(z, 3)
@@ -651,7 +639,6 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
-
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
@@ -672,7 +659,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
 
 class _CubicSplineKernel(_BaseSPHKernel):
-    """
+    r"""
     Implementation of the cubic spline (M4) kernel integral.
 
     The cubic spline is the 'classic' SPH kernel. The exact integral is usually
@@ -698,7 +685,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
     min_valid_size = 1.16
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
@@ -706,7 +693,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function.
 
         The cubic spline kernel is here defined as:
@@ -731,7 +718,6 @@ class _CubicSplineKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
-
         W = np.where(
             q < 0.5, 1 - 6 * np.power(q, 2) + 6 * np.power(q, 3), 2 * np.power(1 - q, 3)
         )
@@ -764,7 +750,6 @@ class _CubicSplineKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
-
         dij *= 2  # changes interval from [0, 2) to [0, 1)
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape)
@@ -820,7 +805,6 @@ class _CubicSplineKernel(_BaseSPHKernel):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
-
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
@@ -841,7 +825,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
 
 class _GaussianKernel(_BaseSPHKernel):
-    """
+    r"""
     Implementation of a (truncated) Gaussian kernel integral.
 
     Calculates the kernel integral over a pixel. The 3 integrals (along dx,
@@ -870,7 +854,7 @@ class _GaussianKernel(_BaseSPHKernel):
         (Default: ``3``)
     """
 
-    def __init__(self, truncate=3.0):
+    def __init__(self, truncate=3.0) -> None:
         self.truncate = truncate
         if self.truncate < 2:
             raise RuntimeError(
@@ -896,7 +880,7 @@ class _GaussianKernel(_BaseSPHKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function.
 
         The Gaussian kernel is here defined as:
@@ -922,7 +906,6 @@ class _GaussianKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
-
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
         return (
             np.where(
@@ -1017,7 +1000,7 @@ class _GaussianKernel(_BaseSPHKernel):
 
 
 class DiracDeltaKernel(_BaseSPHKernel):
-    """
+    r"""
     Implementation of a Dirac-delta kernel integral.
 
     The Dirac-delta kernel is here defined as:
@@ -1040,14 +1023,14 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
     max_valid_size = 0.5
 
-    def __init__(self, size_in_fwhm=1.0):
+    def __init__(self, size_in_fwhm=1.0) -> None:
         super().__init__()
         self.size_in_fwhm = size_in_fwhm
         self._rescale = 1  # need this to be present
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function.
 
         The Dirac-delta kernel is here defined as:
@@ -1068,7 +1051,6 @@ class DiracDeltaKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
-
         return np.where(q, 0, np.inf)
 
     def _kernel_integral(self, dij, h, mask=np.s_[...]):
@@ -1117,7 +1099,6 @@ class DiracDeltaKernel(_BaseSPHKernel):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
-
         valid = sm_lengths <= self.max_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
@@ -1160,14 +1141,14 @@ class _AdaptiveKernel(_BaseSPHKernel):
         Kernels to use, ordered by decreasing priority.
     """
 
-    def __init__(self, kernels):
+    def __init__(self, kernels) -> None:
         self.kernels = kernels
         super().__init__()
         self.size_in_fwhm = None  # initialized during Martini.__init__
         self._rescale = None  # initialized during Martini.__init__
         return
 
-    def _init_sm_lengths(self, source=None, datacube=None):
+    def _init_sm_lengths(self, source=None, datacube=None) -> None:
         """
         Determine kernel sizes in pixel units.
 
@@ -1179,7 +1160,6 @@ class _AdaptiveKernel(_BaseSPHKernel):
         datacube : martini.datacube.DataCube
             The datacube providing the pixel scale.
         """
-
         super()._init_sm_lengths(source=source, datacube=datacube)
         self.kernel_indices = -1 * np.ones(source.hsm_g.shape, dtype=int)
         for ik, K in enumerate(self.kernels):
@@ -1201,7 +1181,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         return
 
-    def _apply_mask(self, mask):
+    def _apply_mask(self, mask) -> None:
         """
         Apply a mask to maskable attributes.
 
@@ -1233,7 +1213,6 @@ class _AdaptiveKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Kernel value at position(s) ``r``.
         """
-
         return self.kernels[0].eval_kernel(r, h)
 
     def kernel(self, q):
@@ -1275,7 +1254,6 @@ class _AdaptiveKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
-
         retval = np.zeros(h.shape) * h.unit**-2
         for ik in np.unique(self.kernel_indices[mask]):
             K = self.kernels[0] if ik == -1 else self.kernels[ik]
@@ -1283,7 +1261,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
             retval[kmask] = K._kernel_integral(dij[:, kmask], h[kmask])
         return retval
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(self, sm_lengths, noraise=False, quiet=False) -> None:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -1299,7 +1277,6 @@ class _AdaptiveKernel(_BaseSPHKernel):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
-
         valid = self.kernel_indices >= 0
         if np.logical_not(valid).any():
             self._validate_error(
@@ -1320,7 +1297,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
 
 class _QuarticSplineKernel(_BaseSPHKernel):
-    """
+    r"""
     Implementation of the quartic spline kernel integral.
 
     The quartic spline (M5) kernel is used in the SPHENIX scheme (e.g. in Colibre). The
@@ -1348,7 +1325,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
     min_valid_size = 1.2385
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
@@ -1356,7 +1333,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function.
 
         The quartic spline kernel is here defined as:
@@ -1383,7 +1360,6 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
-
         if hasattr(q, "shape"):
             W = np.zeros(q.shape)
         else:
@@ -1428,7 +1404,6 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         out : ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
-
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
         retval = np.zeros(h.shape)
         R = (dr / h).to_value(U.dimensionless_unscaled)
@@ -1493,7 +1468,6 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
         """
-
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
             self._validate_error(
@@ -1514,7 +1488,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
 
 class WendlandC2Kernel(_AdaptiveKernel):
-    """
+    r"""
     Implementation of the Wendland C2 kernel integral.
 
     The Wendland C2 kernel is used in the EAGLE code and derivatives (not in
@@ -1539,7 +1513,7 @@ class WendlandC2Kernel(_AdaptiveKernel):
     :class:`~martini.sph_kernels._WendlandC2Kernel` instead.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             (_WendlandC2Kernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
@@ -1548,7 +1522,7 @@ class WendlandC2Kernel(_AdaptiveKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function of the WendlandC2 kernel.
 
         The WendlandC2 kernel is here defined as:
@@ -1574,7 +1548,7 @@ class WendlandC2Kernel(_AdaptiveKernel):
 
 
 class WendlandC6Kernel(_AdaptiveKernel):
-    """
+    r"""
     Implementation of the Wendland C6 kernel integral.
 
     The Wendland C6 kernel is used in the Magneticum code (not in
@@ -1599,7 +1573,7 @@ class WendlandC6Kernel(_AdaptiveKernel):
     :class:`~martini.sph_kernels._WendlandC6Kernel` instead.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             (_WendlandC6Kernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
@@ -1608,7 +1582,7 @@ class WendlandC6Kernel(_AdaptiveKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function of the WendlandC6 kernel.
 
         The WendlandC6 kernel is here defined as:
@@ -1634,7 +1608,7 @@ class WendlandC6Kernel(_AdaptiveKernel):
 
 
 class CubicSplineKernel(_AdaptiveKernel):
-    """
+    r"""
     Implementation of the cubic spline (M4) kernel integral.
 
     The cubic spline is the 'classic' SPH kernel. The exact integral is usually
@@ -1662,7 +1636,7 @@ class CubicSplineKernel(_AdaptiveKernel):
     :class:`~martini.sph_kernels._CubicSplineKernel` instead.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             (_CubicSplineKernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
@@ -1671,7 +1645,7 @@ class CubicSplineKernel(_AdaptiveKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function of the cubic spline kernel.
 
         The cubic spline kernel is here defined as:
@@ -1700,7 +1674,7 @@ class CubicSplineKernel(_AdaptiveKernel):
 
 
 class GaussianKernel(_AdaptiveKernel):
-    """
+    r"""
     Implementation of a (truncated) Gaussian kernel integral.
 
     Calculates the kernel integral over a pixel. The 3 integrals (along :math:`dx`,
@@ -1735,7 +1709,7 @@ class GaussianKernel(_AdaptiveKernel):
         (Default: ``3``)
     """
 
-    def __init__(self, truncate=3.0):
+    def __init__(self, truncate=3.0) -> None:
         super().__init__(
             (
                 _GaussianKernel(truncate=truncate),
@@ -1748,7 +1722,7 @@ class GaussianKernel(_AdaptiveKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function of the Gaussian kernel.
 
         The Gaussian kernel is here defined as:
@@ -1778,7 +1752,7 @@ class GaussianKernel(_AdaptiveKernel):
 
 
 class QuarticSplineKernel(_AdaptiveKernel):
-    """
+    r"""
     Implementation of the quartic spline kernel integral.
 
     The quartic spline (M5) kernel is used in the SPHENIX scheme (e.g. in Colibre). The
@@ -1808,7 +1782,7 @@ class QuarticSplineKernel(_AdaptiveKernel):
     :class:`~martini.sph_kernels._QuarticSplineKernel` instead.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             (_QuarticSplineKernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
@@ -1817,7 +1791,7 @@ class QuarticSplineKernel(_AdaptiveKernel):
         return
 
     def kernel(self, q):
-        """
+        r"""
         Evaluate the kernel function of the quartic spline kernel.
 
         The quartic spline kernel is here defined as:
@@ -1864,7 +1838,7 @@ class AdaptiveKernel(object):
         Any keyword arguemnts; this class just raises an exception on attempted use.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         raise NotImplementedError(
             "Pre-configured adaptive kernels have been implemented in v2.0.3, see "
             "the SPH Kernels page in the documentation for details. You most likely "

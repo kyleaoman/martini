@@ -127,7 +127,7 @@ class EAGLESource(SPHSource):
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
         print_query=False,
-    ):
+    ) -> None:
         if snapPath is None:
             raise ValueError("Provide snapPath argument to EAGLESource.")
         if snapBase is None:

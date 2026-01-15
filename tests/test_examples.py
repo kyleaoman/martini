@@ -5,9 +5,7 @@ import pytest
 
 class TestExamples:
     def test_source_injection_example_version(self):
-        """
-        Check that the source injection notebook installs current version of martini.
-        """
+        """Check that the source injection notebook installs current version of martini."""
         with open("examples/martini_source_injection.ipynb") as f:
             nb_content = f.read()
         print(nb_content)

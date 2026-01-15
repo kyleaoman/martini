@@ -130,7 +130,7 @@ class DataCube(object):
         coordinate_frame=ICRS(),
         specsys="icrs",
         velocity_centre=None,  # deprecated
-    ):
+    ) -> None:
         if velocity_centre is not None:
             warnings.warn(
                 DeprecationWarning(
@@ -175,10 +175,8 @@ class DataCube(object):
 
         return
 
-    def velocity_channels(self):
-        """
-        Deprecated - issues a warning then does nothing.
-        """
+    def velocity_channels(self) -> None:
+        """Deprecated - issues a warning then does nothing."""
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -189,10 +187,8 @@ class DataCube(object):
         )
         pass
 
-    def freq_channels(self):
-        """
-        Deprecated - issues a warning then does nothing.
-        """
+    def freq_channels(self) -> None:
+        """Deprecated - issues a warning then does nothing."""
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -261,7 +257,6 @@ class DataCube(object):
             fits_wcs = wcs.WCS(fits_hdr)
             datacube = DataCube.from_wcs(fits_wcs)
         """
-
         init_args = dict(
             n_px_x=None,
             n_px_y=None,
@@ -616,7 +611,7 @@ class DataCube(object):
                 ).reshape(self.n_px_x * self.n_px_y, self.n_channels)
             )
 
-    def add_pad(self, pad):
+    def add_pad(self, pad) -> None:
         """
         Resize the cube to add a padding region in the spatial direction.
 
@@ -635,7 +630,6 @@ class DataCube(object):
         --------
         martini.datacube.DataCube.drop_pad
         """
-
         if self.padx > 0 or self.pady > 0:
             raise RuntimeError("Tried to add padding to already padded datacube array.")
         tmp = self._array
@@ -654,7 +648,7 @@ class DataCube(object):
         self.padx, self.pady = pad
         return
 
-    def drop_pad(self):
+    def drop_pad(self) -> None:
         """
         Remove the padding added using :meth:`~martini.datacube.DataCube.add_pad`.
 
@@ -665,7 +659,6 @@ class DataCube(object):
         --------
         martini.datacube.DataCube.add_pad
         """
-
         if (self.padx == 0) and (self.pady == 0):
             return
         self._array = self._array[self.padx : -self.padx, self.pady : -self.pady, ...]
@@ -706,7 +699,7 @@ class DataCube(object):
         copy._array = self._array.copy()
         return copy
 
-    def save_state(self, filename, overwrite=False):
+    def save_state(self, filename, overwrite=False) -> None:
         """
         Write a file from which the current :class:`~martini.datacube.DataCube`
         state can be re-initialized (see :meth:`~martini.datacube.DataCube.load_state`).
@@ -819,7 +812,7 @@ class DataCube(object):
             D._wcs = wcs.WCS(f["_array"].attrs["wcs_hdr"])
         return D
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Print the contents of the data cube array itself.
 
@@ -866,7 +859,7 @@ class _GlobalProfileDataCube(DataCube):
         spectral_centre=0.0 * U.km * U.s**-1,
         specsys="icrs",
         velocity_centre=None,  # deprecated
-    ):
+    ) -> None:
         super().__init__(
             n_px_x=1,
             n_px_y=1,

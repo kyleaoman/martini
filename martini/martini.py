@@ -105,7 +105,7 @@ class _BaseMartini:
         spectral_model=None,
         quiet=False,
         _prune_kwargs=dict(),
-    ):
+    ) -> None:
         self.quiet = quiet
         if source is not None:
             self.source = source
@@ -141,7 +141,7 @@ class _BaseMartini:
 
         return
 
-    def init_spectra(self):
+    def init_spectra(self) -> None:
         """
         Explicitly trigger evaluation of particle spectra. Triggered when
         :meth:`~martini.martini.Martini.insert_source_in_cube` is called if not called
@@ -157,7 +157,7 @@ class _BaseMartini:
 
     def _prune_particles(
         self, spatial=True, spectral=True, mass=True, obj_type_str="data cube"
-    ):
+    ) -> None:
         """
         Determines which particles cannot contribute to the DataCube and
         removes them to speed up calculation. Assumes the kernel is 0 at
@@ -178,7 +178,6 @@ class _BaseMartini:
             String describing the object to be pruned for messages.
             (Default: ``"data cube"``)
         """
-
         if not self.quiet:
             print(
                 f"Source module contained {self.source.npart} particles with total HI"
@@ -278,7 +277,7 @@ class _BaseMartini:
             insertion_values,
         )
 
-    def _insert_pixel(self, insertion_slice, insertion_data):
+    def _insert_pixel(self, insertion_slice, insertion_data) -> None:
         """
         Insert the spectrum for a single pixel into the datacube array.
 
@@ -295,7 +294,7 @@ class _BaseMartini:
 
     def _insert_source_in_cube(
         self, skip_validation=False, progressbar=None, ncpu=1, quiet=None
-    ):
+    ) -> None:
         """
         Populates the :class:`~martini.datacube.DataCube` with flux from the
         particles in the source.
@@ -324,7 +323,6 @@ class _BaseMartini:
             If ``True``, suppress output to stdout. If specified, takes precedence over
             quiet parameter of class. (Default: ``None``)
         """
-
         if self.spectral_model.spectra is None:
             self.init_spectra()
 
@@ -418,10 +416,8 @@ class _BaseMartini:
             )
         return
 
-    def reset(self):
-        """
-        Re-initializes the :class:`~martini.datacube.DataCube` with zero-values.
-        """
+    def reset(self) -> None:
+        """Re-initializes the :class:`~martini.datacube.DataCube` with zero-values."""
         init_kwargs = dict(
             n_px_x=self._datacube.n_px_x,
             n_px_y=self._datacube.n_px_y,
@@ -846,7 +842,7 @@ class Martini(_BaseMartini):
         sph_kernel=None,
         spectral_model=None,
         quiet=False,
-    ):
+    ) -> None:
         super().__init__(
             source=source,
             datacube=datacube,
@@ -872,7 +868,7 @@ class Martini(_BaseMartini):
         """
         return self._datacube
 
-    def insert_source_in_cube(self, skip_validation=False, progressbar=None, ncpu=1):
+    def insert_source_in_cube(self, skip_validation=False, progressbar=None, ncpu=1) -> None:
         """
         Populates the DataCube with flux from the particles in the source.
 
@@ -897,18 +893,14 @@ class Martini(_BaseMartini):
             one cpu requires the :mod:`multiprocess` module (n.b. not the same as
             ``multiprocessing``). (Default: ``1``)
         """
-
         super()._insert_source_in_cube(
             skip_validation=skip_validation, progressbar=progressbar, ncpu=ncpu
         )
 
         return
 
-    def convolve_beam(self):
-        """
-        Convolve the beam and data cube.
-        """
-
+    def convolve_beam(self) -> None:
+        """Convolve the beam and data cube."""
         if self.beam is None:
             warn("Skipping beam convolution, no beam object provided to Martini.")
             return
@@ -946,11 +938,8 @@ class Martini(_BaseMartini):
             )
         return
 
-    def add_noise(self):
-        """
-        Insert noise into the data cube.
-        """
-
+    def add_noise(self) -> None:
+        """Insert noise into the data cube."""
         if self.noise is None:
             warn("Skipping noise, no noise object provided to Martini.")
             return
@@ -984,7 +973,7 @@ class Martini(_BaseMartini):
         overwrite=True,
         obj_name="MOCK",
         channels=None,  # deprecated
-    ):
+    ) -> None:
         """
         Output the data cube to a FITS-format file.
 
@@ -1005,7 +994,6 @@ class Martini(_BaseMartini):
             Deprecated, channels and their units now fixed at
             :class:`~martini.datacube.DataCube` initialization.
         """
-
         if channels is not None:
             warnings.warn(
                 DeprecationWarning(
@@ -1096,7 +1084,7 @@ class Martini(_BaseMartini):
         filename,
         overwrite=True,
         channels=None,  # deprecated
-    ):
+    ) -> None:
         """
         Output the beam to a FITS-format file.
 
@@ -1121,7 +1109,6 @@ class Martini(_BaseMartini):
         ValueError
             If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
-
         if channels is not None:
             warnings.warn(
                 DeprecationWarning(
@@ -1223,7 +1210,6 @@ class Martini(_BaseMartini):
             Deprecated, channels and their units now fixed at
             :class:`~martini.datacube.DataCube` initialization.
         """
-
         if channels is not None:
             warnings.warn(
                 DeprecationWarning(
@@ -1550,7 +1536,7 @@ class GlobalProfile(_BaseMartini):
         spectral_centre=0 * U.km * U.s**-1,
         quiet=False,
         channels=None,  # deprecated
-    ):
+    ) -> None:
         if channels is not None:
             warnings.warn(
                 DeprecationWarning(
@@ -1583,7 +1569,7 @@ class GlobalProfile(_BaseMartini):
 
         return
 
-    def insert_source_in_spectrum(self):
+    def insert_source_in_spectrum(self) -> None:
         """
         Populates the :class:`~martini.datacube.DataCube` with flux from the particles
         in the source.
@@ -1783,10 +1769,8 @@ class GlobalProfile(_BaseMartini):
         """
         return self._datacube.channel_width
 
-    def reset(self):
-        """
-        Re-initializes the spectrum with zero-values.
-        """
+    def reset(self) -> None:
+        """Re-initializes the spectrum with zero-values."""
         super().reset()
         if hasattr(self, "_spectrum"):
             del self._spectrum

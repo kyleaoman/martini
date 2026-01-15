@@ -1,5 +1,4 @@
 import abc
-import numpy as np
 from _typeshed import Incomplete
 from abc import abstractmethod
 from martini.datacube import DataCube as DataCube

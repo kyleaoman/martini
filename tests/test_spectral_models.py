@@ -10,9 +10,7 @@ spectral_models = GaussianSpectrum, DiracDeltaSpectrum
 class TestGaussianSpectrum:
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     def test_init_spectra(self, sigma, single_particle_source):
-        """
-        Check that spectrum sums to expected flux.
-        """
+        """Check that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
@@ -27,18 +25,14 @@ class TestGaussianSpectrum:
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width_constant(self, single_particle_source):
-        """
-        Check that spectrum reports expected width (constant case).
-        """
+        """Check that spectrum reports expected width (constant case)."""
         sigma = 7.0 * U.km / U.s
         source = single_particle_source()
         spectral_model = GaussianSpectrum(sigma=sigma)
         assert U.isclose(spectral_model.half_width(source), sigma)
 
     def test_half_width_thermal(self, single_particle_source):
-        """
-        Check that spectrum reports expected half width (thermal case).
-        """
+        """Check that spectrum reports expected half width (thermal case)."""
         expected_sigma = 9.0853727258 * U.km / U.s  # @1E4K
         source = single_particle_source()
         spectral_model = GaussianSpectrum(sigma="thermal")
@@ -46,9 +40,7 @@ class TestGaussianSpectrum:
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     def test_spectral_function(self, sigma, single_particle_source):
-        """
-        Check that spectral function gives a normalised spectrum.
-        """
+        """Check that spectral function gives a normalised spectrum."""
         source = single_particle_source()
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
@@ -68,9 +60,7 @@ class TestGaussianSpectrum:
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     @pytest.mark.parametrize("source", ("single_particle_source", "cross_source"))
     def test_spectral_function_extra_data(self, sigma, source, request):
-        """
-        Check that required extra data is loaded: velocity dispersions.
-        """
+        """Check that required extra data is loaded: velocity dispersions."""
         source = request.getfixturevalue(source)()
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
@@ -88,9 +78,7 @@ class TestGaussianSpectrum:
 
 class TestDiracDeltaSpectrum:
     def test_init_spectra(self, single_particle_source):
-        """
-        Chec that spectrum sums to expected flux.
-        """
+        """Chec that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
@@ -105,17 +93,13 @@ class TestDiracDeltaSpectrum:
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width(self, single_particle_source):
-        """
-        Check that spectrum reports zero width.
-        """
+        """Check that spectrum reports zero width."""
         source = single_particle_source()
         spectral_model = DiracDeltaSpectrum()
         assert U.isclose(spectral_model.half_width(source), 0 * U.km / U.s)
 
     def test_spectral_function(self, single_particle_source):
-        """
-        Check that spectral function returns normalised spectrum.
-        """
+        """Check that spectral function returns normalised spectrum."""
         source = single_particle_source()
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
@@ -130,9 +114,7 @@ class TestDiracDeltaSpectrum:
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
     def test_spectral_function_extra_data(self, single_particle_source):
-        """
-        Check that no extra data is loaded.
-        """
+        """Check that no extra data is loaded."""
         source = single_particle_source()
         source._init_skycoords()
         datacube = DataCube(
@@ -147,9 +129,7 @@ class TestSpectrumPrecision:
     @pytest.mark.parametrize("SpectralModel", spectral_models)
     @pytest.mark.parametrize("dtype", (np.float64, np.float32))
     def test_spectrum_precision(self, SpectralModel, dtype, single_particle_source):
-        """
-        Check that spectral model can use specified precision.
-        """
+        """Check that spectral model can use specified precision."""
         source = single_particle_source()
         source._init_skycoords()
         spectral_model = SpectralModel(spec_dtype=dtype)
@@ -161,9 +141,7 @@ class TestSpectrumPrecision:
 class TestParallelSpectra:
     @pytest.mark.parametrize("SpectralModel", spectral_models)
     def test_parallel_spectra(self, SpectralModel, cross_source):
-        """
-        Check that spectra calculated in serial and parallel are consistent.
-        """
+        """Check that spectra calculated in serial and parallel are consistent."""
         pytest.importorskip(
             "multiprocess", reason="multiprocess (optional dependency) not available."
         )

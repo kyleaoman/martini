@@ -1,6 +1,4 @@
-"""
-Provides classes to represent the beam of a radio telescope.
-"""
+"""Provides classes to represent the beam of a radio telescope."""
 
 from abc import ABCMeta, abstractmethod
 import scipy.interpolate
@@ -57,7 +55,7 @@ class _BaseBeam(object):
         bmaj=15.0 * U.arcsec,
         bmin=15.0 * U.arcsec,
         bpa=0.0 * U.deg,
-    ):
+    ) -> None:
         # some beams need information from the datacube; in this case make
         # their call to _BaseBeam.__init__ with bmaj == bmin == bpa == None
         # and define a init_beam_header, to be called after the ra, dec,
@@ -85,12 +83,11 @@ class _BaseBeam(object):
         out : tuple
             2-tuple, each element an integer, containing pad dimensions (x, y).
         """
-
         if self.kernel is None:
             raise RuntimeError("Beam kernel not initialized.")
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
 
-    def init_kernel(self, datacube):
+    def init_kernel(self, datacube) -> None:
         """
         Calculate the required size of the beam image.
 
@@ -100,7 +97,6 @@ class _BaseBeam(object):
             Data cube to use, cube size is required for pixel size, position &
             velocity centroids.
         """
-
         self.px_size = datacube.px_size
         self.vel = datacube.spectral_centre
         self.ra = datacube.ra
@@ -160,7 +156,6 @@ class _BaseBeam(object):
         at that position. The offsets are provided as :class:`~astropy.units.Quantity`
         objects with dimensions of angle (arcsec).
         """
-
         pass
 
     @abstractmethod
@@ -169,7 +164,6 @@ class _BaseBeam(object):
         Abstract method; returns a 2-tuple specifying the half-size of the beam
         image to be initialized, in pixels.
         """
-
         pass
 
     @abstractmethod
@@ -181,7 +175,6 @@ class _BaseBeam(object):
         parameters are not specified in the call to the ``__init__`` method of the
         derived class.
         """
-
         pass
 
 
@@ -213,7 +206,7 @@ class GaussianBeam(_BaseBeam):
         bmin=15.0 * U.arcsec,
         bpa=0.0 * U.deg,
         truncate=4.0,
-    ):
+    ) -> None:
         self.truncate = truncate
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return

@@ -32,7 +32,7 @@ _origin = CartesianRepresentation(
 
 
 class SPHSource(object):
-    """
+    r"""
     Class abstracting HI emission sources consisting of SPH simulation
     particles.
 
@@ -148,7 +148,7 @@ class SPHSource(object):
         hsm_g=None,
         coordinate_axis=None,
         coordinate_frame=ICRS(),
-    ):
+    ) -> None:
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
                 coordinate_axis = 0
@@ -204,7 +204,7 @@ class SPHSource(object):
         self.pixcoords = None
         return
 
-    def _init_skycoords(self, _reset=True):
+    def _init_skycoords(self, _reset=True) -> None:
         """
         Initialize the sky coordinates of the particles.
 
@@ -267,7 +267,7 @@ class SPHSource(object):
             self.rotate(axis_angle=("y", self.dec))
         return
 
-    def _init_pixcoords(self, datacube, origin=0):
+    def _init_pixcoords(self, datacube, origin=0) -> None:
         """
         Initialize pixel coordinates of the particles.
 
@@ -297,7 +297,7 @@ class SPHSource(object):
         )
         return
 
-    def apply_mask(self, mask):
+    def apply_mask(self, mask) -> None:
         """
         Remove particles from source arrays according to a mask.
 
@@ -307,7 +307,6 @@ class SPHSource(object):
             Boolean mask. Remove particles with indices corresponding to
             ``False`` values from the source arrays.
         """
-
         if mask.size != self.npart:
             raise ValueError("Mask must have same length as particle arrays.")
         mask_sum = np.sum(mask)
@@ -329,7 +328,7 @@ class SPHSource(object):
             self.hsm_g = self.hsm_g[mask]
         return
 
-    def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
+    def rotate(self, axis_angle=None, rotmat=None, L_coords=None) -> None:
         """
         Rotate the source.
 
@@ -356,7 +355,6 @@ class SPHSource(object):
             sky is 270 degrees, but if a third element is provided it sets the
             position angle (second rotation about 'x').
         """
-
         args_given = (axis_angle is not None, rotmat is not None, L_coords is not None)
         if np.sum(args_given) == 0:
             # no-op
@@ -398,7 +396,7 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g.transform(do_rot)
         return
 
-    def translate(self, translation_vector):
+    def translate(self, translation_vector) -> None:
         """
         Translate the source.
 
@@ -410,11 +408,10 @@ class SPHSource(object):
             :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of length.
             Vector by which to offset the source particle coordinates.
         """
-
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
         return
 
-    def boost(self, boost_vector):
+    def boost(self, boost_vector) -> None:
         """
         Apply an offset to the source velocity.
 
@@ -427,13 +424,12 @@ class SPHSource(object):
             velocity.
             Vector by which to offset the source particle velocities.
         """
-
         self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
             "s"
         ].translate(boost_vector)
         return
 
-    def save_current_rotation(self, fname):
+    def save_current_rotation(self, fname) -> None:
         """
         Output current rotation matrix to file.
 
@@ -447,7 +443,6 @@ class SPHSource(object):
         fname : str
             File in which to save rotation matrix. A file handle can also be passed.
         """
-
         np.savetxt(fname, self.current_rotation)
         return
 

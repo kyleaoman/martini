@@ -7,9 +7,7 @@ from astropy import units as U
 
 class TestNoise:
     def test_noise_shape(self):
-        """
-        Check that we generate noise with correct shape.
-        """
+        """Check that we generate noise with correct shape."""
         rms = 1.0 * U.Jy * U.beam**-1
         noise_generator = GaussianNoise(rms=rms)
         datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
@@ -18,9 +16,7 @@ class TestNoise:
         assert noise.shape == datacube._array.shape
 
     def test_noise_amplitude(self, m_init):
-        """
-        Check that we generate noise with correct amplitude.
-        """
+        """Check that we generate noise with correct amplitude."""
         target_rms = m_init.noise.target_rms
         m_init.insert_source_in_cube(progressbar=False)
         m_init.datacube._array[...] = 0 * U.Jy * U.arcsec**-2
@@ -30,10 +26,7 @@ class TestNoise:
         assert U.isclose(measured_rms, target_rms, rtol=0.1)
 
     def test_noise_seed(self):
-        """
-        Check that if we use a seed we get repeatable results.
-        """
-
+        """Check that if we use a seed we get repeatable results."""
         rms = 1.0 * U.Jy * U.beam**-1
         seed = 0
         datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
@@ -46,10 +39,7 @@ class TestNoise:
         )
 
     def test_noise_noseed(self):
-        """
-        Check that if we use seed=None we get unpredictable results.
-        """
-
+        """Check that if we use seed=None we get unpredictable results."""
         rms = 1.0 * U.Jy * U.beam**-1
         seed = None
         datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
@@ -62,9 +52,7 @@ class TestNoise:
         )
 
     def test_reset_rng(self):
-        """
-        Check that when we reset the rng we get the same results.
-        """
+        """Check that when we reset the rng we get the same results."""
         rms = 1.0 * U.Jy * U.beam**-1
         seed = 0
         datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)

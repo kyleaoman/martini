@@ -42,7 +42,6 @@ def translate(cls, translation_vector):
         :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation`
         instance with translation applied.
     """
-
     return CartesianRepresentation(
         cls.__class__.get_xyz(cls) + translation_vector.reshape(3, 1),
         differentials=cls.differentials,
@@ -66,7 +65,6 @@ def translate_d(cls, translation_vector):
         :class:~astropy.coordinates.representation.cartesian.CartesianDifferential`
         instance with translation applied.
     """
-
     return CartesianDifferential(
         cls.__class__.get_d_xyz(cls) + translation_vector.reshape(3, 1)
     )

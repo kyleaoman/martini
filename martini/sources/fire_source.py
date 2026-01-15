@@ -120,7 +120,7 @@ class FIRESource(SPHSource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
-    ):
+    ) -> None:
         import gizmo_analysis as gizmo
 
         gizmo_read_kwargs = dict(

@@ -81,7 +81,7 @@ class SWIFTGalaxySource(SPHSource):
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
         _mHI_g=None,
-    ):
+    ) -> None:
         h = galaxy.metadata.cosmology.h
         mHI_g = (
             galaxy.gas.atomic_hydrogen_masses.to_astropy() if _mHI_g is None else _mHI_g

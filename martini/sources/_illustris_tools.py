@@ -293,9 +293,7 @@ def loadHeader(basePath, snapNum):
 
 
 def getSnapOffsets(basePath, snapNum, id, type):
-    """
-    Compute offsets within snapshot for a particular group/subgroup.
-    """
+    """Compute offsets within snapshot for a particular group/subgroup."""
     import h5py
 
     r = {}

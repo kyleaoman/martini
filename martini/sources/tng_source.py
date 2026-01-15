@@ -42,7 +42,7 @@ def api_get(path, params=None, api_key=None):
     return r
 
 
-def cutout_file(simulation, snapNum, haloID):
+def cutout_file(simulation, snapNum, haloID) -> str:
     """
     Helper to generate a string identifying a cutout file.
 
@@ -183,7 +183,7 @@ class TNGSource(SPHSource):
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         coordinate_frame=ICRS(),
-    ):
+    ) -> None:
         # optional dependencies for this source class
         import h5py
         from Hdecompose.atomic_frac import atomic_frac

@@ -1,6 +1,4 @@
-"""
-Provides classes for modelling the 21-cm spectral line emitted by a SPH particle.
-"""
+"""Provides classes for modelling the 21-cm spectral line emitted by a SPH particle."""
 
 import numpy as np
 import astropy.units as U
@@ -49,13 +47,13 @@ class _BaseSpectrum(metaclass=ABCMeta):
     martini.spectral_models.DiracDeltaSpectrum
     """
 
-    def __init__(self, ncpu=None, spec_dtype=np.float64):
+    def __init__(self, ncpu=None, spec_dtype=np.float64) -> None:
         self.ncpu = ncpu if ncpu is not None else 1
         self.spectra = None
         self.spec_dtype = spec_dtype
         return
 
-    def init_spectra(self, source, datacube):
+    def init_spectra(self, source, datacube) -> None:
         """
         Pre-compute the spectrum of each particle.
 
@@ -81,7 +79,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
             :class:`~martini.datacube.DataCube` object defining the observational
             parameters, including spectral channels.
         """
-
         self.channel_edges = datacube.velocity_channel_edges
         channel_widths = np.abs(np.diff(self.channel_edges).to(U.km * U.s**-1))
         self.vmids = source.skycoords.radial_velocity
@@ -121,7 +118,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
             self.spectra, channel_widths.astype(self.spec_dtype), out=self.spectra
         )
 
-        def MHI_to_Jy_inplace(x):
+        def MHI_to_Jy_inplace(x) -> None:
             """
             Apply the HI mass to flux density conversion, with no memory overhead.
 
@@ -231,7 +228,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
         --------
         martini.spectral_models._BaseSpectrum.get_spectral_function_extra_data
         """
-
         pass
 
     def get_spectral_function_extra_data(
@@ -283,7 +279,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
 
 class GaussianSpectrum(_BaseSpectrum):
-    """
+    r"""
     Class implementing a Gaussian model for the spectrum of the HI line.
 
     The line is modelled as a Gaussian of either fixed width, or of width
@@ -314,7 +310,7 @@ class GaussianSpectrum(_BaseSpectrum):
     martini.spectral_models.DiracDeltaSpectrum
     """
 
-    def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64):
+    def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64) -> None:
         self.sigma_mode = sigma
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
 
@@ -348,7 +344,6 @@ class GaussianSpectrum(_BaseSpectrum):
         out : ~astropy.units.Quantity
             The evaluated spectral model (dimensionless).
         """
-
         assert extra_data is not None
         sigma = extra_data["sigma"]
 
@@ -417,7 +412,6 @@ class GaussianSpectrum(_BaseSpectrum):
         out : dict
             The extra data that have been read in and prepared for use.
         """
-
         extra_data = dict(sigma=self.half_width(source))
         return super().get_spectral_function_extra_data(
             source, datacube, mask=mask, extra_data=extra_data
@@ -439,7 +433,6 @@ class GaussianSpectrum(_BaseSpectrum):
             :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Velocity dispersion (constant, or per particle).
         """
-
         if self.sigma_mode == "thermal":
             # 3D velocity dispersion of an ideal gas is sqrt(3 * kB * T / mp)
             # So 1D velocity dispersion is sqrt(kB * T / mp)
@@ -466,7 +459,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         memory usage by adjusting precision.
     """
 
-    def __init__(self, ncpu=None, spec_dtype=np.float64):
+    def __init__(self, ncpu=None, spec_dtype=np.float64) -> None:
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
         return
 
@@ -539,5 +532,4 @@ class DiracDeltaSpectrum(_BaseSpectrum):
             :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Velocity dispersion of ``0 * U.km * U.s**-1``.
         """
-
         return 0 * U.km * U.s**-1

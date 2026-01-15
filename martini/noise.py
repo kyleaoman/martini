@@ -1,6 +1,4 @@
-"""
-Provides classes to generate noise for data cubes.
-"""
+"""Provides classes to generate noise for data cubes."""
 
 from abc import ABCMeta, abstractmethod
 import numpy as np
@@ -29,7 +27,7 @@ class _BaseNoise(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, seed=None):
+    def __init__(self, seed=None) -> None:
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
         return
@@ -65,7 +63,7 @@ class _BaseNoise(object):
         """
         pass
 
-    def reset_rng(self):
+    def reset_rng(self) -> None:
         """
         Reset the random number generator to its initial state.
 
@@ -98,7 +96,7 @@ class GaussianNoise(_BaseNoise):
         self,
         rms=1.0 * U.Jy * U.beam**-1,
         seed=None,
-    ):
+    ) -> None:
         self.target_rms = rms
 
         super().__init__(seed=seed)
@@ -133,7 +131,6 @@ class GaussianNoise(_BaseNoise):
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
         """
-
         sig_maj = (beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
             U.dimensionless_unscaled
         )

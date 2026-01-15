@@ -198,7 +198,6 @@ class TestMartini:
         datacube, by checking the conversion back to total mass. Covers testing
         Martini.insert_source_in_cube.
         """
-
         hsm_g = (
             0.1 * U.kpc if sph_kernel.__name__ == "DiracDeltaKernel" else 1.0 * U.kpc
         )
@@ -216,9 +215,7 @@ class TestMartini:
         check_mass_accuracy(m, out_mode)
 
     def test_convolve_beam(self, single_particle_source):
-        """
-        Check that beam convolution gives result matching manual calculation.
-        """
+        """Check that beam convolution gives result matching manual calculation."""
         source = single_particle_source()
         datacube = DataCube(
             n_px_x=16,
@@ -258,9 +255,7 @@ class TestMartini:
         assert U.allclose(m.datacube._array, convolved_cube)
 
     def test_add_noise(self, m_init):
-        """
-        Check that noise provided goes into the datacube when we call add_noise.
-        """
+        """Check that noise provided goes into the datacube when we call add_noise."""
         assert (m_init.datacube._array.sum() == 0).all()
         assert m_init.noise.seed is not None
         expected_noise = m_init.noise.generate(m_init.datacube, m_init.beam)
@@ -439,9 +434,7 @@ class TestMartini:
         assert m.source.pixcoords.shape == (3, 1)
 
     def test_reset(self, m_nn):
-        """
-        Check that resetting martini instance zeros out datacube.
-        """
+        """Check that resetting martini instance zeros out datacube."""
         cube_array = m_nn.datacube._array
         assert m_nn.datacube._array.sum() > 0
         m_nn.reset()
@@ -477,9 +470,7 @@ class TestMartini:
         assert m_init.spectral_model.spectra is not None
 
     def test_preview(self, m_init):
-        """
-        Simply check that the preview visualisation runs without error.
-        """
+        """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
@@ -759,7 +750,6 @@ class TestGlobalProfile:
         spectrum, by checking the conversion back to total mass. Covers testing
         GlobalProfile.insert_source_in_spectrum.
         """
-
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         # we test both ra=0deg and ra=180deg to make sure all particles included
         source = single_particle_source(ra=ra)
@@ -857,9 +847,7 @@ class TestGlobalProfile:
             assert GlobalProfile(**kwargs).source.npart == 1
 
     def test_reset(self, gp):
-        """
-        Check that resetting global profile instance zeros out datacube and spectrum.
-        """
+        """Check that resetting global profile instance zeros out datacube and spectrum."""
         cube_array = gp._datacube._array
         assert gp._datacube._array.sum() > 0
         spectrum = gp.spectrum
@@ -876,9 +864,7 @@ class TestGlobalProfile:
         gp.reset()
 
     def test_preview(self, gp):
-        """
-        Simply check that the preview visualisation runs without error.
-        """
+        """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
@@ -897,9 +883,7 @@ class TestGlobalProfile:
         )
 
     def test_channel_modes(self, single_particle_source):
-        """
-        Check that channels have expected units in both modes (frequency, velocity).
-        """
+        """Check that channels have expected units in both modes (frequency, velocity)."""
         source = single_particle_source()
         channel_width = 10 * U.km * U.s**-1
         m = GlobalProfile(
@@ -915,9 +899,7 @@ class TestGlobalProfile:
         m.channel_mids.to(expected_units)
 
     def test_view_spectrum(self, gp):
-        """
-        Simply check that plotting spectrum runs without error.
-        """
+        """Simply check that plotting spectrum runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
