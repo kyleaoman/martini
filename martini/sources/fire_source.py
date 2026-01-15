@@ -1,3 +1,9 @@
+"""
+Provides the :class:`~martini.sources.magneticum_source.MagneticumSource` class.
+
+Facilitates working with FIRE simulations.
+"""
+
 import numpy as np
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from astropy import units as U, constants as C
@@ -7,8 +13,7 @@ from .sph_source import SPHSource
 
 class FIRESource(SPHSource):
     """
-    Class abstracting HI sources designed to work with publicly available FIRE
-    snapshot and group data.
+    Class abstracting HI sources from publicly available FIRE snapshot and group data.
 
     For file access, see https://flathub.flatironinstitute.org/fire
 

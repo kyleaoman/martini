@@ -1,4 +1,6 @@
 """
+Provide extensions enabling coordinate translations on :mod:`astropy` coordinate objects.
+
 Functions which can be used to extend the
 :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation` and
 :class:`~astropy.coordinates.representation.cartesian.CartesianDifferential` classes from
@@ -14,13 +16,13 @@ These should be imported, then use:
     # Extend CartesianDifferential to allow velocity (or other differential)
     # translation
     setattr(CartesianDifferential, 'translate', translate_d)
-
-Copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
-commit-id 81e08768bcf3f910d86757c07b44632f393f29aa
-Note: No git-based solution (e.g. via submodules) seems practical to include
-selected files from external repositories; a direct copy is included here
-to produce a self-contained package.
 """
+
+# Copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
+# commit-id 81e08768bcf3f910d86757c07b44632f393f29aa
+# Note: No git-based solution (e.g. via submodules) seems practical to include
+# selected files from external repositories; a direct copy is included here
+# to produce a self-contained package.
 
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 

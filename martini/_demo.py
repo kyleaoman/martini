@@ -1,6 +1,8 @@
 """
-Provides the :func:`~martini._demo.demo_source` and :func:`~martini._demo.demo` functions
-that demonstrate basic usage of :mod:`martini`.
+Demonstrate basic usage of :mod:`martini`.
+
+The :func:`~martini._demo.demo_source` and :func:`~martini._demo.demo` functions
+demonstrate an example configuration and usage of the package.
 """
 
 from . import Martini, DataCube

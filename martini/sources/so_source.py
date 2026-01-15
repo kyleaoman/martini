@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.so_source.SOSource` class for working with the
-:mod:`simobj` interface to simulations.
+Provides the :class:`~martini.sources.so_source.SOSource` class.
+
+Enables using the :mod:`simobj` interface to simulations.
 """
 
 import numpy as np
@@ -11,12 +12,11 @@ from .sph_source import SPHSource
 
 class SOSource(SPHSource):
     """
-    Class abstracting HI sources using the :mod:`simobj` package for interface to
-    simulation data.
+    Load HI sources using the :mod:`simobj` package for interface to simulation data.
 
     This class accesses simulation data via the :mod:`simobj` package
-    (https://github.com/kyleaoman/simobj); see the documentation of that
-    package for further configuration instructions.
+    (https://github.com/kyleaoman/simobj); see the documentation of that package for
+    further configuration instructions.
 
     Parameters
     ----------

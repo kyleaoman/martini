@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.eagle_source.EAGLESource` class for working with
-EAGLE simulations as input.
+Provides the :class:`~martini.sources.eagle_source.EAGLESource` class.
+
+Facilitates working with EAGLE simulations as input.
 """
 
 import numpy as np
@@ -13,8 +14,7 @@ from astropy.coordinates import ICRS
 
 class EAGLESource(SPHSource):
     """
-    Class abstracting HI sources designed to work with publicly available
-    EAGLE snapshot + group data.
+    Class abstracting HI sources from publicly available EAGLE snapshot and group data.
 
     For file access, see http://icc.dur.ac.uk/Eagle/database.php.
 

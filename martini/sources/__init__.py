@@ -1,3 +1,5 @@
+"""Provide classes to load many simuation data formats and create an HI source."""
+
 # generic source class:
 from .sph_source import SPHSource
 
@@ -12,3 +14,15 @@ from .magneticum_source import MagneticumSource
 from .simba_source import SimbaSource
 from .tng_source import TNGSource
 from .fire_source import FIRESource
+
+__all__ = [
+    "SPHSource",
+    "SOSource",
+    "SWIFTGalaxySource",
+    "ColibreSource",
+    "EAGLESource",
+    "MagneticumSource",
+    "SimbaSource",
+    "TNGSource",
+    "FIRESource",
+]

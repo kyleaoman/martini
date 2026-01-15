@@ -111,7 +111,7 @@ class _BaseSPHKernel(object):
         self, msg, sm_lengths, valid, noraise=False, quiet=False
     ) -> None:
         """
-        Function managing handling of kernel validation errors.
+        Handle kernel validation errors.
 
         Parameters
         ----------
@@ -266,8 +266,7 @@ class _BaseSPHKernel(object):
     @abstractmethod
     def _validate(self, sm_lengths, noraise=False, quiet=False):
         """
-        Abstract method; check conditions for validity of kernel integral
-        calculation.
+        Abstract method; check conditions for validity of kernel integral calculation.
 
         Some approximations may only converge if the ratio of the pixel size
         and the smoothing length is sufficiently large, or sufficiently small.

@@ -1,6 +1,7 @@
 """
-Provides the generic :class:`~martini.sources.sph_source.SPHSource` class for working
-with any SPH or similar simulation as input.
+Provides the generic :class:`~martini.sources.sph_source.SPHSource` class.
+
+Enables working with any SPH or similar simulation as input.
 """
 
 import numpy as np
@@ -33,11 +34,10 @@ _origin = CartesianRepresentation(
 
 class SPHSource(object):
     r"""
-    Class abstracting HI emission sources consisting of SPH simulation
-    particles.
+    Class abstracting HI emission sources consisting of SPH simulation particles.
 
-    This class constructs an HI emission source from arrays of SPH particle
-    properties: mass, smoothing length, temperature, position, and velocity.
+    This class constructs an HI emission source from arrays of SPH particle properties:
+    mass, smoothing length, temperature, position, and velocity.
 
     Parameters
     ----------

@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.colibre_source.ColibreSource` class for working with
-Colibre simulations as input.
+Provides the :class:`~martini.sources.colibre_source.ColibreSource` class.
+
+Facilitates working with Colibre simulations as input.
 """
 
 import numpy as np
@@ -11,8 +12,9 @@ from .swiftgalaxy_source import SWIFTGalaxySource
 
 class ColibreSource(SWIFTGalaxySource):
     """
-    Class abstracting HI sources designed to work with Colibre simulations. Uses the
-    :mod:`swiftsimio` and :mod:`swiftgalaxy` modules.
+    Class abstracting HI sources designed to work with Colibre simulations.
+
+    Uses the :mod:`swiftsimio` and :mod:`swiftgalaxy` modules.
 
     Parameters
     ----------

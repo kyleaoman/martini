@@ -140,7 +140,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     def evaluate_spectra(self, source, datacube, mask=np.s_[...]):
         """
-        The main portion of the calculation of the spectra.
+        Evaluate the spectra.
 
         Separated into this function so that it can be called by a parallel
         process pool.
@@ -185,8 +185,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
     @abstractmethod
     def half_width(self, source):
         """
-        Abstract method; calculate the half-width of the spectrum, either globally or
-        per-particle.
+        Abstract method; get the half-width of the spectrum, globally or per-particle.
 
         Parameters
         ----------
@@ -318,7 +317,9 @@ class GaussianSpectrum(_BaseSpectrum):
 
     def spectral_function(self, a, b, vmids, extra_data=None):
         """
-        Evaluate a Gaussian integral in a channel. Requires sigma to be available from
+        Evaluate a Gaussian integral in a channel.
+
+        Requires sigma to be available from
         :attr:`~martini.spectral_models.GaussianSpectrum.spectral_function_extra_data`.
 
         Parameters
@@ -388,7 +389,9 @@ class GaussianSpectrum(_BaseSpectrum):
         self, source, datacube, mask=np.s_[...], extra_data=None
     ):
         """
-        Helper function to expose particle velocity dispersions to
+        Expose particle velocity dispersions.
+
+        Access to these is needed by
         :meth:`~martini.spectral_models.GaussianSpectrum.spectral_function`.
 
         Parameters
@@ -419,8 +422,7 @@ class GaussianSpectrum(_BaseSpectrum):
 
     def half_width(self, source):
         """
-        Calculate 1D velocity dispersions from particle temperatures, or return
-        constant.
+        Get 1D velocity dispersions from particle temperatures, or return constant.
 
         Parameters
         ----------

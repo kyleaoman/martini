@@ -1,4 +1,4 @@
-"""Provides classes to represent the beam of a radio telescope."""
+"""Provide classes to represent the beam of a radio telescope."""
 
 from abc import ABCMeta, abstractmethod
 import scipy.interpolate
@@ -8,7 +8,7 @@ import astropy.units as U
 
 class _BaseBeam(object):
     """
-    Abstract base class for classes implementing a radio telescope beam model.
+    Implement a radio telescope beam model.
 
     Classes inheriting from _BaseBeam must implement three methods:
     :meth:`~martini.beams._BaseBeam.f_kernel`,
@@ -75,8 +75,9 @@ class _BaseBeam(object):
 
     def needs_pad(self):
         """
-        Determine the padding of the datacube required by the beam to prevent
-        edge effects during convolution.
+        Determine the padding of the datacube required by the beam.
+
+        The beam should be padded enough to prevent edge effects during convolution.
 
         Returns
         -------
@@ -148,8 +149,7 @@ class _BaseBeam(object):
     @abstractmethod
     def f_kernel(self):
         """
-        Abstract method; returns a function defining the beam amplitude as a
-        function of position.
+        Return a function defining the beam amplitude as a function of position.
 
         The function returned by this method should accept two parameters, the
         RA and Dec offset from the beam centroid, and return the beam amplitude
@@ -161,15 +161,16 @@ class _BaseBeam(object):
     @abstractmethod
     def kernel_size_px(self):
         """
-        Abstract method; returns a 2-tuple specifying the half-size of the beam
-        image to be initialized, in pixels.
+        Return a 2-tuple specifying the half-size of the beam image to be initialized.
+
+        Size is in pixels.
         """
         pass
 
     @abstractmethod
     def init_beam_header(self):
         """
-        Abstract method; sets beam major/minor axis lengths and position angle.
+        Set beam major/minor axis lengths and position angle.
 
         This method is optional, and only needs to be defined if these
         parameters are not specified in the call to the ``__init__`` method of the
@@ -180,7 +181,7 @@ class _BaseBeam(object):
 
 class GaussianBeam(_BaseBeam):
     """
-    Class implementing a Gaussian beam model.
+    Implement a Gaussian beam model.
 
     Parameters
     ----------
@@ -215,8 +216,7 @@ class GaussianBeam(_BaseBeam):
         self,
     ):
         """
-        Returns a function defining the beam amplitude as a function of
-        position.
+        Return a function defining the beam amplitude as a function of position.
 
         The model implemented is a 2D Gaussian with FWHM's specified by ``bmaj``
         and ``bmin`` and orientation by ``bpa``.
@@ -260,8 +260,9 @@ class GaussianBeam(_BaseBeam):
 
     def kernel_size_px(self):
         """
-        Returns a 2-tuple specifying the half-size of the beam image to be
-        initialized, in pixels.
+        Return a 2-tuple specifying the half-size of the beam image to be initialized.
+
+        Size measured in pixels.
 
         Returns
         -------

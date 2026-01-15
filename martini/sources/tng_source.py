@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.tng_source.TNGSource` class for working with
-IllustrisTNG simulations as input.
+Provides the :class:`~martini.sources.tng_source.TNGSource` class.
+
+Facilitates working with IllustrisTNG simulations as input.
 """
 
 import io
@@ -44,7 +45,7 @@ def api_get(path, params=None, api_key=None):
 
 def cutout_file(simulation, snapNum, haloID) -> str:
     """
-    Helper to generate a string identifying a cutout file.
+    Generate a string identifying a cutout file.
 
     Parameters
     ----------

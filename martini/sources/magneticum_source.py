@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.magneticum_source.MagneticumSource` class for
-working with Magneticum simulations as input.
+Provides the :class:`~martini.sources.magneticum_source.MagneticumSource` class.
+
+Facilitates working with Magneticum simulations as input.
 """
 
 import numpy as np
@@ -12,8 +13,7 @@ from .sph_source import SPHSource
 
 class MagneticumSource(SPHSource):
     """
-    Class abstracting HI sources designed to work with Magneticum snapshot
-    + group fies.
+    Class abstracting HI sources for use with Magneticum snapshot and group files.
 
     Provide either:
 

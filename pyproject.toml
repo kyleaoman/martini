@@ -53,13 +53,13 @@ firesource = [
     "halo-analysis",
 ]
 [tool.ruff]
-exclude = ["docs/source/conf.py"]
+exclude = ["docs/source/conf.py", "martini/sources/_illustris_tools.py"]
 line-length = 88
 indent-width = 4
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "D", "ANN"]
+select = ["E4", "E7", "E9", "F", "D"]  # , "ANN"]  # get annotations out of stubs first
 ignore = []
 fixable = ["ALL"]
 unfixable = []

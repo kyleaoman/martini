@@ -1,7 +1,4 @@
-"""
-Provides the :class:`~martini.datacube.DataCube` class for creating a data cube for a mock
-observation.
-"""
+"""Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
 import numpy as np
 import astropy.units as U
@@ -176,7 +173,7 @@ class DataCube(object):
         return
 
     def velocity_channels(self) -> None:
-        """Deprecated - issues a warning then does nothing."""
+        """Issue a warning then do nothing (deprecated)."""
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -188,7 +185,7 @@ class DataCube(object):
         pass
 
     def freq_channels(self) -> None:
-        """Deprecated - issues a warning then does nothing."""
+        """Issue a warning then do nothing (deprecated)."""
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -202,8 +199,9 @@ class DataCube(object):
     @classmethod
     def from_wcs(cls, input_wcs, specsys=None):
         """
-        Create a DataCube from a World Coordinate System (WCS), for instance one created
-        from a FITS header.
+        Create a DataCube from a World Coordinate System (WCS).
+
+        The WCS can be obtained, for instance, from a FITS header.
 
         To create a MARTINI data cube with pixels and channels exactly matching an
         observed data cube (stored in a FITS file) would be a bit tedious using the usual
@@ -701,10 +699,12 @@ class DataCube(object):
 
     def save_state(self, filename, overwrite=False) -> None:
         """
-        Write a file from which the current :class:`~martini.datacube.DataCube`
-        state can be re-initialized (see :meth:`~martini.datacube.DataCube.load_state`).
-        Note that :mod:`h5py` must be installed for use. NOT for outputting mock
-        observations, for this see :meth:`~martini.martini.Martini.write_fits` and
+        Write the :class:`~martini.datacube.DataCube` state to file for re-use.
+
+        The state can be re-initialized (see
+        :meth:`~martini.datacube.DataCube.load_state`). Note that :mod:`h5py` must be
+        installed for use. NOT for outputting mock observations, for this see
+        :meth:`~martini.martini.Martini.write_fits` and
         :meth:`~martini.martini.Martini.write_hdf5`.
 
         Parameters
@@ -758,10 +758,11 @@ class DataCube(object):
     @classmethod
     def load_state(cls, filename):
         """
-        Initialize a :class:`~martini.datacube.DataCube` from a state saved using
-        :meth:`~martini.datacube.DataCube.save_state`. Note that :mod:`h5py` must be
-        installed for use. Note that ONLY the :class:`~martini.datacube.DataCube`
-        state is restored, other modules and their configurations are not affected.
+        Initialize a :class:`~martini.datacube.DataCube` from a state saved.
+
+        Note that :mod:`h5py` must be installed for use. Note that ONLY the
+        :class:`~martini.datacube.DataCube` state is restored, other modules and their
+        configurations are not affected.
 
         Parameters
         ----------

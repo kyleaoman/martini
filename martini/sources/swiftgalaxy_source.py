@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.swiftgalaxy_source.SWIFTGalaxySource` class for
-working with SWIFT simulations as input.
+Provides the :class:`~martini.sources.swiftgalaxy_source.SWIFTGalaxySource` class.
+
+Facilitates working with SWIFT simulations as input.
 """
 
 import numpy as np
@@ -11,8 +12,7 @@ from astropy.coordinates import ICRS
 
 class SWIFTGalaxySource(SPHSource):
     """
-    Class abstracting HI sources designed to work with the :mod:`swiftsimio` and
-    :mod:`swiftgalaxy` modules.
+    Load HI sources from SWIFT simulations via :mod:`swiftsimio` and :mod:`swiftgalaxy`.
 
     Parameters
     ----------

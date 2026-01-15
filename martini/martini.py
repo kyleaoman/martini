@@ -1,4 +1,6 @@
 """
+Create mock observations of HI sources from cosmological hydrodynamical simulations.
+
 Provides :class:`~martini.martini.Martini`, the main class of the package, and a
 simplified :class:`~martini.martini.GlobalProfile` class for use when only a spectrum (no
 spatial information) is desired.
@@ -143,9 +145,10 @@ class _BaseMartini:
 
     def init_spectra(self) -> None:
         """
-        Explicitly trigger evaluation of particle spectra. Triggered when
-        :meth:`~martini.martini.Martini.insert_source_in_cube` is called if not called
-        explicitly before this.
+        Explicitly trigger evaluation of particle spectra.
+
+        Triggered when :meth:`~martini.martini.Martini.insert_source_in_cube` is called if
+        not called explicitly before this.
         """
         if not self.quiet:
             print("Initializing spectra...")
@@ -159,8 +162,9 @@ class _BaseMartini:
         self, spatial=True, spectral=True, mass=True, obj_type_str="data cube"
     ) -> None:
         """
-        Determines which particles cannot contribute to the DataCube and
-        removes them to speed up calculation. Assumes the kernel is 0 at
+        Identify and remove particles that cannot contribute to the DataCube.
+
+        This helps speed up the later calculations. Assumes the kernel is 0 at
         distances greater than the kernel size (which may differ from the
         SPH smoothing length).
 
@@ -296,8 +300,7 @@ class _BaseMartini:
         self, skip_validation=False, progressbar=None, ncpu=1, quiet=None
     ) -> None:
         """
-        Populates the :class:`~martini.datacube.DataCube` with flux from the
-        particles in the source.
+        Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
 
         Parameters
         ----------
@@ -445,8 +448,9 @@ class _BaseMartini:
         save=None,
     ):
         """
-        Produce a figure showing the source particle coordinates and velocities, and the
-        data cube region.
+        Produce a figure showing the source particle coordinates and velocities.
+
+        The data cube region is also outlined.
 
         Makes a 3-panel figure showing the projection of the source as it will appear in
         the mock observation. The first panel shows the particles in the y-z plane,
@@ -868,7 +872,7 @@ class Martini(_BaseMartini):
         self, skip_validation=False, progressbar=None, ncpu=1
     ) -> None:
         """
-        Populates the DataCube with flux from the particles in the source.
+        Populate the DataCube with flux from the particles in the source.
 
         Parameters
         ----------
@@ -1183,8 +1187,9 @@ class Martini(_BaseMartini):
         channels=None,  # deprecated
     ):
         """
-        Output the data cube and beam to a HDF5-format file. Requires the :mod:`h5py`
-        package.
+        Output the data cube and beam to a HDF5-format file.
+
+        Requires the :mod:`h5py` package.
 
         Parameters
         ----------
@@ -1390,8 +1395,10 @@ class Martini(_BaseMartini):
 
 class GlobalProfile(_BaseMartini):
     """
-    A simplified version of the main :class:`~martini.martini.Martini` class to just
-    produce a spectrum.
+    Just produce a global spectrum of an HI source.
+
+    A simplified version of the main :class:`~martini.martini.Martini` class for those
+    times when you just want a spectrum.
 
     Sometimes only the spatially integrated spectrum of a source is wanted, which makes
     many parts of the standard MARTINI process unnecessary. This class streamlines the
@@ -1569,8 +1576,7 @@ class GlobalProfile(_BaseMartini):
 
     def insert_source_in_spectrum(self) -> None:
         """
-        Populates the :class:`~martini.datacube.DataCube` with flux from the particles
-        in the source.
+        Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
 
         For the :class:`~martini.martini.GlobalProfile` class we assume that every
         particle in the source contributes (if it falls in the spectral bandwidth)

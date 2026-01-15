@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.simba_source.SimbaSource` class for working with
-Simba simulations as input.
+Provides the :class:`~martini.sources.simba_source.SimbaSource` class.
+
+Facilitates working with Simba simulations as input.
 """
 
 import numpy as np
@@ -13,8 +14,7 @@ from astropy.coordinates import ICRS
 
 class SimbaSource(SPHSource):
     """
-    Class abstracting HI sources designed to work with SIMBA snapshot and
-    group data.
+    Class abstracting HI sources designed to work with SIMBA snapshot and group data.
 
     For file access, enquire with R. Davé (rad@roe.ac.uk).
 
