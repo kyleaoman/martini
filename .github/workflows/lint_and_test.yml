@@ -16,18 +16,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Run Black
-        uses: psf/black@stable
-        with:
-          options: "--check --verbose"
-          jupyter: true
+      - name: Run flake8
+        uses: py-actions/flake8@v2
+      - uses: astral-sh/ruff-action@v3
+      - name: Ruff style checks
+        run: ruff check
+      - name: Ruff formatting checks
+        run: ruff format --check --diff
+      - name: Checkout martini
+        uses: actions/checkout@v4
       - name: Set up Python environment
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run flake8
-        uses: py-actions/flake8@v2
+      - name: Install numpydoc
+        run: pip install numpydoc
+      - name: Run docstring validation
+        run: python -m numpydoc lint **/*.py
       - name: Install mypy
         run: pip install mypy
       - name: Install types
@@ -41,10 +46,6 @@ jobs:
           pip install -e .
       - name: Run stubtest
         run: ./run_stubtest
-      - name: Install numpydoc
-        run: pip install numpydoc
-      - name: Run docstring validation
-        run: ./run_validate_docstrings
       
   tests:
     needs: lint
