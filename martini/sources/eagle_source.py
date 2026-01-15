@@ -157,8 +157,8 @@ class EAGLESource(SPHSource):
             "  sh.Velocity_y as vy, "
             "  sh.Velocity_z as vz "
             "FROM "
-            "  {:s}_SubHalo as sh ".format(volCode) + "WHERE "
-            "  sh.Snapnum = {:d} ".format(snapNum)
+            "  {:s}_SubHalo as sh ".format(volCode)
+            + "WHERE   sh.Snapnum = {:d} ".format(snapNum)
             + "  and sh.GroupNumber = {:d} ".format(fof)
             + "  and sh.SubGroupNumber = {:d}".format(sub)
         )

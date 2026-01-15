@@ -76,7 +76,9 @@ def demo_source(N=500):
     return source
 
 
-def demo(cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5") -> None:
+def demo(
+    cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"
+) -> None:
     """
     Demonstrates basic usage of MARTINI.
 

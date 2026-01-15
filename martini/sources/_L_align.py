@@ -46,11 +46,11 @@ def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
     transposed = False
     if xyz.ndim != 2:
         raise ValueError(
-            "L_align: cannot guess coordinate axis for input with" " ndim != 2."
+            "L_align: cannot guess coordinate axis for input with ndim != 2."
         )
     elif (xyz.shape[0] == 3) and (xyz.shape[1] == 3):
         raise ValueError(
-            "L_align: cannot guess coordinate axis for input with" " shape (3, 3)."
+            "L_align: cannot guess coordinate axis for input with shape (3, 3)."
         )
     elif xyz.shape[1] == 3:
         xyz = xyz.T

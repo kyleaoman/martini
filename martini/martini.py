@@ -517,14 +517,10 @@ class _BaseMartini:
         v_cube = (self._datacube.spectral_centre - self.source.vsys).to(U.km / U.s)
         dy_cube = 0.5 * (
             self._datacube.px_size * self._datacube.n_px_x * self.source.distance
-        ).to(
-            U.kpc, U.dimensionless_angles()
-        )  # half-length
+        ).to(U.kpc, U.dimensionless_angles())  # half-length
         dz_cube = 0.5 * (
             self._datacube.px_size * self._datacube.n_px_y * self.source.distance
-        ).to(
-            U.kpc, U.dimensionless_angles()
-        )  # half-length
+        ).to(U.kpc, U.dimensionless_angles())  # half-length
         dv_cube = 0.5 * (self._datacube.channel_width * self._datacube.n_channels).to(
             U.km / U.s
         )
@@ -868,7 +864,9 @@ class Martini(_BaseMartini):
         """
         return self._datacube
 
-    def insert_source_in_cube(self, skip_validation=False, progressbar=None, ncpu=1) -> None:
+    def insert_source_in_cube(
+        self, skip_validation=False, progressbar=None, ncpu=1
+    ) -> None:
         """
         Populates the DataCube with flux from the particles in the source.
 

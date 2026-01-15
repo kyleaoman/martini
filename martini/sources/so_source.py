@@ -106,7 +106,7 @@ class SOSource(SPHSource):
         self.rescale_hsm_g = rescale_hsm_g
         if (SO_args is not None) and (SO_instance is not None):
             raise ValueError(
-                "martini.source.SOSource: Provide SO_args or " "SO_instance, not both."
+                "martini.source.SOSource: Provide SO_args or SO_instance, not both."
             )
         elif SO_args is not None:
             with SimObj(**self._SO_args) as SO:
@@ -145,6 +145,6 @@ class SOSource(SPHSource):
             )
         else:
             raise ValueError(
-                "martini.sources.SOSource: Provide one of SO_args" " or SO_instance."
+                "martini.sources.SOSource: Provide one of SO_args or SO_instance."
             )
         return

@@ -327,7 +327,6 @@ class TestDataCube:
 
 
 class TestDataCubeFromWCS:
-
     def test_specsys_case_insensitive(self, dc_random):
         """
         FITS specsys usually uppercase but astropy has equivalents in lowercase.

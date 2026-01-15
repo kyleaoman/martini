@@ -170,8 +170,7 @@ class SPHSource(object):
 
         if xyz_g.shape != vxyz_g.shape:
             raise ValueError(
-                "martini.sources.SPHSource: xyz_g and vxyz_g must"
-                " have matching shapes."
+                "martini.sources.SPHSource: xyz_g and vxyz_g must have matching shapes."
             )
 
         if coordinate_axis == 0:

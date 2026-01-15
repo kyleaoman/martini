@@ -96,9 +96,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
                         [
                             (
                                 np.s_[
-                                    icpu
-                                    * len(self.vmids)
-                                    // self.ncpu : (icpu + 1)
+                                    icpu * len(self.vmids) // self.ncpu : (icpu + 1)
                                     * len(self.vmids)
                                     // self.ncpu
                                 ]
@@ -310,7 +308,9 @@ class GaussianSpectrum(_BaseSpectrum):
     martini.spectral_models.DiracDeltaSpectrum
     """
 
-    def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64) -> None:
+    def __init__(
+        self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64
+    ) -> None:
         self.sigma_mode = sigma
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
 

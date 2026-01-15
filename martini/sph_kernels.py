@@ -107,7 +107,9 @@ class _BaseSPHKernel(object):
         """
         return self._validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
-    def _validate_error(self, msg, sm_lengths, valid, noraise=False, quiet=False) -> None:
+    def _validate_error(
+        self, msg, sm_lengths, valid, noraise=False, quiet=False
+    ) -> None:
         """
         Function managing handling of kernel validation errors.
 

@@ -518,14 +518,10 @@ class TestMartini:
         def centre_pixels_slice(m):
             datacube = m.datacube
             return m.datacube._array[
-                datacube.n_px_x // 2
-                - 1
-                + datacube.padx : datacube.n_px_x // 2
+                datacube.n_px_x // 2 - 1 + datacube.padx : datacube.n_px_x // 2
                 + 1
                 + datacube.padx,
-                datacube.n_px_y // 2
-                - 1
-                + datacube.pady : datacube.n_px_y // 2
+                datacube.n_px_y // 2 - 1 + datacube.pady : datacube.n_px_y // 2
                 + 1
                 + datacube.pady,
             ]
