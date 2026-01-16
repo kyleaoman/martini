@@ -1,3 +1,5 @@
+"""Test the functionality of the noise modules."""
+
 import numpy as np
 from martini.noise import GaussianNoise
 from martini.beams import GaussianBeam
@@ -6,6 +8,8 @@ from astropy import units as U
 
 
 class TestNoise:
+    """Test the functionality of the noise modules."""
+
     def test_noise_shape(self):
         """Check that we generate noise with correct shape."""
         rms = 1.0 * U.Jy * U.beam**-1

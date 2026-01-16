@@ -1,14 +1,17 @@
+"""Test that example notebooks work without error."""
+
 import os
 from martini.__version__ import __version__
 import pytest
 
 
 class TestExamples:
+    """Test that (non-source module) example notebooks work without error."""
+
     def test_source_injection_example_version(self):
-        """Check that the source injection notebook installs current version of martini."""
+        """Check that the source injection notebook uses current version of martini."""
         with open("examples/martini_source_injection.ipynb") as f:
             nb_content = f.read()
-        print(nb_content)
         assert (
             '"!{sys.executable} -m pip install \\"astromartini[tngsource]=='
             + __version__
@@ -21,6 +24,7 @@ class TestExamples:
         reason="sample data not locally available",
     )
     def test_source_injection_example(self):
+        """Test that the source injection demo runs without error and produces output."""
         pytest.importorskip(
             "nbmake", reason="nbmake (optional dependency) not available"
         )

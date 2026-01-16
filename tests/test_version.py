@@ -1,8 +1,12 @@
+"""Test consistency of code version numbers."""
+
 import importlib.metadata
 import martini
 
 
 class TestVersion:
+    """Test consistency of code version numbers."""
+
     def test_code_version(self):
         """Check that code version matches pyproject.toml version."""
         assert importlib.metadata.version("astromartini") == martini.__version__

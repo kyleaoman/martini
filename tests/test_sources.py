@@ -1,3 +1,5 @@
+"""Test functionality of HI source module."""
+
 import os
 import pytest
 import numpy as np
@@ -12,8 +14,10 @@ from martini.__version__ import __version__
 
 
 class TestSourceUtilities:
+    """Test the utility functions related to manipulating source objects."""
+
     def test_L_align(self):
-        """Test that L_align produces expected rotation matrices, including saving to file."""
+        """Test that we produce expected rotation matrices, including saving to file."""
         # set up 4 particles in x-y plane rotating right-handed about zhat
         _xyz = np.array([[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]])
         _vxyz = np.array([[0, 1, 0], [-1, 0, 0], [0, -1, 0], [1, 0, 0]])
@@ -78,6 +82,8 @@ class TestSourceUtilities:
 
 
 class TestSPHSource:
+    """Test the functionality of the generic source class."""
+
     def test_coordinate_input(self):
         """Check that different input shapes for coordinates give expected behaviour."""
         mHI_g = np.zeros(4) * U.Msun
@@ -207,7 +213,7 @@ class TestSPHSource:
         )
 
     def test_init_skycoords_resets(self, s):
-        """Check that particle coordinate arrays are reset after initialising skycoords."""
+        """Check that particle coordinate arrays reset after initialising skycoords."""
         initial_coords = s.coordinates_g
         s._init_skycoords()
         ax_equal = [
@@ -224,10 +230,7 @@ class TestSPHSource:
         assert not all(ax_equal)
 
     def test_init_pixcoords(self):
-        """
-        Check that pixel coordinates are accurately calculated from angular positions and
-        velocity offsets.
-        """
+        """Check pixel coordinates obtained from angular positions & velocity offsets."""
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         # line up particles 1 per 1kpc = 1arcsec interval in RA and Dec
@@ -462,6 +465,8 @@ class TestSPHSource:
 
 
 class TestEagleSource:
+    """Test the functionality of the EAGLE-specific source module."""
+
     def test_notebook_version(self):
         """Check that notebook installs current verison of martini."""
         with open("examples/martini_eagle.ipynb") as f:
@@ -504,6 +509,8 @@ class TestEagleSource:
 
 
 class TestSimbaSource:
+    """Test the functionality of the Simba-specific source module."""
+
     def test_notebook_version(self):
         """Check that notebook installs current verison of martini."""
         with open("examples/martini_simba.ipynb") as f:
@@ -546,6 +553,8 @@ class TestSimbaSource:
 
 
 class TestTNGSource:
+    """Test the functionality of the TNG-specific source module."""
+
     def test_notebook_version(self):
         """Check that notebook installs current verison of martini."""
         with open("examples/martini_TNG.ipynb") as f:
@@ -592,6 +601,8 @@ class TestTNGSource:
 
 
 class TestFIRESource:
+    """Test the functionality of the FIRE-specific source module."""
+
     def test_notebook_version(self):
         """Check that notebook installs current verison of martini."""
         with open("examples/martini_fire.ipynb") as f:
@@ -633,24 +644,36 @@ class TestFIRESource:
 
 
 class TestMagneticumSource:
+    """Test the functionality of the Magneticum-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test Magneticum source module if publicly released."""
         raise NotImplementedError
 
 
 class TestSOSource:
+    """Test the functionality of the simobj-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test SOSource source module if desired."""
         raise NotImplementedError
 
 
 class TestSWIFTGalaxySource:
+    """Test the functionality of the swiftgalaxy-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test SWIFTGalaxy source module."""
         raise NotImplementedError
 
 
 class TestColibreSource:
+    """Test the functionality of the Colibre-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test Colibre-specific source module if publicly released."""
         raise NotImplementedError
