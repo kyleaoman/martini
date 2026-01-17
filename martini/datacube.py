@@ -22,7 +22,7 @@ def _validate_specsys(specsys):
 
     Returns
     -------
-    out : str
+    str
         The input specsys string.
     """
     if specsys is not None and specsys not in _supported_specsys:
@@ -43,40 +43,40 @@ class DataCube(object):
     ----------
     n_px_x : int, optional
         Pixel count along the x (RA) axis. Even integers strongly preferred.
-        (Default: ``256``)
+        (Default: ``256``).
 
     n_px_y : int, optional
         Pixel count along the y (Dec) axis. Even integers strongly preferred.
-        (Default: ``256``)
+        (Default: ``256``).
 
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: ``64``)
+        Number of channels along the spectral axis. (Default: ``64``).
 
     px_size : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Angular scale of one pixel. (Default: ``15 * U.arcsec``)
+        Angular scale of one pixel. (Default: ``15 * U.arcsec``).
 
     channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: ``4 * U.km * U.s**-1``)
+        frequency. (Default: ``4 * U.km * U.s**-1``).
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension of the cube centroid. (Default: ``0 * U.deg``)
+        Right ascension of the cube centroid. (Default: ``0 * U.deg``).
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of angle.
-        Declination of the cube centroid. (Default: ``0 * U.deg``)
+        Declination of the cube centroid. (Default: ``0 * U.deg``).
 
     stokes_axis : bool, optional
         Whether the datacube should be initialized with a Stokes' axis.
-        (Default: ``False``)
+        (Default: ``False``).
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -85,14 +85,14 @@ class DataCube(object):
         :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
         :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
         :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
-        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``)
+        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``).
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube. Some common options include ``"gcrs"``,
         ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. For a complete list,
         use :meth:`astropy.coordinates.frame_transform_graph.get_names`.
-        (Default: ``"icrs"``)
+        (Default: ``"icrs"``).
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.
@@ -222,7 +222,7 @@ class DataCube(object):
             The spectral reference frame (standard of rest) of the World Coordinate System
             (WCS) associated with the data cube, selected from the list ``"gcrs"``,
             ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
-            (Default: ``"icrs"``)
+            (Default: ``"icrs"``).
 
         See Also
         --------
@@ -364,7 +364,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : tuple
+        tuple
             A tuple containing :class:`~astropy.units.Unit` instances describing the WCS
             units.
         """
@@ -377,7 +377,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~astropy.wcs.WCS
+        ~astropy.wcs.WCS
             The :class:`~astropy.wcs.WCS` instance that describes the
             :class:`~martini.datacube.DataCube`'s World Coordinate System (WCS).
         """
@@ -439,7 +439,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity
             containing the channel centres.
         """
@@ -464,7 +464,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity
             containing the channel edges.
         """
@@ -489,7 +489,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of velocity containing the
             channel centres.
         """
@@ -502,7 +502,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of velocity containing the
             channel edges.
         """
@@ -515,7 +515,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency containing the
             channel centres.
         """
@@ -528,7 +528,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency containing the
             channel edges.
         """
@@ -545,7 +545,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : int or None
+        int or None
             Index of the Stokes' axis (or ``None`` if it is not present).
         """
         for index, axis_type in enumerate(self.wcs.get_axis_types()):
@@ -562,7 +562,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : iter
+        iter
             The iterator over the spatial 'slices' of the cube.
         """
         return self.spatial_slices
@@ -574,7 +574,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : iter
+        iter
             The iterator over the spatial 'slices' of the cube.
         """
         if self.stokes_axis:
@@ -597,7 +597,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : iter
+        iter
             The iterator over the spectra making up the cube.
         """
         if self.stokes_axis:
@@ -680,7 +680,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~martini.datacube.DataCube
+        ~martini.datacube.DataCube
             Copy of the :class:`~martini.datacube.DataCube` object.
         """
         copy = DataCube(
@@ -717,7 +717,7 @@ class DataCube(object):
             File to write.
 
         overwrite : bool
-            Whether to allow overwriting existing files. (default: ``False``)
+            Whether to allow overwriting existing files. (default: ``False``).
 
         See Also
         --------
@@ -775,7 +775,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~martini.datacube.DataCube
+        ~martini.datacube.DataCube
             A suitably initialized :class:`~martini.datacube.DataCube` object.
 
         See Also
@@ -823,7 +823,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : str
+        str
             Text representation of the :attr:`~martini.datacube.DataCube._array` contents.
         """
         return self._array.__repr__()
@@ -836,22 +836,22 @@ class _GlobalProfileDataCube(DataCube):
     Parameters
     ----------
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: ``64``)
+        Number of channels along the spectral axis. (Default: ``64``).
 
     channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: ``4 U.km * U.s**-1``)
+        frequency. (Default: ``4 U.km * U.s**-1``).
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube, selected from the list ``"gcrs"``,
-        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``)
+        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``).
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.

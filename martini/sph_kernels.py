@@ -21,7 +21,7 @@ def find_fwhm(f):
 
     Returns
     -------
-    out : float
+    float
         FWHM of the input function.
     """
     return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, 0.5)[0]
@@ -72,11 +72,11 @@ class _BaseSPHKernel(object):
             Distances from pixel centre to particle positions, in pixels.
 
         mask : ~numpy.typing.ArrayLike or slice, optional
-            Boolean mask to apply to any maskable attributes. (Default: ``None``)
+            Boolean mask to apply to any maskable attributes. (Default: ``None``).
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels^-2.
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
@@ -100,10 +100,10 @@ class _BaseSPHKernel(object):
         Parameters
         ----------
         noraise : bool
-            If ``True``, don't raise error if validation fails. (Default: ``False``)
+            If ``True``, don't raise error if validation fails. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         return self._validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
@@ -126,10 +126,10 @@ class _BaseSPHKernel(object):
             Boolean array specifying which particles fail validation.
 
         noraise : bool
-            If ``True``, don't raise error if validation fails. (Default: ``False``)
+            If ``True``, don't raise error if validation fails. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         if not quiet:
             print(f"    ---------{self.__class__.__name__} VALIDATION---------")
@@ -167,7 +167,7 @@ class _BaseSPHKernel(object):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at position(s) ``r``.
         """
         q = np.array(r / h / self._rescale)
@@ -233,7 +233,7 @@ class _BaseSPHKernel(object):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         pass
@@ -257,7 +257,7 @@ class _BaseSPHKernel(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels^-2.
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
@@ -282,10 +282,10 @@ class _BaseSPHKernel(object):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress exceptions. (Default: ``False``)
+            If ``True``, suppress exceptions. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         pass
 
@@ -342,7 +342,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         W = np.where(q < 1, np.power(1 - q, 4) * (4 * q + 1), 0)
@@ -371,7 +371,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
         dr2 = np.power(dij, 2).sum(axis=0)
@@ -398,10 +398,10 @@ class _WendlandC2Kernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``)
+            If ``True``, suppress kernel validation errors. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -474,7 +474,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         W = np.where(
@@ -508,7 +508,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
 
@@ -526,7 +526,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
             Returns
             -------
-            out : ~numpy.typing.ArrayLike
+            ~numpy.typing.ArrayLike
                 Result of the expression.
             """
             return (
@@ -635,10 +635,10 @@ class _WendlandC6Kernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``)
+            If ``True``, suppress kernel validation errors. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -716,7 +716,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         W = np.where(
@@ -748,7 +748,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
         dij *= 2  # changes interval from [0, 2) to [0, 1)
@@ -801,10 +801,10 @@ class _CubicSplineKernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``)
+            If ``True``, suppress kernel validation errors. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -852,7 +852,7 @@ class _GaussianKernel(_BaseSPHKernel):
     truncate : float, optional
         Number of standard deviations at which to truncate kernel.
         Truncation radii <2 would lead to large errors and are not permitted.
-        (Default: ``3``)
+        (Default: ``3``).
     """
 
     def __init__(self, truncate=3.0) -> None:
@@ -904,7 +904,7 @@ class _GaussianKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
@@ -940,7 +940,7 @@ class _GaussianKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel integral over the pixel area.
         """
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
@@ -976,10 +976,10 @@ class _GaussianKernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``)
+            If ``True``, suppress kernel validation errors. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -1019,7 +1019,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         lead to no particles contributing to any pixels. Ideally this would
         be set to approximately the size of the pixel, but setting it to
         the smoothing length (1.0) is acceptable given the validation condition.
-        (Default: 1.0)
+        (Default: ``1.0``).
     """
 
     max_valid_size = 0.5
@@ -1049,7 +1049,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         return np.where(q, 0, np.inf)
@@ -1071,11 +1071,11 @@ class DiracDeltaKernel(_BaseSPHKernel):
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
         mask : ~numpy.typing.ArrayLike or slice, optional
-            Boolean mask to apply to any maskable attributes. (Default: ``np.s_[...]``)
+            Boolean mask to apply to any maskable attributes. (Default: ``np.s_[...]``).
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel integral over the pixel area.
         """
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
@@ -1095,10 +1095,10 @@ class DiracDeltaKernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``)
+            If ``True``, suppress kernel validation errors. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         valid = sm_lengths <= self.max_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -1211,7 +1211,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at position(s) ``r``.
         """
         return self.kernels[0].eval_kernel(r, h)
@@ -1227,7 +1227,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         return self.kernels[0].kernel(q)
@@ -1252,7 +1252,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
         retval = np.zeros(h.shape) * h.unit**-2
@@ -1273,10 +1273,10 @@ class _AdaptiveKernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``)
+            If ``True``, suppress kernel validation errors. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         valid = self.kernel_indices >= 0
         if np.logical_not(valid).any():
@@ -1358,7 +1358,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         if hasattr(q, "shape"):
@@ -1402,7 +1402,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Approximate kernel integral over the pixel area.
         """
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
@@ -1426,7 +1426,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
             Returns
             -------
-            out : ~numpy.typing.ArrayLike
+            ~numpy.typing.ArrayLike
                 Result of the expression.
             """
             q = np.sqrt(np.power(z, 2) + np.power(R, 2))
@@ -1464,10 +1464,10 @@ class _QuarticSplineKernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``)
+            If ``True``, suppress kernel validation errors. (Default: ``False``).
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``)
+            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -1542,7 +1542,7 @@ class WendlandC2Kernel(_AdaptiveKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1602,7 +1602,7 @@ class WendlandC6Kernel(_AdaptiveKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1668,7 +1668,7 @@ class CubicSplineKernel(_AdaptiveKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1707,7 +1707,7 @@ class GaussianKernel(_AdaptiveKernel):
     truncate : float, optional
         Number of standard deviations at which to truncate kernel.
         Truncation radii <2 would lead to large errors and are not permitted.
-        (Default: ``3``)
+        (Default: ``3``).
     """
 
     def __init__(self, truncate=3.0) -> None:
@@ -1746,7 +1746,7 @@ class GaussianKernel(_AdaptiveKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1816,7 +1816,7 @@ class QuarticSplineKernel(_AdaptiveKernel):
 
         Returns
         -------
-        out : ~numpy.typing.ArrayLike
+        ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
         return super().kernel(q)

@@ -27,7 +27,7 @@ def demo_source(N=500):
 
     Returns
     -------
-    out : martini.source.SPHSource
+    martini.source.SPHSource
         An initialized MARTINI source module containing a toy model of a galaxy.
     """
     phi = np.random.rand(N) * 2 * np.pi
@@ -82,7 +82,7 @@ def demo(
     cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"
 ) -> None:
     """
-    Demonstrates basic usage of MARTINI.
+    Demonstrate basic usage of MARTINI.
 
     Creates a (very!) crude toy model of a galaxy with a linearly rising
     rotation curve, exponential disk profile, exponential vertical structure. A

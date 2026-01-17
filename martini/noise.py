@@ -18,7 +18,7 @@ class _BaseNoise(object):
     Parameters
     ----------
     seed : int, optional
-        The integer to seed the random number generator. (Default: ``None``)
+        The integer to seed the random number generator. (Default: ``None``).
 
     See Also
     --------
@@ -56,7 +56,7 @@ class _BaseNoise(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of flux density.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
@@ -85,11 +85,11 @@ class GaussianNoise(_BaseNoise):
     rms : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of flux density per beam.
         Desired root mean square amplitude of the noise field after convolution with the
-        beam. (Default: ``1.0 * U.Jy * U.beam ** -1``)
+        beam. (Default: ``1.0 * U.Jy * U.beam ** -1``).
 
     seed : int, optional
         Seed for random number generator. If ``None``, results will be unpredictable,
-        if an integer is given results will be repeatable. (Default: ``None``)
+        if an integer is given results will be repeatable. (Default: ``None``).
     """
 
     def __init__(
@@ -126,7 +126,7 @@ class GaussianNoise(_BaseNoise):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of flux density.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.

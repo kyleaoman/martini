@@ -81,7 +81,7 @@ class _BaseBeam(object):
 
         Returns
         -------
-        out : tuple
+        tuple
             2-tuple, each element an integer, containing pad dimensions (x, y).
         """
         if self.kernel is None:
@@ -223,7 +223,7 @@ class GaussianBeam(_BaseBeam):
 
         Returns
         -------
-        out : callable
+        callable
             Accepts 2 arguments (both ``ArrayLike``) and return an
             ``ArrayLike`` of corresponding size.
         """
@@ -266,7 +266,7 @@ class GaussianBeam(_BaseBeam):
 
         Returns
         -------
-        out : tuple
+        tuple
             2-tuple, each element an integer, specifying the kernel size (x, y) in pixels.
         """
         size = np.ceil(
