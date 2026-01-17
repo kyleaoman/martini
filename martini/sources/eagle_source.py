@@ -203,13 +203,13 @@ class EAGLESource(SPHSource):
             code_to_cm = f["/Units"].attrs["UnitLength_in_cm"] * U.cm
             code_to_cm_s = f["/Units"].attrs["UnitVelocity_in_cm_per_s"] * U.cm / U.s
             ng_g = fetch("GroupNumber")
-            particles = dict(
-                xyz_g=(fetch("Coordinates") * code_to_cm).to(U.kpc),
-                vxyz_g=(fetch("Velocity") * code_to_cm_s).to(U.km / U.s),
-                T_g=fetch("Temperature") * U.K,
-                hsm_g=(fetch("SmoothingLength") * code_to_cm).to(U.kpc)
+            particles = {
+                "xyz_g": (fetch("Coordinates") * code_to_cm).to(U.kpc),
+                "vxyz_g": (fetch("Velocity") * code_to_cm_s).to(U.km / U.s),
+                "T_g": fetch("Temperature") * U.K,
+                "hsm_g": (fetch("SmoothingLength") * code_to_cm).to(U.kpc)
                 * find_fwhm(_WendlandC2Kernel().kernel),
-            )
+            }
             rho_g = fetch("Density") * U.g * U.cm**-3
             SFR_g = fetch("StarFormationRate")
             Habundance_g = fetch("ElementAbundance/Hydrogen")

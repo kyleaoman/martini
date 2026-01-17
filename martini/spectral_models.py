@@ -415,7 +415,7 @@ class GaussianSpectrum(_BaseSpectrum):
         out : dict
             The extra data that have been read in and prepared for use.
         """
-        extra_data = dict(sigma=self.half_width(source))
+        extra_data = {"sigma": self.half_width(source)}
         return super().get_spectral_function_extra_data(
             source, datacube, mask=mask, extra_data=extra_data
         )

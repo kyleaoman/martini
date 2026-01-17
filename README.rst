@@ -1,6 +1,6 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Python version| |PyPI version| |JOSS| |PyOpenSci| |ASCL| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov|
+|Python version| |PyPI version| |JOSS| |PyOpenSci| |ASCL| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov| |Ruff|
 
 .. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
     :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
@@ -31,6 +31,9 @@
 .. |JOSS| image:: https://joss.theoj.org/papers/f46e9c0a37c70331703069f190c21c09/status.svg
    :alt: JOSS doi:10.21105/joss.06860
    :target: https://joss.theoj.org/papers/f46e9c0a37c70331703069f190c21c09
+.. |Ruff| image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
+    :target: https://github.com/astral-sh/ruff
+    :alt: Ruff
 	   
 Overview
 ========

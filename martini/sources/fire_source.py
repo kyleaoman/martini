@@ -128,9 +128,9 @@ class FIRESource(SPHSource):
     ) -> None:
         import gizmo_analysis as gizmo
 
-        gizmo_read_kwargs = dict(
-            species=["gas", "star"],
-            properties=[
+        gizmo_read_kwargs = {
+            "species": ["gas", "star"],
+            "properties": [
                 "position",
                 "velocity",
                 "temperature",
@@ -141,35 +141,35 @@ class FIRESource(SPHSource):
                 "massfraction.metals.hydrogen",
                 "hydrogen.neutral.fraction",
             ],
-            simulation_directory=simulation_directory,
-            snapshot_value_kind=snapshot[0],
-            snapshot_values=snapshot[1],
-            assign_hosts=assign_hosts,
-            host_number=host_number,
-            convert_float32=convert_float32,
-            verbose=gizmo_io_verbose,
-        )
+            "simulation_directory": simulation_directory,
+            "snapshot_value_kind": snapshot[0],
+            "snapshot_values": snapshot[1],
+            "assign_hosts": assign_hosts,
+            "host_number": host_number,
+            "convert_float32": convert_float32,
+            "verbose": gizmo_io_verbose,
+        }
         if snapshot_directory is not None:
             gizmo_read_kwargs["snapshot_directory"] = snapshot_directory
         gizmo_snap = gizmo.io.Read.read_snapshots(
             **gizmo_read_kwargs,
         )
-        particles = dict(
-            xyz_g=(
+        particles = {
+            "xyz_g": (
                 gizmo_snap["gas"]["position"]
                 - gizmo_snap.host["position"][host_number - 1]
             )
             * gizmo_snap.snapshot["scalefactor"]
             * U.kpc,
-            vxyz_g=(
+            "vxyz_g": (
                 gizmo_snap["gas"]["velocity"]
                 - gizmo_snap.host["velocity"][host_number - 1]
             )
             * U.km
             * U.s**-1,
-            T_g=gizmo_snap["gas"]["temperature"] * U.K,
+            "T_g": gizmo_snap["gas"]["temperature"] * U.K,
             # see doi:10.1093/mnras/sty1241 Appendix B for molecular partition:
-            mHI_g=np.where(
+            "mHI_g": np.where(
                 np.logical_and(
                     gizmo_snap["gas"]["temperature"] * U.K < 300 * U.K,
                     gizmo_snap["gas"]["density"] * U.Msun * U.kpc**-3
@@ -180,11 +180,11 @@ class FIRESource(SPHSource):
             )
             * U.Msun,
             # per A. Wetzel, size / 0.5077 is radius of cpmpact support
-            hsm_g=gizmo_snap["gas"]["size"]
+            "hsm_g": gizmo_snap["gas"]["size"]
             / 0.5077
             * U.kpc
             * find_fwhm(_CubicSplineKernel().kernel),
-        )
+        }
         super().__init__(
             **particles,
             distance=distance,

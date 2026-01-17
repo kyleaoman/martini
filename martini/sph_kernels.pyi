@@ -8,7 +8,7 @@ import astropy.units as U
 from martini.datacube import DataCube as DataCube
 from martini.sources.sph_source import SPHSource as SPHSource
 
-def find_fwhm(f: T.Callable[[ndarray], float]) -> float: ...
+def find_fwhm(f: T.Callable[[ndarray], ndarray]) -> float: ...
 
 class _BaseSPHKernel(metaclass=abc.ABCMeta):
     __metaclass__: Incomplete

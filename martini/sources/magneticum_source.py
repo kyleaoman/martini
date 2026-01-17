@@ -64,7 +64,7 @@ class MagneticumSource(SPHSource):
         Specify the system of units used in the snapshot file. The dict keys
         should be ``L`` (length), ``M`` (mass), ``V`` (velocity), ``T`` (temperature).
         The values should use :class:`~astropy.units.Quantity`.
-        (Default: ``dict(L=U.kpc, M=1E10 * U.Msun, V=U.km/U.s, T=U.K)``)
+        (Default: ``{"L": U.kpc, "M": 1E10 * U.Msun, "V": U.km/U.s, "T": U.K}``)
 
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
@@ -130,7 +130,7 @@ class MagneticumSource(SPHSource):
         rescaleRadius=1.0,
         xH=0.76,  # not in header
         Lbox=100 * U.Mpc,  # what is it, actually?
-        internal_units=dict(L=U.kpc, M=1e10 * U.Msun, V=U.km / U.s, T=U.K),
+        internal_units={"L": U.kpc, "M": 1e10 * U.Msun, "V": U.km / U.s, "T": U.K},
         distance=3 * U.Mpc,
         vpeculiar=0 * U.km / U.s,
         rotation={"rotmat": np.eye(3)},

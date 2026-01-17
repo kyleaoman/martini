@@ -84,7 +84,7 @@ class _BaseMartini:
 
     _prune_kwargs : dict
         Arguments to pass through to the :meth:`martini.martini.Martini._prune_particles`
-        function, intended for internal use only. (Default: ``dict()``)
+        function, intended for internal use only. (Default: ``{}``)
 
     See Also
     --------
@@ -106,7 +106,7 @@ class _BaseMartini:
         sph_kernel=None,
         spectral_model=None,
         quiet=False,
-        _prune_kwargs=dict(),
+        _prune_kwargs={},
     ) -> None:
         self.quiet = quiet
         if source is not None:
@@ -421,17 +421,17 @@ class _BaseMartini:
 
     def reset(self) -> None:
         """Re-initializes the :class:`~martini.datacube.DataCube` with zero-values."""
-        init_kwargs = dict(
-            n_px_x=self._datacube.n_px_x,
-            n_px_y=self._datacube.n_px_y,
-            n_channels=self._datacube.n_channels,
-            px_size=self._datacube.px_size,
-            channel_width=self._datacube.channel_width,
-            spectral_centre=self._datacube.spectral_centre,
-            ra=self._datacube.ra,
-            dec=self._datacube.dec,
-            stokes_axis=self._datacube.stokes_axis,
-        )
+        init_kwargs = {
+            "n_px_x": self._datacube.n_px_x,
+            "n_px_y": self._datacube.n_px_y,
+            "n_channels": self._datacube.n_channels,
+            "px_size": self._datacube.px_size,
+            "channel_width": self._datacube.channel_width,
+            "spectral_centre": self._datacube.spectral_centre,
+            "ra": self._datacube.ra,
+            "dec": self._datacube.dec,
+            "stokes_axis": self._datacube.stokes_axis,
+        }
         self._datacube = DataCube(**init_kwargs)
         if self.beam is not None:
             self._datacube.add_pad(self.beam.needs_pad())
@@ -1231,7 +1231,7 @@ class Martini(_BaseMartini):
 
         mode = "w" if overwrite else "x"
         driver = "core" if memmap else None
-        h5_kwargs = {"backing_store": False} if memmap else dict()
+        h5_kwargs = {"backing_store": False} if memmap else {}
         f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
         datacube_array_units = self._datacube._array.unit
         f["FluxCube"] = self._datacube._array.to_value(datacube_array_units).squeeze()
@@ -1562,12 +1562,12 @@ class GlobalProfile(_BaseMartini):
             noise=None,
             sph_kernel=DiracDeltaKernel(size_in_fwhm=np.inf),
             spectral_model=spectral_model,
-            _prune_kwargs=dict(
-                spatial=False,
-                spectral=True,
-                mass=True,
-                obj_type_str="spectrum",
-            ),
+            _prune_kwargs={
+                "spatial": False,
+                "spectral": True,
+                "mass": True,
+                "obj_type_str": "spectrum",
+            },
             quiet=quiet,
         )
         self.source.pixcoords[:2] = 0
@@ -1832,7 +1832,7 @@ class GlobalProfile(_BaseMartini):
         fig.clf()
         fig.suptitle(title)
 
-        xunit = dict(velocity=U.km * U.s**-1, frequency=U.GHz)[channels]
+        xunit = {"velocity": U.km * U.s**-1, "frequency": U.GHz}[channels]
 
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(

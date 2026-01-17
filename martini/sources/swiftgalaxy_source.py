@@ -112,13 +112,13 @@ class SWIFTGalaxySource(SPHSource):
             * compact_support_per_h
             * fwhm_per_compact_support
         )
-        particles = dict(
-            xyz_g=galaxy.gas.coordinates.to_astropy(),
-            vxyz_g=galaxy.gas.velocities.to_astropy(),
-            T_g=galaxy.gas.temperatures.to_astropy(),
-            hsm_g=hsm_g,
-            mHI_g=mHI_g,
-        )
+        particles = {
+            "xyz_g": galaxy.gas.coordinates.to_astropy(),
+            "vxyz_g": galaxy.gas.velocities.to_astropy(),
+            "T_g": galaxy.gas.temperatures.to_astropy(),
+            "hsm_g": hsm_g,
+            "mHI_g": mHI_g,
+        }
         super().__init__(
             distance=distance,
             vpeculiar=vpeculiar,

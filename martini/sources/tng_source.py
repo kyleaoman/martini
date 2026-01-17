@@ -11,6 +11,7 @@ from astropy import units as U, constants as C
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
+from typing import Any
 
 
 def api_get(path, params=None, api_key=None):
@@ -213,9 +214,9 @@ class TNGSource(SPHSource):
         # are we running on the TNG jupyterlab?
         jupyterlab = os.path.exists("/home/tnguser/sims.TNG")
         if not jupyterlab:
-            data_header = dict()
-            data_sub = dict()
-            data_g = dict()
+            data_header: dict[str, Any] = {}
+            data_sub = {}
+            data_g = {}
             from requests import HTTPError
 
             if api_key is None:
@@ -259,18 +260,18 @@ class TNGSource(SPHSource):
                 cutout_api_path = (
                     f"{simulation}/snapshots/{snapNum}/halos/{haloID}/cutout.hdf5"
                 )
-                cutout_request = dict(gas=",".join(full_fields_g))
+                cutout_request = {"gas": ",".join(full_fields_g)}
                 try:
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
                 except HTTPError:
-                    cutout_request = dict(gas=",".join(mini_fields_g))
+                    cutout_request = {"gas": ",".join(mini_fields_g)}
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
                 # hold file in memory
-                cfname = io.BytesIO(cutout.content)
+                cfbuf = io.BytesIO(cutout.content)
                 if cutout_dir is not None:
                     # write a copy to disk for later use
                     ofile = os.path.join(
@@ -283,7 +284,7 @@ class TNGSource(SPHSource):
                         of.create_group(f"{subID}")
                         of[f"{subID}"].attrs["pos"] = data_sub["SubhaloPos"]
                         of[f"{subID}"].attrs["vel"] = data_sub["SubhaloVel"]
-            with h5py.File(cfname, "r") as cf:
+            with h5py.File(cfbuf if "cfbuf" in locals() else cfname, "r") as cf:
                 minisnap = "CenterOfMass" not in cf["PartType0"].keys()
                 fields_g = mini_fields_g if minisnap else full_fields_g
                 data_g = {field: cf["PartType0"][field][()] for field in fields_g}

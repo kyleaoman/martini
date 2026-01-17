@@ -1,4 +1,4 @@
-	[build-system]
+[build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
@@ -116,3 +116,28 @@ checks = [
 ]
 # Don't document class __init__ methods, put the docstring on the class object.
 exclude = ['\.__init__$', '\.test_', '_illustris_tools']
+
+[tool.mypy]
+ignore_missing_imports = true
+# disallow_untyped_defs = true
+modules = [
+    "martini",
+    "martini.beams",
+    "martini.datacube",
+    "martini.martini",
+    "martini.noise",
+    "martini.spectral_models",
+    "martini.sph_kernels",
+    "martini.sources.colibre_source",
+    "martini.sources.eagle_source",
+    "martini.sources.fire_source",
+    "martini.sources.magneticum_source",
+    "martini.sources.simba_source",
+    "martini.sources.so_source",
+    "martini.sources.sph_source",
+    "martini.sources.swiftgalaxy_source",
+    "martini.sources.tng_source",
+    "martini.sources._cartesian_translation",
+    "martini.sources._L_align",
+    "martini._demo",
+]

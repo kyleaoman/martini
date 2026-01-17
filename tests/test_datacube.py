@@ -1,3 +1,5 @@
+"""Test the functionality of the data cube modules."""
+
 import pytest
 import os
 import numpy as np
@@ -8,23 +10,41 @@ from martini.datacube import HIfreq
 
 
 def check_wcs_match(wcs1, wcs2):
+    """
+    Check that two WCS instances are equivalent.
+
+    Parameters
+    ----------
+    wcs1 : astropy.wcs.wcs.WCS
+        The first world coordinate system instance.
+
+    wcs1 : astropy.wcs.wcs.WCS
+        The second world coordinate system instance.
+
+    Returns
+    -------
+    bool
+        ``True`` if the header keys and values of the two WCS instances match, else
+        ``False``.
+    """
     assert set(wcs1.to_header().keys()) == set(wcs2.to_header().keys())
     for k, v, _ in wcs1.to_header().cards:
         assert v == wcs2.to_header()[k]
 
 
-class TestDeprecationWarnings:
-    def test_deprecation_warnings(self):
-        """Check that we get deprecation warnings where we expect them."""
-        with pytest.warns(DeprecationWarning):
-            dc = DataCube(velocity_centre=0 * U.km / U.s)
-        with pytest.warns(DeprecationWarning):
-            dc.velocity_channels()
-        with pytest.warns(DeprecationWarning):
-            dc.freq_channels()
+def test_deprecation_warnings():
+    """Check that we get deprecation warnings where we expect them."""
+    with pytest.warns(DeprecationWarning):
+        dc = DataCube(velocity_centre=0 * U.km / U.s)
+    with pytest.warns(DeprecationWarning):
+        dc.velocity_channels()
+    with pytest.warns(DeprecationWarning):
+        dc.freq_channels()
 
 
 class TestDataCube:
+    """Test the functionality of the main data cube class."""
+
     def test_invalid_channel_units(self):
         """Check that we get an error if the channel_width doesn't have valid units."""
         with pytest.raises(ValueError, match="Channel width must have"):
@@ -231,11 +251,11 @@ class TestDataCube:
 
     def test_init_with_mixed_spectral_centre_and_channel_width_units(self):
         """Check that we can specify channel spacing and central channel in mixed units."""
-        const_kwargs = dict(
-            n_px_x=16,
-            n_px_y=16,
-            n_channels=16,
-        )
+        const_kwargs = {
+            "n_px_x": 16,
+            "n_px_y": 16,
+            "n_channels": 16,
+        }
         spectral_centre = 3 * 70 * U.km / U.s
         channel_width = 4 * U.km / U.s
         f_channel_width = np.abs(
@@ -282,10 +302,7 @@ class TestDataCube:
         )
 
     def test_channel_spacing(self, dc_zeros):
-        """
-        Expect channels to be equally spaced in units matching channel_width, check that
-        this is the case.
-        """
+        """Check that the channels are equally spaced in units matching channel_width."""
         assert U.get_physical_type(dc_zeros.channel_width) == U.get_physical_type(
             dc_zeros.channel_mids
         )
@@ -327,9 +344,12 @@ class TestDataCube:
 
 
 class TestDataCubeFromWCS:
+    """Test constructing a data cube from an existing WCS instance."""
+
     def test_specsys_case_insensitive(self, dc_random):
         """
         FITS specsys usually uppercase but astropy has equivalents in lowercase.
+
         Check that we convert successfully.
         """
         dc_random.wcs.wcs.specsys = "ICRS"
@@ -373,6 +393,8 @@ class TestDataCubeFromWCS:
 
     def test_consistent_with_direct(self, dc_random):
         """
+        Test that data cube's WCS metadata and its WCS match.
+
         Check that extracting WCS from a constructed DataCube and constructing
         a DataCube from that WCS is consistent with the original DataCube.
 

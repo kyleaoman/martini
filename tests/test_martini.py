@@ -384,15 +384,15 @@ class TestMartini:
         sph_kernel = _CubicSplineKernel()
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
         # need to use _BaseMartini below to manipulate _prune_kwargs
-        kwargs = dict(
-            source=source,
-            datacube=datacube,
-            beam=beam,
-            noise=None,
-            sph_kernel=sph_kernel,
-            spectral_model=spectral_model,
-            _prune_kwargs=dict(spatial=spatial, spectral=spectral, mass=mass),
-        )
+        kwargs = {
+            "source": source,
+            "datacube": datacube,
+            "beam": beam,
+            "noise": None,
+            "sph_kernel": sph_kernel,
+            "spectral_model": spectral_model,
+            "_prune_kwargs": {"spatial": spatial, "spectral": spectral, "mass": mass},
+        }
         # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
         if not expect_particle:
@@ -883,13 +883,13 @@ class TestGlobalProfile:
             distance=distance, ra=ra_off, dec=dec_off, vpeculiar=v_off
         )
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
-        kwargs = dict(
-            source=source,
-            spectral_model=spectral_model,
-            n_channels=2,
-            channel_width=1 * U.km / U.s,
-            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
-        )
+        kwargs = {
+            "source": source,
+            "spectral_model": spectral_model,
+            "n_channels": 2,
+            "channel_width": 1 * U.km / U.s,
+            "spectral_centre": source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        }
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
         if not expect_particle:
             with pytest.raises(

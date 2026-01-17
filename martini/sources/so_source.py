@@ -110,13 +110,13 @@ class SOSource(SPHSource):
             )
         elif SO_args is not None:
             with SimObj(**self._SO_args) as SO:
-                particles = dict(
-                    T_g=SO.T_g,
-                    mHI_g=SO.mHI_g,
-                    xyz_g=SO.xyz_g,
-                    vxyz_g=SO.vxyz_g,
-                    hsm_g=SO.hsm_g * self.rescale_hsm_g,
-                )
+                particles = {
+                    "T_g": SO.T_g,
+                    "mHI_g": SO.mHI_g,
+                    "xyz_g": SO.xyz_g,
+                    "vxyz_g": SO.vxyz_g,
+                    "hsm_g": SO.hsm_g * self.rescale_hsm_g,
+                }
                 super().__init__(
                     distance=distance,
                     rotation=rotation,
@@ -126,13 +126,13 @@ class SOSource(SPHSource):
                     **particles,
                 )
         elif SO_instance is not None:
-            particles = dict(
-                T_g=SO_instance.T_g,
-                mHI_g=SO_instance.mHI_g,
-                xyz_g=SO_instance.xyz_g,
-                vxyz_g=SO_instance.vxyz_g,
-                hsm_g=SO_instance.hsm_g,
-            )
+            particles = {
+                "T_g": SO_instance.T_g,
+                "mHI_g": SO_instance.mHI_g,
+                "xyz_g": SO_instance.xyz_g,
+                "vxyz_g": SO_instance.vxyz_g,
+                "hsm_g": SO_instance.hsm_g,
+            }
             super().__init__(
                 distance=distance,
                 vpeculiar=vpeculiar,

@@ -255,19 +255,19 @@ class DataCube(object):
             fits_wcs = wcs.WCS(fits_hdr)
             datacube = DataCube.from_wcs(fits_wcs)
         """
-        init_args = dict(
-            n_px_x=None,
-            n_px_y=None,
-            n_channels=None,
-            px_size=None,
-            channel_width=None,
-            spectral_centre=None,
-            ra=None,
-            dec=None,
-            stokes_axis=None,
-            coordinate_frame=None,
-            specsys=None,
-        )
+        init_args = {
+            "n_px_x": None,
+            "n_px_y": None,
+            "n_channels": None,
+            "px_size": None,
+            "channel_width": None,
+            "spectral_centre": None,
+            "ra": None,
+            "dec": None,
+            "stokes_axis": None,
+            "coordinate_frame": None,
+            "specsys": None,
+        }
         for axis_type in input_wcs.get_axis_types():
             if axis_type["coordinate_type"] == "stokes":
                 init_args["stokes_axis"] = True
@@ -383,11 +383,15 @@ class DataCube(object):
         """
         if self._wcs is None:
             hdr = wcs.utils.celestial_frame_to_wcs(self.coordinate_frame).to_header()
-            hdr.update(dict(WCSAXES=3))  # add spectral axis
+            hdr.update({"WCSAXES": 3})  # add spectral axis
             hdr.update(
-                dict(NAXIS1=self.n_px_x, NAXIS2=self.n_px_y, NAXIS3=self.n_channels)
+                {
+                    "NAXIS1": self.n_px_x,
+                    "NAXIS2": self.n_px_y,
+                    "NAXIS3": self.n_channels,
+                }
             )
-            hdr.update(dict(RESTFRQ=HIfreq.to_value(U.Hz)))
+            hdr.update({"RESTFRQ": HIfreq.to_value(U.Hz)})
             self._wcs = wcs.WCS(hdr)
             self._wcs.wcs.ctype = [
                 self._wcs.wcs.ctype[0],

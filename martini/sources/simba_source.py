@@ -138,10 +138,10 @@ class SimbaSource(SPHSource):
             fHe = gas["Metallicity"][()][:, 1]
             fH = 1 - fHe - fZ
             xe = gas["ElectronAbundance"][()]
-            particles = dict(
-                xyz_g=gas["Coordinates"][()] * a / h * U.kpc,
-                vxyz_g=gas["Velocities"][()] * np.sqrt(a) * U.km / U.s,
-                T_g=(
+            particles = {
+                "xyz_g": gas["Coordinates"][()] * a / h * U.kpc,
+                "vxyz_g": gas["Velocities"][()] * np.sqrt(a) * U.km / U.s,
+                "T_g": (
                     (4 / (1 + 3 * fH + 4 * fH * xe))
                     * C.m_p
                     * (gamma - 1)
@@ -149,13 +149,18 @@ class SimbaSource(SPHSource):
                     * (U.km / U.s) ** 2
                     / C.k_B
                 ).to(U.K),
-                hsm_g=gas["SmoothingLength"][()]
+                "hsm_g": gas["SmoothingLength"][()]
                 * a
                 / h
                 * U.kpc
                 * find_fwhm(_CubicSplineKernel().kernel),
-                mHI_g=gas["Masses"][()] * fH * gas["GrackleHI"][()] * 1e10 / h * U.Msun,
-            )
+                "mHI_g": gas["Masses"][()]
+                * fH
+                * gas["GrackleHI"][()]
+                * 1e10
+                / h
+                * U.Msun,
+            }
             del fH, fHe, xe
 
         with h5py.File(groupFile, "r") as f:

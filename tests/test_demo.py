@@ -6,11 +6,11 @@ import os
 
 def test_demo():
     """Check that demo completes and produces output files."""
-    filenames = dict(
-        cubefile="pytest_testcube.fits",
-        beamfile="pytest_testbeam.fits",
-        hdf5file="pytest_testcube.hdf5",
-    )
+    filenames = {
+        "cubefile": "pytest_testcube.fits",
+        "beamfile": "pytest_testbeam.fits",
+        "hdf5file": "pytest_testcube.hdf5",
+    }
     try:
         demo(**filenames)
     finally:

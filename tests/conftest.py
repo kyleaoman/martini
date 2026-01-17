@@ -1,3 +1,5 @@
+"""Set up fixtures and helpers for tests."""
+
 import pytest
 import os
 import numpy as np
@@ -26,7 +28,7 @@ def sps_sourcegen(
     coordinate_frame=ICRS(),
 ):
     """
-    Creates a single particle test source.
+    Create a single particle test source.
 
     A simple test source consisting of a single particle will be created. The
     particle has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a
@@ -60,7 +62,7 @@ def mps_sourcegen(
     vpeculiar=0 * U.km / U.s,
 ):
     """
-    Creates a 100-particle test source.
+    Create a 100-particle test source.
 
     A simple test source consisting of 100 particles will be created. The
     particles have a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a
@@ -94,7 +96,7 @@ def adaptive_kernel_test_sourcegen(
     vpeculiar=0 * U.km / U.s,
 ):
     """
-    Creates a 4-particle test source.
+    Create a 4-particle test source.
 
     A simple test source consisting of 4 particles will be created. The
     particles have a mass of 10^4 Msun, a temperature of 10^4 K, a position offset by
@@ -131,7 +133,7 @@ def cross_sourcegen(
     vpeculiar=0 * U.km / U.s,
 ):
     """
-    Creates a source consisting of 4 particles arrayed in an asymmetric cross.
+    Create a source consisting of 4 particles arrayed in an asymmetric cross.
 
     A simple test source consisting of four particles will be created. Each has
     a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, and will be placed in the Hubble
@@ -162,6 +164,11 @@ def cross_sourcegen(
 
 @pytest.fixture(scope="function", params=[True, False])
 def m(request):
+    """
+    Create a :class:`~martini.martini.Martini` object with default configuration.
+
+    This fixture runs source insertion, noise adding, and beam convolution.
+    """
     source = sps_sourcegen()
     spectral_centre = source.distance * source.h * 100 * U.km / U.s / U.Mpc
     channel_width = 4 * U.km / U.s
@@ -201,6 +208,11 @@ def m(request):
 
 @pytest.fixture(scope="function")
 def m_init():
+    """
+    Create a :class:`~martini.martini.Martini` object with default configuration.
+
+    This fixture does not run source insertion, noise adding, and beam convolution.
+    """
     source = sps_sourcegen()
     datacube = DataCube(
         n_px_x=16,
@@ -226,6 +238,11 @@ def m_init():
 
 @pytest.fixture(scope="function")
 def m_nn():
+    """
+    Create a :class:`~martini.martini.Martini` object with default configuration.
+
+    This fixture runs source insertion and beam convolution. There is no added noise.
+    """
     source = sps_sourcegen()
     datacube = DataCube(
         n_px_x=16,
@@ -256,6 +273,7 @@ def m_nn():
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
 def dc_random(request):
+    """Create a :class:`~martini.datacube.DataCube` object with random contents."""
     stokes_axis, freq_channels = request.param
     spectral_centre = 3 * 70 * U.km / U.s
     channel_width = 4 * U.km / U.s
@@ -298,6 +316,7 @@ def dc_random(request):
     ],
 )
 def dc_wcs(request):
+    """Create a :class:`~martini.datacube.DataCube` from an existing FITS header."""
     with open(os.path.join("tests/data/", request.param), "r") as f:
         hdr = f.read()
     with pytest.warns(wcs.FITSFixedWarning):
@@ -319,6 +338,7 @@ def dc_wcs(request):
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
 def dc_zeros(request):
+    """Create a :class:`~martini.datacube.DataCube` object with zeroed contents."""
     stokes_axis, freq_channels = request.param
     spectral_centre = 3 * 70 * U.km / U.s
     channel_width = 4 * U.km / U.s
@@ -348,6 +368,7 @@ def dc_zeros(request):
 
 @pytest.fixture(scope="function")
 def adaptive_kernel_test_datacube():
+    """Create a :class:`~martini.datacube.DataCube` for testing adaptive kernels."""
     dc = DataCube(
         n_px_x=16,
         n_px_y=16,
@@ -361,6 +382,7 @@ def adaptive_kernel_test_datacube():
 
 @pytest.fixture(scope="function")
 def s():
+    """Create a :class:`~martini.sources.sph_source.SPHSource` from 1000 particles."""
     n_g = 1000
     phi = np.random.rand(n_g, 1) * 2 * np.pi
     R = np.random.rand(n_g, 1)
@@ -388,13 +410,13 @@ def s():
     T_g = np.ones(n_g) * 1e4 * U.K
     mHI_g = np.ones(n_g) * 1e9 * U.Msun / n_g
     hsm_g = 0.5 * U.kpc
-    particles = dict(
-        xyz_g=xyz_g,
-        vxyz_g=vxyz_g,
-        mHI_g=mHI_g,
-        T_g=T_g,
-        hsm_g=hsm_g,
-    )
+    particles = {
+        "xyz_g": xyz_g,
+        "vxyz_g": vxyz_g,
+        "mHI_g": mHI_g,
+        "T_g": T_g,
+        "hsm_g": hsm_g,
+    }
     s = SPHSource(**particles)
 
     yield s
@@ -402,26 +424,31 @@ def s():
 
 @pytest.fixture(scope="function")
 def cross_source():
+    """Create a :class:`~martini.sources.sph_source.SPHSource` with a cross shape."""
     yield cross_sourcegen
 
 
 @pytest.fixture(scope="function")
 def single_particle_source():
+    """Create a :class:`~martini.sources.sph_source.SPHSource` with 1 particle."""
     yield sps_sourcegen
 
 
 @pytest.fixture(scope="function")
 def many_particle_source():
+    """Create a :class:`~martini.sources.sph_source.SPHSource` with 100 particles."""
     yield mps_sourcegen
 
 
 @pytest.fixture(scope="function")
 def adaptive_kernel_test_source():
+    """Create a :class:`~martini.sources.sph_source.SPHSource` for kernel testing."""
     yield adaptive_kernel_test_sourcegen
 
 
 @pytest.fixture(scope="function")
 def gp():
+    """Create a :class:`~martini.martini.GlobalProfile` with default configuration."""
     source = sps_sourcegen()
     spectral_model = GaussianSpectrum()
 
