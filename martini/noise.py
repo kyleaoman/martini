@@ -3,6 +3,9 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
+from numpy.random._generator import Generator
+from martini.beams import _BaseBeam
+from martini.datacube import DataCube
 
 
 class _BaseNoise(object):
@@ -26,14 +29,16 @@ class _BaseNoise(object):
     """
 
     __metaclass__ = ABCMeta
+    seed: int
+    rng: Generator
 
-    def __init__(self, seed=None) -> None:
-        self.seed = seed
+    def __init__(self, seed: int | None = None) -> None:
+        self.seed = seed if seed is not None else 0
         self.rng = np.random.default_rng(seed=seed)
         return
 
     @abstractmethod
-    def generate(self, datacube, beam):
+    def generate(self, datacube: DataCube, beam: _BaseBeam):
         """
         Abstract method; create a cube containing noise.
 
@@ -92,10 +97,12 @@ class GaussianNoise(_BaseNoise):
         if an integer is given results will be repeatable. (Default: ``None``).
     """
 
+    rms: U.Quantity[U.Jy * U.beam**-1]
+
     def __init__(
         self,
-        rms=1.0 * U.Jy * U.beam**-1,
-        seed=None,
+        rms: U.Quantity[U.Jy * U.beam**-1] = 1.0 * U.Jy * U.beam**-1,
+        seed: int | None = None,
     ) -> None:
         self.target_rms = rms
 
@@ -103,7 +110,9 @@ class GaussianNoise(_BaseNoise):
 
         return
 
-    def generate(self, datacube, beam):
+    def generate(
+        self, datacube: DataCube, beam: _BaseBeam
+    ) -> U.Quantity[U.Jy * U.arcsec**-2]:
         """
         Create a cube containing Gaussian noise.
 

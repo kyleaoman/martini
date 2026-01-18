@@ -1,4 +1,3 @@
-martini.noise.DataCube
 martini.spectral_models.DataCube
 martini.spectral_models.SPHSource
 martini.sph_kernels.DataCube
