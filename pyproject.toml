@@ -29,29 +29,29 @@ dependencies = [
 "Documentation" = "https://martini.readthedocs.io/en/latest"
 
 [project.optional-dependencies]
+parallel = ["multiprocess"]
 hdf5_output = ["h5py"]
+colibresource = [
+    "swiftsimio",
+    "swiftgalaxy",
+]
 eaglesource = [
     "hdecompose",
     "pyread_eagle",
     "eagleSqlTools",
-]
-tngsource = ["hdecompose", "h5py", "requests", "six"]
-magneticumsource = ["g3read"]
-simbasource = ["h5py"]
-swiftgalaxysource = [
-    "swiftsimio",
-    "swiftgalaxy",
-]
-colibresource = [
-    "swiftsimio",
-    "swiftgalaxy",
-    "velociraptor",
 ]
 firesource = [
     "utilities-awetzel",
     "gizmo-analysis",
     "halo-analysis",
 ]
+magneticumsource = ["g3read"]
+simbasource = ["h5py"]
+swiftgalaxysource = [
+    "swiftsimio",
+    "swiftgalaxy",
+]
+tngsource = ["hdecompose", "h5py", "requests", "six"]
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
@@ -67,7 +67,7 @@ testing = [
     "flake8",
 ]
 all = [
-    "astromartini[hdf5_output,eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource]",
+    "astromartini[parallel,hdf5_output,eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource]",
 ]
 dev = [
     "astromartini[all,testing,docs]",

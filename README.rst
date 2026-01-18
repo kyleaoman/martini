@@ -165,12 +165,22 @@ Installing from github
 
 You can browse releases_ that correspond to versions on PyPI (starting from 2.0.0) and download the source code. Unpack the zip file if necessary. If you're feeling adventurous or looking for a feature under development you can so browse branches_ and choose one to clone. In either case you should then be able to do ``python3 -m pip install "martini/[optional]"``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``pyproject.toml`` file for MARTINI. The currently available options are:
 
+- ``parallel``: Support for parallelizing the slower parts of Martini calculations.
 - ``hdf5_output``: Supports output to hdf5 files via the h5py package. Since h5py is hosted on PyPI, this option may be used when installing via PyPI.
-- ``eaglesource``: Dependencies for the |martini.sources.EAGLESource| module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions. Also installs `my python-only version`_ of John Helly's `read_eagle`_ package for quick extraction of particles in a simulation sub-volume. h5py is also required.
-- ``tngsource``: Dependencies for the |martini.sources.TNGSource| module, which greatly simplifies reading input from IllustrisTNG (and original Illustris) snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions.
+- ``colibresource``: Dependencies for the |martini.sources.ColibreSource| module, which greatly simplifies reading input from Colibre snapshots. Install swiftsimio_ and swiftgalaxy_.
+- ``eaglesource``: Dependencies for the |martini.sources.EAGLESource| module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions. Also installs `my python-only version`_ of John Helly's `read_eagle`_ package for quick extraction of particles in a simulation sub-volume. ``h5py`` is also required.
+- ``firesource``: Dependencies for the |martini.sources.FIRESource| module, which greatly simplifies reading input from FIRE simulation snapshots. Installs the gizmo-analysis_, halo-analysis_ and utilities-awetzel_ packages.
 - ``magneticumsource``: Dependencies for the |martini.sources.MagneticumSource| module, which supports the Magneticum simulations via the `g3read`_ package.
-- ``sosource``: Dependencies for the |martini.sources.SOSource| module, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may contact_ me for further information.
+- ``simbasource``: Dependencies for the |martini.sources.SimbaSource| module, which greatly simplifies reading input from Simba snapshots. Installs ``h5py``.
+- ``swiftgalaxysource``: Dependencies for the |martini.sources.SWIFTGalaxySource| module, which greatly simplifies reading input from SWIFT simulations. Installs swiftsimio_ and swiftgalaxy_.
+- ``tngsource``: Dependencies for the |martini.sources.TNGSource| module, which greatly simplifies reading input from IllustrisTNG (and original Illustris) snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions.
+- ``all``: All of the above.
+- ``testing``: Dependencies for code validation and testing (for developers).
+- ``docs``: Dependencies for building the documentation (for developers).
+- ``dev``: A full development environment with verything included in ``all``, ``testing`` and ``docs`` (for developers).
 
+There is also a |martini.sources.SOSource| module with additional dependencies, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may contact_ me for further information.
+  
 .. _releases: https://github.com/kyleaoman/martini/releases
 .. _branches: https://github.com/kyleaoman/martini/branches
 .. _Hdecompose: https://github.com/kyleaoman/Hdecompose
@@ -178,8 +188,13 @@ You can browse releases_ that correspond to versions on PyPI (starting from 2.0.
 .. _`Blitz & Rosolowsky (2006)`: https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract
 .. _`my python-only version`: https://github.com/kyleaoman/pyread_eagle
 .. _`read_eagle`: https://github.com/jchelly/read_eagle
-.. _`g3read`: https://github.com/aragagnin/g3read
+.. _g3read: https://github.com/aragagnin/g3read
 .. _contact: mailto:kyle.a.oman@durham.ac.uk
+.. _gizmo-analysis: https://pypi.org/project/gizmo-analysis/
+.. _halo-analysis: https://pypi.org/project/halo-analysis/
+.. _utilities-awetzel: https://pypi.org/project/utilities-awetzel
+.. _swiftsimio: https://swiftsimio.readthedocs.io
+.. _swiftgalaxy: https://swiftgalaxy.readthedocs.io
 
 .. GITHUB_INSTALLATION_NOTES_END_LABEL
 
