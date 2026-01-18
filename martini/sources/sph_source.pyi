@@ -1,5 +1,5 @@
 import astropy.units as U
-from astropy.coordinates import ICRS
+from astropy.coordinates import ICRS, SkyCoord
 from martini.datacube import DataCube
 from numpy import ndarray
 from matplotlib.figure import Figure
@@ -23,6 +23,7 @@ class SPHSource:
     coordinate_frame: BaseRADecFrame
     pixcoords: U.Quantity[U.pix]
     input_mass: U.Quantity[U.Msun]
+    skycoords: SkyCoord | None
 
     def __init__(
         self,
