@@ -44,12 +44,12 @@ class SPHSource(object):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
+        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -71,20 +71,20 @@ class SPHSource(object):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: ``np.eye(3)``)
+        (Default: ``np.eye(3)``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid. (Default: ``0 * U.deg``).
 
     h : float, optional
         Dimensionless hubble constant,
         :math:`H_0 = h (100\\,\\mathrm{km}\\,\\mathrm{s}^{-1}\\,\\mathrm{Mpc}^{-1})`.
-        (Default: ``0.7``)
+        (Default: ``0.7``).
 
     T_g : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of temperature.
@@ -119,7 +119,7 @@ class SPHSource(object):
         Rank of axis corresponding to position or velocity of a single
         particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
         Usually prefer to omit this as it can be determined automatically, but is
-        ambiguous for sources with exactly 3 particles. (Default: ``None``)
+        ambiguous for sources with exactly 3 particles. (Default: ``None``).
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -130,7 +130,7 @@ class SPHSource(object):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+        (Default: ``astropy.coordinates.ICRS()``).
     """
 
     def __init__(

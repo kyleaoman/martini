@@ -1,1 +1,1 @@
-python -m numpydoc lint martini**/*.py
+python -m numpydoc lint **/*.py

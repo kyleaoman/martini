@@ -47,14 +47,14 @@ def total_kernel_weight(k, h, ngrid=50):
 
     Parameters
     ----------
-    k: ~martini.sph_kernels._BaseSPHKernel
+    k : ~martini.sph_kernels._BaseSPHKernel
         Instance of the kernel class to be summed.
 
-    h: float
+    h : float
         Size of the kernel (in pixels).
 
-    ngrid: int
-        Size of grid (per axis) to evaluate the kernel on. (Default: ``50``)
+    ngrid : int
+        Size of grid (per axis) to evaluate the kernel on. (Default: ``50``).
 
     Returns
     -------

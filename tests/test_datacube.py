@@ -18,7 +18,7 @@ def check_wcs_match(wcs1, wcs2):
     wcs1 : astropy.wcs.wcs.WCS
         The first world coordinate system instance.
 
-    wcs1 : astropy.wcs.wcs.WCS
+    wcs2 : astropy.wcs.wcs.WCS
         The second world coordinate system instance.
 
     Returns
