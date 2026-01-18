@@ -66,8 +66,11 @@ testing = [
     "ruff",
     "flake8",
 ]
+all = [
+    "astromartini[hdf5_output,eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource]",
+]
 dev = [
-    "astromartini[hdf5_output,eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource,testing,docs]",
+    "astromartini[all,testing,docs]",
 ]
 [tool.ruff]
 exclude = ["docs/source/conf.py", "martini/sources/_illustris_tools.py"]
