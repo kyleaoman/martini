@@ -32,7 +32,7 @@ jobs:
       - name: Install numpydoc
         run: pip install numpydoc
       - name: Run docstring validation
-        run: python -m numpydoc lint **/*.py
+        run: numpydoc lint **/*.py
       - name: Install mypy
         run: pip install mypy
       - name: Install types
