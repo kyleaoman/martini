@@ -291,3 +291,7 @@ class GaussianBeam(_BaseBeam):
         )
 
         return size, size
+
+    def init_beam_header(self) -> None:
+        """Do nothing - beam header initialized in __init__ for this class."""
+        pass

@@ -16,7 +16,7 @@ import numpy as np
 from scipy.optimize import fsolve
 
 
-def demo_source(N=500):
+def demo_source(N: int = 500) -> SPHSource:
     """
     Create a simple toy model of a galaxy.
 
@@ -31,14 +31,13 @@ def demo_source(N=500):
         An initialized MARTINI source module containing a toy model of a galaxy.
     """
     phi = np.random.rand(N) * 2 * np.pi
-    r = []
-    for L in np.random.rand(N):
+    r = np.empty(N, dtype=float)
+    for i, L in enumerate(np.random.rand(N)):
 
-        def f(r):
+        def f(r: float) -> float:
             return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
 
-        r.append(fsolve(f, 1.0)[0])
-    r = np.array(r)
+        r[i] = fsolve(f, 1.0)[0]
     # exponential disk
     r *= 3 / np.sort(r)[N // 2]
     z = -np.log(np.random.rand(N))
@@ -79,7 +78,9 @@ def demo_source(N=500):
 
 
 def demo(
-    cubefile="testcube.fits", beamfile="testbeam.fits", hdf5file="testcube.hdf5"
+    cubefile: str = "testcube.fits",
+    beamfile: str = "testbeam.fits",
+    hdf5file: str = "testcube.hdf5",
 ) -> None:
     """
     Demonstrate basic usage of MARTINI.
