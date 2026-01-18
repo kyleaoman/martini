@@ -1,17 +1,21 @@
 """Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
+from typing import Self
+from collections.abc import Callable, Iterator
 import numpy as np
 import astropy.units as U
 from astropy import wcs
+from astropy.wcs.wcs import WCS
+from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 from astropy.coordinates import ICRS, SpectralCoord
 import warnings
 from astropy.coordinates import frame_transform_graph
 
-HIfreq = 1.420405751e9 * U.Hz
+HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
 _supported_specsys = frame_transform_graph.get_names()
 
 
-def _validate_specsys(specsys):
+def _validate_specsys(specsys: str) -> str:
     """
     Check if a specsys is one recognized by astropy.
 
@@ -24,6 +28,11 @@ def _validate_specsys(specsys):
     -------
     str
         The input specsys string.
+
+    Raises
+    ------
+    ValueError
+        If the specsys is not one recognized by :mod:`astropy`.
     """
     if specsys is not None and specsys not in _supported_specsys:
         raise ValueError(f"Supported specsys values are {_supported_specsys}.")
@@ -113,20 +122,49 @@ class DataCube(object):
     as the ``channel_width`` in order to define the channels.
     """
 
+    px_size: U.Quantity[U.arcsec]
+    arcsec2_to_pix: tuple[
+        U.Quantity[U.Jy * U.pix**-2],
+        U.Quantity[U.Jy * U.arcsec**-2],
+        Callable[[U.Quantity[U.Jy * U.pix**-2]], U.Quantity[U.Jy * U.arcsec**-2]],
+        Callable[[U.Quantity[U.Jy * U.arcsec**-2]], U.Quantity[U.Jy * U.pix**-2]],
+    ]
+    channel_width: U.Quantity[U.km / U.s]
+    spectral_centre: U.Quantity[U.km / U.s]
+    ra: U.Quantity[U.deg]
+    dec: U.Quantity[U.deg]
+    padx: int
+    pady: int
+    _array: (
+        U.Quantity[U.Jy * U.pix**-2]
+        | U.Quantity[U.Jy * U.arcsec**-2]
+        | U.Quantity[U.Jy * U.beam**-1]
+    )
+    _wcs: WCS | None
+    n_px_x: int
+    n_px_y: int
+    n_channels: int
+    stokes_axis: bool
+    coordinate_frame: BaseRADecFrame
+    specsys: str
+    _freq_channel_mode: bool
+    _channel_edges: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
+    _channel_mids: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
+
     def __init__(
         self,
-        n_px_x=256,
-        n_px_y=256,
-        n_channels=64,
-        px_size=15.0 * U.arcsec,
-        channel_width=4.0 * U.km * U.s**-1,
-        spectral_centre=0.0 * U.km * U.s**-1,
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        stokes_axis=False,
-        coordinate_frame=ICRS(),
-        specsys="icrs",
-        velocity_centre=None,  # deprecated
+        n_px_x: int = 256,
+        n_px_y: int = 256,
+        n_channels: int = 64,
+        px_size: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        channel_width: U.Quantity[U.km * U.s**-1] = 4.0 * U.km * U.s**-1,
+        spectral_centre: U.Quantity[U.km * U.s**-1] = 0.0 * U.km * U.s**-1,
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        stokes_axis: bool = False,
+        coordinate_frame: BaseRADecFrame = ICRS(),
+        specsys: str = "icrs",
+        velocity_centre: None = None,  # deprecated
     ) -> None:
         if velocity_centre is not None:
             warnings.warn(
@@ -197,7 +235,7 @@ class DataCube(object):
         pass
 
     @classmethod
-    def from_wcs(cls, input_wcs, specsys=None):
+    def from_wcs(cls, input_wcs: WCS, specsys: str | None = None) -> Self:
         """
         Create a DataCube from a World Coordinate System (WCS).
 
@@ -255,7 +293,7 @@ class DataCube(object):
             fits_wcs = wcs.WCS(fits_hdr)
             datacube = DataCube.from_wcs(fits_wcs)
         """
-        init_args = {
+        init_args: dict = {
             "n_px_x": None,
             "n_px_y": None,
             "n_channels": None,
@@ -358,7 +396,21 @@ class DataCube(object):
         return datacube
 
     @property
-    def units(self):
+    def units(
+        self,
+    ) -> (
+        tuple[
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.Hz] | U.Quantity[U.m / U.s],
+        ]
+        | tuple[
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.Hz] | U.Quantity[U.m / U.s],
+            U.Quantity[U.dimensionless_unscaled],
+        ]
+    ):
         """
         The units of the DataCube's World Coordinate System (WCS).
 
@@ -371,7 +423,7 @@ class DataCube(object):
         return tuple(U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit)
 
     @property
-    def wcs(self):
+    def wcs(self) -> WCS:
         """
         The DataCube's World Coordinate System (WCS).
 
@@ -433,7 +485,7 @@ class DataCube(object):
         return self._wcs
 
     @property
-    def channel_mids(self):
+    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
         """
         The centres of the channels from the coordinate system.
 
@@ -458,7 +510,7 @@ class DataCube(object):
         return self._channel_mids
 
     @property
-    def channel_edges(self):
+    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
         """
         The edges of the channels from the coordinate system.
 
@@ -483,7 +535,7 @@ class DataCube(object):
         return self._channel_edges
 
     @property
-    def velocity_channel_mids(self):
+    def velocity_channel_mids(self) -> U.Quantity[U.m / U.s]:
         """
         The centres of the channels from the coordinate system in velocity units.
 
@@ -496,7 +548,7 @@ class DataCube(object):
         return self.channel_mids.to(U.m / U.s)
 
     @property
-    def velocity_channel_edges(self):
+    def velocity_channel_edges(self) -> U.Quantity[U.m / U.s]:
         """
         The edges of the channels from the coordinate system in velocity units.
 
@@ -509,7 +561,7 @@ class DataCube(object):
         return self.channel_edges.to(U.m / U.s)
 
     @property
-    def frequency_channel_mids(self):
+    def frequency_channel_mids(self) -> U.Quantity[U.Hz]:
         """
         The centres of the channels from the coordinate system in frequency units.
 
@@ -522,7 +574,7 @@ class DataCube(object):
         return self.channel_mids.to(U.Hz)
 
     @property
-    def frequency_channel_edges(self):
+    def frequency_channel_edges(self) -> U.Quantity[U.Hz]:
         """
         The edges of the channels from the coordinate system in frequency units.
 
@@ -535,7 +587,7 @@ class DataCube(object):
         return self.channel_edges.to(U.Hz)
 
     @property
-    def _stokes_index(self):
+    def _stokes_index(self) -> int | None:
         """
         The position of the Stokes' axis in the WCS axis order.
 
@@ -554,7 +606,7 @@ class DataCube(object):
         return None  # not found
 
     @property
-    def channel_maps(self):
+    def channel_maps(self) -> Iterator[U.Quantity]:
         """
         An iterator over the channel maps.
 
@@ -568,7 +620,7 @@ class DataCube(object):
         return self.spatial_slices
 
     @property
-    def spatial_slices(self):
+    def spatial_slices(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spatial 'slices' of the cube.
 
@@ -591,7 +643,7 @@ class DataCube(object):
             )
 
     @property
-    def spectra(self):
+    def spectra(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spectra (one in each spatial pixel).
 
@@ -613,7 +665,7 @@ class DataCube(object):
                 ).reshape(self.n_px_x * self.n_px_y, self.n_channels)
             )
 
-    def add_pad(self, pad) -> None:
+    def add_pad(self, pad: tuple[int, int]) -> None:
         """
         Resize the cube to add a padding region in the spatial direction.
 
@@ -635,17 +687,22 @@ class DataCube(object):
         if self.padx > 0 or self.pady > 0:
             raise RuntimeError("Tried to add padding to already padded datacube array.")
         tmp = self._array
-        shape = (self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels)
+        shape: tuple = (
+            self.n_px_x + pad[0] * 2,
+            self.n_px_y + pad[1] * 2,
+            self.n_channels,
+        )
         if self.stokes_axis:
             shape = shape + (1,)
         self._array = np.zeros(shape)
         self._array = self._array * tmp.unit
-        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else np.s_[:]
-        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else np.s_[:]
+        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else np.s_[0:-1]
+        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else np.s_[0:-1]
         self._array[xregion, yregion, ...] = tmp
         extend_crpix = [pad[0], pad[1], 0]
         if self.stokes_axis:
             extend_crpix.append(0)
+        assert self._wcs is not None
         self._wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
         self.padx, self.pady = pad
         return
@@ -667,11 +724,12 @@ class DataCube(object):
         retract_crpix = [self.padx, self.pady, 0]
         if self.stokes_axis:
             retract_crpix.append(0)
+        assert self._wcs is not None
         self._wcs.wcs.crpix = self.wcs.wcs.crpix - np.array(retract_crpix)
         self.padx, self.pady = 0, 0
         return
 
-    def copy(self):
+    def copy(self) -> Self:
         """
         Produce a copy of the :class:`~martini.datacube.DataCube`.
 
@@ -683,7 +741,7 @@ class DataCube(object):
         ~martini.datacube.DataCube
             Copy of the :class:`~martini.datacube.DataCube` object.
         """
-        copy = DataCube(
+        copy = type(self)(
             self.n_px_x,
             self.n_px_y,
             self.n_channels,
@@ -701,7 +759,7 @@ class DataCube(object):
         copy._array = self._array.copy()
         return copy
 
-    def save_state(self, filename, overwrite=False) -> None:
+    def save_state(self, filename: str, overwrite: bool = False) -> None:
         """
         Write the :class:`~martini.datacube.DataCube` state to file for re-use.
 
@@ -760,7 +818,7 @@ class DataCube(object):
         return
 
     @classmethod
-    def load_state(cls, filename):
+    def load_state(cls, filename: str) -> Self:
         """
         Initialize a :class:`~martini.datacube.DataCube` from a state saved.
 
@@ -859,11 +917,13 @@ class _GlobalProfileDataCube(DataCube):
 
     def __init__(
         self,
-        n_channels=64,
-        channel_width=4.0 * U.km * U.s**-1,
-        spectral_centre=0.0 * U.km * U.s**-1,
-        specsys="icrs",
-        velocity_centre=None,  # deprecated
+        n_channels: int = 64,
+        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 4.0 * U.km * U.s**-1,
+        spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0.0
+        * U.km
+        * U.s**-1,
+        specsys: str = "icrs",
+        velocity_centre: None = None,  # deprecated
     ) -> None:
         super().__init__(
             n_px_x=1,

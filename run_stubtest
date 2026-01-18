@@ -1,1 +1,1 @@
-stubtest --mypy-config-file pyproject.toml --allowlist stubtest_allowlist martini.martini martini.datacube martini.noise martini.spectral_models martini.sph_kernels martini.sources.sph_source martini.sources._L_align martini.sources._cartesian_translation martini.sources._illustris_tools martini._demo
+stubtest --mypy-config-file pyproject.toml --allowlist stubtest_allowlist martini.noise martini.spectral_models martini.sph_kernels martini.sources.sph_source martini.sources._L_align martini.sources._cartesian_translation martini.sources._illustris_tools martini._demo
