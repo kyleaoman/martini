@@ -1,5 +1,4 @@
 from numpy import ndarray
-import typing as T
 from martini.beams import _BaseBeam
 from martini.datacube import DataCube as DataCube
 from martini.noise import _BaseNoise
@@ -23,14 +22,14 @@ class _BaseMartini:
 
     def __init__(
         self,
-        source: T.Optional[SPHSource] = ...,
-        datacube: T.Optional[DataCube] = ...,
-        beam: T.Optional[_BaseBeam] = ...,
-        noise: T.Optional[_BaseNoise] = ...,
-        sph_kernel: T.Optional[_BaseSPHKernel] = ...,
-        spectral_model: T.Optional[_BaseSpectrum] = ...,
-        quiet: T.Optional[bool] = ...,
-        _prune_kwargs: T.Dict[str, T.Union[bool, str]] = ...,
+        source: SPHSource | None = ...,
+        datacube: DataCube | None = ...,
+        beam: _BaseBeam | None = ...,
+        noise: _BaseNoise | None = ...,
+        sph_kernel: _BaseSPHKernel | None = ...,
+        spectral_model: _BaseSpectrum | None = ...,
+        quiet: bool | None = ...,
+        _prune_kwargs: dict[str, bool | str] = ...,
     ) -> None: ...
     def init_spectra(self) -> None: ...
     def _prune_particles(
@@ -42,47 +41,47 @@ class _BaseMartini:
     ) -> None: ...
     def _evaluate_pixel_spectrum(
         self,
-        ij_px: T.Tuple[int, int],
-    ) -> T.Tuple[slice, U.Quantity[U.Jy / U.arcsec**2]]: ...
+        ij_px: tuple[int, int],
+    ) -> tuple[slice, U.Quantity[U.Jy / U.arcsec**2]]: ...
     def _insert_pixel(
-        self, insertion_slice: T.Union[int, T.Tuple, slice], insertion_data: ndarray
+        self, insertion_slice: int | tuple | slice, insertion_data: ndarray
     ) -> None: ...
     def _insert_source_in_cube(
         self,
         skip_validation: bool = ...,
-        progressbar: T.Optional[bool] = ...,
+        progressbar: bool | None = ...,
         ncpu: int = ...,
-        quiet: T.Optional[bool] = ...,
+        quiet: bool | None = ...,
     ) -> None: ...
     def reset(self) -> None: ...
     def preview(
         self,
         max_points: int = ...,
         fig: int = ...,
-        lim: T.Optional[T.Union[str, U.Quantity[U.kpc]]] = ...,
-        vlim: T.Optional[T.Union[str, U.Quantity[U.km / U.s]]] = ...,
+        lim: str | U.Quantity[U.kpc] | None = ...,
+        vlim: str | U.Quantity[U.km / U.s] | None = ...,
         point_scaling: str = ...,
         title: str = ...,
-        save: T.Optional[str] = ...,
+        save: str | None = ...,
     ) -> Figure: ...
 
 class Martini:
     def __init__(
         self,
-        source: T.Optional[SPHSource] = ...,
-        datacube: T.Optional[DataCube] = ...,
-        beam: T.Optional[_BaseBeam] = ...,
-        noise: T.Optional[_BaseNoise] = ...,
-        sph_kernel: T.Optional[_BaseSPHKernel] = ...,
-        spectral_model: T.Optional[_BaseSpectrum] = ...,
-        quiet: T.Optional[bool] = ...,
+        source: SPHSource | None = ...,
+        datacube: DataCube | None = ...,
+        beam: _BaseBeam | None = ...,
+        noise: _BaseNoise | None = ...,
+        sph_kernel: _BaseSPHKernel | None = ...,
+        spectral_model: _BaseSpectrum | None = ...,
+        quiet: bool | None = ...,
     ) -> None: ...
     @property
     def datacube(self) -> DataCube: ...
     def insert_source_in_cube(
         self,
         skip_validation: bool = ...,
-        progressbar: T.Optional[bool] = ...,
+        progressbar: bool | None = ...,
         ncpu: int = ...,
     ) -> None: ...
     def convolve_beam(self) -> None: ...
@@ -109,8 +108,8 @@ class Martini:
 class GlobalProfile(_BaseMartini):
     def __init__(
         self,
-        source: T.Optional[SPHSource] = ...,
-        spectral_model: T.Optional[_BaseSpectrum] = ...,
+        source: SPHSource | None = ...,
+        spectral_model: _BaseSpectrum | None = ...,
         n_channels: int = ...,
         channel_width: U.Quantity[U.km / U.s] = ...,
         spectral_centre: U.Quantity[U.km / U.s] = ...,
@@ -121,9 +120,9 @@ class GlobalProfile(_BaseMartini):
     @property
     def spectrum(self) -> U.Quantity[U.Jy]: ...
     @property
-    def channel_edges(self) -> T.Union[U.Quantity[U.Hz], U.Quantity[U.km / U.s]]: ...
+    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]: ...
     @property
-    def channel_mids(self) -> T.Union[U.Quantity[U.Hz], U.Quantity[U.km / U.s]]: ...
+    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]: ...
     @property
     def velocity_channel_edges(self) -> U.Quantity[U.km / U.s]: ...
     @property
@@ -133,7 +132,7 @@ class GlobalProfile(_BaseMartini):
     @property
     def frequency_channel_mids(self) -> U.Quantity[U.Hz]: ...
     @property
-    def channel_width(self) -> T.Union[U.Quantity[U.Hz], U.Quantity[U.km / U.s]]: ...
+    def channel_width(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]: ...
     def reset(self) -> None: ...
     def plot_spectrum(
         self,
@@ -141,5 +140,5 @@ class GlobalProfile(_BaseMartini):
         title: str = ...,
         channels: str = ...,
         show_vsys: bool = ...,
-        save: T.Optional[str] = ...,
+        save: str | None = ...,
     ) -> Figure: ...

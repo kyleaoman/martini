@@ -1,7 +1,7 @@
-import typing as T
 from _typeshed import Incomplete
 import astropy.units as U
 import abc
+from collections.abc import Callable
 import numpy as np
 from abc import abstractmethod
 from martini.datacube import DataCube as DataCube
@@ -11,8 +11,8 @@ class _BaseBeam(metaclass=abc.ABCMeta):
     bmaj: U.Quantity[U.arcsec]
     bmin: U.Quantity[U.arcsec]
     bpa: U.Quantity[U.deg]
-    px_size: T.Optional[U.Quantity[U.arcsec]]
-    kernel: T.Optional[U.Quantity[U.dimensionless_unscaled]]
+    px_size: U.Quantity[U.arcsec] | None
+    kernel: U.Quantity[U.dimensionless_unscaled] | None
     area: U.Quantity[U.arcsec**2]
 
     def __init__(
@@ -21,7 +21,7 @@ class _BaseBeam(metaclass=abc.ABCMeta):
         bmin: U.Quantity[U.arcsec] = ...,
         bpa: U.Quantity[U.deg] = ...,
     ) -> None: ...
-    def needs_pad(self) -> T.Tuple[int, int]: ...
+    def needs_pad(self) -> tuple[int, int]: ...
 
     vel: U.Quantity[U.km / U.s]
     ra: U.Quantity[U.deg]
@@ -47,7 +47,5 @@ class GaussianBeam(_BaseBeam, metaclass=abc.ABCMeta):
     ) -> None: ...
     def f_kernel(
         self,
-    ) -> T.Callable[
-        [T.Union[float, np.ndarray], T.Union[float, np.ndarray]], U.Quantity
-    ]: ...
-    def kernel_size_px(self) -> T.Tuple[int, int]: ...
+    ) -> Callable[[float | np.ndarray, float | np.ndarray], U.Quantity]: ...
+    def kernel_size_px(self) -> tuple[int, int]: ...
