@@ -58,6 +58,7 @@ docs = [
     "recommonmark",
 ]
 testing = [
+    "flake8",
     "pytest-cov",
     "numpydoc",
     "nbmake",

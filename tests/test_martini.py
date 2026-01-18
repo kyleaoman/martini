@@ -901,7 +901,7 @@ class TestGlobalProfile:
             assert GlobalProfile(**kwargs).source.npart == 1
 
     def test_reset(self, gp):
-        """Check that resetting global profile instance zeros out datacube and spectrum."""
+        """Check that resetting global profile zeros out datacube and spectrum."""
         cube_array = gp._datacube._array
         assert gp._datacube._array.sum() > 0
         spectrum = gp.spectrum

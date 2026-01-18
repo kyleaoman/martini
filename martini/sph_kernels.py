@@ -1,4 +1,4 @@
-"""Provides classes to represent SPH kernels for smoothing particles onto the pixel grid."""
+"""Provides classes representing SPH kernels to smooth particles onto the pixel grid."""
 
 from abc import ABCMeta, abstractmethod
 import numpy as np

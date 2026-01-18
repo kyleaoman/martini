@@ -250,7 +250,7 @@ class TestDataCube:
             os.remove("test_savestate.hdf5")
 
     def test_init_with_mixed_spectral_centre_and_channel_width_units(self):
-        """Check that we can specify channel spacing and central channel in mixed units."""
+        """Check that giving channel spacing and central channel in mixed units works."""
         const_kwargs = {
             "n_px_x": 16,
             "n_px_y": 16,
@@ -445,7 +445,7 @@ class TestDataCubeFromWCS:
         ),
     )
     def test_sample_headers(self, sample_header):
-        """Check that some real-world FITS headers can be used to initialize a DataCube."""
+        """Check that some real-world FITS headers can initialize a DataCube."""
         with open(os.path.join("tests/data/", sample_header), "r") as f:
             hdr = f.read()
         with pytest.warns(wcs.FITSFixedWarning):

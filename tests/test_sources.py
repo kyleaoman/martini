@@ -128,7 +128,7 @@ class TestSPHSource:
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     def test_ra_dec_rotation(self, ra, dec):
-        """Check that coordinates rotate as needed before translation to observed position."""
+        """Check that coordinates rotate before translation to observed position."""
         xyz_g = np.arange(3).reshape((1, 3)) * U.kpc
         vxyz_g = np.arange(3).reshape((1, 3)) * U.km / U.s
         mHI_g = np.zeros(3) * U.Msun
