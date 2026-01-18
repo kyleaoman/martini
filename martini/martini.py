@@ -11,6 +11,7 @@ import subprocess
 import os
 from scipy.signal import fftconvolve
 import numpy as np
+from matplotlib.figure import Figure
 import astropy.units as U
 from astropy.io import fits
 from astropy.time import Time
@@ -18,8 +19,12 @@ from astropy import __version__ as astropy_version
 from itertools import product
 from .__version__ import __version__ as martini_version
 from warnings import warn
+from martini.beams import _BaseBeam
 from martini.datacube import DataCube, _GlobalProfileDataCube
-from martini.sph_kernels import DiracDeltaKernel
+from martini.sources import SPHSource
+from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
+from martini.spectral_models import _BaseSpectrum
+from martini.noise import _BaseNoise
 
 try:
     with open(os.devnull, "w") as _devnull:
@@ -97,16 +102,24 @@ class _BaseMartini:
     martini.martini.GlobalProfile
     """
 
+    source: SPHSource
+    _datacube: DataCube
+    beam: _BaseBeam | None
+    noise: _BaseNoise | None
+    sph_kernel: _BaseSPHKernel
+    spectral_model: _BaseSpectrum
+    quiet: bool
+
     def __init__(
         self,
-        source=None,
-        datacube=None,
-        beam=None,
-        noise=None,
-        sph_kernel=None,
-        spectral_model=None,
-        quiet=False,
-        _prune_kwargs={},
+        source: SPHSource | None = None,
+        datacube: DataCube | None = None,
+        beam: _BaseBeam | None = None,
+        noise: _BaseNoise | None = None,
+        sph_kernel: _BaseSPHKernel | None = None,
+        spectral_model: _BaseSpectrum | None = None,
+        quiet: bool = False,
+        _prune_kwargs: dict = {},
     ) -> None:
         self.quiet = quiet
         if source is not None:
@@ -159,7 +172,11 @@ class _BaseMartini:
         return
 
     def _prune_particles(
-        self, spatial=True, spectral=True, mass=True, obj_type_str="data cube"
+        self,
+        spatial: bool = True,
+        spectral: bool = True,
+        mass: bool = True,
+        obj_type_str: str = "data cube",
     ) -> None:
         """
         Identify and remove particles that cannot contribute to the DataCube.
@@ -232,7 +249,9 @@ class _BaseMartini:
             )
         return
 
-    def _evaluate_pixel_spectrum(self, ij_px):
+    def _evaluate_pixel_spectrum(
+        self, ij_px: tuple[int, int]
+    ) -> tuple[slice | tuple, U.Quantity[U.Jy / U.arcsec**2]]:
         """
         Add up contributions of particles to the spectrum in a pixel.
 
@@ -272,6 +291,7 @@ class _BaseMartini:
             if self._datacube.stokes_axis
             else np.s_[ij_px[0], ij_px[1], :]
         )
+        assert self.spectral_model.spectra is not None
         tmp = self.spectral_model.spectra[mask]
         np.multiply(tmp, weights[:, np.newaxis], out=tmp)
         insertion_values = np.sum(tmp, axis=-2)
@@ -281,7 +301,9 @@ class _BaseMartini:
             insertion_values,
         )
 
-    def _insert_pixel(self, insertion_slice, insertion_data) -> None:
+    def _insert_pixel(
+        self, insertion_slice: int | tuple | slice, insertion_data: np.ndarray
+    ) -> None:
         """
         Insert the spectrum for a single pixel into the datacube array.
 
@@ -297,7 +319,11 @@ class _BaseMartini:
         return
 
     def _insert_source_in_cube(
-        self, skip_validation=False, progressbar=None, ncpu=1, quiet=None
+        self,
+        skip_validation: bool = False,
+        progressbar: bool | None = None,
+        ncpu: int = 1,
+        quiet: bool | None = None,
     ) -> None:
         """
         Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
@@ -439,14 +465,14 @@ class _BaseMartini:
 
     def preview(
         self,
-        max_points=5000,
-        fig=1,
-        lim=None,
-        vlim=None,
-        point_scaling="auto",
-        title="",
-        save=None,
-    ):
+        max_points: int = 5000,
+        fig: int = 1,
+        lim: str | U.Quantity[U.kpc] | None = None,
+        vlim: str | U.Quantity[U.km / U.s] | None = None,
+        point_scaling: str = "auto",
+        title: str = "",
+        save: str | None = None,
+    ) -> Figure:
         """
         Produce a figure showing the source particle coordinates and velocities.
 
@@ -550,7 +576,7 @@ class _BaseMartini:
         else:
             clip_vlim = False
         # pass through arguments, except save (which we will do later if desired)
-        fig = self.source.preview(
+        figure = self.source.preview(
             max_points=max_points,
             fig=fig,
             lim=lim,
@@ -559,7 +585,7 @@ class _BaseMartini:
             title=title,
             save=None,
         )
-        sp1, cb, sp2, sp3 = fig.get_axes()
+        sp1, cb, sp2, sp3 = figure.get_axes()
         sp1.add_patch(
             plt.Rectangle(
                 (
@@ -615,6 +641,7 @@ class _BaseMartini:
         else:
             if lim is None:
                 lim = sp1.get_xlim()[1] * U.kpc
+            assert isinstance(lim, U.Quantity)
             sp1.set_xlim(
                 (
                     max(1.1 * (y_cube + dy_cube), lim).to_value(U.kpc),
@@ -651,6 +678,7 @@ class _BaseMartini:
         else:
             if vlim is None:
                 vlim = sp2.get_ylim()[1] * U.km / U.s
+            assert isinstance(vlim, U.Quantity)
             sp2.set_ylim(
                 (
                     min(1.1 * (v_cube - dv_cube), -vlim).to_value(U.km / U.s),
@@ -666,7 +694,7 @@ class _BaseMartini:
 
         if save is not None:
             plt.savefig(save)
-        return fig
+        return figure
 
 
 class Martini(_BaseMartini):
@@ -835,13 +863,13 @@ class Martini(_BaseMartini):
 
     def __init__(
         self,
-        source=None,
-        datacube=None,
-        beam=None,
-        noise=None,
-        sph_kernel=None,
-        spectral_model=None,
-        quiet=False,
+        source: SPHSource | None = None,
+        datacube: DataCube | None = None,
+        beam: _BaseBeam | None = None,
+        noise: _BaseNoise | None = None,
+        sph_kernel: _BaseSPHKernel | None = None,
+        spectral_model: _BaseSpectrum | None = None,
+        quiet: bool = False,
     ) -> None:
         super().__init__(
             source=source,
@@ -856,7 +884,7 @@ class Martini(_BaseMartini):
         return
 
     @property
-    def datacube(self):
+    def datacube(self) -> DataCube:
         """
         The :class:`~martini.datacube.DataCube` object for this mock observation.
 
@@ -869,7 +897,10 @@ class Martini(_BaseMartini):
         return self._datacube
 
     def insert_source_in_cube(
-        self, skip_validation=False, progressbar=None, ncpu=1
+        self,
+        skip_validation: bool = False,
+        progressbar: bool | None = None,
+        ncpu: int = 1,
     ) -> None:
         """
         Populate the DataCube with flux from the particles in the source.
@@ -946,6 +977,13 @@ class Martini(_BaseMartini):
             warn("Skipping noise, no noise object provided to Martini.")
             return
 
+        if self.beam is None:
+            warn(
+                "Skipping noise, no beam object (required to estimate post-convolution"
+                " noise level) provided to Martini."
+            )
+            return
+
         # this unit conversion means noise can be added before or after source insertion:
         noise_cube = (
             self.noise.generate(self._datacube, self.beam)
@@ -971,10 +1009,10 @@ class Martini(_BaseMartini):
 
     def write_fits(
         self,
-        filename,
-        overwrite=True,
-        obj_name="MOCK",
-        channels=None,  # deprecated
+        filename: str,
+        overwrite: bool = True,
+        obj_name: str = "MOCK",
+        channels: None = None,  # deprecated
     ) -> None:
         """
         Output the data cube to a FITS-format file.
@@ -1083,9 +1121,9 @@ class Martini(_BaseMartini):
 
     def write_beam_fits(
         self,
-        filename,
-        overwrite=True,
-        channels=None,  # deprecated
+        filename: str,
+        overwrite: bool = True,
+        channels: None = None,  # deprecated
     ) -> None:
         """
         Output the beam to a FITS-format file.
@@ -1180,11 +1218,11 @@ class Martini(_BaseMartini):
 
     def write_hdf5(
         self,
-        filename,
-        overwrite=True,
-        memmap=False,
-        compact=False,
-        channels=None,  # deprecated
+        filename: str,
+        overwrite: bool = True,
+        memmap: bool = False,
+        compact: bool = False,
+        channels: None = None,  # deprecated
     ):
         """
         Output the data cube and beam to a HDF5-format file.
@@ -1534,13 +1572,13 @@ class GlobalProfile(_BaseMartini):
 
     def __init__(
         self,
-        source=None,
-        spectral_model=None,
-        n_channels=64,
-        channel_width=4 * U.km * U.s**-1,
-        spectral_centre=0 * U.km * U.s**-1,
-        quiet=False,
-        channels=None,  # deprecated
+        source: SPHSource | None = None,
+        spectral_model: _BaseSpectrum | None = None,
+        n_channels: int = 64,
+        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 4 * U.km * U.s**-1,
+        spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0 * U.km * U.s**-1,
+        quiet: bool = False,
+        channels: None = None,  # deprecated
     ) -> None:
         if channels is not None:
             warnings.warn(
@@ -1622,7 +1660,7 @@ class GlobalProfile(_BaseMartini):
             )
 
     @property
-    def spectrum(self):
+    def spectrum(self) -> U.Quantity[U.Jy]:
         """
         The spectrum of the source with spatial information integrated out.
 
@@ -1640,7 +1678,7 @@ class GlobalProfile(_BaseMartini):
         return self._spectrum
 
     @property
-    def channel_edges(self):
+    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
         """
         The edges of the channels for the spectrum.
 
@@ -1662,7 +1700,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
-    def channel_mids(self):
+    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
         """
         The centres of the channels for the spectrum.
 
@@ -1684,7 +1722,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
-    def frequency_channel_edges(self):
+    def frequency_channel_edges(self) -> U.Quantity[U.Hz]:
         """
         The edges of the frequency channels for the spectrum.
 
@@ -1703,7 +1741,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
-    def frequency_channel_mids(self):
+    def frequency_channel_mids(self) -> U.Quantity[U.Hz]:
         """
         The centres of the frequency channels for the spectrum.
 
@@ -1722,7 +1760,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
-    def velocity_channel_edges(self):
+    def velocity_channel_edges(self) -> U.Quantity[U.km / U.s]:
         """
         The edges of the channels for the spectrum in velocity units.
 
@@ -1741,7 +1779,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
-    def velocity_channel_mids(self):
+    def velocity_channel_mids(self) -> U.Quantity[U.km / U.s]:
         """
         The centres of the channels for the spectrum.
 
@@ -1760,7 +1798,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
-    def channel_width(self):
+    def channel_width(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
         """
         The width of the channels for the spectrum.
 
@@ -1782,11 +1820,11 @@ class GlobalProfile(_BaseMartini):
 
     def plot_spectrum(
         self,
-        fig=1,
-        title="",
-        channels="velocity",
-        show_vsys=True,
-        save=None,
+        fig: int = 1,
+        title: str = "",
+        channels: str = "velocity",
+        show_vsys: bool = True,
+        save: str | None = None,
     ):
         """
         Produce a figure showing the spectrum.
@@ -1828,13 +1866,13 @@ class GlobalProfile(_BaseMartini):
                 "`plot_spectrum` argument `channels` must be 'velocity' or 'frequency'."
             )
 
-        fig = plt.figure(fig, figsize=(4, 3))
-        fig.clf()
-        fig.suptitle(title)
+        figure = plt.figure(fig, figsize=(4, 3))
+        figure.clf()
+        figure.suptitle(title)
 
         xunit = {"velocity": U.km * U.s**-1, "frequency": U.GHz}[channels]
 
-        ax = fig.add_subplot(1, 1, 1)
+        ax = figure.add_subplot(1, 1, 1)
         ax.plot(
             channel_mids.to_value(xunit),
             self.spectrum.to_value(U.Jy),
@@ -1857,4 +1895,4 @@ class GlobalProfile(_BaseMartini):
 
         if save is not None:
             plt.savefig(save)
-        return fig
+        return figure

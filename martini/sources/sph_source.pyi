@@ -21,6 +21,8 @@ class SPHSource:
     vsys: U.Quantity[U.km / U.s]
     sky_coordinates: ICRS
     coordinate_frame: BaseRADecFrame
+    pixcoords: U.Quantity[U.pix]
+    input_mass: U.Quantity[U.Msun]
 
     def __init__(
         self,
