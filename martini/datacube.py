@@ -696,8 +696,8 @@ class DataCube(object):
             shape = shape + (1,)
         self._array = np.zeros(shape)
         self._array = self._array * tmp.unit
-        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else np.s_[0:-1]
-        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else np.s_[0:-1]
+        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else slice(None, None, None)
+        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else slice(None, None, None)
         self._array[xregion, yregion, ...] = tmp
         extend_crpix = [pad[0], pad[1], 0]
         if self.stokes_axis:
