@@ -52,6 +52,22 @@ firesource = [
     "gizmo-analysis",
     "halo-analysis",
 ]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "recommonmark",
+]
+testing = [
+    "pytest-cov",
+    "numpydoc",
+    "nbmake",
+    "mypy",
+    "ruff",
+    "flake8",
+]
+dev = [
+    "astromartini[hdf5_output,eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource,testing,docs]",
+]
 [tool.ruff]
 exclude = ["docs/source/conf.py", "martini/sources/_illustris_tools.py"]
 line-length = 88
