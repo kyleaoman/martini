@@ -10,7 +10,14 @@ import numpy as np
 import astropy.units as U
 
 
-def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
+def L_align(
+    xyz: U.Quantity[U.kpc],
+    vxyz: U.Quantity[U.km / U.s],
+    m: U.Quantity[U.Msun],
+    frac: float = 0.3,
+    saverot: str | None = None,
+    Laxis: str = "z",
+) -> np.ndarray:
     """
     Determine the rotation matrix to align with the angular momentum vector of particles.
 
@@ -39,6 +46,11 @@ def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
     Laxis : str, optional
         One of ``"x"``, ``"y"``, ``"z"``, specifying the axis to which the angular
         momentum should be aligned. (Default: ``"z"``)
+
+    Returns
+    -------
+    ~numpy.ndarray
+        The rotation matrix to align with the angular momentum vector.
     """
     transposed = False
     if xyz.ndim != 2:
@@ -85,7 +97,13 @@ def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
     xhat = xhat / np.sqrt(np.sum(np.power(xhat, 2)))  # normalized
     yhat = np.cross(zhat, xhat)  # guarantees right-handedness
 
-    rotmat = np.vstack((xhat, yhat, zhat)).to(U.dimensionless_unscaled).value
+    rotmat = np.vstack(
+        (
+            xhat.to_value(U.dimensionless_unscaled),
+            yhat.to_value(U.dimensionless_unscaled),
+            zhat.to_value(U.dimensionless_unscaled),
+        )
+    )
     if Laxis == "z":
         pass
     elif Laxis == "y":
