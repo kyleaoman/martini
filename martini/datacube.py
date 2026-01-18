@@ -702,8 +702,7 @@ class DataCube(object):
         extend_crpix = [pad[0], pad[1], 0]
         if self.stokes_axis:
             extend_crpix.append(0)
-        assert self._wcs is not None
-        self._wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
+        self.wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
         self.padx, self.pady = pad
         return
 
@@ -724,8 +723,7 @@ class DataCube(object):
         retract_crpix = [self.padx, self.pady, 0]
         if self.stokes_axis:
             retract_crpix.append(0)
-        assert self._wcs is not None
-        self._wcs.wcs.crpix = self.wcs.wcs.crpix - np.array(retract_crpix)
+        self.wcs.wcs.crpix = self.wcs.wcs.crpix - np.array(retract_crpix)
         self.padx, self.pady = 0, 0
         return
 
