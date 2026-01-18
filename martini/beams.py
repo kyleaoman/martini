@@ -1,9 +1,11 @@
 """Provide classes to represent the beam of a radio telescope."""
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable
 import scipy.interpolate
 import numpy as np
 import astropy.units as U
+from martini.datacube import DataCube
 
 
 class _BaseBeam(object):
@@ -50,11 +52,21 @@ class _BaseBeam(object):
 
     __metaclass__ = ABCMeta
 
+    bmaj: U.Quantity[U.arcsec]
+    bmin: U.Quantity[U.arcsec]
+    bpa: U.Quantity[U.deg]
+    px_size: U.Quantity[U.arcsec] | None
+    kernel: U.Quantity[U.dimensionless_unscaled] | None
+    area: U.Quantity[U.arcsec**2]
+    vel: U.Quantity[U.km / U.s]
+    ra: U.Quantity[U.deg]
+    dec: U.Quantity[U.deg]
+
     def __init__(
         self,
-        bmaj=15.0 * U.arcsec,
-        bmin=15.0 * U.arcsec,
-        bpa=0.0 * U.deg,
+        bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bpa: U.Quantity[U.deg] = 0.0 * U.deg,
     ) -> None:
         # some beams need information from the datacube; in this case make
         # their call to _BaseBeam.__init__ with bmaj == bmin == bpa == None
@@ -73,7 +85,7 @@ class _BaseBeam(object):
 
         return
 
-    def needs_pad(self):
+    def needs_pad(self) -> tuple[int, int]:
         """
         Determine the padding of the datacube required by the beam.
 
@@ -88,7 +100,7 @@ class _BaseBeam(object):
             raise RuntimeError("Beam kernel not initialized.")
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
 
-    def init_kernel(self, datacube) -> None:
+    def init_kernel(self, datacube: DataCube) -> None:
         """
         Calculate the required size of the beam image.
 
@@ -201,12 +213,14 @@ class GaussianBeam(_BaseBeam):
         Number of FWHM at which to truncate the beam image.
     """
 
+    truncate: float
+
     def __init__(
         self,
-        bmaj=15.0 * U.arcsec,
-        bmin=15.0 * U.arcsec,
-        bpa=0.0 * U.deg,
-        truncate=4.0,
+        bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bpa: U.Quantity[U.deg] = 0.0 * U.deg,
+        truncate: float = 4.0,
     ) -> None:
         self.truncate = truncate
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
@@ -214,7 +228,7 @@ class GaussianBeam(_BaseBeam):
 
     def f_kernel(
         self,
-    ):
+    ) -> Callable[[float | np.ndarray, float | np.ndarray], U.Quantity]:
         """
         Return a function defining the beam amplitude as a function of position.
 
@@ -228,7 +242,7 @@ class GaussianBeam(_BaseBeam):
             ``ArrayLike`` of corresponding size.
         """
 
-        def fwhm_to_sigma(fwhm):
+        def fwhm_to_sigma(fwhm: U.Quantity[U.deg]) -> U.Quantity[U.deg]:
             """
             Convert full-width at half-maximum to Gaussian sigma.
 
@@ -258,7 +272,7 @@ class GaussianBeam(_BaseBeam):
             -a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2)
         )
 
-    def kernel_size_px(self):
+    def kernel_size_px(self) -> tuple[int, int]:
         """
         Return a 2-tuple specifying the half-size of the beam image to be initialized.
 
