@@ -1236,7 +1236,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
             The datacube providing the pixel scale.
         """
         super()._init_sm_lengths(source=source, datacube=datacube)
-        self.kernel_indices = -1 * np.ones(source.hsm_g.shape, dtype=int)
+        self.kernel_indices = -1 * np.ones(source.mHI_g.shape, dtype=int)
         for ik, K in enumerate(self.kernels):
             # if valid and not already assigned an earlier kernel, assign
             self.kernel_indices[

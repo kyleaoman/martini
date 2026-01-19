@@ -135,10 +135,10 @@ class SPHSource(object):
     """
 
     h: float
-    T_g: U.Quantity[U.K]
+    T_g: U.Quantity[U.K] | None
     mHI_g: U.Quantity[U.Msun]
     coordinates_g: U.Quantity[U.kpc]
-    hsm_g: U.Quantity[U.kpc]
+    hsm_g: U.Quantity[U.kpc] | None
     npart: int
     ra: U.Quantity[U.deg]
     dec: U.Quantity[U.deg]
@@ -162,11 +162,11 @@ class SPHSource(object):
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         h: float = 0.7,
-        T_g: U.Quantity[U.K],
+        T_g: U.Quantity[U.K] | None = None,
         mHI_g: U.Quantity[U.Msun],
         xyz_g: U.Quantity[U.kpc],
         vxyz_g: U.Quantity[U.km / U.s],
-        hsm_g: U.Quantity[U.kpc],
+        hsm_g: U.Quantity[U.kpc] | None = None,
         coordinate_axis: int | None = None,
         coordinate_frame: BaseRADecFrame = ICRS(),
     ) -> None:
@@ -339,7 +339,7 @@ class SPHSource(object):
         if mask_sum == 0:
             raise RuntimeError("No non-zero mHI source particles in target region.")
         self.npart = mask_sum
-        if not self.T_g.isscalar:
+        if self.T_g is not None and not self.T_g.isscalar:
             self.T_g = self.T_g[mask]
         if not self.mHI_g.isscalar:
             self.mHI_g = self.mHI_g[mask]
@@ -350,7 +350,7 @@ class SPHSource(object):
             self.spectralcoords = self.spectralcoords[mask]
         if self.pixcoords is not None:
             self.pixcoords = self.pixcoords[:, mask]
-        if not self.hsm_g.isscalar:
+        if self.hsm_g is not None and not self.hsm_g.isscalar:
             self.hsm_g = self.hsm_g[mask]
         return
 
@@ -575,7 +575,7 @@ class SPHSource(object):
         # )
         hsm_factor = (
             1
-            if (self.hsm_g.isscalar or mask.size <= 1)
+            if (self.hsm_g is None or self.hsm_g.isscalar or mask.size <= 1)
             else (1 - (self.hsm_g[mask] / self.hsm_g[mask].max()) ** 0.1).to_value(
                 U.dimensionless_unscaled
             )  # larger -> more transparent
@@ -583,11 +583,14 @@ class SPHSource(object):
             * 0.5  # guard against getting all 0s
         )
         alpha = hsm_factor if point_scaling == "auto" else 1.0
-        size_scale = (
-            self.hsm_g.to_value(U.kpc) / lim
-            if (self.hsm_g.isscalar or mask.size <= 1)
-            else (self.hsm_g[mask].to_value(U.kpc) / lim)
-        )
+        if self.hsm_g is None:
+            size_scale = 1
+        else:
+            size_scale = (
+                self.hsm_g.to_value(U.kpc) / lim
+                if (self.hsm_g.isscalar or mask.size <= 1)
+                else (self.hsm_g[mask].to_value(U.kpc) / lim)
+            )
         size = 300 * size_scale if point_scaling == "auto" else 10
         print(f"{hsm_factor=} {size=}")
         figure = plt.figure(fig, figsize=(12, 4))
