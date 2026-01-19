@@ -25,9 +25,12 @@ These should be imported, then use:
 # to produce a self-contained package.
 
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
+import astropy.units as U
 
 
-def translate(cls, translation_vector):
+def translate(
+    cls: CartesianRepresentation, translation_vector: U.Quantity[U.kpc]
+) -> CartesianRepresentation:
     """
     Apply a coordinate translation.
 
@@ -50,7 +53,9 @@ def translate(cls, translation_vector):
     )
 
 
-def translate_d(cls, translation_vector):
+def translate_d(
+    cls: CartesianDifferential, translation_vector: U.Quantity[U.km / U.s]
+) -> CartesianDifferential:
     """
     Apply a differential translation.
 
