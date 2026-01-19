@@ -14,10 +14,11 @@ from astropy.coordinates import (
     ICRS,
 )
 from astropy.coordinates.matrix_utilities import rotation_matrix
+from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
-from ..datacube import HIfreq
+from ..datacube import HIfreq, DataCube
 
 # Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, "translate", translate)
@@ -133,21 +134,41 @@ class SPHSource(object):
         (Default: ``astropy.coordinates.ICRS()``).
     """
 
+    h: float
+    T_g: U.Quantity[U.K]
+    mHI_g: U.Quantity[U.Msun]
+    coordinates_g: U.Quantity[U.kpc]
+    hsm_g: U.Quantity[U.kpc]
+    npart: int
+    ra: U.Quantity[U.deg]
+    dec: U.Quantity[U.deg]
+    distance: U.Quantity[U.Mpc]
+    vpeculiar: U.Quantity[U.km / U.s]
+    current_rotation: np.ndarray
+    vhubble: U.Quantity[U.km / U.s]
+    vsys: U.Quantity[U.km / U.s]
+    sky_coordinates: ICRS
+    coordinate_frame: BaseRADecFrame
+    pixcoords: U.Quantity[U.pix]
+    input_mass: U.Quantity[U.Msun]
+    skycoords: SkyCoord | None
+
     def __init__(
         self,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0.0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        h=0.7,
-        T_g=None,
-        mHI_g=None,
-        xyz_g=None,
-        vxyz_g=None,
-        hsm_g=None,
-        coordinate_axis=None,
-        coordinate_frame=ICRS(),
+        *,
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0.0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        h: float = 0.7,
+        T_g: U.Quantity[U.K],
+        mHI_g: U.Quantity[U.Msun],
+        xyz_g: U.Quantity[U.kpc],
+        vxyz_g: U.Quantity[U.km / U.s],
+        hsm_g: U.Quantity[U.kpc],
+        coordinate_axis: int | None = None,
+        coordinate_frame: BaseRADecFrame = ICRS(),
     ) -> None:
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
@@ -203,7 +224,7 @@ class SPHSource(object):
         self.pixcoords = None
         return
 
-    def _init_skycoords(self, _reset=True) -> None:
+    def _init_skycoords(self, _reset: bool = True) -> None:
         """
         Initialize the sky coordinates of the particles.
 
@@ -266,7 +287,7 @@ class SPHSource(object):
             self.rotate(axis_angle=("y", self.dec))
         return
 
-    def _init_pixcoords(self, datacube, origin=0) -> None:
+    def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
         """
         Initialize pixel coordinates of the particles.
 
@@ -278,6 +299,12 @@ class SPHSource(object):
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
         """
+        assert self.skycoords is not None, (
+            "Initialize source.skycoords before calling _init_pixcoords."
+        )
+        assert self.spectralcoords is not None, (
+            "Initialize source.spectralcoords before calling _init_pixcoords."
+        )
         skycoords_df_frame = self.skycoords.transform_to(datacube.coordinate_frame)
         spectralcoords_df_specsys = (
             self.spectralcoords.with_observer_stationary_relative_to(datacube.specsys)
@@ -296,7 +323,7 @@ class SPHSource(object):
         )
         return
 
-    def apply_mask(self, mask) -> None:
+    def apply_mask(self, mask: np.ndarray) -> None:
         """
         Remove particles from source arrays according to a mask.
 
@@ -327,7 +354,13 @@ class SPHSource(object):
             self.hsm_g = self.hsm_g[mask]
         return
 
-    def rotate(self, axis_angle=None, rotmat=None, L_coords=None) -> None:
+    def rotate(
+        self,
+        *,
+        axis_angle: tuple[str, U.Quantity[U.deg]] | None = None,
+        rotmat: np.ndarray | None = None,
+        L_coords: tuple[U.Quantity[U.deg], ...] | None = None,
+    ) -> None:
         """
         Rotate the source.
 
@@ -395,7 +428,7 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g.transform(do_rot)
         return
 
-    def translate(self, translation_vector) -> None:
+    def translate(self, translation_vector: U.Quantity[U.kpc]) -> None:
         """
         Translate the source.
 
@@ -410,7 +443,7 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
         return
 
-    def boost(self, boost_vector) -> None:
+    def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
         """
         Apply an offset to the source velocity.
 
@@ -428,7 +461,7 @@ class SPHSource(object):
         ].translate(boost_vector)
         return
 
-    def save_current_rotation(self, fname) -> None:
+    def save_current_rotation(self, fname: str) -> None:
         """
         Output current rotation matrix to file.
 
@@ -447,13 +480,13 @@ class SPHSource(object):
 
     def preview(
         self,
-        max_points=5000,
-        fig=1,
-        lim=None,
-        vlim=None,
-        point_scaling="auto",
-        title="",
-        save=None,
+        max_points: int = 5000,
+        fig: int = 1,
+        lim: U.Quantity[U.kpc] = None,
+        vlim: U.Quantity[U.km / U.s] = None,
+        point_scaling: str = "auto",
+        title: str = "",
+        save: str | None = None,
     ):
         """
         Produce a figure showing the source particle coordinates and velocities.
@@ -557,12 +590,12 @@ class SPHSource(object):
         )
         size = 300 * size_scale if point_scaling == "auto" else 10
         print(f"{hsm_factor=} {size=}")
-        fig = plt.figure(fig, figsize=(12, 4))
-        fig.clf()
-        fig.suptitle(title)
+        figure = plt.figure(fig, figsize=(12, 4))
+        figure.clf()
+        figure.suptitle(title)
 
         # ----- MOMENT 1 -----
-        sp1 = fig.add_subplot(1, 3, 1, aspect="equal")
+        sp1 = figure.add_subplot(1, 3, 1, aspect="equal")
         sp1.set_facecolor("#222222")
         scatter = sp1.scatter(
             self.coordinates_g.y[mask].to_value(U.kpc),
@@ -582,11 +615,11 @@ class SPHSource(object):
         sp1.set_ylabel(r"$z\,[\mathrm{kpc}]$")
         sp1.set_xlim((lim, -lim))
         sp1.set_ylim((-lim, lim))
-        cb = fig.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
+        cb = figure.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
         cb.set_label(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
         # ----- PV Y -----
-        sp2 = fig.add_subplot(1, 3, 2)
+        sp2 = figure.add_subplot(1, 3, 2)
         sp2.set_facecolor("#222222")
         sp2.scatter(
             self.coordinates_g.y[mask].to_value(U.kpc),
@@ -605,7 +638,7 @@ class SPHSource(object):
         sp2.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
         # ----- PV Z -----
-        sp3 = fig.add_subplot(1, 3, 3)
+        sp3 = figure.add_subplot(1, 3, 3)
         sp3.set_facecolor("#222222")
         sp3.scatter(
             self.coordinates_g.z[mask].to_value(U.kpc),
@@ -623,7 +656,7 @@ class SPHSource(object):
         sp3.set_xlabel(r"$z\,[\mathrm{kpc}]$")
         sp3.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
-        fig.subplots_adjust(wspace=0.3)
+        figure.subplots_adjust(wspace=0.3)
         if save is not None:
             plt.savefig(save)
-        return fig
+        return figure
