@@ -1,1 +1,1 @@
-stubtest --mypy-config-file pyproject.toml --allowlist stubtest_allowlist martini.sph_kernels martini.sources.sph_source martini.sources._illustris_tools
+stubtest --mypy-config-file pyproject.toml --allowlist stubtest_allowlist martini.sources.sph_source martini.sources._illustris_tools

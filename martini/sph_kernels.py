@@ -1,13 +1,17 @@
 """Provides classes representing SPH kernels to smooth particles onto the pixel grid."""
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable
+from types import EllipsisType
 import numpy as np
 import astropy.units as U
 from scipy.special import erf
 from scipy.optimize import fsolve
+from martini.sources import SPHSource
+from martini.datacube import DataCube
 
 
-def find_fwhm(f):
+def find_fwhm(f: Callable[[np.ndarray], np.ndarray]) -> float:
     """
     Solve for the FWHM of the input function.
 
@@ -52,12 +56,18 @@ class _BaseSPHKernel(object):
     """
 
     __metaclass__ = ABCMeta
+    sm_lengths: U.Quantity[U.arcsec]
+    sm_ranges: np.ndarray
+    size_in_fwhm: float | list[float] | None
+    _rescale: float | np.ndarray
 
     def __init__(self) -> None:
-        self._rescale = 1
+        self._rescale = 1.0
         return
 
-    def _px_weight(self, dij, mask=None):
+    def _px_weight(
+        self, dij: U.Quantity[U.pix], mask: np.ndarray | EllipsisType = ...
+    ) -> U.Quantity[U.pix**2]:
         """
         Calculate kernel integral using scaled smoothing lengths.
 
@@ -71,7 +81,7 @@ class _BaseSPHKernel(object):
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
 
-        mask : ~numpy.typing.ArrayLike or slice, optional
+        mask : ~numpy.typing.ArrayLike or Ellipsis, optional
             Boolean mask to apply to any maskable attributes. (Default: ``None``).
 
         Returns
@@ -80,17 +90,20 @@ class _BaseSPHKernel(object):
             :class:`~astropy.units.Quantity`, with dimensions of pixels^-2.
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
-        if mask is not None:
-            try:
-                rescale = self._rescale[mask]
-            except (TypeError, IndexError):
-                rescale = self._rescale
+        if mask is not Ellipsis:
+            rescale = (
+                self._rescale[mask]
+                if not isinstance(self._rescale, float)
+                else self._rescale
+            )
             rescaled_h = self.sm_lengths[mask] * rescale
         else:
             rescaled_h = self.sm_lengths * self._rescale
         return self._kernel_integral(dij, rescaled_h, mask=mask)
 
-    def _confirm_validation(self, noraise=False, quiet=False):
+    def _confirm_validation(
+        self, noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Verify kernel accuracy using scaled smoothing lengths.
 
@@ -108,7 +121,12 @@ class _BaseSPHKernel(object):
         return self._validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
     def _validate_error(
-        self, msg, sm_lengths, valid, noraise=False, quiet=False
+        self,
+        msg: str,
+        sm_lengths: U.Quantity[U.pix],
+        valid: np.ndarray,
+        noraise: bool = False,
+        quiet: bool = False,
     ) -> None:
         """
         Handle kernel validation errors.
@@ -154,7 +172,9 @@ class _BaseSPHKernel(object):
             raise RuntimeError(msg)
         return
 
-    def eval_kernel(self, r, h):
+    def eval_kernel(
+        self, r: np.ndarray | U.Quantity[U.arcsec], h: np.ndarray | U.Quantity[U.arcsec]
+    ) -> U.Quantity | np.ndarray:
         """
         Evaluate the kernel, handling array casting and rescaling.
 
@@ -181,7 +201,7 @@ class _BaseSPHKernel(object):
         else:
             return W
 
-    def _apply_mask(self, mask) -> None:
+    def _apply_mask(self, mask: np.ndarray) -> None:
         """
         Apply a mask to maskable attributes.
 
@@ -195,7 +215,7 @@ class _BaseSPHKernel(object):
 
         return
 
-    def _init_sm_lengths(self, source=None, datacube=None) -> None:
+    def _init_sm_lengths(self, source: SPHSource, datacube: DataCube) -> None:
         """
         Determine kernel sizes in pixel units.
 
@@ -207,6 +227,9 @@ class _BaseSPHKernel(object):
         datacube : martini.datacube.DataCube
             The datacube providing the pixel scale.
         """
+        assert source.skycoords is not None, (
+            "Initialize source skycoords before initializing smoothing lengths."
+        )
         self.sm_lengths = np.arctan(
             source.hsm_g
             / source.skycoords.transform_to(datacube.coordinate_frame).distance
@@ -222,7 +245,7 @@ class _BaseSPHKernel(object):
         return
 
     @abstractmethod
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         """
         Abstract method; evaluate the kernel.
 
@@ -239,7 +262,12 @@ class _BaseSPHKernel(object):
         pass
 
     @abstractmethod
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Abstract method; calculate the kernel integral over a pixel.
 
@@ -264,7 +292,9 @@ class _BaseSPHKernel(object):
         pass
 
     @abstractmethod
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Abstract method; check conditions for validity of kernel integral calculation.
 
@@ -312,17 +342,18 @@ class _WendlandC2Kernel(_BaseSPHKernel):
     defines the WendlandC2 kernel.
     """
 
-    min_valid_size = 1.51
+    min_valid_size: float = 1.51
 
     def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
         self.size_in_fwhm = 1 / _unscaled_fwhm
+        assert isinstance(self._rescale, float)
         self._rescale /= _unscaled_fwhm
 
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function.
 
@@ -349,7 +380,12 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         W *= 21 / 2 / np.pi
         return W
 
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Calculate the kernel integral over a pixel.
 
@@ -387,7 +423,9 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         norm = 21 / 2 / np.pi
         return retval * norm / np.power(h, 2)
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -445,7 +483,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
     defines the WendlandC6 kernel.
     """
 
-    min_valid_size = 1.29
+    min_valid_size: float = 1.29
 
     def __init__(self) -> None:
         super().__init__()
@@ -454,7 +492,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function.
 
@@ -486,7 +524,12 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         W *= 1365 / 64 / np.pi
         return W
 
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Calculate the kernel integral over a pixel.
 
@@ -512,7 +555,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
 
-        def indef(R, z):
+        def indef(R: np.ndarray, z: np.ndarray | float) -> np.ndarray:
             """
             Evaluate expression involved in the integral.
 
@@ -619,12 +662,14 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         use = np.logical_and(R < 1, R != 0)
         norm = 1365 / 64 / np.pi
         zmax = np.sqrt(1 - np.power(R[use], 2))
-        retval[use] = norm * 2 * (indef(R[use], zmax) - indef(R[use], 0))
+        retval[use] = norm * 2 * (indef(R[use], zmax) - indef(R[use], 0.0))
         retval[R == 0] = norm * 2 * (4 / 15)
         retval = retval / np.power(h, 2)
         return retval
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -684,7 +729,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
     defines the cubic spline kernel.
     """
 
-    min_valid_size = 1.16
+    min_valid_size: float = 1.16
 
     def __init__(self) -> None:
         super().__init__()
@@ -693,7 +738,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function.
 
@@ -726,7 +771,12 @@ class _CubicSplineKernel(_BaseSPHKernel):
         W *= 8 / np.pi
         return W
 
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Calculate the kernel integral over a pixel.
 
@@ -790,7 +840,9 @@ class _CubicSplineKernel(_BaseSPHKernel):
         # rescaling from interval [0, 2) to [0, 1) requires mult. by 4
         return retval / 1.59689476201133 / np.power(h, 2) * 4
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -855,7 +907,12 @@ class _GaussianKernel(_BaseSPHKernel):
         (Default: ``3``).
     """
 
-    def __init__(self, truncate=3.0) -> None:
+    no6sigwarn: bool
+    truncate: float
+    lims: tuple[int, int]
+    norm: float
+
+    def __init__(self, truncate: float = 3.0) -> None:
         self.truncate = truncate
         if self.truncate < 2:
             raise RuntimeError(
@@ -880,7 +937,7 @@ class _GaussianKernel(_BaseSPHKernel):
         self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function.
 
@@ -918,7 +975,12 @@ class _GaussianKernel(_BaseSPHKernel):
             / self.norm
         )
 
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Calculate the kernel integral over a pixel.
 
@@ -965,7 +1027,9 @@ class _GaussianKernel(_BaseSPHKernel):
         retval /= self.norm
         return retval * h.unit**-2
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -1022,15 +1086,15 @@ class DiracDeltaKernel(_BaseSPHKernel):
         (Default: ``1.0``).
     """
 
-    max_valid_size = 0.5
+    max_valid_size: float = 0.5
 
-    def __init__(self, size_in_fwhm=1.0) -> None:
+    def __init__(self, size_in_fwhm: float = 1.0) -> None:
         super().__init__()
         self.size_in_fwhm = size_in_fwhm
-        self._rescale = 1  # need this to be present
+        self._rescale = 1.0  # need this to be present
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function.
 
@@ -1054,7 +1118,12 @@ class DiracDeltaKernel(_BaseSPHKernel):
         """
         return np.where(q, 0, np.inf)
 
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Calculate the kernel integral over a pixel.
 
@@ -1080,7 +1149,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         """
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -1142,14 +1213,17 @@ class _AdaptiveKernel(_BaseSPHKernel):
         Kernels to use, ordered by decreasing priority.
     """
 
-    def __init__(self, kernels) -> None:
+    kernels: tuple[_BaseSPHKernel, ...]
+    kernel_indices: np.ndarray
+
+    def __init__(self, kernels: tuple[_BaseSPHKernel, ...]) -> None:
         self.kernels = kernels
         super().__init__()
-        self.size_in_fwhm = None  # initialized during Martini.__init__
-        self._rescale = None  # initialized during Martini.__init__
+        # self.size_in_fwhm initialized during Martini.__init__
+        # self._rescale initialized during Martini.__init__
         return
 
-    def _init_sm_lengths(self, source=None, datacube=None) -> None:
+    def _init_sm_lengths(self, source: SPHSource, datacube: DataCube) -> None:
         """
         Determine kernel sizes in pixel units.
 
@@ -1174,15 +1248,17 @@ class _AdaptiveKernel(_BaseSPHKernel):
         _sizes_in_fwhm = np.array([K.size_in_fwhm for K in self.kernels])
         self.size_in_fwhm = _sizes_in_fwhm[self.kernel_indices]
         # ensure default is 0th entry
+        assert isinstance(self.size_in_fwhm, np.ndarray)
         self.size_in_fwhm[self.kernel_indices == -1] = _sizes_in_fwhm[0]
         _rescales = np.array([K._rescale for K in self.kernels])
         self._rescale = _rescales[self.kernel_indices]
         # ensure default is 0th entry
+        assert isinstance(self._rescale, np.ndarray)
         self._rescale[self.kernel_indices == -1] = _rescales[0]
 
         return
 
-    def _apply_mask(self, mask) -> None:
+    def _apply_mask(self, mask: np.ndarray) -> None:
         """
         Apply a mask to maskable attributes.
 
@@ -1191,14 +1267,18 @@ class _AdaptiveKernel(_BaseSPHKernel):
         mask : ~numpy.typing.ArrayLike
             Boolean mask to apply to any maskable attributes.
         """
+        assert isinstance(self.size_in_fwhm, np.ndarray)
         self.size_in_fwhm = self.size_in_fwhm[mask]
+        assert isinstance(self._rescale, np.ndarray)
         self._rescale = self._rescale[mask]
         self.kernel_indices = self.kernel_indices[mask]
         super()._apply_mask(mask)
 
         return
 
-    def eval_kernel(self, r, h):
+    def eval_kernel(
+        self, r: np.ndarray | U.Quantity[U.arcsec], h: np.ndarray | U.Quantity[U.arcsec]
+    ) -> U.Quantity | np.ndarray:
         """
         Evaluate the kernel, handling array casting and rescaling.
 
@@ -1216,7 +1296,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
         """
         return self.kernels[0].eval_kernel(r, h)
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         """
         Evaluate the kernel function of the preferred kernel.
 
@@ -1232,7 +1312,12 @@ class _AdaptiveKernel(_BaseSPHKernel):
         """
         return self.kernels[0].kernel(q)
 
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Calculate the kernel integral over a pixel.
 
@@ -1262,7 +1347,9 @@ class _AdaptiveKernel(_BaseSPHKernel):
             retval[kmask] = K._kernel_integral(dij[:, kmask], h[kmask])
         return retval
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False) -> None:
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -1294,7 +1381,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
                 quiet=quiet,
             )
 
-        return
+        return valid
 
 
 class _QuarticSplineKernel(_BaseSPHKernel):
@@ -1324,7 +1411,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
     defines the quartic spline kernel.
     """
 
-    min_valid_size = 1.2385
+    min_valid_size: float = 1.2385
 
     def __init__(self) -> None:
         super().__init__()
@@ -1333,7 +1420,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         self._rescale /= _unscaled_fwhm
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function.
 
@@ -1361,6 +1448,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
+        W: np.ndarray
         if hasattr(q, "shape"):
             W = np.zeros(q.shape)
         else:
@@ -1380,7 +1468,12 @@ class _QuarticSplineKernel(_BaseSPHKernel):
             W = W.squeeze()
         return W
 
-    def _kernel_integral(self, dij, h, mask=np.s_[...]):
+    def _kernel_integral(
+        self,
+        dij: U.Quantity[U.pix],
+        h: U.Quantity[U.pix],
+        mask: np.ndarray | slice | EllipsisType = np.s_[...],
+    ) -> np.ndarray:
         """
         Calculate the kernel integral over a pixel.
 
@@ -1409,7 +1502,9 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         retval = np.zeros(h.shape)
         R = (dr / h).to_value(U.dimensionless_unscaled)
 
-        def IA(R, z, A):
+        def IA(
+            R: np.ndarray | float, z: np.ndarray | float, A: np.ndarray | float
+        ) -> np.ndarray | float:
             """
             Evaluate expression involved in the integral.
 
@@ -1453,7 +1548,9 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         retval *= 2 * 15625 / 512 / np.pi
         return retval / np.power(h, 2)
 
-    def _validate(self, sm_lengths, noraise=False, quiet=False):
+    def _validate(
+        self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
+    ) -> np.ndarray:
         """
         Check conditions for validity of kernel integral calculation.
 
@@ -1518,11 +1615,11 @@ class WendlandC2Kernel(_AdaptiveKernel):
         super().__init__(
             (_WendlandC2Kernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
-        self.size_in_fwhm = None  # initialized during Martini.__init__
-        self._rescale = None  # initialized during Martini.__init__
+        # self.size_in_fwhm initialized during Martini.__init__
+        # self._rescale initialized during Martini.__init__
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function of the WendlandC2 kernel.
 
@@ -1578,11 +1675,11 @@ class WendlandC6Kernel(_AdaptiveKernel):
         super().__init__(
             (_WendlandC6Kernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
-        self.size_in_fwhm = None  # initialized during Martini.__init__
-        self._rescale = None  # initialized during Martini.__init__
+        # self.size_in_fwhm initialized during Martini.__init__
+        # self._rescale initialized during Martini.__init__
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function of the WendlandC6 kernel.
 
@@ -1641,11 +1738,11 @@ class CubicSplineKernel(_AdaptiveKernel):
         super().__init__(
             (_CubicSplineKernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
-        self.size_in_fwhm = None  # initialized during Martini.__init__
-        self._rescale = None  # initialized during Martini.__init__
+        # self.size_in_fwhm initialized during Martini.__init__
+        # self._rescale initialized during Martini.__init__
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function of the cubic spline kernel.
 
@@ -1710,7 +1807,7 @@ class GaussianKernel(_AdaptiveKernel):
         (Default: ``3``).
     """
 
-    def __init__(self, truncate=3.0) -> None:
+    def __init__(self, truncate: float = 3.0) -> None:
         super().__init__(
             (
                 _GaussianKernel(truncate=truncate),
@@ -1718,11 +1815,11 @@ class GaussianKernel(_AdaptiveKernel):
                 _GaussianKernel(truncate=6.0),
             )
         )
-        self.size_in_fwhm = None  # initialized during Martini.__init__
-        self._rescale = None  # initialized during Martini.__init__
+        # self.size_in_fwhm initialized during Martini.__init__
+        # self._rescale initialized during Martini.__init__
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function of the Gaussian kernel.
 
@@ -1787,11 +1884,11 @@ class QuarticSplineKernel(_AdaptiveKernel):
         super().__init__(
             (_QuarticSplineKernel(), DiracDeltaKernel(), _GaussianKernel(truncate=6.0))
         )
-        self.size_in_fwhm = None  # initialized during Martini.__init__
-        self._rescale = None  # initialized during Martini.__init__
+        # self.size_in_fwhm initialized during Martini.__init__
+        # self._rescale initialized during Martini.__init__
         return
 
-    def kernel(self, q):
+    def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
         Evaluate the kernel function of the quartic spline kernel.
 
@@ -1839,7 +1936,7 @@ class AdaptiveKernel(object):
         Any keyword arguemnts; this class just raises an exception on attempted use.
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: tuple, **kwargs: dict) -> None:
         raise NotImplementedError(
             "Pre-configured adaptive kernels have been implemented in v2.0.3, see "
             "the SPH Kernels page in the documentation for details. You most likely "
