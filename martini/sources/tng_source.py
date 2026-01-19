@@ -192,7 +192,7 @@ class TNGSource(SPHSource):
 
         X_H = 0.76
 
-        full_fields_g = (
+        full_fields_g = [
             "Masses",
             "Velocities",
             "InternalEnergy",
@@ -200,16 +200,16 @@ class TNGSource(SPHSource):
             "Density",
             "CenterOfMass",
             "GFM_Metals",
-        )
+        ]
         mdi_full = [None, None, None, None, None, None, 0]
-        mini_fields_g = (
+        mini_fields_g = [
             "Masses",
             "Velocities",
             "InternalEnergy",
             "ElectronAbundance",
             "Density",
             "Coordinates",
-        )
+        ]
 
         # are we running on the TNG jupyterlab?
         jupyterlab = os.path.exists("/home/tnguser/sims.TNG")
@@ -310,7 +310,7 @@ class TNGSource(SPHSource):
             basePath = f"/home/tnguser/sims.TNG/{simulation}/output/"
             data_header = loadHeader(basePath, snapNum)
             data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
-            haloID = data_sub["SubhaloGrNr"]
+            haloID = int(data_sub["SubhaloGrNr"])
             subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
             try:
                 data_g = loadSubset(
@@ -331,7 +331,7 @@ class TNGSource(SPHSource):
                             basePath,
                             snapNum,
                             "gas",
-                            fields=("CenterOfMass",),
+                            fields=["CenterOfMass"],
                             subset=subset_g,
                             sq=False,
                         )
