@@ -1,15 +1,17 @@
 """Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
-from typing import Self
+from typing import Self, TYPE_CHECKING
 from collections.abc import Callable, Iterator
 import numpy as np
 import astropy.units as U
 from astropy import wcs
 from astropy.wcs.wcs import WCS
-from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 from astropy.coordinates import ICRS, SpectralCoord
 import warnings
 from astropy.coordinates import frame_transform_graph
+
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
 _supported_specsys = frame_transform_graph.get_names()
@@ -145,7 +147,7 @@ class DataCube(object):
     n_px_y: int
     n_channels: int
     stokes_axis: bool
-    coordinate_frame: BaseRADecFrame
+    coordinate_frame: "BaseRADecFrame"
     specsys: str
     _freq_channel_mode: bool
     _channel_edges: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
@@ -162,7 +164,7 @@ class DataCube(object):
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         stokes_axis: bool = False,
-        coordinate_frame: BaseRADecFrame = ICRS(),
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
         specsys: str = "icrs",
         velocity_centre: None = None,  # deprecated
     ) -> None:

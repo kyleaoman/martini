@@ -5,6 +5,7 @@ Enables working with any SPH or similar simulation as input.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 from astropy.coordinates import (
     CartesianRepresentation,
     CartesianDifferential,
@@ -14,11 +15,14 @@ from astropy.coordinates import (
     ICRS,
 )
 from astropy.coordinates.matrix_utilities import rotation_matrix
-from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
 from ..datacube import HIfreq, DataCube
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 # Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, "translate", translate)
@@ -122,16 +126,15 @@ class SPHSource(object):
         Usually prefer to omit this as it can be determined automatically, but is
         ambiguous for sources with exactly 3 particles. (Default: ``None``).
 
-    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
-    optional
-        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
-        for transforming coordinates and velocities to the data cube frame. The frame
-        needs to have a well-defined velocity as well as spatial origin. Recommended
-        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
-        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
-        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
-        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``).
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame
+        Optional. The coordinate frame assumed in converting particle coordinates to RA
+        and Dec, and for transforming coordinates and velocities to the data cube frame.
+        The frame needs to have a well-defined velocity as well as spatial origin.
+        Recommended frames are :class:`~astropy.coordinates.GCRS`,
+        :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
+        :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
+        :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
+        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``).
     """
 
     h: float
@@ -148,7 +151,7 @@ class SPHSource(object):
     vhubble: U.Quantity[U.km / U.s]
     vsys: U.Quantity[U.km / U.s]
     sky_coordinates: ICRS
-    coordinate_frame: BaseRADecFrame
+    coordinate_frame: "BaseRADecFrame"
     pixcoords: U.Quantity[U.pix]
     input_mass: U.Quantity[U.Msun]
     skycoords: SkyCoord | None
@@ -168,7 +171,7 @@ class SPHSource(object):
         vxyz_g: U.Quantity[U.km / U.s],
         hsm_g: U.Quantity[U.kpc] | None = None,
         coordinate_axis: int | None = None,
-        coordinate_frame: BaseRADecFrame = ICRS(),
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
     ) -> None:
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
@@ -232,7 +235,7 @@ class SPHSource(object):
         ----------
         _reset : bool
             If ``True``, return particles to their original positions. Setting to
-            ``False`` is only intended for testing. (Default: ``True``)
+            ``False`` is only intended for testing. (Default: ``True``).
         """
         # _reset False only for unit testing
         distance_unit_vector = (
@@ -487,7 +490,7 @@ class SPHSource(object):
         point_scaling: str = "auto",
         title: str = "",
         save: str | None = None,
-    ):
+    ) -> "Figure":
         """
         Produce a figure showing the source particle coordinates and velocities.
 
@@ -501,22 +504,22 @@ class SPHSource(object):
         ----------
         max_points : int, optional
             Maximum number of points to draw per panel, the particles will be randomly
-            subsampled if the source has more. (Default: ``1000``)
+            subsampled if the source has more. (Default: ``1000``).
 
         fig : int, optional
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
-            (Default: ``1``)
+            (Default: ``1``).
 
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of length.
             The coordinate axes extend from -lim to lim. If unspecified, the maximum
-            absolute coordinate of particles in the source is used. (Default: ``None``)
+            absolute coordinate of particles in the source is used. (Default: ``None``).
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of speed.
             The velocity axes and colour bar extend from ``-vlim`` to ``vlim``. If
             unspecified, the maximum absolute velocity of particles in the source is used.
-            (Default: ``None``)
+            (Default: ``None``).
 
         point_scaling : str, optional
             By default points are scaled in size and transparency according to their HI
@@ -524,18 +527,18 @@ class SPHSource(object):
             densities, but with different scaling to achieve a visually useful plot). For
             some sources the automatic scaling may not give useful results, using
             ``point_scaling="fixed"`` will plot points of constant size without opacity.
-            (Default: ``"auto"``)
+            (Default: ``"auto"``).
 
         title : str, optional
-            A title for the figure can be provided. (Default: ``""``)
+            A title for the figure can be provided. (Default: ``""``).
 
         save : str, optional
             If provided, the figure is saved using ``plt.savefig(save)``. A ``.png`` or
-            ``.pdf`` suffix is recommended. (Default: ``None``)
+            ``.pdf`` suffix is recommended. (Default: ``None``).
 
         Returns
         -------
-        out : ~matplotlib.figure.Figure
+        ~matplotlib.figure.Figure
             The preview figure.
         """
         import matplotlib.pyplot as plt

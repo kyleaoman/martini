@@ -32,7 +32,6 @@ dependencies = [
 parallel = ["multiprocess"]
 hdf5_output = ["h5py"]
 colibresource = [
-    "swiftsimio",
     "swiftgalaxy",
 ]
 eaglesource = [
@@ -48,7 +47,6 @@ firesource = [
 magneticumsource = ["g3read"]
 simbasource = ["h5py"]
 swiftgalaxysource = [
-    "swiftsimio",
     "swiftgalaxy",
 ]
 tngsource = ["hdecompose", "h5py", "requests", "six"]

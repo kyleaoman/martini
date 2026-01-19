@@ -5,10 +5,14 @@ Facilitates working with Magneticum simulations as input.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 import astropy.units as U
 from astropy.coordinates import ICRS
 from ..sph_kernels import _WendlandC6Kernel, find_fwhm
 from .sph_source import SPHSource
+
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 
 class MagneticumSource(SPHSource):
@@ -54,7 +58,7 @@ class MagneticumSource(SPHSource):
         will be the halo virial radius, use this argument to adjust as needed.
 
     xH : float
-        Primordial hydrogen fraction. (Default: ``0.76``)
+        Primordial hydrogen fraction. (Default: ``0.76``).
 
     Lbox : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
@@ -64,17 +68,17 @@ class MagneticumSource(SPHSource):
         Specify the system of units used in the snapshot file. The dict keys
         should be ``L`` (length), ``M`` (mass), ``V`` (velocity), ``T`` (temperature).
         The values should use :class:`~astropy.units.Quantity`.
-        (Default: ``{"L": U.kpc, "M": 1E10 * U.Msun, "V": U.km/U.s, "T": U.K}``)
+        (Default: ``{"L": U.kpc, "M": 1E10 * U.Msun, "V": U.km/U.s, "T": U.K}``).
 
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
+        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -96,15 +100,15 @@ class MagneticumSource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: ``np.eye(3)``)
+        (Default: ``np.eye(3)``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid. (Default: ``0 * U.deg``).
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -115,28 +119,34 @@ class MagneticumSource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+        (Default: ``astropy.coordinates.ICRS()``).
     """
 
     def __init__(
         self,
-        snapBase=None,
-        haloPosition=None,
-        haloVelocity=None,
-        haloRadius=None,
-        groupFile=None,
-        haloID=None,
-        subhaloID=None,
-        rescaleRadius=1.0,
-        xH=0.76,  # not in header
-        Lbox=100 * U.Mpc,  # what is it, actually?
-        internal_units={"L": U.kpc, "M": 1e10 * U.Msun, "V": U.km / U.s, "T": U.K},
-        distance=3 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0 * U.deg,
-        dec=0 * U.deg,
-        coordinate_frame=ICRS(),
+        *,
+        snapBase: str,
+        haloPosition: np.ndarray,
+        haloVelocity: np.ndarray,
+        haloRadius: float,
+        groupFile: str,
+        haloID: int,
+        subhaloID: int,
+        rescaleRadius: float = 1.0,
+        xH: float = 0.76,  # not in header
+        Lbox: U.Quantity[U.Mpc] = 100 * U.Mpc,  # what is it, actually?
+        internal_units: dict = {
+            "L": U.kpc,
+            "M": 1e10 * U.Msun,
+            "V": U.km / U.s,
+            "T": U.K,
+        },
+        distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0 * U.deg,
+        dec: U.Quantity[U.deg] = 0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
     ) -> None:
         from g3read import GadgetFile, read_particles_in_box
 

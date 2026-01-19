@@ -214,7 +214,13 @@ class _BaseSpectrum(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def spectral_function(self, a, b, vmids, extra_data=None):
+    def spectral_function(
+        self,
+        a: U.Quantity[U.km / U.s],
+        b: U.Quantity[U.km / U.s],
+        vmids: U.Quantity[U.km / U.s],
+        extra_data: dict | None = None,
+    ) -> U.Quantity[U.dimensionless_unscaled]:
         """
         Abstract method; implementation of the spectral model.
 
@@ -346,7 +352,7 @@ class GaussianSpectrum(_BaseSpectrum):
         b: U.Quantity[U.km / U.s],
         vmids: U.Quantity[U.km / U.s],
         extra_data: dict[str, U.Quantity] | None = None,
-    ):
+    ) -> U.Quantity[U.dimensionless_unscaled]:
         """
         Evaluate a Gaussian integral in a channel.
 

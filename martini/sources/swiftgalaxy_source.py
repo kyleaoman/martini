@@ -5,9 +5,15 @@ Facilitates working with SWIFT simulations as input.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 from .sph_source import SPHSource
 from astropy import units as U
 from astropy.coordinates import ICRS
+
+if TYPE_CHECKING:
+    from swiftsimio import cosmo_array
+    from swiftgalaxy import SWIFTGalaxy
+    from astropy.coordinates.builtin_frames.baseradecframe import BaseRADecFrame
 
 
 class SWIFTGalaxySource(SPHSource):
@@ -22,12 +28,12 @@ class SWIFTGalaxySource(SPHSource):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
+        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -49,15 +55,15 @@ class SWIFTGalaxySource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: ``np.eye(3)``)
+        (Default: ``np.eye(3)``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid. (Default: ``0 * U.deg``).
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -68,19 +74,23 @@ class SWIFTGalaxySource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+        (Default: ``astropy.coordinates.ICRS()``).
+
+    _mHI_g : swiftsimio.objects.cosmo_array, optional
+        If the ``galaxy`` does not provide ``galaxy.gas.atomic_hydrogen_masses``, provide
+        the particle HI masses here. (Default: ``None``).
     """
 
     def __init__(
         self,
-        galaxy,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
-        _mHI_g=None,
+        galaxy: "SWIFTGalaxy",
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        _mHI_g: "cosmo_array" = None,
     ) -> None:
         h = galaxy.metadata.cosmology.h
         mHI_g = (

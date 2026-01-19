@@ -159,7 +159,9 @@ class _BaseBeam(object):
         return
 
     @abstractmethod
-    def f_kernel(self):
+    def f_kernel(
+        self,
+    ) -> Callable[[float | np.ndarray, float | np.ndarray], U.Quantity]:
         """
         Return a function defining the beam amplitude as a function of position.
 
@@ -171,7 +173,7 @@ class _BaseBeam(object):
         pass
 
     @abstractmethod
-    def kernel_size_px(self):
+    def kernel_size_px(self) -> tuple[int, int]:
         """
         Return a 2-tuple specifying the half-size of the beam image to be initialized.
 
@@ -180,7 +182,7 @@ class _BaseBeam(object):
         pass
 
     @abstractmethod
-    def init_beam_header(self):
+    def init_beam_header(self) -> None:
         """
         Set beam major/minor axis lengths and position angle.
 

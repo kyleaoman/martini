@@ -4,6 +4,7 @@ import pytest
 from pytest import FixtureRequest
 import os
 import numpy as np
+from typing import TYPE_CHECKING
 from astropy import units as U
 from astropy import wcs
 from astropy.coordinates import ICRS
@@ -15,19 +16,22 @@ from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import _GaussianKernel
 
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
 
 def sps_sourcegen(
-    T_g=np.ones(1) * 1.0e4 * U.K,
-    mHI_g=np.ones(1) * 1.0e4 * U.Msun,
-    xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,
-    vxyz_g=np.zeros((1, 3)) * U.km * U.s**-1,
-    hsm_g=np.ones(1) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-    coordinate_frame=ICRS(),
-):
+    T_g: U.Quantity[U.K] = np.ones(1) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(1) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = np.ones((1, 3)) * 1.0e-3 * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = np.zeros((1, 3)) * U.km * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.ones(1) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+    coordinate_frame: "BaseRADecFrame" = ICRS(),
+) -> SPHSource:
     """
     Create a single particle test source.
 
@@ -119,16 +123,21 @@ def sps_sourcegen(
 
 
 def mps_sourcegen(
-    T_g=np.ones(100) * 1.0e4 * U.K,
-    mHI_g=np.ones(100) * 1.0e4 * U.Msun,
-    xyz_g=(np.random.rand(300).reshape((100, 3)) - 0.5) * 10 * U.kpc,
-    vxyz_g=(np.random.rand(300).reshape((100, 3)) - 0.5) * 40 * U.km * U.s**-1,
-    hsm_g=np.ones(100) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-):
+    T_g: U.Quantity[U.K] = np.ones(100) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(100) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = (np.random.rand(300).reshape((100, 3)) - 0.5)
+    * 10
+    * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = (np.random.rand(300).reshape((100, 3)) - 0.5)
+    * 40
+    * U.km
+    * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.ones(100) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+) -> SPHSource:
     """
     Create a 100-particle test source.
 
@@ -210,16 +219,16 @@ def mps_sourcegen(
 
 
 def adaptive_kernel_test_sourcegen(
-    T_g=np.ones(4) * 1.0e4 * U.K,
-    mHI_g=np.ones(4) * 1.0e4 * U.Msun,
-    xyz_g=np.ones((4, 3)) * 1.0e-3 * U.kpc,
-    vxyz_g=np.zeros((4, 3)) * U.km * U.s**-1,
-    hsm_g=np.array([3.0, 1.0, 0.55, 0.1]) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-):
+    T_g: U.Quantity[U.K] = np.ones(4) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(4) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = np.ones((4, 3)) * 1.0e-3 * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = np.zeros((4, 3)) * U.km * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.array([3.0, 1.0, 0.55, 0.1]) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+) -> SPHSource:
     """
     Create a 4-particle test source.
 
@@ -304,16 +313,21 @@ def adaptive_kernel_test_sourcegen(
 
 
 def cross_sourcegen(
-    T_g=np.arange(4) * 1.0e4 * U.K,
-    mHI_g=np.ones(4) * 1.0e4 * U.Msun,
-    xyz_g=np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]]) * U.kpc,
-    vxyz_g=np.array([[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]]) * U.km * U.s**-1,
-    hsm_g=np.ones(4) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-):
+    T_g: U.Quantity[U.K] = np.arange(4) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(4) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]])
+    * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = np.array(
+        [[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]]
+    )
+    * U.km
+    * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.ones(4) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+) -> SPHSource:
     """
     Create a source consisting of 4 particles arrayed in an asymmetric cross.
 
@@ -403,7 +417,7 @@ def cross_sourcegen(
 
 
 @pytest.fixture(scope="function", params=[True, False])
-def m(request: FixtureRequest):
+def m(request: FixtureRequest) -> Martini:
     """
     Create a :class:`~martini.martini.Martini` object with default configuration.
 
@@ -457,7 +471,7 @@ def m(request: FixtureRequest):
 
 
 @pytest.fixture(scope="function")
-def m_init():
+def m_init() -> Martini:
     """
     Create a :class:`~martini.martini.Martini` object with default configuration.
 
@@ -492,7 +506,7 @@ def m_init():
 
 
 @pytest.fixture(scope="function")
-def m_nn():
+def m_nn() -> Martini:
     """
     Create a :class:`~martini.martini.Martini` object with default configuration.
 
@@ -532,7 +546,7 @@ def m_nn():
     scope="function",
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
-def dc_random(request):
+def dc_random(request: FixtureRequest) -> Martini:
     """
     Create a :class:`~martini.datacube.DataCube` object with random contents.
 
@@ -587,7 +601,7 @@ def dc_random(request):
         "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header.permuted",
     ],
 )
-def dc_wcs(request):
+def dc_wcs(request: FixtureRequest) -> DataCube:
     """
     Create a :class:`~martini.datacube.DataCube` from an existing FITS header.
 
@@ -621,7 +635,7 @@ def dc_wcs(request):
     scope="function",
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
-def dc_zeros(request):
+def dc_zeros(request: FixtureRequest) -> DataCube:
     """
     Create a :class:`~martini.datacube.DataCube` object with zeroed contents.
 
@@ -663,7 +677,7 @@ def dc_zeros(request):
 
 
 @pytest.fixture(scope="function")
-def adaptive_kernel_test_datacube():
+def adaptive_kernel_test_datacube() -> DataCube:
     """
     Create a :class:`~martini.datacube.DataCube` for testing adaptive kernels.
 
@@ -684,7 +698,7 @@ def adaptive_kernel_test_datacube():
 
 
 @pytest.fixture(scope="function")
-def s():
+def s() -> SPHSource:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` from 1000 particles.
 
@@ -733,7 +747,7 @@ def s():
 
 
 @pytest.fixture(scope="function")
-def cross_source():
+def cross_source() -> SPHSource:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` with a cross shape.
 
@@ -746,7 +760,7 @@ def cross_source():
 
 
 @pytest.fixture(scope="function")
-def single_particle_source():
+def single_particle_source() -> SPHSource:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` with 1 particle.
 
@@ -759,7 +773,7 @@ def single_particle_source():
 
 
 @pytest.fixture(scope="function")
-def many_particle_source():
+def many_particle_source() -> SPHSource:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` with 100 particles.
 
@@ -772,7 +786,7 @@ def many_particle_source():
 
 
 @pytest.fixture(scope="function")
-def adaptive_kernel_test_source():
+def adaptive_kernel_test_source() -> SPHSource:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` for kernel testing.
 
@@ -785,7 +799,7 @@ def adaptive_kernel_test_source():
 
 
 @pytest.fixture(scope="function")
-def gp():
+def gp() -> GlobalProfile:
     """
     Create a :class:`~martini.martini.GlobalProfile` with default configuration.
 

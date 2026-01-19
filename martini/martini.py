@@ -11,7 +11,6 @@ import subprocess
 import os
 from scipy.signal import fftconvolve
 import numpy as np
-from matplotlib.figure import Figure
 import astropy.units as U
 from astropy.io import fits
 from astropy.time import Time
@@ -25,6 +24,11 @@ from martini.sources import SPHSource
 from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import h5py
+    from matplotlib.figure import Figure
 
 try:
     with open(os.devnull, "w") as _devnull:
@@ -472,7 +476,7 @@ class _BaseMartini:
         point_scaling: str = "auto",
         title: str = "",
         save: str | None = None,
-    ) -> Figure:
+    ) -> "Figure":
         """
         Produce a figure showing the source particle coordinates and velocities.
 
@@ -531,7 +535,7 @@ class _BaseMartini:
 
         Returns
         -------
-        Figure
+        matplotlib.figure.Figure
             The preview :class:`~matplotlib.figure.Figure`.
         """
         import matplotlib.pyplot as plt
@@ -1223,7 +1227,7 @@ class Martini(_BaseMartini):
         memmap: bool = False,
         compact: bool = False,
         channels: None = None,  # deprecated
-    ):
+    ) -> "h5py.File | None":
         """
         Output the data cube and beam to a HDF5-format file.
 
@@ -1428,7 +1432,7 @@ class Martini(_BaseMartini):
             return f
         else:
             f.close()
-            return
+            return None
 
 
 class GlobalProfile(_BaseMartini):
@@ -1825,7 +1829,7 @@ class GlobalProfile(_BaseMartini):
         channels: str = "velocity",
         show_vsys: bool = True,
         save: str | None = None,
-    ):
+    ) -> "Figure":
         """
         Produce a figure showing the spectrum.
 
@@ -1852,7 +1856,7 @@ class GlobalProfile(_BaseMartini):
 
         Returns
         -------
-        Figure
+        matplotlib.figure.Figure
             The spectrum :class:`~matplotlib.figure.Figure`.
         """
         import matplotlib.pyplot as plt

@@ -5,9 +5,14 @@ Enables using the :mod:`simobj` interface to simulations.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 import astropy.units as U
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
+
+if TYPE_CHECKING:
+    from simobj import SimObj
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 
 class SOSource(SPHSource):
@@ -23,12 +28,12 @@ class SOSource(SPHSource):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
+        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -50,26 +55,25 @@ class SOSource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: ``np.eye(3)``)
+        (Default: ``np.eye(3)``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid. (Default: ``0 * U.deg``).
 
-    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
-    optional
-        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
-        for transforming coordinates and velocities to the data cube frame. The frame
-        needs to have a well-defined velocity as well as spatial origin. Recommended
-        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
-        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
-        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
-        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame
+        Optional. The coordinate frame assumed in converting particle coordinates to RA
+        and Dec, and for transforming coordinates and velocities to the data cube frame.
+        The frame needs to have a well-defined velocity as well as spatial origin.
+        Recommended frames are :class:`~astropy.coordinates.GCRS`,
+        :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
+        :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
+        :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
+        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``).
 
     SO_args : dict, optional
         Dictionary of keyword arguments to pass to a call to
@@ -90,15 +94,15 @@ class SOSource(SPHSource):
 
     def __init__(
         self,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
-        SO_args=None,
-        SO_instance=None,
-        rescale_hsm_g=1.0,
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        SO_args: dict | None = None,
+        SO_instance: "SimObj | None" = None,
+        rescale_hsm_g: float = 1.0,
     ) -> None:
         from simobj import SimObj  # optional dependency for this source class
 

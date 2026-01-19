@@ -38,7 +38,9 @@ class _BaseNoise(object):
         return
 
     @abstractmethod
-    def generate(self, datacube: DataCube, beam: _BaseBeam):
+    def generate(
+        self, datacube: DataCube, beam: _BaseBeam
+    ) -> U.Quantity[U.Jy * U.arcsec**-2]:
         """
         Abstract method; create a cube containing noise.
 

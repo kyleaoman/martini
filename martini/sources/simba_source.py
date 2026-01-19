@@ -5,11 +5,15 @@ Facilitates working with Simba simulations as input.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from os.path import join
 from astropy import units as U, constants as C
 from astropy.coordinates import ICRS
+
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 
 class SimbaSource(SPHSource):
@@ -46,12 +50,12 @@ class SimbaSource(SPHSource):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
+        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -73,15 +77,15 @@ class SimbaSource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: ``np.eye(3)``)
+        (Default: ``np.eye(3)``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid. (Default: ``0 * U.deg``).
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -92,23 +96,24 @@ class SimbaSource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+        (Default: ``astropy.coordinates.ICRS()``).
     """
 
     def __init__(
         self,
-        snapPath=None,
-        snapName=None,
-        groupPath=None,
-        groupName=None,
-        groupID=None,
-        aperture=50.0 * U.kpc,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
+        *,
+        snapPath: str,
+        snapName: str,
+        groupPath: str,
+        groupName: str,
+        groupID: int,
+        aperture: U.Quantity[U.kpc] = 50.0 * U.kpc,
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
     ) -> None:
         if snapPath is None:
             raise ValueError("Provide snapPath argument to SimbaSource.")

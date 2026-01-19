@@ -11,10 +11,16 @@ from astropy import units as U, constants as C
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
-from typing import Any
+from typing import Any, TYPE_CHECKING
+from requests.models import Response
+
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 
-def api_get(path, params=None, api_key=None):
+def api_get(
+    path: str, params: dict | None = None, api_key: str | None = None
+) -> Response | dict:
     """
     Make a request to the TNG web API service.
 
@@ -24,14 +30,14 @@ def api_get(path, params=None, api_key=None):
         The request to submit to the API.
 
     params : dict, optional
-        Additional options for the API request. (Default: ``None``)
+        Additional options for the API request. (Default: ``None``).
 
     api_key : str
-        API key to authenticate to the TNG web API service. (Default: ``None``)
+        API key to authenticate to the TNG web API service. (Default: ``None``).
 
     Returns
     -------
-    out : str
+    requests.models.Response
         Response from the API, a JSON-encoded string.
     """
     import requests
@@ -44,7 +50,7 @@ def api_get(path, params=None, api_key=None):
     return r
 
 
-def cutout_file(simulation, snapNum, haloID) -> str:
+def cutout_file(simulation: str, snapNum: int, haloID: int) -> str:
     """
     Generate a string identifying a cutout file.
 
@@ -61,7 +67,7 @@ def cutout_file(simulation, snapNum, haloID) -> str:
 
     Returns
     -------
-    out : str
+    str
         A string to use for a cutout file.
     """
     return f"martini-cutout-{simulation}-{snapNum}-{haloID}.hdf5"
@@ -86,7 +92,7 @@ class TNGSource(SPHSource):
     ----------
     simulation : str
         Simulation identifier string, for example ``"TNG100-1"``, see
-        https://www.tng-project.org/data/docs/background/
+        https://www.tng-project.org/data/docs/background/.
 
     snapNum : int
         Snapshot number. In TNG, snapshot 99 is the final output. Note that
@@ -108,7 +114,7 @@ class TNGSource(SPHSource):
         https://www.tng-project.org/users/login/ or register at
         https://www.tng-project.org/users/register/ then obtain your API
         key from https://www.tng-project.org/users/profile/ and provide as a string. An
-        API key is not required if logged into the TNG JupyterLab. (Default: ``None``)
+        API key is not required if logged into the TNG JupyterLab. (Default: ``None``).
 
     cutout_dir : str, optional
         Ignored if running on the TNG JupyterLab. Directory in which to search for and
@@ -118,17 +124,17 @@ class TNGSource(SPHSource):
         data will always be downloaded. If a `cutout_dir` is provided, it will first be
         searched for the required data. If the data are found, the local copy is used,
         otherwise the data are downloaded and a local copy is saved in `cutout_dir` for
-        future use. (Default: ``None``)
+        future use. (Default: ``None``).
 
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
+        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
+        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -150,15 +156,15 @@ class TNGSource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: ``np.eye(3)``)
+        (Default: ``np.eye(3)``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid. (Default: ``0 * U.deg``).
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -169,22 +175,22 @@ class TNGSource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+        (Default: ``astropy.coordinates.ICRS()``).
     """
 
     def __init__(
         self,
-        simulation,
-        snapNum,
-        subID,
-        api_key=None,
-        cutout_dir=None,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
+        simulation: str,
+        snapNum: int,
+        subID: int,
+        api_key: str | None = None,
+        cutout_dir: str | None = None,
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
     ) -> None:
         # optional dependencies for this source class
         import h5py
@@ -241,6 +247,7 @@ class TNGSource(SPHSource):
                 have_cutout = False
             if have_cutout:
                 # check for an existing local cutout file
+                assert cutout_dir is not None  # guaranteed
                 if not os.path.exists(
                     os.path.join(cutout_dir, cutout_file(simulation, snapNum, haloID))
                 ):
@@ -253,6 +260,7 @@ class TNGSource(SPHSource):
                 print("No local cutout found, cutout will be downloaded.")
                 sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
                 sub = api_get(sub_api_path, api_key=api_key)
+                assert isinstance(sub, dict)
                 haloID = sub["grnr"]
                 np.save(grnr_file, haloID)
                 data_sub["SubhaloPos"] = np.array([sub[f"pos_{ax}"] for ax in "xyz"])
@@ -270,6 +278,7 @@ class TNGSource(SPHSource):
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
+                assert isinstance(cutout, Response)
                 # hold file in memory
                 cfbuf = io.BytesIO(cutout.content)
                 if cutout_dir is not None:

@@ -36,13 +36,16 @@ def translate(
 
     Parameters
     ----------
+    cls : ~astropy.coordinates.representation.cartesian.CartesianRepresentation
+        The cartesian representation instance.
+
     translation_vector : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         3-vector by which to translate.
 
     Returns
     -------
-    out : ~astropy.coordinates.representation.cartesian.CartesianRepresentation
+    ~astropy.coordinates.representation.cartesian.CartesianRepresentation
         A new
         :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation`
         instance with translation applied.
@@ -61,13 +64,16 @@ def translate_d(
 
     Parameters
     ----------
+    cls : ~astropy.coordinates.representation.cartesian.CartesianDifferential
+        The cartesian differential instance.
+
     translation_vector : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity` with dimensions of velocity (or other
         differential) 3-vector by which to translate.
 
     Returns
     -------
-    out : ~astropy.coordinates.representation.cartesian.CartesianDifferential
+    ~astropy.coordinates.representation.cartesian.CartesianDifferential
         A new
         :class:~astropy.coordinates.representation.cartesian.CartesianDifferential`
         instance with translation applied.
