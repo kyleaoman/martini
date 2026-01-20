@@ -32,7 +32,7 @@ dependencies = [
 parallel = ["multiprocess"]
 hdf5_output = ["h5py"]
 plotting = ["matplotlib"]
-optional = ["astromartini[multiprocess,h5py,matplotlib]"]
+optional = ["astromartini[parallel,h5py,matplotlib]"]
 colibresource = [
     "swiftgalaxy",
 ]
