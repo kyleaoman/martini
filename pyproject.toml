@@ -31,6 +31,8 @@ dependencies = [
 [project.optional-dependencies]
 parallel = ["multiprocess"]
 hdf5_output = ["h5py"]
+plotting = ["matplotlib"]
+optional = ["astromartini[multiprocess,h5py,matplotlib]"]
 colibresource = [
     "swiftgalaxy",
 ]
@@ -50,6 +52,7 @@ swiftgalaxysource = [
     "swiftgalaxy",
 ]
 tngsource = ["hdecompose", "h5py", "requests", "six"]
+extra_sources = ["astromartini[eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource]"]
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
@@ -65,7 +68,7 @@ testing = [
     "flake8",
 ]
 all = [
-    "astromartini[parallel,hdf5_output,eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource]",
+    "astromartini[optional,extra_sources]",
 ]
 dev = [
     "astromartini[all,testing,docs]",
