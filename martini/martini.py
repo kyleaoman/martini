@@ -89,11 +89,11 @@ class _BaseMartini:
         :doc:`sub-module documentation </spectral_models/index>`.
 
     quiet : bool, optional
-        If ``True``, suppress output to stdout. (Default: ``False``).
+        If ``True``, suppress output to stdout.
 
     _prune_kwargs : dict
         Arguments to pass through to the :meth:`martini.martini.Martini._prune_particles`
-        function, intended for internal use only. (Default: ``{}``).
+        function, intended for internal use only.
 
     See Also
     --------
@@ -193,15 +193,12 @@ class _BaseMartini:
         ----------
         spatial : bool
             If ``True``, prune particles that fall outside the spatial aperture.
-            (Default: ``True``).
         spectral : bool
             If ``True``, prune particles that fall outside the spectral bandwidth.
-            (Default: ``True``).
         mass : bool
-            If ``True``, prune particles that have zero HI mass. (Default: ``True``).
+            If ``True``, prune particles that have zero HI mass.
         obj_type_str : str
             String describing the object to be pruned for messages.
-            (Default: ``"data cube"``).
         """
         if not self.quiet:
             print(
@@ -340,21 +337,21 @@ class _BaseMartini:
             and SPH smoothing length, the approximation may break down. The
             kernel class will check whether this will occur and raise a
             RuntimeError if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter True. (Default: ``False``).
+            of accuracy!) by setting this parameter True.
 
         progressbar : bool, optional
             A progress bar is shown by default. If martini was initialised with
             `quiet` set to `True`, progress bars are switched off unless explicitly
-            turned on. (Default: ``None``).
+            turned on.
 
         ncpu : int
             Number of processes to use in main source insertion loop. Using more than
             one cpu requires the `multiprocess` module (n.b. not the same as
-            `multiprocessing`). (Default: ``1``).
+            `multiprocessing`).
 
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
-            quiet parameter of class. (Default: ``None``).
+            quiet parameter of class.
         """
         if self.spectral_model.spectra is None:
             self.init_spectra()
@@ -486,11 +483,10 @@ class _BaseMartini:
         ----------
         max_points : int, optional
             Maximum number of points to draw per panel, the particles will be randomly
-            subsampled if the source has more. (Default: ``1000``).
+            subsampled if the source has more.
 
         fig : int, optional
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
-            (Default: ``1``).
 
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity` with dimensions of length.
@@ -499,7 +495,6 @@ class _BaseMartini:
             specified or not, the axes are expanded if necessary to contain the extent of
             the data cube. Alternatively, the string ``"datacube"`` can be passed. In this
             case the axis limits are set by the extent of the data cube.
-            (Default: ``None``).
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity` with dimensions of speed.
@@ -508,7 +503,6 @@ class _BaseMartini:
             used. Whether specified or not, the axes are expanded if necessary to contain
             the extent of the data cube. Alternatively, ``"datacube"`` can be
             passed. In this case the axis limits are set by the extent of the data cube.
-            (Default: ``None``).
 
         point_scaling : str, optional
             By default points are scaled in size and transparency according to their HI
@@ -516,14 +510,13 @@ class _BaseMartini:
             densities, but with different scaling to achieve a visually useful plot). For
             some sources the automatic scaling may not give useful results, using
             ``point_scaling="fixed"`` will plot points of constant size without opacity.
-            (Default: ``"auto"``).
 
         title : str, optional
-            A title for the figure can be provided. (Default: ``""``).
+            A title for the figure can be provided.
 
         save : str, optional
             If provided, the figure is saved using ``plt.savefig(save)``. A `.png` or
-            `.pdf` suffix is recommended. (Default: ``None``).
+            `.pdf` suffix is recommended.
 
         Returns
         -------
@@ -749,7 +742,7 @@ class Martini(_BaseMartini):
         :doc:`sub-module documentation </spectral_models/index>`.
 
     quiet : bool, optional
-        If ``True``, suppress output to stdout. (Default: ``False``).
+        If ``True``, suppress output to stdout.
 
     See Also
     --------
@@ -909,18 +902,18 @@ class Martini(_BaseMartini):
             distance and SPH smoothing length, the approximation may break down. The
             kernel class will check whether this will occur and raise a
             ``RuntimeError`` if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter ``True``. (Default: ``False``).
+            of accuracy!) by setting this parameter ``True``.
 
         progressbar : bool, optional
             A progress bar is shown by default. Progress bars work, with perhaps
             some visual glitches, in parallel. If :class:`~martini.martini.Martini` was
             initialised with ``quiet`` set to ``True``, progress bars are switched off
-            unless explicitly turned on. (Default: ``None``).
+            unless explicitly turned on.
 
         ncpu : int
             Number of processes to use in main source insertion loop. Using more than
             one cpu requires the :mod:`multiprocess` module (n.b. not the same as
-            ``multiprocessing``). (Default: ``1``).
+            ``multiprocessing``).
         """
         super()._insert_source_in_cube(
             skip_validation=skip_validation, progressbar=progressbar, ncpu=ncpu
@@ -1020,11 +1013,10 @@ class Martini(_BaseMartini):
             present.
 
         overwrite : bool, optional
-            Whether to allow overwriting existing files. (Default: ``True``).
+            Whether to allow overwriting existing files.
 
         obj_name : str
             Name to write in the ``OBJECT`` FITS header field (max 16 characters).
-            (Default: ``"MOCK"``).
 
         channels : str, deprecated
             Deprecated, channels and their units now fixed at
@@ -1134,7 +1126,7 @@ class Martini(_BaseMartini):
             present.
 
         overwrite : bool, optional
-            Whether to allow overwriting existing files. (Default: ``True``).
+            Whether to allow overwriting existing files.
 
         channels : str, deprecated
             Deprecated, channels and their units now fixed at
@@ -1232,16 +1224,16 @@ class Martini(_BaseMartini):
             present.
 
         overwrite : bool, optional
-            Whether to allow overwriting existing files. (Default: ``True``).
+            Whether to allow overwriting existing files.
 
         memmap : bool, optional
             If ``True``, create a file-like object in memory and return it instead
-            of writing file to disk. (Default: ``False``).
+            of writing file to disk.
 
         compact : bool, optional
             If ``True``, omit pixel coordinate arrays to save disk space. In this
             case pixel coordinates can still be reconstructed from FITS-style
-            keywords stored in the FluxCube attributes. (Default: ``False``).
+            keywords stored in the FluxCube attributes.
 
         channels : str, deprecated
             Deprecated, channels and their units now fixed at
@@ -1473,20 +1465,19 @@ class GlobalProfile(_BaseMartini):
         :doc:`sub-module documentation </spectral_models/index>`.
 
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: ``64``).
+        Number of channels along the spectral axis.
 
     channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: ``4 * U.km / U.s``).
+        frequency.
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: ``0 * U.km / U.s``).
 
     quiet : bool, optional
-        If ``True``, suppress output to stdout. (Default: ``False``).
+        If ``True``, suppress output to stdout.
 
     channels : str, deprecated
         Deprecated, channels and their units now fixed at
@@ -1829,22 +1820,20 @@ class GlobalProfile(_BaseMartini):
         ----------
         fig : int, optional
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
-            (Default: ``1``).
 
         title : str, optional
-            A title for the figure can be provided. (Default: ``""``).
+            A title for the figure can be provided.
 
         channels : str, optional
             The type of spectral axis for the plot, either ``"velocity"`` or
-            ``"frequency"``. (Default: ``"velocity"``).
+            ``"frequency"``.
 
         show_vsys : bool, optional
             If ``True``, draw a vertical line at the source systemic velocity.
-            (Default: ``True``).
 
         save : str, optional
             If provided, the figure is saved using ``plt.savefig(save)``. A `.png` or
-            `.pdf` suffix is recommended. (Default: ``None``).
+            `.pdf` suffix is recommended.
 
         Returns
         -------

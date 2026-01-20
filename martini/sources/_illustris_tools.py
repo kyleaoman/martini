@@ -85,7 +85,7 @@ def gcPath(basePath: str, snapNum: int, chunkNum: int = 0) -> str:
         The snapshot number.
 
     chunkNum : int, optional
-        The chunk number for catalogs with multiple files. (Default: ``0``).
+        The chunk number for catalogs with multiple files.
 
     Returns
     -------
@@ -140,7 +140,7 @@ def snapPath(basePath: str, snapNum: int, chunkNum: int = 0) -> str:
         The snapshot number.
 
     chunkNum : int, optional
-        The chunk number for catalogues with multiple files. (Default: ``0``).
+        The chunk number for catalogues with multiple files.
 
     Returns
     -------
@@ -170,10 +170,10 @@ def loadSingle(
         The snapshot number.
 
     haloID : int, optional
-        The halo ID. (Default: ``-1``).
+        The halo ID.
 
     subhaloID : int, optional
-        The subhalo ID. (Default: ``-1``).
+        The subhalo ID.
 
     Returns
     -------
@@ -240,25 +240,23 @@ def loadSubset(
         The particle type.
 
     fields : list, optional
-        The list of data fields to load. (Default: ``None``).
+        The list of data fields to load.
 
     subset : dict, optional
         If offset and length specified, load only that subset of the partType.
-        (Default: ``None``).
 
     mdi : list, optional
         If mdi is specified, must be a list of integers of the same length as fields,
         giving for each field the multi-dimensional index (on the second dimension) to
         load. For example, fields=['Coordinates', 'Masses'] and mdi=[1, None] returns a
-        1D array of y-Coordinates only, together with Masses. (Default: ``None``).
+        1D array of y-Coordinates only, together with Masses.
 
     sq : bool, optional
         If sq is True, return a numpy array instead of a dict if len(fields)==1.
-        (Default: ``True``).
 
     float32 : bool, optional
         If float32 is True, load any float64 datatype arrays directly as float32 (save
-        memory). (Default: ``False``).
+        memory).
 
     Returns
     -------

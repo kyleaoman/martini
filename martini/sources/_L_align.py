@@ -37,7 +37,6 @@ def L_align(
 
     frac : float, optional
         Fraction of particles with smallest radii to use in calculation.
-        (Default: ``0.3``).
 
     saverot : str, optional
         If not ``None``, name of file in which to save the rotation matrix. Uses
@@ -45,7 +44,7 @@ def L_align(
 
     Laxis : str, optional
         One of ``"x"``, ``"y"``, ``"z"``, specifying the axis to which the angular
-        momentum should be aligned. (Default: ``"z"``).
+        momentum should be aligned.
 
     Returns
     -------

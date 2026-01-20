@@ -28,12 +28,10 @@ class SWIFTGalaxySource(SPHSource):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -55,15 +53,13 @@ class SWIFTGalaxySource(SPHSource):
           value specifies the position angle on the sky (second rotation about 'x'). \
           The default position angle is 270 degrees.
   
-        (Default: ``np.eye(3)``).
-
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``).
+        Declination for the source centroid.
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -74,11 +70,10 @@ class SWIFTGalaxySource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``).
 
     _mHI_g : swiftsimio.objects.cosmo_array, optional
         If the ``galaxy`` does not provide ``galaxy.gas.atomic_hydrogen_masses``, provide
-        the particle HI masses here. (Default: ``None``).
+        the particle HI masses here.
     """
 
     def __init__(

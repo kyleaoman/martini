@@ -29,21 +29,21 @@ class FIRESource(SPHSource):
     Parameters
     ----------
     simulation_directory : str, optional
-        Base directory containing FIRE simulation output. (Default: ``"."``).
+        Base directory containing FIRE simulation output.
 
     snapshot_directory : str, optional
         Directory within ``simulation_directory`` containing snapshots. If ``None``,
-        the default defined by :mod:`gizmo_analysis` is assumed (Default: ``None``).
+        the default defined by :mod:`gizmo_analysis` is assumed.
 
     snapshot : tuple, optional
         A 2-tuple specifying the snapshot. The first element is the type of identifier,
         a string chosen from ``"index"``, ``"redshift"`` or ``"scalefactor"``. The
         second element is the desired value of the identifier. For example setting
         ``snapshot=("scalefactor", 0.2)`` will select the closest snapshot to
-        :math:`a=0.2`. (Default: ``("redshift", 0)``).
+        :math:`a=0.2`.
 
     host_number : int, optional
-        Galaxy ("host") position in the catalogue, indexed from 1. (Default: ``1``).
+        Galaxy ("host") position in the catalogue, indexed from 1.
 
     assign_hosts : str, optional
         Method to compute galaxy centres. Iterative zoom-in based methods are
@@ -52,25 +52,21 @@ class FIRESource(SPHSource):
         Other options are ``"track"`` (time-interpolated position) and ``"halo"``
         (from Rockstar halo catalogue). Setting ``True`` will attempt to find a
         sensible default by first trying ``"track"`` then ``"mass"``.
-        (Default: ``"mass"``).
 
     convert_float32 : bool, optional
         If ``True``, convert floating point values to 32 bit precision to reduce
-        memory usage. (Default: ``False``).
+        memory usage.
 
     gizmo_io_verbose : bool, optional
         If ``True``, allow the gizmo.io module to print progress and diagnostic messages.
-        (Default: ``False``).
 
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity, added to the velocity from Hubble's law.
-        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -92,15 +88,13 @@ class FIRESource(SPHSource):
           value specifies the position angle on the sky (second rotation about 'x'). \
           The default position angle is 270 degrees.
   
-        (Default: ``np.eye(3)``).
-
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``).
+        Declination for the source centroid.
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -111,7 +105,6 @@ class FIRESource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``).
     """
 
     def __init__(

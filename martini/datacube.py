@@ -59,40 +59,36 @@ class DataCube(object):
     ----------
     n_px_x : int, optional
         Pixel count along the x (RA) axis. Even integers strongly preferred.
-        (Default: ``256``).
 
     n_px_y : int, optional
         Pixel count along the y (Dec) axis. Even integers strongly preferred.
-        (Default: ``256``).
 
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: ``64``).
+        Number of channels along the spectral axis.
 
     px_size : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Angular scale of one pixel. (Default: ``15 * U.arcsec``).
+        Angular scale of one pixel.
 
     channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: ``4 * U.km * U.s**-1``).
+        frequency.
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: ``0 * U.km * U.s**-1``).
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension of the cube centroid. (Default: ``0 * U.deg``).
+        Right ascension of the cube centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of angle.
-        Declination of the cube centroid. (Default: ``0 * U.deg``).
+        Declination of the cube centroid.
 
     stokes_axis : bool, optional
         Whether the datacube should be initialized with a Stokes' axis.
-        (Default: ``False``).
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -101,14 +97,13 @@ class DataCube(object):
         :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
         :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
         :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
-        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``).
+        ``ICRS()`` (not just ``ICRS``).
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube. Some common options include ``"gcrs"``,
         ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. For a complete list,
         use :meth:`astropy.coordinates.frame_transform_graph.get_names`.
-        (Default: ``"icrs"``).
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.
@@ -265,7 +260,6 @@ class DataCube(object):
             The spectral reference frame (standard of rest) of the World Coordinate System
             (WCS) associated with the data cube, selected from the list ``"gcrs"``,
             ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
-            (Default: ``"icrs"``).
 
         See Also
         --------
@@ -897,22 +891,21 @@ class _GlobalProfileDataCube(DataCube):
     Parameters
     ----------
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: ``64``).
+        Number of channels along the spectral axis.
 
     channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: ``4 U.km * U.s**-1``).
+        frequency.
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: ``0 * U.km * U.s**-1``).
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube, selected from the list ``"gcrs"``,
-        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``).
+        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.

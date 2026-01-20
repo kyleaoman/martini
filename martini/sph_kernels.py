@@ -82,7 +82,7 @@ class _BaseSPHKernel(object):
             Distances from pixel centre to particle positions, in pixels.
 
         mask : ~numpy.typing.ArrayLike or Ellipsis, optional
-            Boolean mask to apply to any maskable attributes. (Default: ``None``).
+            Boolean mask to apply to any maskable attributes.
 
         Returns
         -------
@@ -113,10 +113,10 @@ class _BaseSPHKernel(object):
         Parameters
         ----------
         noraise : bool
-            If ``True``, don't raise error if validation fails. (Default: ``False``).
+            If ``True``, don't raise error if validation fails.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         return self._validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
@@ -144,10 +144,10 @@ class _BaseSPHKernel(object):
             Boolean array specifying which particles fail validation.
 
         noraise : bool
-            If ``True``, don't raise error if validation fails. (Default: ``False``).
+            If ``True``, don't raise error if validation fails.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         if not quiet:
             print(f"    ---------{self.__class__.__name__} VALIDATION---------")
@@ -312,10 +312,10 @@ class _BaseSPHKernel(object):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress exceptions. (Default: ``False``).
+            If ``True``, suppress exceptions.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         pass  # pragma: no cover
 
@@ -436,10 +436,10 @@ class _WendlandC2Kernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``).
+            If ``True``, suppress kernel validation errors.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -680,10 +680,10 @@ class _WendlandC6Kernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``).
+            If ``True``, suppress kernel validation errors.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -853,10 +853,10 @@ class _CubicSplineKernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``).
+            If ``True``, suppress kernel validation errors.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -904,7 +904,6 @@ class _GaussianKernel(_BaseSPHKernel):
     truncate : float, optional
         Number of standard deviations at which to truncate kernel.
         Truncation radii <2 would lead to large errors and are not permitted.
-        (Default: ``3``).
     """
 
     no6sigwarn: bool
@@ -1040,10 +1039,10 @@ class _GaussianKernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``).
+            If ``True``, suppress kernel validation errors.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -1083,7 +1082,6 @@ class DiracDeltaKernel(_BaseSPHKernel):
         lead to no particles contributing to any pixels. Ideally this would
         be set to approximately the size of the pixel, but setting it to
         the smoothing length (1.0) is acceptable given the validation condition.
-        (Default: ``1.0``).
     """
 
     max_valid_size: float = 0.5
@@ -1140,7 +1138,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
         mask : ~numpy.typing.ArrayLike or slice, optional
-            Boolean mask to apply to any maskable attributes. (Default: ``np.s_[...]``).
+            Boolean mask to apply to any maskable attributes.
 
         Returns
         -------
@@ -1166,10 +1164,10 @@ class DiracDeltaKernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``).
+            If ``True``, suppress kernel validation errors.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         valid = sm_lengths <= self.max_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -1360,10 +1358,10 @@ class _AdaptiveKernel(_BaseSPHKernel):
             Particle smoothing lengths (FWHM), in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``).
+            If ``True``, suppress kernel validation errors.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         valid = self.kernel_indices >= 0
         if np.logical_not(valid).any():
@@ -1561,10 +1559,10 @@ class _QuarticSplineKernel(_BaseSPHKernel):
             Particle smoothing lengths, in units of pixels.
 
         noraise : bool
-            If ``True``, suppress kernel validation errors. (Default: ``False``).
+            If ``True``, suppress kernel validation errors.
 
         quiet : bool
-            If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
+            If ``True``, suppress reports on smoothing lengths.
         """
         valid = sm_lengths >= self.min_valid_size * U.pix
         if np.logical_not(valid).any():
@@ -1804,7 +1802,6 @@ class GaussianKernel(_AdaptiveKernel):
     truncate : float, optional
         Number of standard deviations at which to truncate kernel.
         Truncation radii <2 would lead to large errors and are not permitted.
-        (Default: ``3``).
     """
 
     def __init__(self, truncate: float = 3.0) -> None:

@@ -30,10 +30,10 @@ def api_get(
         The request to submit to the API.
 
     params : dict, optional
-        Additional options for the API request. (Default: ``None``).
+        Additional options for the API request.
 
     api_key : str
-        API key to authenticate to the TNG web API service. (Default: ``None``).
+        API key to authenticate to the TNG web API service.
 
     Returns
     -------
@@ -114,7 +114,7 @@ class TNGSource(SPHSource):
         https://www.tng-project.org/users/login/ or register at
         https://www.tng-project.org/users/register/ then obtain your API
         key from https://www.tng-project.org/users/profile/ and provide as a string. An
-        API key is not required if logged into the TNG JupyterLab. (Default: ``None``).
+        API key is not required if logged into the TNG JupyterLab.
 
     cutout_dir : str, optional
         Ignored if running on the TNG JupyterLab. Directory in which to search for and
@@ -124,17 +124,15 @@ class TNGSource(SPHSource):
         data will always be downloaded. If a `cutout_dir` is provided, it will first be
         searched for the required data. If the data are found, the local copy is used,
         otherwise the data are downloaded and a local copy is saved in `cutout_dir` for
-        future use. (Default: ``None``).
+        future use.
 
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -156,15 +154,13 @@ class TNGSource(SPHSource):
           value specifies the position angle on the sky (second rotation about 'x'). \
           The default position angle is 270 degrees.
   
-        (Default: ``np.eye(3)``).
-
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``).
+        Declination for the source centroid.
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -175,7 +171,6 @@ class TNGSource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``).
     """
 
     def __init__(

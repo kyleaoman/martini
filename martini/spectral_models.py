@@ -38,7 +38,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
     ----------
     ncpu : int, optional
         Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided. (Default: ``None``).
+        provided.
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -169,7 +169,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         mask : slice, optional
             Slice defining the subset of particles to operate on.
-            (Default: ``np.s_[...]``).
 
         Returns
         -------
@@ -279,7 +278,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         mask : slice, optional
             Slice defining the subset of particles to operate on.
-            (Default: ``np.s_[...]``).
 
         extra_data : dict, optional
             ``dict`` containing additional data arrays needed for the spectral function
@@ -319,11 +317,11 @@ class GaussianSpectrum(_BaseSpectrum):
         Width of the Gaussian modelling the line (constant for all particles),
         or specify ``"thermal"`` for width equal to :math:`\\sqrt{k_B T / m_p}` where
         :math:`k_B` is Boltzmann's constant, :math:`T` is the particle temperature and
-        :math:`m_p` is the particle mass. (Default: ``7 U.km * U.s**-1``).
+        :math:`m_p` is the particle mass.
 
     ncpu : int, optional
         Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided. (Default: ``None``).
+        provided.
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -449,7 +447,6 @@ class GaussianSpectrum(_BaseSpectrum):
 
         mask : slice, optional
             Slice defining the subset of particles to operate on.
-            (Default: ``np.s_[...]``).
 
         extra_data : dict, optional
             ``dict`` containing arrays of extra data for the spectral function
@@ -499,7 +496,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     ----------
     ncpu : int, optional
         Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided. (Default: ``None``).
+        provided.
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage

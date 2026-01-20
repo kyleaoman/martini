@@ -49,12 +49,10 @@ class SPHSource(object):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``).
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``).
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -76,20 +74,17 @@ class SPHSource(object):
           value specifies the position angle on the sky (second rotation about 'x'). \
           The default position angle is 270 degrees.
   
-        (Default: ``np.eye(3)``).
-
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``).
+        Declination for the source centroid.
 
     h : float, optional
         Dimensionless hubble constant,
         :math:`H_0 = h (100\\,\\mathrm{km}\\,\\mathrm{s}^{-1}\\,\\mathrm{Mpc}^{-1})`.
-        (Default: ``0.7``).
 
     T_g : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of temperature.
@@ -124,7 +119,7 @@ class SPHSource(object):
         Rank of axis corresponding to position or velocity of a single
         particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
         Usually prefer to omit this as it can be determined automatically, but is
-        ambiguous for sources with exactly 3 particles. (Default: ``None``).
+        ambiguous for sources with exactly 3 particles.
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame
         Optional. The coordinate frame assumed in converting particle coordinates to RA
@@ -134,7 +129,7 @@ class SPHSource(object):
         :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
         :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
         :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
-        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``).
+        ``ICRS()`` (not just ``ICRS``).
     """
 
     h: float
@@ -235,7 +230,7 @@ class SPHSource(object):
         ----------
         _reset : bool
             If ``True``, return particles to their original positions. Setting to
-            ``False`` is only intended for testing. (Default: ``True``).
+            ``False`` is only intended for testing.
         """
         # _reset False only for unit testing
         distance_unit_vector = (
@@ -504,22 +499,20 @@ class SPHSource(object):
         ----------
         max_points : int, optional
             Maximum number of points to draw per panel, the particles will be randomly
-            subsampled if the source has more. (Default: ``1000``).
+            subsampled if the source has more.
 
         fig : int, optional
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
-            (Default: ``1``).
 
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of length.
             The coordinate axes extend from -lim to lim. If unspecified, the maximum
-            absolute coordinate of particles in the source is used. (Default: ``None``).
+            absolute coordinate of particles in the source is used.
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of speed.
             The velocity axes and colour bar extend from ``-vlim`` to ``vlim``. If
             unspecified, the maximum absolute velocity of particles in the source is used.
-            (Default: ``None``).
 
         point_scaling : str, optional
             By default points are scaled in size and transparency according to their HI
@@ -527,14 +520,13 @@ class SPHSource(object):
             densities, but with different scaling to achieve a visually useful plot). For
             some sources the automatic scaling may not give useful results, using
             ``point_scaling="fixed"`` will plot points of constant size without opacity.
-            (Default: ``"auto"``).
 
         title : str, optional
-            A title for the figure can be provided. (Default: ``""``).
+            A title for the figure can be provided.
 
         save : str, optional
             If provided, the figure is saved using ``plt.savefig(save)``. A ``.png`` or
-            ``.pdf`` suffix is recommended. (Default: ``None``).
+            ``.pdf`` suffix is recommended.
 
         Returns
         -------
