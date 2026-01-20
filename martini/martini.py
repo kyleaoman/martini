@@ -372,15 +372,7 @@ class _BaseMartini:
         )
 
         # figure out which progressbar style to use
-        from tqdm.notebook import tqdm_notebook
-        from tqdm import tqdm as tqdm_standard
-
-        try:
-            tqdm_notebook(leave=False).close()
-        except ImportError:
-            tqdm = tqdm_standard
-        else:  # pragma: no cover
-            tqdm = tqdm_notebook
+        from tqdm.autonotebook import tqdm
 
         if ncpu == 1:
             for ij_px in tqdm(ij_pxs, disable=not progressbar):
@@ -1038,7 +1030,7 @@ class Martini(_BaseMartini):
             Deprecated, channels and their units now fixed at
             :class:`~martini.datacube.DataCube` initialization.
         """
-        if channels is not None:
+        if channels is not None:  # pragma: no cover
             warnings.warn(
                 DeprecationWarning(
                     "`channels` argument to `write_fits` ignored, channels and their"
@@ -1153,7 +1145,7 @@ class Martini(_BaseMartini):
         ValueError
             If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
-        if channels is not None:
+        if channels is not None:  # pragma: no cover
             warnings.warn(
                 DeprecationWarning(
                     "`channels` argument to `write_fits` ignored, channels and their"
@@ -1255,7 +1247,7 @@ class Martini(_BaseMartini):
             Deprecated, channels and their units now fixed at
             :class:`~martini.datacube.DataCube` initialization.
         """
-        if channels is not None:
+        if channels is not None:  # pragma: no cover
             warnings.warn(
                 DeprecationWarning(
                     "`channels` argument to `write_fits` ignored, channels and their"
@@ -1584,7 +1576,7 @@ class GlobalProfile(_BaseMartini):
         quiet: bool = False,
         channels: None = None,  # deprecated
     ) -> None:
-        if channels is not None:
+        if channels is not None:  # pragma: no cover
             warnings.warn(
                 DeprecationWarning(
                     "The `channels` argument to `GlobalProfile.__init__` is deprecated"

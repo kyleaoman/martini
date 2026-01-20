@@ -168,7 +168,7 @@ class DataCube(object):
         specsys: str = "icrs",
         velocity_centre: None = None,  # deprecated
     ) -> None:
-        if velocity_centre is not None:
+        if velocity_centre is not None:  # pragma: no cover
             warnings.warn(
                 DeprecationWarning(
                     "velocity_centre is deprecated, use spectral_centre instead."
@@ -221,8 +221,7 @@ class DataCube(object):
                 " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
                 " and `DataCube.velocity_channel_mids`."
             )
-        )
-        pass
+        )  # pragma: no cover
 
     def freq_channels(self) -> None:
         """Issue a warning then do nothing (deprecated)."""
@@ -233,8 +232,7 @@ class DataCube(object):
                 " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
                 " and `DataCube.velocity_channel_mids`."
             )
-        )
-        pass
+        )  # pragma: no cover
 
     @classmethod
     def from_wcs(cls, input_wcs: WCS, specsys: str | None = None) -> Self:

@@ -170,7 +170,7 @@ class _BaseBeam(object):
         at that position. The offsets are provided as :class:`~astropy.units.Quantity`
         objects with dimensions of angle (arcsec).
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def kernel_size_px(self) -> tuple[int, int]:
@@ -179,7 +179,7 @@ class _BaseBeam(object):
 
         Size is in pixels.
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def init_beam_header(self) -> None:
@@ -190,7 +190,7 @@ class _BaseBeam(object):
         parameters are not specified in the call to the ``__init__`` method of the
         derived class.
         """
-        pass
+        pass  # pragma: no cover
 
 
 class GaussianBeam(_BaseBeam):
@@ -296,4 +296,4 @@ class GaussianBeam(_BaseBeam):
 
     def init_beam_header(self) -> None:
         """Do nothing - beam header initialized in __init__ for this class."""
-        pass
+        pass  # pragma: no cover

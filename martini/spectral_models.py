@@ -211,7 +211,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
             The source object will be provided to allow access to particle
             properties.
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def spectral_function(
@@ -249,7 +249,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
         --------
         martini.spectral_models._BaseSpectrum.get_spectral_function_extra_data
         """
-        pass
+        pass  # pragma: no cover
 
     def get_spectral_function_extra_data(
         self,

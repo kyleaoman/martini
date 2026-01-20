@@ -259,7 +259,7 @@ class _BaseSPHKernel(object):
         ~numpy.typing.ArrayLike
             Kernel value at positions ``q``.
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def _kernel_integral(
@@ -289,7 +289,7 @@ class _BaseSPHKernel(object):
             :class:`~astropy.units.Quantity`, with dimensions of pixels^-2.
             Integral of smoothing kernel over pixel, per unit pixel area.
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def _validate(
@@ -317,7 +317,7 @@ class _BaseSPHKernel(object):
         quiet : bool
             If ``True``, suppress reports on smoothing lengths. (Default: ``False``).
         """
-        pass
+        pass  # pragma: no cover
 
 
 class _WendlandC2Kernel(_BaseSPHKernel):
@@ -1942,4 +1942,4 @@ class AdaptiveKernel(object):
             "the SPH Kernels page in the documentation for details. You most likely "
             "want to use WendlandC2Kernel(), WendlandC6Kernel(), CubicSplineKernel() or "
             "QuarticSplineKernel() where you previously used AdaptiveKernel(...)."
-        )
+        )  # pragma: no cover

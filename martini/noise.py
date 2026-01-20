@@ -68,7 +68,7 @@ class _BaseNoise(object):
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
         """
-        pass
+        pass  # pragma: no cover
 
     def reset_rng(self) -> None:
         """
