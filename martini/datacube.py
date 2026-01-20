@@ -1,6 +1,6 @@
 """Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
-from typing import Self, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from collections.abc import Callable, Iterator
 import numpy as np
 import astropy.units as U
@@ -12,6 +12,11 @@ from astropy.coordinates import frame_transform_graph
 
 if TYPE_CHECKING:
     from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
 _supported_specsys = frame_transform_graph.get_names()
