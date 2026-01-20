@@ -62,6 +62,7 @@ testing = [
     "flake8",
     "pytest-cov",
     "numpydoc",
+    "sphinx-lint",
     "nbmake",
     "mypy",
     "ruff",

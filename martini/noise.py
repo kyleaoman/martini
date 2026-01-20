@@ -32,8 +32,8 @@ class _BaseNoise(object):
     seed: int
     rng: Generator
 
-    def __init__(self, seed: int | None = None) -> None:
-        self.seed = seed if seed is not None else 0
+    def __init__(self, seed: int = 0) -> None:
+        self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
         return
 
@@ -71,11 +71,7 @@ class _BaseNoise(object):
         pass  # pragma: no cover
 
     def reset_rng(self) -> None:
-        """
-        Reset the random number generator to its initial state.
-
-        If the seed is ``None`` (the default value), this has no effect.
-        """
+        """Reset the random number generator to its initial state."""
         self.rng = np.random.default_rng(seed=self.seed)
         return
 
@@ -95,8 +91,7 @@ class GaussianNoise(_BaseNoise):
         beam. (Default: ``1.0 * U.Jy * U.beam ** -1``).
 
     seed : int, optional
-        Seed for random number generator. If ``None``, results will be unpredictable,
-        if an integer is given results will be repeatable. (Default: ``None``).
+        Seed for random number generator. (Default: ``0``).
     """
 
     rms: U.Quantity[U.Jy * U.beam**-1]
@@ -104,7 +99,7 @@ class GaussianNoise(_BaseNoise):
     def __init__(
         self,
         rms: U.Quantity[U.Jy * U.beam**-1] = 1.0 * U.Jy * U.beam**-1,
-        seed: int | None = None,
+        seed: int = 0,
     ) -> None:
         self.target_rms = rms
 

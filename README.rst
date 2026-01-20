@@ -228,6 +228,7 @@ I attempt to support publicly available simulations with a customized source mod
 * FIRE (|martini.sources.FIRESource|)
 * Simba (|martini.sources.SimbaSource|)
 * Magneticum (|martini.sources.MagneticumSource|)
+* SWIFT (|martini.sources.SWIFTGalaxySource|)
 * Colibre (|martini.sources.ColibreSource|)
 
 Example notebooks_ are available for supported, publicly available simulations.
@@ -244,3 +245,4 @@ Example notebooks_ are available for supported, publicly available simulations.
 .. |martini.sources.SimbaSource| replace:: `martini.sources.SimbaSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource>`__
 .. |martini.sources.SOSource| replace:: `martini.sources.SOSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource>`__
 .. |martini.sources.ColibreSource| replace:: `martini.sources.ColibreSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.colibre_source.html#martini.sources.colibre_source.ColibreSource>`__
+.. |martini.sources.SWIFTGalaxySource| replace:: `martini.sources.SWIFTGalaxySource <https://martini.readthedocs.io/en/latest/modules/martini.sources.swiftgalaxy_source.html#martini.sources.swiftgalaxy_source.SWIFTGalaxySource>`__

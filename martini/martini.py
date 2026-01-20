@@ -55,7 +55,7 @@ class _BaseMartini:
         and an interface to the simulation data (SPH particle masses,
         positions, etc.). See :doc:`sub-module documentation </sources/index>`.
 
-    datacube : DataCube
+    datacube : ~martini.datacube.DataCube
         A :class:`~martini.datacube.DataCube` instance.
         A description of the datacube to create, including pixels, channels,
         sky position. See :doc:`sub-module documentation </datacube/index>`.
@@ -715,7 +715,7 @@ class Martini(_BaseMartini):
         and an interface to the simulation data (SPH particle masses,
         positions, etc.). See :doc:`sub-module documentation </sources/index>`.
 
-    datacube : DataCube
+    datacube : ~martini.datacube.DataCube
         A :class:`~martini.datacube.DataCube` instance.
         A description of the datacube to create, including pixels, channels,
         sky position. See :doc:`sub-module documentation </datacube/index>`.
