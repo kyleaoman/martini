@@ -1,3 +1,5 @@
+"""Test functionality of SPH kernel modules."""
+
 import pytest
 import numpy as np
 from martini import Martini, DataCube
@@ -40,6 +42,26 @@ all_kernels = simple_kernels + adaptive_kernels
 
 
 def total_kernel_weight(k, h, ngrid=50):
+    """
+    Sum up the total weight of the kernel evaluated on a grid.
+
+    Parameters
+    ----------
+    k : ~martini.sph_kernels._BaseSPHKernel
+        Instance of the kernel class to be summed.
+
+    h : float
+        Size of the kernel (in pixels).
+
+    ngrid : int
+        Size of grid (per axis) to evaluate the kernel on. (Default: ``50``).
+
+    Returns
+    -------
+    float
+        The sum of the kernel weight across the grid. Equal to ``1.0`` if the kernel is
+        well-sampled.
+    """
     r = np.arange(0, ngrid)
     dr = (r[1] - r[0]) * U.pix
     xgrid, ygrid = np.meshgrid(np.r_[r[1:][::-1], r], np.r_[r[1:][::-1], r])
@@ -51,20 +73,18 @@ def total_kernel_weight(k, h, ngrid=50):
 
 
 class TestSPHKernels:
+    """Test functionality of SPH kernel modules."""
+
     @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_fwhm_is_one(self, kernel):
-        """
-        Check that value at FWHM is half of peak value.
-        """
+        """Check that value at FWHM is half of peak value."""
         k = kernel()
         fwhm = 1  # all kernels should be implemented s.t. this is true
         assert np.isclose(k.eval_kernel(fwhm / 2, 1), k.eval_kernel(0, 1) / 2)
 
     @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_extent(self, kernel):
-        """
-        Check that kernel goes to zero at its stated size.
-        """
+        """Check that kernel goes to zero at its stated size."""
         k = kernel()
         fwhm = 1  # all kernels should be implemented s.t. this is true
         assert k.eval_kernel(fwhm * k.size_in_fwhm + 1.0e-5, 1) == 0
@@ -72,9 +92,7 @@ class TestSPHKernels:
 
     @pytest.mark.parametrize("kernel", fwhm_kernels)
     def test_2D_integral(self, kernel):
-        """
-        Check numerically that integral of 3D kernel and 2D projection agree.
-        """
+        """Check numerically that integral of 3D kernel and 2D projection agree."""
         x_2d = list()
         y_2d = list()
         x_3d = list()
@@ -126,9 +144,9 @@ class TestSPHKernels:
     )
     def test_kernel_validation_minsize(self, kernel):
         """
-        Check that our kernel integral approximations hold within the stated
-        tolerance, in other words that we conserve mass within the same
-        tolerance.
+        Check that our kernel integral approximations hold within the stated tolerance.
+
+        In other words that we conserve mass within the same tolerance.
         """
         k = kernel()
         # check that a very well-sampled case gives 1.0
@@ -144,9 +162,9 @@ class TestSPHKernels:
     @pytest.mark.parametrize("kernel", (DiracDeltaKernel,))
     def test_kernel_validation_maxsize(self, kernel):
         """
-        Check that our kernel integral approximations hold within the stated
-        tolerance, in other words that we conserve mass within the same
-        tolerance.
+        Check that our kernel integral approximations hold within the stated tolerance.
+
+        In other words that we conserve mass within the same tolerance.
         """
         k = kernel()
         # check that a very well-sampled case gives 1.0
@@ -166,9 +184,9 @@ class TestSPHKernels:
     @pytest.mark.parametrize("truncate", (1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
     def test_kernel_validation_Gaussian(self, truncate):
         """
-        Check that our kernel integral approximations hold within the stated
-        tolerance, in other words that we conserve mass within the same
-        tolerance.
+        Check that our kernel integral approximations hold within the stated tolerance.
+
+        In other words that we conserve mass within the same tolerance.
         """
         if truncate < 2.0:
             with pytest.raises(RuntimeError, match="with truncation <2sigma"):
@@ -205,6 +223,8 @@ class TestSPHKernels:
     )
     def test_kernel_confirm_validation(self, kernel, kernel_args):
         """
+        Check that kernel evaluation accuracy is as expected on each side of size limits.
+
         Setup a source at 3 Mpc and a datacube such that pixel scale is 1kpc. Provide
         smoothing lengths just above and below the minimum or maximum size and check that
         validation passes/fails accordingly.
@@ -259,6 +279,8 @@ class TestSPHKernels:
 
 
 class TestAdaptiveKernels:
+    """Test functionality of adaptive SPH kernel modules."""
+
     @pytest.mark.parametrize(
         "kernel",
         (
@@ -313,8 +335,10 @@ class TestAdaptiveKernels:
     @pytest.mark.parametrize("kernel", recommended_kernels)
     def test_raw_kernel_function(self, kernel):
         """
-        Test that evaluating the `kernel` function gives the evaluation of the adaptive
-        kernel's preferred kernel's `kernel` function.
+        Check that the preferred kernel is selected by default.
+
+        Test that evaluating the ``kernel`` function gives the evaluation of the adaptive
+        kernel's preferred kernel's ``kernel`` function.
         """
         eval_at = np.linspace(0, 3, 51)
         assert np.allclose(
@@ -324,8 +348,10 @@ class TestAdaptiveKernels:
     @pytest.mark.parametrize("kernel", recommended_kernels)
     def test_eval_kernel_function(self, kernel):
         """
-        Test that evaluating the `eval_kernel` function gives the evaluation of the
-        adaptive kernel's preferred kernel's `eval_kernel` function.
+        Check that the preferred kernel is selected by default.
+
+        Test that evaluating the ``eval_kernel`` function gives the evaluation of the
+        adaptive kernel's preferred kernel's ``eval_kernel`` function.
         """
         eval_at = np.linspace(0, 3, 51)
         assert np.allclose(

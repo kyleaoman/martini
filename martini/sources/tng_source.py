@@ -1,6 +1,7 @@
 """
-Provides the :class:`~martini.sources.tng_source.TNGSource` class for working with
-IllustrisTNG simulations as input.
+Provides the :class:`~martini.sources.tng_source.TNGSource` class.
+
+Facilitates working with IllustrisTNG simulations as input.
 """
 
 import io
@@ -10,9 +11,16 @@ from astropy import units as U, constants as C
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
+from typing import Any, TYPE_CHECKING
+from requests.models import Response
+
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 
-def api_get(path, params=None, api_key=None):
+def api_get(
+    path: str, params: dict | None = None, api_key: str | None = None
+) -> Response | dict:
     """
     Make a request to the TNG web API service.
 
@@ -22,14 +30,14 @@ def api_get(path, params=None, api_key=None):
         The request to submit to the API.
 
     params : dict, optional
-        Additional options for the API request. (Default: ``None``)
+        Additional options for the API request.
 
     api_key : str
-        API key to authenticate to the TNG web API service. (Default: ``None``)
+        API key to authenticate to the TNG web API service.
 
     Returns
     -------
-    out : str
+    requests.models.Response
         Response from the API, a JSON-encoded string.
     """
     import requests
@@ -42,9 +50,9 @@ def api_get(path, params=None, api_key=None):
     return r
 
 
-def cutout_file(simulation, snapNum, haloID):
+def cutout_file(simulation: str, snapNum: int, haloID: int) -> str:
     """
-    Helper to generate a string identifying a cutout file.
+    Generate a string identifying a cutout file.
 
     Parameters
     ----------
@@ -59,7 +67,7 @@ def cutout_file(simulation, snapNum, haloID):
 
     Returns
     -------
-    out : str
+    str
         A string to use for a cutout file.
     """
     return f"martini-cutout-{simulation}-{snapNum}-{haloID}.hdf5"
@@ -84,7 +92,7 @@ class TNGSource(SPHSource):
     ----------
     simulation : str
         Simulation identifier string, for example ``"TNG100-1"``, see
-        https://www.tng-project.org/data/docs/background/
+        https://www.tng-project.org/data/docs/background/.
 
     snapNum : int
         Snapshot number. In TNG, snapshot 99 is the final output. Note that
@@ -106,7 +114,7 @@ class TNGSource(SPHSource):
         https://www.tng-project.org/users/login/ or register at
         https://www.tng-project.org/users/register/ then obtain your API
         key from https://www.tng-project.org/users/profile/ and provide as a string. An
-        API key is not required if logged into the TNG JupyterLab. (Default: ``None``)
+        API key is not required if logged into the TNG JupyterLab.
 
     cutout_dir : str, optional
         Ignored if running on the TNG JupyterLab. Directory in which to search for and
@@ -116,17 +124,15 @@ class TNGSource(SPHSource):
         data will always be downloaded. If a `cutout_dir` is provided, it will first be
         searched for the required data. If the data are found, the local copy is used,
         otherwise the data are downloaded and a local copy is saved in `cutout_dir` for
-        future use. (Default: ``None``)
+        future use.
 
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -134,29 +140,27 @@ class TNGSource(SPHSource):
         plane of the "sky". The corresponding value must be:
 
         - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
-        dimensions of angle, indicating the angle to rotate through.
+          axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
+          dimensions of angle, indicating the angle to rotate through.
         - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
         - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
-        angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
-        angle). The routine will first attempt to identify a preferred plane \
-        based on the angular momenta of the central 1/3 of particles in the \
-        source. This plane will then be rotated to lie in the plane of the \
-        "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about \
-        'y'). A 3-tuple may be provided instead, in which case the third \
-        value specifies the position angle on the sky (second rotation about 'x'). \
-        The default position angle is 270 degrees.
-
-        (Default: ``np.eye(3)``)
-
+          angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
+          angle). The routine will first attempt to identify a preferred plane \
+          based on the angular momenta of the central 1/3 of particles in the \
+          source. This plane will then be rotated to lie in the plane of the \
+          "sky" ('y-z'), rotated by the azimuthal angle about its angular \
+          momentum pole (rotation about 'x'), and inclined (rotation about \
+          'y'). A 3-tuple may be provided instead, in which case the third \
+          value specifies the position angle on the sky (second rotation about 'x'). \
+          The default position angle is 270 degrees.
+  
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid.
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -167,30 +171,29 @@ class TNGSource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
     """
 
     def __init__(
         self,
-        simulation,
-        snapNum,
-        subID,
-        api_key=None,
-        cutout_dir=None,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
-    ):
+        simulation: str,
+        snapNum: int,
+        subID: int,
+        api_key: str | None = None,
+        cutout_dir: str | None = None,
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+    ) -> None:
         # optional dependencies for this source class
         import h5py
         from Hdecompose.atomic_frac import atomic_frac
 
         X_H = 0.76
 
-        full_fields_g = (
+        full_fields_g = [
             "Masses",
             "Velocities",
             "InternalEnergy",
@@ -198,23 +201,23 @@ class TNGSource(SPHSource):
             "Density",
             "CenterOfMass",
             "GFM_Metals",
-        )
+        ]
         mdi_full = [None, None, None, None, None, None, 0]
-        mini_fields_g = (
+        mini_fields_g = [
             "Masses",
             "Velocities",
             "InternalEnergy",
             "ElectronAbundance",
             "Density",
             "Coordinates",
-        )
+        ]
 
         # are we running on the TNG jupyterlab?
         jupyterlab = os.path.exists("/home/tnguser/sims.TNG")
         if not jupyterlab:
-            data_header = dict()
-            data_sub = dict()
-            data_g = dict()
+            data_header: dict[str, Any] = {}
+            data_sub = {}
+            data_g = {}
             from requests import HTTPError
 
             if api_key is None:
@@ -239,6 +242,7 @@ class TNGSource(SPHSource):
                 have_cutout = False
             if have_cutout:
                 # check for an existing local cutout file
+                assert cutout_dir is not None  # guaranteed
                 if not os.path.exists(
                     os.path.join(cutout_dir, cutout_file(simulation, snapNum, haloID))
                 ):
@@ -251,6 +255,7 @@ class TNGSource(SPHSource):
                 print("No local cutout found, cutout will be downloaded.")
                 sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
                 sub = api_get(sub_api_path, api_key=api_key)
+                assert isinstance(sub, dict)
                 haloID = sub["grnr"]
                 np.save(grnr_file, haloID)
                 data_sub["SubhaloPos"] = np.array([sub[f"pos_{ax}"] for ax in "xyz"])
@@ -258,18 +263,19 @@ class TNGSource(SPHSource):
                 cutout_api_path = (
                     f"{simulation}/snapshots/{snapNum}/halos/{haloID}/cutout.hdf5"
                 )
-                cutout_request = dict(gas=",".join(full_fields_g))
+                cutout_request = {"gas": ",".join(full_fields_g)}
                 try:
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
                 except HTTPError:
-                    cutout_request = dict(gas=",".join(mini_fields_g))
+                    cutout_request = {"gas": ",".join(mini_fields_g)}
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
+                assert isinstance(cutout, Response)
                 # hold file in memory
-                cfname = io.BytesIO(cutout.content)
+                cfbuf = io.BytesIO(cutout.content)
                 if cutout_dir is not None:
                     # write a copy to disk for later use
                     ofile = os.path.join(
@@ -282,7 +288,7 @@ class TNGSource(SPHSource):
                         of.create_group(f"{subID}")
                         of[f"{subID}"].attrs["pos"] = data_sub["SubhaloPos"]
                         of[f"{subID}"].attrs["vel"] = data_sub["SubhaloVel"]
-            with h5py.File(cfname, "r") as cf:
+            with h5py.File(cfbuf if "cfbuf" in locals() else cfname, "r") as cf:
                 minisnap = "CenterOfMass" not in cf["PartType0"].keys()
                 fields_g = mini_fields_g if minisnap else full_fields_g
                 data_g = {field: cf["PartType0"][field][()] for field in fields_g}
@@ -308,7 +314,7 @@ class TNGSource(SPHSource):
             basePath = f"/home/tnguser/sims.TNG/{simulation}/output/"
             data_header = loadHeader(basePath, snapNum)
             data_sub = loadSingle(basePath, snapNum, subhaloID=subID)
-            haloID = data_sub["SubhaloGrNr"]
+            haloID = int(data_sub["SubhaloGrNr"])
             subset_g = getSnapOffsets(basePath, snapNum, haloID, "Group")
             try:
                 data_g = loadSubset(
@@ -329,7 +335,7 @@ class TNGSource(SPHSource):
                             basePath,
                             snapNum,
                             "gas",
-                            fields=("CenterOfMass",),
+                            fields=["CenterOfMass"],
                             subset=subset_g,
                             sq=False,
                         )

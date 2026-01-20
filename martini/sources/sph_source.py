@@ -1,9 +1,11 @@
 """
-Provides the generic :class:`~martini.sources.sph_source.SPHSource` class for working
-with any SPH or similar simulation as input.
+Provides the generic :class:`~martini.sources.sph_source.SPHSource` class.
+
+Enables working with any SPH or similar simulation as input.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 from astropy.coordinates import (
     CartesianRepresentation,
     CartesianDifferential,
@@ -16,7 +18,11 @@ from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
-from ..datacube import HIfreq
+from ..datacube import HIfreq, DataCube
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 # Extend CartesianRepresentation to allow coordinate translation
 setattr(CartesianRepresentation, "translate", translate)
@@ -32,24 +38,21 @@ _origin = CartesianRepresentation(
 
 
 class SPHSource(object):
-    """
-    Class abstracting HI emission sources consisting of SPH simulation
-    particles.
+    r"""
+    Class abstracting HI emission sources consisting of SPH simulation particles.
 
-    This class constructs an HI emission source from arrays of SPH particle
-    properties: mass, smoothing length, temperature, position, and velocity.
+    This class constructs an HI emission source from arrays of SPH particle properties:
+    mass, smoothing length, temperature, position, and velocity.
 
     Parameters
     ----------
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -57,34 +60,31 @@ class SPHSource(object):
         plane of the "sky". The corresponding value must be:
 
         - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
-        dimensions of angle, indicating the angle to rotate through.
+          axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
+          dimensions of angle, indicating the angle to rotate through.
         - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
         - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
-        angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
-        angle). The routine will first attempt to identify a preferred plane \
-        based on the angular momenta of the central 1/3 of particles in the \
-        source. This plane will then be rotated to lie in the plane of the \
-        "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about \
-        'y'). A 3-tuple may be provided instead, in which case the third \
-        value specifies the position angle on the sky (second rotation about 'x'). \
-        The default position angle is 270 degrees.
-
-        (Default: ``np.eye(3)``)
-
+          angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
+          angle). The routine will first attempt to identify a preferred plane \
+          based on the angular momenta of the central 1/3 of particles in the \
+          source. This plane will then be rotated to lie in the plane of the \
+          "sky" ('y-z'), rotated by the azimuthal angle about its angular \
+          momentum pole (rotation about 'x'), and inclined (rotation about \
+          'y'). A 3-tuple may be provided instead, in which case the third \
+          value specifies the position angle on the sky (second rotation about 'x'). \
+          The default position angle is 270 degrees.
+  
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid.
 
     h : float, optional
         Dimensionless hubble constant,
         :math:`H_0 = h (100\\,\\mathrm{km}\\,\\mathrm{s}^{-1}\\,\\mathrm{Mpc}^{-1})`.
-        (Default: ``0.7``)
 
     T_g : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of temperature.
@@ -119,36 +119,55 @@ class SPHSource(object):
         Rank of axis corresponding to position or velocity of a single
         particle. I.e. ``coordinate_axis=0`` if shape is (3, N), or ``1`` if (N, 3).
         Usually prefer to omit this as it can be determined automatically, but is
-        ambiguous for sources with exactly 3 particles. (Default: ``None``)
+        ambiguous for sources with exactly 3 particles.
 
-    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
-    optional
-        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
-        for transforming coordinates and velocities to the data cube frame. The frame
-        needs to have a well-defined velocity as well as spatial origin. Recommended
-        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
-        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
-        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
-        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame
+        Optional. The coordinate frame assumed in converting particle coordinates to RA
+        and Dec, and for transforming coordinates and velocities to the data cube frame.
+        The frame needs to have a well-defined velocity as well as spatial origin.
+        Recommended frames are :class:`~astropy.coordinates.GCRS`,
+        :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
+        :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
+        :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
+        ``ICRS()`` (not just ``ICRS``).
     """
+
+    h: float
+    T_g: U.Quantity[U.K] | None
+    mHI_g: U.Quantity[U.Msun]
+    coordinates_g: U.Quantity[U.kpc]
+    hsm_g: U.Quantity[U.kpc] | None
+    npart: int
+    ra: U.Quantity[U.deg]
+    dec: U.Quantity[U.deg]
+    distance: U.Quantity[U.Mpc]
+    vpeculiar: U.Quantity[U.km / U.s]
+    current_rotation: np.ndarray
+    vhubble: U.Quantity[U.km / U.s]
+    vsys: U.Quantity[U.km / U.s]
+    sky_coordinates: ICRS
+    coordinate_frame: "BaseRADecFrame"
+    pixcoords: U.Quantity[U.pix]
+    input_mass: U.Quantity[U.Msun]
+    skycoords: SkyCoord | None
 
     def __init__(
         self,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0.0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        h=0.7,
-        T_g=None,
-        mHI_g=None,
-        xyz_g=None,
-        vxyz_g=None,
-        hsm_g=None,
-        coordinate_axis=None,
-        coordinate_frame=ICRS(),
-    ):
+        *,
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0.0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        h: float = 0.7,
+        T_g: U.Quantity[U.K] | None = None,
+        mHI_g: U.Quantity[U.Msun],
+        xyz_g: U.Quantity[U.kpc],
+        vxyz_g: U.Quantity[U.km / U.s],
+        hsm_g: U.Quantity[U.kpc] | None = None,
+        coordinate_axis: int | None = None,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+    ) -> None:
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
                 coordinate_axis = 0
@@ -170,8 +189,7 @@ class SPHSource(object):
 
         if xyz_g.shape != vxyz_g.shape:
             raise ValueError(
-                "martini.sources.SPHSource: xyz_g and vxyz_g must"
-                " have matching shapes."
+                "martini.sources.SPHSource: xyz_g and vxyz_g must have matching shapes."
             )
 
         if coordinate_axis == 0:
@@ -204,7 +222,7 @@ class SPHSource(object):
         self.pixcoords = None
         return
 
-    def _init_skycoords(self, _reset=True):
+    def _init_skycoords(self, _reset: bool = True) -> None:
         """
         Initialize the sky coordinates of the particles.
 
@@ -212,7 +230,7 @@ class SPHSource(object):
         ----------
         _reset : bool
             If ``True``, return particles to their original positions. Setting to
-            ``False`` is only intended for testing. (Default: ``True``)
+            ``False`` is only intended for testing.
         """
         # _reset False only for unit testing
         distance_unit_vector = (
@@ -267,7 +285,7 @@ class SPHSource(object):
             self.rotate(axis_angle=("y", self.dec))
         return
 
-    def _init_pixcoords(self, datacube, origin=0):
+    def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
         """
         Initialize pixel coordinates of the particles.
 
@@ -279,6 +297,12 @@ class SPHSource(object):
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
         """
+        assert self.skycoords is not None, (
+            "Initialize source.skycoords before calling _init_pixcoords."
+        )
+        assert self.spectralcoords is not None, (
+            "Initialize source.spectralcoords before calling _init_pixcoords."
+        )
         skycoords_df_frame = self.skycoords.transform_to(datacube.coordinate_frame)
         spectralcoords_df_specsys = (
             self.spectralcoords.with_observer_stationary_relative_to(datacube.specsys)
@@ -297,7 +321,7 @@ class SPHSource(object):
         )
         return
 
-    def apply_mask(self, mask):
+    def apply_mask(self, mask: np.ndarray) -> None:
         """
         Remove particles from source arrays according to a mask.
 
@@ -307,14 +331,13 @@ class SPHSource(object):
             Boolean mask. Remove particles with indices corresponding to
             ``False`` values from the source arrays.
         """
-
         if mask.size != self.npart:
             raise ValueError("Mask must have same length as particle arrays.")
         mask_sum = np.sum(mask)
         if mask_sum == 0:
             raise RuntimeError("No non-zero mHI source particles in target region.")
         self.npart = mask_sum
-        if not self.T_g.isscalar:
+        if self.T_g is not None and not self.T_g.isscalar:
             self.T_g = self.T_g[mask]
         if not self.mHI_g.isscalar:
             self.mHI_g = self.mHI_g[mask]
@@ -325,11 +348,17 @@ class SPHSource(object):
             self.spectralcoords = self.spectralcoords[mask]
         if self.pixcoords is not None:
             self.pixcoords = self.pixcoords[:, mask]
-        if not self.hsm_g.isscalar:
+        if self.hsm_g is not None and not self.hsm_g.isscalar:
             self.hsm_g = self.hsm_g[mask]
         return
 
-    def rotate(self, axis_angle=None, rotmat=None, L_coords=None):
+    def rotate(
+        self,
+        *,
+        axis_angle: tuple[str, U.Quantity[U.deg]] | None = None,
+        rotmat: np.ndarray | None = None,
+        L_coords: tuple[U.Quantity[U.deg], ...] | None = None,
+    ) -> None:
         """
         Rotate the source.
 
@@ -356,7 +385,6 @@ class SPHSource(object):
             sky is 270 degrees, but if a third element is provided it sets the
             position angle (second rotation about 'x').
         """
-
         args_given = (axis_angle is not None, rotmat is not None, L_coords is not None)
         if np.sum(args_given) == 0:
             # no-op
@@ -398,7 +426,7 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g.transform(do_rot)
         return
 
-    def translate(self, translation_vector):
+    def translate(self, translation_vector: U.Quantity[U.kpc]) -> None:
         """
         Translate the source.
 
@@ -410,11 +438,10 @@ class SPHSource(object):
             :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of length.
             Vector by which to offset the source particle coordinates.
         """
-
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
         return
 
-    def boost(self, boost_vector):
+    def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
         """
         Apply an offset to the source velocity.
 
@@ -427,13 +454,12 @@ class SPHSource(object):
             velocity.
             Vector by which to offset the source particle velocities.
         """
-
         self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
             "s"
         ].translate(boost_vector)
         return
 
-    def save_current_rotation(self, fname):
+    def save_current_rotation(self, fname: str) -> None:
         """
         Output current rotation matrix to file.
 
@@ -447,20 +473,19 @@ class SPHSource(object):
         fname : str
             File in which to save rotation matrix. A file handle can also be passed.
         """
-
         np.savetxt(fname, self.current_rotation)
         return
 
     def preview(
         self,
-        max_points=5000,
-        fig=1,
-        lim=None,
-        vlim=None,
-        point_scaling="auto",
-        title="",
-        save=None,
-    ):
+        max_points: int = 5000,
+        fig: int = 1,
+        lim: U.Quantity[U.kpc] = None,
+        vlim: U.Quantity[U.km / U.s] = None,
+        point_scaling: str = "auto",
+        title: str = "",
+        save: str | None = None,
+    ) -> "Figure":
         """
         Produce a figure showing the source particle coordinates and velocities.
 
@@ -474,22 +499,20 @@ class SPHSource(object):
         ----------
         max_points : int, optional
             Maximum number of points to draw per panel, the particles will be randomly
-            subsampled if the source has more. (Default: ``1000``)
+            subsampled if the source has more.
 
         fig : int, optional
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
-            (Default: ``1``)
 
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of length.
             The coordinate axes extend from -lim to lim. If unspecified, the maximum
-            absolute coordinate of particles in the source is used. (Default: ``None``)
+            absolute coordinate of particles in the source is used.
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of speed.
             The velocity axes and colour bar extend from ``-vlim`` to ``vlim``. If
             unspecified, the maximum absolute velocity of particles in the source is used.
-            (Default: ``None``)
 
         point_scaling : str, optional
             By default points are scaled in size and transparency according to their HI
@@ -497,18 +520,17 @@ class SPHSource(object):
             densities, but with different scaling to achieve a visually useful plot). For
             some sources the automatic scaling may not give useful results, using
             ``point_scaling="fixed"`` will plot points of constant size without opacity.
-            (Default: ``"auto"``)
 
         title : str, optional
-            A title for the figure can be provided. (Default: ``""``)
+            A title for the figure can be provided.
 
         save : str, optional
             If provided, the figure is saved using ``plt.savefig(save)``. A ``.png`` or
-            ``.pdf`` suffix is recommended. (Default: ``None``)
+            ``.pdf`` suffix is recommended.
 
         Returns
         -------
-        out : ~matplotlib.figure.Figure
+        ~matplotlib.figure.Figure
             The preview figure.
         """
         import matplotlib.pyplot as plt
@@ -548,7 +570,7 @@ class SPHSource(object):
         # )
         hsm_factor = (
             1
-            if (self.hsm_g.isscalar or mask.size <= 1)
+            if (self.hsm_g is None or self.hsm_g.isscalar or mask.size <= 1)
             else (1 - (self.hsm_g[mask] / self.hsm_g[mask].max()) ** 0.1).to_value(
                 U.dimensionless_unscaled
             )  # larger -> more transparent
@@ -556,19 +578,22 @@ class SPHSource(object):
             * 0.5  # guard against getting all 0s
         )
         alpha = hsm_factor if point_scaling == "auto" else 1.0
-        size_scale = (
-            self.hsm_g.to_value(U.kpc) / lim
-            if (self.hsm_g.isscalar or mask.size <= 1)
-            else (self.hsm_g[mask].to_value(U.kpc) / lim)
-        )
+        if self.hsm_g is None:
+            size_scale = 1
+        else:
+            size_scale = (
+                self.hsm_g.to_value(U.kpc) / lim
+                if (self.hsm_g.isscalar or mask.size <= 1)
+                else (self.hsm_g[mask].to_value(U.kpc) / lim)
+            )
         size = 300 * size_scale if point_scaling == "auto" else 10
         print(f"{hsm_factor=} {size=}")
-        fig = plt.figure(fig, figsize=(12, 4))
-        fig.clf()
-        fig.suptitle(title)
+        figure = plt.figure(fig, figsize=(12, 4))
+        figure.clf()
+        figure.suptitle(title)
 
         # ----- MOMENT 1 -----
-        sp1 = fig.add_subplot(1, 3, 1, aspect="equal")
+        sp1 = figure.add_subplot(1, 3, 1, aspect="equal")
         sp1.set_facecolor("#222222")
         scatter = sp1.scatter(
             self.coordinates_g.y[mask].to_value(U.kpc),
@@ -588,11 +613,11 @@ class SPHSource(object):
         sp1.set_ylabel(r"$z\,[\mathrm{kpc}]$")
         sp1.set_xlim((lim, -lim))
         sp1.set_ylim((-lim, lim))
-        cb = fig.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
+        cb = figure.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
         cb.set_label(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
         # ----- PV Y -----
-        sp2 = fig.add_subplot(1, 3, 2)
+        sp2 = figure.add_subplot(1, 3, 2)
         sp2.set_facecolor("#222222")
         sp2.scatter(
             self.coordinates_g.y[mask].to_value(U.kpc),
@@ -611,7 +636,7 @@ class SPHSource(object):
         sp2.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
         # ----- PV Z -----
-        sp3 = fig.add_subplot(1, 3, 3)
+        sp3 = figure.add_subplot(1, 3, 3)
         sp3.set_facecolor("#222222")
         sp3.scatter(
             self.coordinates_g.z[mask].to_value(U.kpc),
@@ -629,7 +654,7 @@ class SPHSource(object):
         sp3.set_xlabel(r"$z\,[\mathrm{kpc}]$")
         sp3.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
 
-        fig.subplots_adjust(wspace=0.3)
+        figure.subplots_adjust(wspace=0.3)
         if save is not None:
             plt.savefig(save)
-        return fig
+        return figure

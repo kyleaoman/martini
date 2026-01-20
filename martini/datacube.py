@@ -1,20 +1,28 @@
-"""
-Provides the :class:`~martini.datacube.DataCube` class for creating a data cube for a mock
-observation.
-"""
+"""Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
+from typing import TYPE_CHECKING
+from collections.abc import Callable, Iterator
 import numpy as np
 import astropy.units as U
 from astropy import wcs
+from astropy.wcs.wcs import WCS
 from astropy.coordinates import ICRS, SpectralCoord
 import warnings
 from astropy.coordinates import frame_transform_graph
 
-HIfreq = 1.420405751e9 * U.Hz
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
+HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
 _supported_specsys = frame_transform_graph.get_names()
 
 
-def _validate_specsys(specsys):
+def _validate_specsys(specsys: str) -> str:
     """
     Check if a specsys is one recognized by astropy.
 
@@ -25,8 +33,13 @@ def _validate_specsys(specsys):
 
     Returns
     -------
-    out : str
+    str
         The input specsys string.
+
+    Raises
+    ------
+    ValueError
+        If the specsys is not one recognized by :mod:`astropy`.
     """
     if specsys is not None and specsys not in _supported_specsys:
         raise ValueError(f"Supported specsys values are {_supported_specsys}.")
@@ -46,40 +59,36 @@ class DataCube(object):
     ----------
     n_px_x : int, optional
         Pixel count along the x (RA) axis. Even integers strongly preferred.
-        (Default: ``256``)
 
     n_px_y : int, optional
         Pixel count along the y (Dec) axis. Even integers strongly preferred.
-        (Default: ``256``)
 
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: ``64``)
+        Number of channels along the spectral axis.
 
     px_size : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Angular scale of one pixel. (Default: ``15 * U.arcsec``)
+        Angular scale of one pixel.
 
     channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: ``4 * U.km * U.s**-1``)
+        frequency.
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: ``0 * U.km * U.s**-1``)
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension of the cube centroid. (Default: ``0 * U.deg``)
+        Right ascension of the cube centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of angle.
-        Declination of the cube centroid. (Default: ``0 * U.deg``)
+        Declination of the cube centroid.
 
     stokes_axis : bool, optional
         Whether the datacube should be initialized with a Stokes' axis.
-        (Default: ``False``)
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -88,14 +97,13 @@ class DataCube(object):
         :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
         :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
         :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
-        ``ICRS()`` (not just ``ICRS``). (Default: ``astropy.coordinates.ICRS()``)
+        ``ICRS()`` (not just ``ICRS``).
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube. Some common options include ``"gcrs"``,
         ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. For a complete list,
         use :meth:`astropy.coordinates.frame_transform_graph.get_names`.
-        (Default: ``"icrs"``)
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.
@@ -116,22 +124,51 @@ class DataCube(object):
     as the ``channel_width`` in order to define the channels.
     """
 
+    px_size: U.Quantity[U.arcsec]
+    arcsec2_to_pix: tuple[
+        U.Quantity[U.Jy * U.pix**-2],
+        U.Quantity[U.Jy * U.arcsec**-2],
+        Callable[[U.Quantity[U.Jy * U.pix**-2]], U.Quantity[U.Jy * U.arcsec**-2]],
+        Callable[[U.Quantity[U.Jy * U.arcsec**-2]], U.Quantity[U.Jy * U.pix**-2]],
+    ]
+    channel_width: U.Quantity[U.km / U.s]
+    spectral_centre: U.Quantity[U.km / U.s]
+    ra: U.Quantity[U.deg]
+    dec: U.Quantity[U.deg]
+    padx: int
+    pady: int
+    _array: (
+        U.Quantity[U.Jy * U.pix**-2]
+        | U.Quantity[U.Jy * U.arcsec**-2]
+        | U.Quantity[U.Jy * U.beam**-1]
+    )
+    _wcs: WCS | None
+    n_px_x: int
+    n_px_y: int
+    n_channels: int
+    stokes_axis: bool
+    coordinate_frame: "BaseRADecFrame"
+    specsys: str
+    _freq_channel_mode: bool
+    _channel_edges: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
+    _channel_mids: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
+
     def __init__(
         self,
-        n_px_x=256,
-        n_px_y=256,
-        n_channels=64,
-        px_size=15.0 * U.arcsec,
-        channel_width=4.0 * U.km * U.s**-1,
-        spectral_centre=0.0 * U.km * U.s**-1,
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        stokes_axis=False,
-        coordinate_frame=ICRS(),
-        specsys="icrs",
-        velocity_centre=None,  # deprecated
-    ):
-        if velocity_centre is not None:
+        n_px_x: int = 256,
+        n_px_y: int = 256,
+        n_channels: int = 64,
+        px_size: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        channel_width: U.Quantity[U.km * U.s**-1] = 4.0 * U.km * U.s**-1,
+        spectral_centre: U.Quantity[U.km * U.s**-1] = 0.0 * U.km * U.s**-1,
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        stokes_axis: bool = False,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        specsys: str = "icrs",
+        velocity_centre: None = None,  # deprecated
+    ) -> None:
+        if velocity_centre is not None:  # pragma: no cover
             warnings.warn(
                 DeprecationWarning(
                     "velocity_centre is deprecated, use spectral_centre instead."
@@ -175,10 +212,8 @@ class DataCube(object):
 
         return
 
-    def velocity_channels(self):
-        """
-        Deprecated - issues a warning then does nothing.
-        """
+    def velocity_channels(self) -> None:
+        """Issue a warning then do nothing (deprecated)."""
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -186,13 +221,10 @@ class DataCube(object):
                 " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
                 " and `DataCube.velocity_channel_mids`."
             )
-        )
-        pass
+        )  # pragma: no cover
 
-    def freq_channels(self):
-        """
-        Deprecated - issues a warning then does nothing.
-        """
+    def freq_channels(self) -> None:
+        """Issue a warning then do nothing (deprecated)."""
         warnings.warn(
             DeprecationWarning(
                 "Changing the channel mode is deprecated. You can access channels in"
@@ -200,14 +232,14 @@ class DataCube(object):
                 " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
                 " and `DataCube.velocity_channel_mids`."
             )
-        )
-        pass
+        )  # pragma: no cover
 
     @classmethod
-    def from_wcs(cls, input_wcs, specsys=None):
+    def from_wcs(cls, input_wcs: WCS, specsys: str | None = None) -> Self:
         """
-        Create a DataCube from a World Coordinate System (WCS), for instance one created
-        from a FITS header.
+        Create a DataCube from a World Coordinate System (WCS).
+
+        The WCS can be obtained, for instance, from a FITS header.
 
         To create a MARTINI data cube with pixels and channels exactly matching an
         observed data cube (stored in a FITS file) would be a bit tedious using the usual
@@ -228,7 +260,6 @@ class DataCube(object):
             The spectral reference frame (standard of rest) of the World Coordinate System
             (WCS) associated with the data cube, selected from the list ``"gcrs"``,
             ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
-            (Default: ``"icrs"``)
 
         See Also
         --------
@@ -261,20 +292,19 @@ class DataCube(object):
             fits_wcs = wcs.WCS(fits_hdr)
             datacube = DataCube.from_wcs(fits_wcs)
         """
-
-        init_args = dict(
-            n_px_x=None,
-            n_px_y=None,
-            n_channels=None,
-            px_size=None,
-            channel_width=None,
-            spectral_centre=None,
-            ra=None,
-            dec=None,
-            stokes_axis=None,
-            coordinate_frame=None,
-            specsys=None,
-        )
+        init_args: dict = {
+            "n_px_x": None,
+            "n_px_y": None,
+            "n_channels": None,
+            "px_size": None,
+            "channel_width": None,
+            "spectral_centre": None,
+            "ra": None,
+            "dec": None,
+            "stokes_axis": None,
+            "coordinate_frame": None,
+            "specsys": None,
+        }
         for axis_type in input_wcs.get_axis_types():
             if axis_type["coordinate_type"] == "stokes":
                 init_args["stokes_axis"] = True
@@ -365,36 +395,54 @@ class DataCube(object):
         return datacube
 
     @property
-    def units(self):
+    def units(
+        self,
+    ) -> (
+        tuple[
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.Hz] | U.Quantity[U.m / U.s],
+        ]
+        | tuple[
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.Hz] | U.Quantity[U.m / U.s],
+            U.Quantity[U.dimensionless_unscaled],
+        ]
+    ):
         """
         The units of the DataCube's World Coordinate System (WCS).
 
         Returns
         -------
-        out : tuple
+        tuple
             A tuple containing :class:`~astropy.units.Unit` instances describing the WCS
             units.
         """
         return tuple(U.Unit(unit, format="fits") for unit in self.wcs.wcs.cunit)
 
     @property
-    def wcs(self):
+    def wcs(self) -> WCS:
         """
         The DataCube's World Coordinate System (WCS).
 
         Returns
         -------
-        out : ~astropy.wcs.WCS
+        ~astropy.wcs.WCS
             The :class:`~astropy.wcs.WCS` instance that describes the
             :class:`~martini.datacube.DataCube`'s World Coordinate System (WCS).
         """
         if self._wcs is None:
             hdr = wcs.utils.celestial_frame_to_wcs(self.coordinate_frame).to_header()
-            hdr.update(dict(WCSAXES=3))  # add spectral axis
+            hdr.update({"WCSAXES": 3})  # add spectral axis
             hdr.update(
-                dict(NAXIS1=self.n_px_x, NAXIS2=self.n_px_y, NAXIS3=self.n_channels)
+                {
+                    "NAXIS1": self.n_px_x,
+                    "NAXIS2": self.n_px_y,
+                    "NAXIS3": self.n_channels,
+                }
             )
-            hdr.update(dict(RESTFRQ=HIfreq.to_value(U.Hz)))
+            hdr.update({"RESTFRQ": HIfreq.to_value(U.Hz)})
             self._wcs = wcs.WCS(hdr)
             self._wcs.wcs.ctype = [
                 self._wcs.wcs.ctype[0],
@@ -436,13 +484,13 @@ class DataCube(object):
         return self._wcs
 
     @property
-    def channel_mids(self):
+    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
         """
         The centres of the channels from the coordinate system.
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity
             containing the channel centres.
         """
@@ -461,13 +509,13 @@ class DataCube(object):
         return self._channel_mids
 
     @property
-    def channel_edges(self):
+    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
         """
         The edges of the channels from the coordinate system.
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency or velocity
             containing the channel edges.
         """
@@ -486,59 +534,59 @@ class DataCube(object):
         return self._channel_edges
 
     @property
-    def velocity_channel_mids(self):
+    def velocity_channel_mids(self) -> U.Quantity[U.m / U.s]:
         """
         The centres of the channels from the coordinate system in velocity units.
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of velocity containing the
             channel centres.
         """
         return self.channel_mids.to(U.m / U.s)
 
     @property
-    def velocity_channel_edges(self):
+    def velocity_channel_edges(self) -> U.Quantity[U.m / U.s]:
         """
         The edges of the channels from the coordinate system in velocity units.
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of velocity containing the
             channel edges.
         """
         return self.channel_edges.to(U.m / U.s)
 
     @property
-    def frequency_channel_mids(self):
+    def frequency_channel_mids(self) -> U.Quantity[U.Hz]:
         """
         The centres of the channels from the coordinate system in frequency units.
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency containing the
             channel centres.
         """
         return self.channel_mids.to(U.Hz)
 
     @property
-    def frequency_channel_edges(self):
+    def frequency_channel_edges(self) -> U.Quantity[U.Hz]:
         """
         The edges of the channels from the coordinate system in frequency units.
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity` with dimensions of frequency containing the
             channel edges.
         """
         return self.channel_edges.to(U.Hz)
 
     @property
-    def _stokes_index(self):
+    def _stokes_index(self) -> int | None:
         """
         The position of the Stokes' axis in the WCS axis order.
 
@@ -548,7 +596,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : int or None
+        int or None
             Index of the Stokes' axis (or ``None`` if it is not present).
         """
         for index, axis_type in enumerate(self.wcs.get_axis_types()):
@@ -557,7 +605,7 @@ class DataCube(object):
         return None  # not found
 
     @property
-    def channel_maps(self):
+    def channel_maps(self) -> Iterator[U.Quantity]:
         """
         An iterator over the channel maps.
 
@@ -565,19 +613,19 @@ class DataCube(object):
 
         Returns
         -------
-        out : iter
+        iter
             The iterator over the spatial 'slices' of the cube.
         """
         return self.spatial_slices
 
     @property
-    def spatial_slices(self):
+    def spatial_slices(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spatial 'slices' of the cube.
 
         Returns
         -------
-        out : iter
+        iter
             The iterator over the spatial 'slices' of the cube.
         """
         if self.stokes_axis:
@@ -594,13 +642,13 @@ class DataCube(object):
             )
 
     @property
-    def spectra(self):
+    def spectra(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spectra (one in each spatial pixel).
 
         Returns
         -------
-        out : iter
+        iter
             The iterator over the spectra making up the cube.
         """
         if self.stokes_axis:
@@ -616,7 +664,7 @@ class DataCube(object):
                 ).reshape(self.n_px_x * self.n_px_y, self.n_channels)
             )
 
-    def add_pad(self, pad):
+    def add_pad(self, pad: tuple[int, int]) -> None:
         """
         Resize the cube to add a padding region in the spatial direction.
 
@@ -635,26 +683,29 @@ class DataCube(object):
         --------
         martini.datacube.DataCube.drop_pad
         """
-
         if self.padx > 0 or self.pady > 0:
             raise RuntimeError("Tried to add padding to already padded datacube array.")
         tmp = self._array
-        shape = (self.n_px_x + pad[0] * 2, self.n_px_y + pad[1] * 2, self.n_channels)
+        shape: tuple = (
+            self.n_px_x + pad[0] * 2,
+            self.n_px_y + pad[1] * 2,
+            self.n_channels,
+        )
         if self.stokes_axis:
             shape = shape + (1,)
         self._array = np.zeros(shape)
         self._array = self._array * tmp.unit
-        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else np.s_[:]
-        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else np.s_[:]
+        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else slice(None, None, None)
+        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else slice(None, None, None)
         self._array[xregion, yregion, ...] = tmp
         extend_crpix = [pad[0], pad[1], 0]
         if self.stokes_axis:
             extend_crpix.append(0)
-        self._wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
+        self.wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
         self.padx, self.pady = pad
         return
 
-    def drop_pad(self):
+    def drop_pad(self) -> None:
         """
         Remove the padding added using :meth:`~martini.datacube.DataCube.add_pad`.
 
@@ -665,18 +716,17 @@ class DataCube(object):
         --------
         martini.datacube.DataCube.add_pad
         """
-
         if (self.padx == 0) and (self.pady == 0):
             return
         self._array = self._array[self.padx : -self.padx, self.pady : -self.pady, ...]
         retract_crpix = [self.padx, self.pady, 0]
         if self.stokes_axis:
             retract_crpix.append(0)
-        self._wcs.wcs.crpix = self.wcs.wcs.crpix - np.array(retract_crpix)
+        self.wcs.wcs.crpix = self.wcs.wcs.crpix - np.array(retract_crpix)
         self.padx, self.pady = 0, 0
         return
 
-    def copy(self):
+    def copy(self) -> Self:
         """
         Produce a copy of the :class:`~martini.datacube.DataCube`.
 
@@ -685,10 +735,10 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~martini.datacube.DataCube
+        ~martini.datacube.DataCube
             Copy of the :class:`~martini.datacube.DataCube` object.
         """
-        copy = DataCube(
+        copy = type(self)(
             self.n_px_x,
             self.n_px_y,
             self.n_channels,
@@ -706,12 +756,14 @@ class DataCube(object):
         copy._array = self._array.copy()
         return copy
 
-    def save_state(self, filename, overwrite=False):
+    def save_state(self, filename: str, overwrite: bool = False) -> None:
         """
-        Write a file from which the current :class:`~martini.datacube.DataCube`
-        state can be re-initialized (see :meth:`~martini.datacube.DataCube.load_state`).
-        Note that :mod:`h5py` must be installed for use. NOT for outputting mock
-        observations, for this see :meth:`~martini.martini.Martini.write_fits` and
+        Write the :class:`~martini.datacube.DataCube` state to file for re-use.
+
+        The state can be re-initialized (see
+        :meth:`~martini.datacube.DataCube.load_state`). Note that :mod:`h5py` must be
+        installed for use. NOT for outputting mock observations, for this see
+        :meth:`~martini.martini.Martini.write_fits` and
         :meth:`~martini.martini.Martini.write_hdf5`.
 
         Parameters
@@ -720,7 +772,7 @@ class DataCube(object):
             File to write.
 
         overwrite : bool
-            Whether to allow overwriting existing files. (default: ``False``)
+            Whether to allow overwriting existing files. (default: ``False``).
 
         See Also
         --------
@@ -763,12 +815,13 @@ class DataCube(object):
         return
 
     @classmethod
-    def load_state(cls, filename):
+    def load_state(cls, filename: str) -> Self:
         """
-        Initialize a :class:`~martini.datacube.DataCube` from a state saved using
-        :meth:`~martini.datacube.DataCube.save_state`. Note that :mod:`h5py` must be
-        installed for use. Note that ONLY the :class:`~martini.datacube.DataCube`
-        state is restored, other modules and their configurations are not affected.
+        Initialize a :class:`~martini.datacube.DataCube` from a state saved.
+
+        Note that :mod:`h5py` must be installed for use. Note that ONLY the
+        :class:`~martini.datacube.DataCube` state is restored, other modules and their
+        configurations are not affected.
 
         Parameters
         ----------
@@ -777,7 +830,7 @@ class DataCube(object):
 
         Returns
         -------
-        out : ~martini.datacube.DataCube
+        ~martini.datacube.DataCube
             A suitably initialized :class:`~martini.datacube.DataCube` object.
 
         See Also
@@ -819,13 +872,13 @@ class DataCube(object):
             D._wcs = wcs.WCS(f["_array"].attrs["wcs_hdr"])
         return D
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Print the contents of the data cube array itself.
 
         Returns
         -------
-        out : str
+        str
             Text representation of the :attr:`~martini.datacube.DataCube._array` contents.
         """
         return self._array.__repr__()
@@ -838,22 +891,21 @@ class _GlobalProfileDataCube(DataCube):
     Parameters
     ----------
     n_channels : int, optional
-        Number of channels along the spectral axis. (Default: ``64``)
+        Number of channels along the spectral axis.
 
     channel_width : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
-        frequency. (Default: ``4 U.km * U.s**-1``)
+        frequency.
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
-        (Default: ``0 * U.km * U.s**-1``)
 
     specsys : str, optional
         The spectral reference frame (standard of rest) of the World Coordinate System
         (WCS) associated with the data cube, selected from the list ``"gcrs"``,
-        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. (Default: ``"icrs"``)
+        ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
 
     velocity_centre : ~astropy.units.Quantity, deprecated
         Deprecated, use spectral centre instead.
@@ -861,12 +913,14 @@ class _GlobalProfileDataCube(DataCube):
 
     def __init__(
         self,
-        n_channels=64,
-        channel_width=4.0 * U.km * U.s**-1,
-        spectral_centre=0.0 * U.km * U.s**-1,
-        specsys="icrs",
-        velocity_centre=None,  # deprecated
-    ):
+        n_channels: int = 64,
+        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 4.0 * U.km * U.s**-1,
+        spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0.0
+        * U.km
+        * U.s**-1,
+        specsys: str = "icrs",
+        velocity_centre: None = None,  # deprecated
+    ) -> None:
         super().__init__(
             n_px_x=1,
             n_px_y=1,

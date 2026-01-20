@@ -10,7 +10,7 @@ Installation notes
 
 Installing from github
 ++++++++++++++++++++++
-		
+
 .. include:: ../../../README.rst
    :start-after: GITHUB_INSTALLATION_NOTES_START_LABEL
    :end-before: GITHUB_INSTALLATION_NOTES_END_LABEL
@@ -31,3 +31,4 @@ Quickstart guide
 .. |martini.sources.SOSource| replace:: :class:`~martini.sources.so_source.SOSource`
 .. |martini.sources.FIRESource| replace:: :class:`~martini.sources.fire_source.FIRESource`
 .. |martini.sources.ColibreSource| replace:: :class:`~martini.sources.colibre_source.ColibreSource`
+.. |martini.sources.SWIFTGalaxySource| replace:: :class:`~martini.sources.swiftgalaxy_source.SWIFTGalaxySource`

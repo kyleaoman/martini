@@ -1,20 +1,24 @@
 """
-Provides the :class:`~martini.sources.eagle_source.EAGLESource` class for working with
-EAGLE simulations as input.
+Provides the :class:`~martini.sources.eagle_source.EAGLESource` class.
+
+Facilitates working with EAGLE simulations as input.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 from .sph_source import SPHSource
 from ..sph_kernels import _WendlandC2Kernel, find_fwhm
 from os.path import join, normpath, sep
 import astropy.units as U
 from astropy.coordinates import ICRS
 
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
 
 class EAGLESource(SPHSource):
     """
-    Class abstracting HI sources designed to work with publicly available
-    EAGLE snapshot + group data.
+    Class abstracting HI sources from publicly available EAGLE snapshot and group data.
 
     For file access, see http://icc.dur.ac.uk/Eagle/database.php.
 
@@ -45,7 +49,7 @@ class EAGLESource(SPHSource):
         Database username.
 
     db_key : str, optional
-        Database password, or omit for a prompt at runtime. (Default: ``None``)
+        Database password, or omit for a prompt at runtime.
 
     subBoxSize : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
@@ -58,12 +62,10 @@ class EAGLESource(SPHSource):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -71,29 +73,27 @@ class EAGLESource(SPHSource):
         plane of the "sky". The corresponding value must be:
 
         - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
-        dimensions of angle, indicating the angle to rotate through.
+          axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
+          dimensions of angle, indicating the angle to rotate through.
         - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
         - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
-        angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
-        angle). The routine will first attempt to identify a preferred plane \
-        based on the angular momenta of the central 1/3 of particles in the \
-        source. This plane will then be rotated to lie in the plane of the \
-        "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about \
-        'y'). A 3-tuple may be provided instead, in which case the third \
-        value specifies the position angle on the sky (second rotation about 'x'). \
-        The default position angle is 270 degrees.
-
-        (Default: ``np.eye(3)``)
-
+          angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
+          angle). The routine will first attempt to identify a preferred plane \
+          based on the angular momenta of the central 1/3 of particles in the \
+          source. This plane will then be rotated to lie in the plane of the \
+          "sky" ('y-z'), rotated by the azimuthal angle about its angular \
+          momentum pole (rotation about 'x'), and inclined (rotation about \
+          'y'). A 3-tuple may be provided instead, in which case the third \
+          value specifies the position angle on the sky (second rotation about 'x'). \
+          The default position angle is 270 degrees.
+  
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid.
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -104,30 +104,29 @@ class EAGLESource(SPHSource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
 
     print_query : bool, optional
         If True, the SQL query submitted to the EAGLE database is printed.
-        (Default: ``False``)
     """
 
     def __init__(
         self,
-        snapPath=None,
-        snapBase=None,
-        fof=None,
-        sub=None,
-        db_user=None,
-        db_key=None,
-        subBoxSize=50.0 * U.kpc,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
-        print_query=False,
-    ):
+        *,
+        snapPath: str,
+        snapBase: str,
+        fof: int,
+        sub: int,
+        db_user: str,
+        db_key: str,
+        subBoxSize: U.Quantity[U.kpc] = 50.0 * U.kpc,
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        print_query: bool = False,
+    ) -> None:
         if snapPath is None:
             raise ValueError("Provide snapPath argument to EAGLESource.")
         if snapBase is None:
@@ -157,8 +156,8 @@ class EAGLESource(SPHSource):
             "  sh.Velocity_y as vy, "
             "  sh.Velocity_z as vz "
             "FROM "
-            "  {:s}_SubHalo as sh ".format(volCode) + "WHERE "
-            "  sh.Snapnum = {:d} ".format(snapNum)
+            "  {:s}_SubHalo as sh ".format(volCode)
+            + "WHERE   sh.Snapnum = {:d} ".format(snapNum)
             + "  and sh.GroupNumber = {:d} ".format(fof)
             + "  and sh.SubGroupNumber = {:d}".format(sub)
         )
@@ -191,7 +190,7 @@ class EAGLESource(SPHSource):
             gamma = f["/RuntimePars"].attrs["EOS_Jeans_GammaEffective"]
             T0 = f["/RuntimePars"].attrs["EOS_Jeans_TempNorm_K"] * U.K
 
-            def fetch(att, ptype=0):
+            def fetch(att: str, ptype: int = 0) -> np.ndarray:
                 # gas is type 0, only need gas properties
                 tmp = eagle_data.read_dataset(ptype, att)
                 dset = f["/PartType{:d}/{:s}".format(ptype, att)]
@@ -203,13 +202,13 @@ class EAGLESource(SPHSource):
             code_to_cm = f["/Units"].attrs["UnitLength_in_cm"] * U.cm
             code_to_cm_s = f["/Units"].attrs["UnitVelocity_in_cm_per_s"] * U.cm / U.s
             ng_g = fetch("GroupNumber")
-            particles = dict(
-                xyz_g=(fetch("Coordinates") * code_to_cm).to(U.kpc),
-                vxyz_g=(fetch("Velocity") * code_to_cm_s).to(U.km / U.s),
-                T_g=fetch("Temperature") * U.K,
-                hsm_g=(fetch("SmoothingLength") * code_to_cm).to(U.kpc)
+            particles = {
+                "xyz_g": (fetch("Coordinates") * code_to_cm).to(U.kpc),
+                "vxyz_g": (fetch("Velocity") * code_to_cm_s).to(U.km / U.s),
+                "T_g": fetch("Temperature") * U.K,
+                "hsm_g": (fetch("SmoothingLength") * code_to_cm).to(U.kpc)
                 * find_fwhm(_WendlandC2Kernel().kernel),
-            )
+            }
             rho_g = fetch("Density") * U.g * U.cm**-3
             SFR_g = fetch("StarFormationRate")
             Habundance_g = fetch("ElementAbundance/Hydrogen")

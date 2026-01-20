@@ -1,34 +1,37 @@
 """
-Provides the :class:`~martini.sources.so_source.SOSource` class for working with the
-:mod:`simobj` interface to simulations.
+Provides the :class:`~martini.sources.so_source.SOSource` class.
+
+Enables using the :mod:`simobj` interface to simulations.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 import astropy.units as U
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 
+if TYPE_CHECKING:
+    from simobj import SimObj
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
 
 class SOSource(SPHSource):
     """
-    Class abstracting HI sources using the :mod:`simobj` package for interface to
-    simulation data.
+    Load HI sources using the :mod:`simobj` package for interface to simulation data.
 
     This class accesses simulation data via the :mod:`simobj` package
-    (https://github.com/kyleaoman/simobj); see the documentation of that
-    package for further configuration instructions.
+    (https://github.com/kyleaoman/simobj); see the documentation of that package for
+    further configuration instructions.
 
     Parameters
     ----------
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -50,26 +53,23 @@ class SOSource(SPHSource):
         value specifies the position angle on the sky (second rotation about 'x'). \
         The default position angle is 270 degrees.
 
-        (Default: ``np.eye(3)``)
-
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid.
 
-    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
-    optional
-        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
-        for transforming coordinates and velocities to the data cube frame. The frame
-        needs to have a well-defined velocity as well as spatial origin. Recommended
-        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
-        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
-        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
-        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame
+        Optional. The coordinate frame assumed in converting particle coordinates to RA
+        and Dec, and for transforming coordinates and velocities to the data cube frame.
+        The frame needs to have a well-defined velocity as well as spatial origin.
+        Recommended frames are :class:`~astropy.coordinates.GCRS`,
+        :class:`~astropy.coordinates.ICRS`, :class:`~astropy.coordinates.HCRS`,
+        :class:`~astropy.coordinates.LSRK`, :class:`~astropy.coordinates.LSRD` or
+        :class:`~astropy.coordinates.LSR`. The frame should be passed initialized, e.g.
+        ``ICRS()`` (not just ``ICRS``).
 
     SO_args : dict, optional
         Dictionary of keyword arguments to pass to a call to
@@ -90,33 +90,33 @@ class SOSource(SPHSource):
 
     def __init__(
         self,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
-        SO_args=None,
-        SO_instance=None,
-        rescale_hsm_g=1.0,
-    ):
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        SO_args: dict | None = None,
+        SO_instance: "SimObj | None" = None,
+        rescale_hsm_g: float = 1.0,
+    ) -> None:
         from simobj import SimObj  # optional dependency for this source class
 
         self._SO_args = SO_args
         self.rescale_hsm_g = rescale_hsm_g
         if (SO_args is not None) and (SO_instance is not None):
             raise ValueError(
-                "martini.source.SOSource: Provide SO_args or " "SO_instance, not both."
+                "martini.source.SOSource: Provide SO_args or SO_instance, not both."
             )
         elif SO_args is not None:
             with SimObj(**self._SO_args) as SO:
-                particles = dict(
-                    T_g=SO.T_g,
-                    mHI_g=SO.mHI_g,
-                    xyz_g=SO.xyz_g,
-                    vxyz_g=SO.vxyz_g,
-                    hsm_g=SO.hsm_g * self.rescale_hsm_g,
-                )
+                particles = {
+                    "T_g": SO.T_g,
+                    "mHI_g": SO.mHI_g,
+                    "xyz_g": SO.xyz_g,
+                    "vxyz_g": SO.vxyz_g,
+                    "hsm_g": SO.hsm_g * self.rescale_hsm_g,
+                }
                 super().__init__(
                     distance=distance,
                     rotation=rotation,
@@ -126,13 +126,13 @@ class SOSource(SPHSource):
                     **particles,
                 )
         elif SO_instance is not None:
-            particles = dict(
-                T_g=SO_instance.T_g,
-                mHI_g=SO_instance.mHI_g,
-                xyz_g=SO_instance.xyz_g,
-                vxyz_g=SO_instance.vxyz_g,
-                hsm_g=SO_instance.hsm_g,
-            )
+            particles = {
+                "T_g": SO_instance.T_g,
+                "mHI_g": SO_instance.mHI_g,
+                "xyz_g": SO_instance.xyz_g,
+                "vxyz_g": SO_instance.vxyz_g,
+                "hsm_g": SO_instance.hsm_g,
+            }
             super().__init__(
                 distance=distance,
                 vpeculiar=vpeculiar,
@@ -145,6 +145,6 @@ class SOSource(SPHSource):
             )
         else:
             raise ValueError(
-                "martini.sources.SOSource: Provide one of SO_args" " or SO_instance."
+                "martini.sources.SOSource: Provide one of SO_args or SO_instance."
             )
         return

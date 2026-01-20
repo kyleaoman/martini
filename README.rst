@@ -1,6 +1,6 @@
 .. image:: https://github.com/kyleaoman/martini/raw/main/martini_banner.png
 
-|Python version| |PyPI version| |JOSS| |PyOpenSci| |ASCL| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov|
+|Python version| |PyPI version| |JOSS| |PyOpenSci| |ASCL| |Repostatus| |Zenodo| |Tests| |Documentation status| |CodeCov| |Ruff|
 
 .. |Tests| image:: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml/badge.svg
     :target: https://github.com/kyleaoman/martini/actions/workflows/lint_and_test.yml
@@ -31,6 +31,9 @@
 .. |JOSS| image:: https://joss.theoj.org/papers/f46e9c0a37c70331703069f190c21c09/status.svg
    :alt: JOSS doi:10.21105/joss.06860
    :target: https://joss.theoj.org/papers/f46e9c0a37c70331703069f190c21c09
+.. |Ruff| image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
+    :target: https://github.com/astral-sh/ruff
+    :alt: Ruff
 	   
 Overview
 ========
@@ -138,7 +141,7 @@ Installation Notes
 
 .. INSTALLATION_NOTES_START_LABEL
 
-MARTINI works with ``python3`` (version ``3.9`` or higher), and does not support ``python2``.
+MARTINI works with ``python3`` (version ``3.10`` or higher).
 
 Stable releases are available via PyPI_:
 
@@ -162,12 +165,22 @@ Installing from github
 
 You can browse releases_ that correspond to versions on PyPI (starting from 2.0.0) and download the source code. Unpack the zip file if necessary. If you're feeling adventurous or looking for a feature under development you can so browse branches_ and choose one to clone. In either case you should then be able to do ``python3 -m pip install "martini/[optional]"``, where ``optional`` should be replaced by a comma separated list of optional dependencies. If this fails check that ``martini/`` is a path pointing to the directory containing the ``pyproject.toml`` file for MARTINI. The currently available options are:
 
+- ``parallel``: Support for parallelizing the slower parts of Martini calculations.
 - ``hdf5_output``: Supports output to hdf5 files via the h5py package. Since h5py is hosted on PyPI, this option may be used when installing via PyPI.
-- ``eaglesource``: Dependencies for the |martini.sources.EAGLESource| module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions. Also installs `my python-only version`_ of John Helly's `read_eagle`_ package for quick extraction of particles in a simulation sub-volume. h5py is also required.
-- ``tngsource``: Dependencies for the |martini.sources.TNGSource| module, which greatly simplifies reading input from IllustrisTNG (and original Illustris) snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions.
+- ``colibresource``: Dependencies for the |martini.sources.ColibreSource| module, which greatly simplifies reading input from Colibre snapshots. Install swiftsimio_ and swiftgalaxy_.
+- ``eaglesource``: Dependencies for the |martini.sources.EAGLESource| module, which greatly simplifies reading input from EAGLE simulation snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions. Also installs `my python-only version`_ of John Helly's `read_eagle`_ package for quick extraction of particles in a simulation sub-volume. ``h5py`` is also required.
+- ``firesource``: Dependencies for the |martini.sources.FIRESource| module, which greatly simplifies reading input from FIRE simulation snapshots. Installs the gizmo-analysis_, halo-analysis_ and utilities-awetzel_ packages.
 - ``magneticumsource``: Dependencies for the |martini.sources.MagneticumSource| module, which supports the Magneticum simulations via the `g3read`_ package.
-- ``sosource``: Dependencies for the |martini.sources.SOSource| module, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may contact_ me for further information.
+- ``simbasource``: Dependencies for the |martini.sources.SimbaSource| module, which greatly simplifies reading input from Simba snapshots. Installs ``h5py``.
+- ``swiftgalaxysource``: Dependencies for the |martini.sources.SWIFTGalaxySource| module, which greatly simplifies reading input from SWIFT simulations. Installs swiftsimio_ and swiftgalaxy_.
+- ``tngsource``: Dependencies for the |martini.sources.TNGSource| module, which greatly simplifies reading input from IllustrisTNG (and original Illustris) snapshots. Installs my Hdecompose_ package, providing implementations of the `Rahmati et al. (2013)`_ method for computing netural hydrogen fractions and the `Blitz & Rosolowsky (2006)`_ method for atomic/molecular fractions.
+- ``all``: All of the above.
+- ``testing``: Dependencies for code validation and testing (for developers).
+- ``docs``: Dependencies for building the documentation (for developers).
+- ``dev``: A full development environment with verything included in ``all``, ``testing`` and ``docs`` (for developers).
 
+There is also a |martini.sources.SOSource| module with additional dependencies, which provides unofficial support for several simulation datasets hosted on specific systems. This is intended mostly for my own use, but APOSTLE, C-EAGLE/Hydrangea and Auriga users may contact_ me for further information.
+  
 .. _releases: https://github.com/kyleaoman/martini/releases
 .. _branches: https://github.com/kyleaoman/martini/branches
 .. _Hdecompose: https://github.com/kyleaoman/Hdecompose
@@ -175,8 +188,13 @@ You can browse releases_ that correspond to versions on PyPI (starting from 2.0.
 .. _`Blitz & Rosolowsky (2006)`: https://ui.adsabs.harvard.edu/abs/2006ApJ...650..933B/abstract
 .. _`my python-only version`: https://github.com/kyleaoman/pyread_eagle
 .. _`read_eagle`: https://github.com/jchelly/read_eagle
-.. _`g3read`: https://github.com/aragagnin/g3read
+.. _g3read: https://github.com/aragagnin/g3read
 .. _contact: mailto:kyle.a.oman@durham.ac.uk
+.. _gizmo-analysis: https://pypi.org/project/gizmo-analysis/
+.. _halo-analysis: https://pypi.org/project/halo-analysis/
+.. _utilities-awetzel: https://pypi.org/project/utilities-awetzel
+.. _swiftsimio: https://swiftsimio.readthedocs.io
+.. _swiftgalaxy: https://swiftgalaxy.readthedocs.io
 
 .. GITHUB_INSTALLATION_NOTES_END_LABEL
 
@@ -210,6 +228,7 @@ I attempt to support publicly available simulations with a customized source mod
 * FIRE (|martini.sources.FIRESource|)
 * Simba (|martini.sources.SimbaSource|)
 * Magneticum (|martini.sources.MagneticumSource|)
+* SWIFT (|martini.sources.SWIFTGalaxySource|)
 * Colibre (|martini.sources.ColibreSource|)
 
 Example notebooks_ are available for supported, publicly available simulations.
@@ -226,3 +245,4 @@ Example notebooks_ are available for supported, publicly available simulations.
 .. |martini.sources.SimbaSource| replace:: `martini.sources.SimbaSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.simba_source.html#martini.sources.simba_source.SimbaSource>`__
 .. |martini.sources.SOSource| replace:: `martini.sources.SOSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.so_source.html#martini.sources.so_source.SOSource>`__
 .. |martini.sources.ColibreSource| replace:: `martini.sources.ColibreSource <https://martini.readthedocs.io/en/latest/modules/martini.sources.colibre_source.html#martini.sources.colibre_source.ColibreSource>`__
+.. |martini.sources.SWIFTGalaxySource| replace:: `martini.sources.SWIFTGalaxySource <https://martini.readthedocs.io/en/latest/modules/martini.sources.swiftgalaxy_source.html#martini.sources.swiftgalaxy_source.SWIFTGalaxySource>`__

@@ -1,18 +1,18 @@
+"""Test consistency of code version numbers."""
+
 import importlib.metadata
 import martini
 
 
 class TestVersion:
+    """Test consistency of code version numbers."""
+
     def test_code_version(self):
-        """
-        Check that code version matches pyproject.toml version.
-        """
+        """Check that code version matches pyproject.toml version."""
         assert importlib.metadata.version("astromartini") == martini.__version__
 
     def test_codemeta_version(self):
-        """
-        Check that codemeta version matches version file.
-        """
+        """Check that codemeta version matches version file."""
         with open("codemeta.json") as f:
             codemeta_content = f.read()
         assert (

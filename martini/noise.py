@@ -1,10 +1,11 @@
-"""
-Provides classes to generate noise for data cubes.
-"""
+"""Provides classes to generate noise for data cubes."""
 
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import astropy.units as U
+from numpy.random._generator import Generator
+from martini.beams import _BaseBeam
+from martini.datacube import DataCube
 
 
 class _BaseNoise(object):
@@ -20,7 +21,7 @@ class _BaseNoise(object):
     Parameters
     ----------
     seed : int, optional
-        The integer to seed the random number generator. (Default: ``None``)
+        The integer to seed the random number generator.
 
     See Also
     --------
@@ -28,14 +29,18 @@ class _BaseNoise(object):
     """
 
     __metaclass__ = ABCMeta
+    seed: int
+    rng: Generator
 
-    def __init__(self, seed=None):
+    def __init__(self, seed: int = 0) -> None:
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
         return
 
     @abstractmethod
-    def generate(self, datacube, beam):
+    def generate(
+        self, datacube: DataCube, beam: _BaseBeam
+    ) -> U.Quantity[U.Jy * U.arcsec**-2]:
         """
         Abstract method; create a cube containing noise.
 
@@ -58,19 +63,15 @@ class _BaseNoise(object):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of flux density.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
         """
-        pass
+        pass  # pragma: no cover
 
-    def reset_rng(self):
-        """
-        Reset the random number generator to its initial state.
-
-        If the seed is ``None`` (the default value), this has no effect.
-        """
+    def reset_rng(self) -> None:
+        """Reset the random number generator to its initial state."""
         self.rng = np.random.default_rng(seed=self.seed)
         return
 
@@ -87,25 +88,28 @@ class GaussianNoise(_BaseNoise):
     rms : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of flux density per beam.
         Desired root mean square amplitude of the noise field after convolution with the
-        beam. (Default: ``1.0 * U.Jy * U.beam ** -1``)
+        beam.
 
     seed : int, optional
-        Seed for random number generator. If ``None``, results will be unpredictable,
-        if an integer is given results will be repeatable. (Default: ``None``)
+        Seed for random number generator.
     """
+
+    rms: U.Quantity[U.Jy * U.beam**-1]
 
     def __init__(
         self,
-        rms=1.0 * U.Jy * U.beam**-1,
-        seed=None,
-    ):
+        rms: U.Quantity[U.Jy * U.beam**-1] = 1.0 * U.Jy * U.beam**-1,
+        seed: int = 0,
+    ) -> None:
         self.target_rms = rms
 
         super().__init__(seed=seed)
 
         return
 
-    def generate(self, datacube, beam):
+    def generate(
+        self, datacube: DataCube, beam: _BaseBeam
+    ) -> U.Quantity[U.Jy * U.arcsec**-2]:
         """
         Create a cube containing Gaussian noise.
 
@@ -128,12 +132,11 @@ class GaussianNoise(_BaseNoise):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of flux density.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
         """
-
         sig_maj = (beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
             U.dimensionless_unscaled
         )

@@ -1,3 +1,5 @@
+"""Test the functionality of the data cube modules."""
+
 import pytest
 import os
 import numpy as np
@@ -8,73 +10,75 @@ from martini.datacube import HIfreq
 
 
 def check_wcs_match(wcs1, wcs2):
+    """
+    Check that two WCS instances are equivalent.
+
+    Parameters
+    ----------
+    wcs1 : astropy.wcs.wcs.WCS
+        The first world coordinate system instance.
+
+    wcs2 : astropy.wcs.wcs.WCS
+        The second world coordinate system instance.
+
+    Returns
+    -------
+    bool
+        ``True`` if the header keys and values of the two WCS instances match, else
+        ``False``.
+    """
     assert set(wcs1.to_header().keys()) == set(wcs2.to_header().keys())
     for k, v, _ in wcs1.to_header().cards:
         assert v == wcs2.to_header()[k]
 
 
-class TestDeprecationWarnings:
-    def test_deprecation_warnings(self):
-        """
-        Check that we get deprecation warnings where we expect them.
-        """
-        with pytest.warns(DeprecationWarning):
-            dc = DataCube(velocity_centre=0 * U.km / U.s)
-        with pytest.warns(DeprecationWarning):
-            dc.velocity_channels()
-        with pytest.warns(DeprecationWarning):
-            dc.freq_channels()
+def test_deprecation_warnings():
+    """Check that we get deprecation warnings where we expect them."""
+    with pytest.warns(DeprecationWarning):
+        dc = DataCube(velocity_centre=0 * U.km / U.s)
+    with pytest.warns(DeprecationWarning):
+        dc.velocity_channels()
+    with pytest.warns(DeprecationWarning):
+        dc.freq_channels()
 
 
 class TestDataCube:
+    """Test the functionality of the main data cube class."""
+
     def test_invalid_channel_units(self):
-        """
-        Check that we get an error if the channel_width doesn't have valid units.
-        """
+        """Check that we get an error if the channel_width doesn't have valid units."""
         with pytest.raises(ValueError, match="Channel width must have"):
             DataCube(channel_width=1 * U.K)
 
     def test_invalid_specsys(self):
-        """
-        Check that we get an error for an invalid specsys.
-        """
+        """Check that we get an error for an invalid specsys."""
         with pytest.raises(ValueError, match="Supported specsys values are"):
             DataCube(specsys="rubbish")
 
     def test_datacube_dimensions(self):
-        """
-        Check that dimensions are as requested.
-        """
+        """Check that dimensions are as requested."""
         datacube = DataCube(n_px_x=10, n_px_y=11, n_channels=12)
         expected_shape = (10, 11, 12, 1) if datacube.stokes_axis else (10, 11, 12)
         assert datacube._array.shape == expected_shape
 
     def test_channel_mids(self, dc_zeros):
-        """
-        Check that first and last channel mids are spaced as expected.
-        """
+        """Check that first and last channel mids are spaced as expected."""
         bandwidth = np.abs(dc_zeros.channel_mids[-1] - dc_zeros.channel_mids[0])
         assert U.isclose(bandwidth, (dc_zeros.n_channels - 1) * dc_zeros.channel_width)
 
     def test_channel_edges(self, dc_zeros):
-        """
-        Check that first and last channel edges are spaced as expected.
-        """
+        """Check that first and last channel edges are spaced as expected."""
         bandwidth = np.abs(dc_zeros.channel_edges[-1] - dc_zeros.channel_edges[0])
         assert bandwidth == dc_zeros.n_channels * dc_zeros.channel_width
 
     def test_iterators(self, dc_zeros):
-        """
-        Check that iterators over slices give us expected lengths.
-        """
+        """Check that iterators over slices give us expected lengths."""
         assert len(list(dc_zeros.channel_maps)) == dc_zeros.n_channels
         assert len(list(dc_zeros.spatial_slices)) == dc_zeros.n_channels
         assert len(list(dc_zeros.spectra)) == dc_zeros.n_px_x * dc_zeros.n_px_y
 
     def test_freq_channels(self, dc_zeros):
-        """
-        Check that frequency channels match WCS.
-        """
+        """Check that frequency channels match WCS."""
         spec_unit = U.Unit(dc_zeros.wcs.wcs.cunit[dc_zeros.wcs.wcs.spec], format="fits")
         mids = (
             dc_zeros.wcs.sub(("spectral",)).all_pix2world(
@@ -96,9 +100,7 @@ class TestDataCube:
         )
 
     def test_velocity_channels(self, dc_zeros):
-        """
-        Check that velocity channels match WCS.
-        """
+        """Check that velocity channels match WCS."""
         spec_unit = U.Unit(dc_zeros.wcs.wcs.cunit[dc_zeros.wcs.wcs.spec], format="fits")
         mids = (
             dc_zeros.wcs.sub(("spectral",)).all_pix2world(
@@ -120,9 +122,7 @@ class TestDataCube:
         )
 
     def test_add_pad(self, dc_zeros):
-        """
-        Check that adding pad gives desired shape.
-        """
+        """Check that adding pad gives desired shape."""
         old_shape = dc_zeros._array.shape
         pad = (2, 3)
         dc_zeros.add_pad(pad)
@@ -138,18 +138,14 @@ class TestDataCube:
         assert dc_zeros.pady == pad[1]
 
     def test_add_pad_already_padded(self, dc_zeros):
-        """
-        Check that we can't double-pad.
-        """
+        """Check that we can't double-pad."""
         pad = (2, 3)
         dc_zeros.add_pad(pad)
         with pytest.raises(RuntimeError, match="Tried to add padding"):
             dc_zeros.add_pad(pad)
 
     def test_drop_pad(self, dc_zeros):
-        """
-        Check that we get expected shape when dropping padding.
-        """
+        """Check that we get expected shape when dropping padding."""
         initial_shape = dc_zeros._array.shape
         pad = (2, 3)
         dc_zeros.add_pad(pad)
@@ -168,9 +164,7 @@ class TestDataCube:
         assert dc_zeros.pady == 0
 
     def test_drop_pad_already_dropped(self, dc_zeros):
-        """
-        Check that dropping already dropped pad gives no change.
-        """
+        """Check that dropping already dropped pad gives no change."""
         assert dc_zeros.padx == 0
         assert dc_zeros.pady == 0
         dc_zeros.drop_pad()
@@ -179,9 +173,7 @@ class TestDataCube:
 
     @pytest.mark.parametrize("with_pad", (False, True))
     def test_copy(self, dc_random, with_pad):
-        """
-        Check that copying a datacube copies all required information.
-        """
+        """Check that copying a datacube copies all required information."""
         if with_pad:
             dc_random.add_pad((3, 3))
         copy = dc_random.copy()
@@ -218,9 +210,7 @@ class TestDataCube:
 
     @pytest.mark.parametrize("with_pad", (False, True))
     def test_save_and_load_state(self, dc_random, with_pad):
-        """
-        Check that we can recover a datacube from a save file.
-        """
+        """Check that we can recover a datacube from a save file."""
         pytest.importorskip("h5py", reason="h5py (optional dependency) not available.")
         try:
             if with_pad:
@@ -260,14 +250,12 @@ class TestDataCube:
             os.remove("test_savestate.hdf5")
 
     def test_init_with_mixed_spectral_centre_and_channel_width_units(self):
-        """
-        Check that we can specify channel spacing and central channel in mixed units.
-        """
-        const_kwargs = dict(
-            n_px_x=16,
-            n_px_y=16,
-            n_channels=16,
-        )
+        """Check that giving channel spacing and central channel in mixed units works."""
+        const_kwargs = {
+            "n_px_x": 16,
+            "n_px_y": 16,
+            "n_channels": 16,
+        }
         spectral_centre = 3 * 70 * U.km / U.s
         channel_width = 4 * U.km / U.s
         f_channel_width = np.abs(
@@ -314,10 +302,7 @@ class TestDataCube:
         )
 
     def test_channel_spacing(self, dc_zeros):
-        """
-        Expect channels to be equally spaced in units matching channel_width, check that
-        this is the case.
-        """
+        """Check that the channels are equally spaced in units matching channel_width."""
         assert U.get_physical_type(dc_zeros.channel_width) == U.get_physical_type(
             dc_zeros.channel_mids
         )
@@ -359,10 +344,12 @@ class TestDataCube:
 
 
 class TestDataCubeFromWCS:
+    """Test constructing a data cube from an existing WCS instance."""
 
     def test_specsys_case_insensitive(self, dc_random):
         """
         FITS specsys usually uppercase but astropy has equivalents in lowercase.
+
         Check that we convert successfully.
         """
         dc_random.wcs.wcs.specsys = "ICRS"
@@ -370,24 +357,18 @@ class TestDataCubeFromWCS:
         assert from_wcs.specsys == "icrs"
 
     def test_unrecognized_specsys(self, dc_random):
-        """
-        Check that we get an error for a specsys that we can't understand.
-        """
+        """Check that we get an error for a specsys that we can't understand."""
         dc_random.wcs.wcs.specsys = "rubbish"
         with pytest.raises(ValueError, match="not yet supported by MARTINI"):
             DataCube.from_wcs(dc_random.wcs)
 
     def test_invalid_specsys(self, dc_random):
-        """
-        Check that we get an error for an invalid specsys.
-        """
+        """Check that we get an error for an invalid specsys."""
         with pytest.raises(ValueError, match="Supported specsys values are"):
             DataCube.from_wcs(dc_random.wcs, specsys="rubbish")
 
     def test_rectangular_pixels_rejected(self, dc_random):
-        """
-        Check that we refuse to accept rectangular pixels.
-        """
+        """Check that we refuse to accept rectangular pixels."""
         if dc_random.stokes_axis:
             dc_random.wcs.wcs.cdelt = (
                 dc_random.wcs.wcs.cdelt[0],
@@ -405,15 +386,15 @@ class TestDataCubeFromWCS:
             DataCube.from_wcs(dc_random.wcs)
 
     def test_restfrq_missing(self, dc_random):
-        """
-        Check that we warn if the WCS doesn't specify a RESTFRQ.
-        """
+        """Check that we warn if the WCS doesn't specify a RESTFRQ."""
         dc_random.wcs.wcs.restfrq = 0.0
         with pytest.warns(UserWarning, match="Input WCS did not specify RESTFRQ"):
             DataCube.from_wcs(dc_random.wcs)
 
     def test_consistent_with_direct(self, dc_random):
         """
+        Test that data cube's WCS metadata and its WCS match.
+
         Check that extracting WCS from a constructed DataCube and constructing
         a DataCube from that WCS is consistent with the original DataCube.
 
@@ -464,9 +445,7 @@ class TestDataCubeFromWCS:
         ),
     )
     def test_sample_headers(self, sample_header):
-        """
-        Check that some real-world FITS headers can be used to initialize a DataCube.
-        """
+        """Check that some real-world FITS headers can initialize a DataCube."""
         with open(os.path.join("tests/data/", sample_header), "r") as f:
             hdr = f.read()
         with pytest.warns(wcs.FITSFixedWarning):

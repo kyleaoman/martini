@@ -7,11 +7,22 @@ on, so reproduce the needed utilities here.
 """
 
 
-def partTypeNum(partType):
+def partTypeNum(partType: int | str) -> int:
     """
-    Mapping between common names and numeric particle types.
+    Map between common names and numeric particle types.
 
     Reproduced from the illustris_python toolkit.
+
+    Parameters
+    ----------
+    partType : int or str
+        A descriptor for a particle type. Can be a number (``1`` for dark matter as in
+        PartType1) or a string, like ``"dm"`` or ``"darkmatter"``.
+
+    Returns
+    -------
+    int
+        The particle type descriptor converted to a type ID in the range 0-5.
     """
     if str(partType).isdigit():
         return int(partType)
@@ -32,11 +43,21 @@ def partTypeNum(partType):
     raise Exception("Unknown particle type name.")
 
 
-def getNumPart(header):
+def getNumPart(header: dict) -> np.ndarray:
     """
     Calculate number of particles of all types given a snapshot header.
 
     Reproduced from the illustris_python toolkit.
+
+    Parameters
+    ----------
+    header : dict
+        Dictionary containing header keys and values.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        Array with the number of particles for each of the 6 types.
     """
     nTypes = 6
 
@@ -49,11 +70,27 @@ def getNumPart(header):
     return nPart
 
 
-def gcPath(basePath, snapNum, chunkNum=0):
+def gcPath(basePath: str, snapNum: int, chunkNum: int = 0) -> str:
     """
     Return absolute path to a group catalog HDF5 file (modify as needed).
 
     Reproduced from the illustris_python toolkit.
+
+    Parameters
+    ----------
+    basePath : str
+        The "base" directory containing the group catalog.
+
+    snapNum : int
+        The snapshot number.
+
+    chunkNum : int, optional
+        The chunk number for catalogs with multiple files.
+
+    Returns
+    -------
+    str
+        The path to the group catalog file.
     """
     gcPath = basePath + "/groups_%03d/" % snapNum
     filePath1 = gcPath + "groups_%03d.%d.hdf5" % (snapNum, chunkNum)
@@ -64,30 +101,84 @@ def gcPath(basePath, snapNum, chunkNum=0):
     return filePath2
 
 
-def offsetPath(basePath, snapNum):
+def offsetPath(basePath: str, snapNum: int) -> str:
     """
     Return absolute path to a separate offset file (modify as needed).
 
     Reproduced from the illustris_python toolkit.
+
+    Paramters
+    ---------
+    basePath : str
+        The base path.
+
+    snapNum : int
+        The snapshot number.
+
+    Returns
+    -------
+    str
+        Path to the offset file.
     """
     offsetPath = basePath + "/../postprocessing/offsets/offsets_%03d.hdf5" % snapNum
 
     return offsetPath
 
 
-def snapPath(basePath, snapNum, chunkNum=0):
-    """Return absolute path to a snapshot HDF5 file (modify as needed)."""
+def snapPath(basePath: str, snapNum: int, chunkNum: int = 0) -> str:
+    """
+    Return absolute path to a snapshot HDF5 file (modify as needed).
+
+    Reproduced from the illustris_python toolkit.
+
+    Paramters
+    ---------
+    basePath : str
+        The base path.
+
+    snapNum : int
+        The snapshot number.
+
+    chunkNum : int, optional
+        The chunk number for catalogues with multiple files.
+
+    Returns
+    -------
+    str
+        Path to the offset file.
+    """
     snapPath = basePath + "/snapdir_" + str(snapNum).zfill(3) + "/"
     filePath = snapPath + "snap_" + str(snapNum).zfill(3)
     filePath += "." + str(chunkNum) + ".hdf5"
     return filePath
 
 
-def loadSingle(basePath, snapNum, haloID=-1, subhaloID=-1):
+def loadSingle(
+    basePath: str, snapNum: int, haloID: int = -1, subhaloID: int = -1
+) -> dict:
     """
     Return complete group catalog information for one halo or subhalo.
 
     Reproduced from the illustris_python toolkit.
+
+    Parameters
+    ----------
+    basePath : str
+        The base path.
+
+    snapNum : int
+        The snapshot number.
+
+    haloID : int, optional
+        The halo ID.
+
+    subhaloID : int, optional
+        The subhalo ID.
+
+    Returns
+    -------
+    dict
+        The data loaded for the halo/subhalo.
     """
     import h5py
 
@@ -108,7 +199,7 @@ def loadSingle(basePath, snapNum, haloID=-1, subhaloID=-1):
             offsets = f["Header"].attrs["FileOffsets_" + gName]
 
     offsets = searchID - offsets
-    fileNum = np.max(np.where(offsets >= 0))
+    fileNum = int(np.max(np.where(offsets >= 0)))
     groupOffset = offsets[fileNum]
 
     # load halo/subhalo fields into a dict
@@ -122,27 +213,55 @@ def loadSingle(basePath, snapNum, haloID=-1, subhaloID=-1):
 
 
 def loadSubset(
-    basePath,
-    snapNum,
-    partType,
-    fields=None,
-    subset=None,
-    mdi=None,
-    sq=True,
-    float32=False,
-):
+    basePath: str,
+    snapNum: int,
+    partType: str | int,
+    *,
+    fields: list[str],
+    subset: dict | None = None,
+    mdi: list[int | None] | None = None,
+    sq: bool = True,
+    float32: bool = False,
+) -> dict:
     """
     Load a subset of fields for all particles/cells of a given partType.
-    If offset and length specified, load only that subset of the partType.
-    If mdi is specified, must be a list of integers of the same length as fields,
-    giving for each field the multi-dimensional index (on the second dimension) to load.
-      For example, fields=['Coordinates', 'Masses'] and mdi=[1, None] returns a 1D array
-      of y-Coordinates only, together with Masses.
-    If sq is True, return a numpy array instead of a dict if len(fields)==1.
-    If float32 is True, load any float64 datatype arrays directly as float32
-    (save memory).
 
     Reproduced from the illustris_python toolkit.
+
+    Parameters
+    ----------
+    basePath : str
+        The base path.
+
+    snapNum : int
+        The snapshot number.
+
+    partType : str or int
+        The particle type.
+
+    fields : list, optional
+        The list of data fields to load.
+
+    subset : dict, optional
+        If offset and length specified, load only that subset of the partType.
+
+    mdi : list, optional
+        If mdi is specified, must be a list of integers of the same length as fields,
+        giving for each field the multi-dimensional index (on the second dimension) to
+        load. For example, fields=['Coordinates', 'Masses'] and mdi=[1, None] returns a
+        1D array of y-Coordinates only, together with Masses.
+
+    sq : bool, optional
+        If sq is True, return a numpy array instead of a dict if len(fields)==1.
+
+    float32 : bool, optional
+        If float32 is True, load any float64 datatype arrays directly as float32 (save
+        memory).
+
+    Returns
+    -------
+    dict
+        The loaded data.
     """
     import h5py
     import six
@@ -167,7 +286,7 @@ def loadSubset(
                 subset["offsetType"][ptNum] - subset["snapOffsets"][ptNum, :]
             )
 
-            fileNum = np.max(np.where(offsetsThisType >= 0))
+            fileNum = int(np.max(np.where(offsetsThisType >= 0)))
             fileOff = offsetsThisType[fileNum]
             numToRead = subset["lenType"][ptNum]
         else:
@@ -278,11 +397,24 @@ def loadSubset(
     return result
 
 
-def loadHeader(basePath, snapNum):
+def loadHeader(basePath: str, snapNum: int) -> dict:
     """
     Load the group catalog header.
 
     Reproduced from the illustris_python toolkit.
+
+    Parameters
+    ----------
+    basePath : str
+        The base path.
+
+    snapNum : int
+        The snapshot number.
+
+    Returns
+    -------
+    dict
+        The header keys and values.
     """
     import h5py
 
@@ -292,9 +424,28 @@ def loadHeader(basePath, snapNum):
     return header
 
 
-def getSnapOffsets(basePath, snapNum, id, type):
+def getSnapOffsets(basePath, snapNum, id: int, type: str) -> dict:
     """
     Compute offsets within snapshot for a particular group/subgroup.
+
+    Parameters
+    ----------
+    basePath : str
+        The base path.
+
+    snapNum : int
+        The snapshot number
+
+    id : int
+        Halo or subhalo ID.
+
+    type : str
+        Particle type string.
+
+    Returns
+    -------
+    dict
+        The requested offsets.
     """
     import h5py
 
@@ -316,7 +467,7 @@ def getSnapOffsets(basePath, snapNum, id, type):
 
     # calculate target groups file chunk which contains this id
     groupFileOffsets = int(id) - groupFileOffsets
-    fileNum = np.max(np.where(groupFileOffsets >= 0))
+    fileNum = int(np.max(np.where(groupFileOffsets >= 0)))
     groupOffset = groupFileOffsets[fileNum]
 
     # load the length (by type) of this group/subgroup from the group catalog

@@ -1,6 +1,10 @@
+"""Set up fixtures and helpers for tests."""
+
 import pytest
+from pytest import FixtureRequest
 import os
 import numpy as np
+from typing import TYPE_CHECKING
 from astropy import units as U
 from astropy import wcs
 from astropy.coordinates import ICRS
@@ -12,27 +16,97 @@ from martini.sources import SPHSource
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import _GaussianKernel
 
+if TYPE_CHECKING:
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
 
 def sps_sourcegen(
-    T_g=np.ones(1) * 1.0e4 * U.K,
-    mHI_g=np.ones(1) * 1.0e4 * U.Msun,
-    xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,
-    vxyz_g=np.zeros((1, 3)) * U.km * U.s**-1,
-    hsm_g=np.ones(1) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-    coordinate_frame=ICRS(),
-):
+    T_g: U.Quantity[U.K] = np.ones(1) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(1) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = np.ones((1, 3)) * 1.0e-3 * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = np.zeros((1, 3)) * U.km * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.ones(1) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+    coordinate_frame: "BaseRADecFrame" = ICRS(),
+) -> SPHSource:
     """
-    Creates a single particle test source.
+    Create a single particle test source.
 
     A simple test source consisting of a single particle will be created. The
     particle has a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a
     temperature of 10^4 K, a position offset by (x, y, z) = (1 pc, 1 pc, 1 pc)
     from the source centroid, a peculiar velocity of 0 km/s, and will be placed
     in the Hubble flow assuming h = 0.7 at a distance of 3 Mpc.
+
+    Parameters
+    ----------
+    T_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of temperature.
+        Particle temperature. (Default: ``np.ones(1) * 1.0e4 * U.K``).
+
+    mHI_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of mass.
+        Particle HI mass. (Default: ``np.ones(1) * 1.0e4 * U.Msun``).
+
+    xyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` , with dimensions of length.
+        Particle position offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default: ``np.ones((1, 3)) * 1.0e-3 * U.kpc``).
+
+    vxyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Particle velocity offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default: ``np.zeros((1, 3)) * U.km * U.s**-1``).
+
+    hsm_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
+        Smoothing lengths are variously defined in the literature as the radius where
+        the kernel amplitude reaches 0, or some rational fraction of this radius (and
+        other definitions may well exist). The FWHM requested here is not a standard
+        choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
+        ambiguity in the definition. (Default: ``np.ones(1) * U.kpc``).
+
+    distance : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: ``3 * U.Mpc``).
+
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Declination for the source centroid. (Default: ``0 * U.deg``).
+
+    vpeculiar : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Source peculiar velocity along the direction to the source centre.
+        (Default: ``0 * U.km * U.s**-1``).
+
+    coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
+    optional
+        The coordinate frame assumed in converting particle coordinates to RA and Dec, and
+        for transforming coordinates and velocities to the data cube frame. The frame
+        needs to have a well-defined velocity as well as spatial origin. Recommended
+        frames are :class:`~astropy.coordinates.GCRS`, :class:`~astropy.coordinates.ICRS`,
+        :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
+        :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
+        should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
+        (Default: ``astropy.coordinates.ICRS()``).
+
+    Returns
+    -------
+    ~martini.sources.sph_source.SPHSource
+        The initialized source module.
     """
     return SPHSource(
         T_g=T_g,
@@ -49,18 +123,23 @@ def sps_sourcegen(
 
 
 def mps_sourcegen(
-    T_g=np.ones(100) * 1.0e4 * U.K,
-    mHI_g=np.ones(100) * 1.0e4 * U.Msun,
-    xyz_g=(np.random.rand(300).reshape((100, 3)) - 0.5) * 10 * U.kpc,
-    vxyz_g=(np.random.rand(300).reshape((100, 3)) - 0.5) * 40 * U.km * U.s**-1,
-    hsm_g=np.ones(100) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-):
+    T_g: U.Quantity[U.K] = np.ones(100) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(100) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = (np.random.rand(300).reshape((100, 3)) - 0.5)
+    * 10
+    * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = (np.random.rand(300).reshape((100, 3)) - 0.5)
+    * 40
+    * U.km
+    * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.ones(100) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+) -> SPHSource:
     """
-    Creates a 100-particle test source.
+    Create a 100-particle test source.
 
     A simple test source consisting of 100 particles will be created. The
     particles have a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, a
@@ -68,6 +147,63 @@ def mps_sourcegen(
     centroid along each axis, velocity offsets between -20 and 20 km/s around systemic,
     a peculiar velocity of 0 km/s, and will be placed in the Hubble flow assuming
     h = 0.7 at a distance of 3 Mpc.
+
+    Parameters
+    ----------
+    T_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of temperature.
+        Particle temperature. (Default: ``np.ones(100) * 1.0e4 * U.K``).
+
+    mHI_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of mass.
+        Particle HI mass. (Default: ``np.ones(100) * 1.0e4 * U.Msun``).
+
+    xyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` , with dimensions of length.
+        Particle position offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default: ``(np.random.rand(300).reshape((100, 3)) - 0.5) * 10 * U.kpc``).
+
+    vxyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Particle velocity offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default:
+        ``(np.random.rand(300).reshape((100, 3)) - 0.5) * 40 * U.km * U.s**-1``).
+
+    hsm_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
+        Smoothing lengths are variously defined in the literature as the radius where
+        the kernel amplitude reaches 0, or some rational fraction of this radius (and
+        other definitions may well exist). The FWHM requested here is not a standard
+        choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
+        ambiguity in the definition. (Default: ``np.ones(100) * U.kpc``).
+
+    distance : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: ``3 * U.Mpc``).
+
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Declination for the source centroid. (Default: ``0 * U.deg``).
+
+    vpeculiar : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Source peculiar velocity along the direction to the source centre.
+        (Default: ``0 * U.km * U.s**-1``).
+
+    Returns
+    -------
+    ~martini.sources.sph_source.SPHSource
+        The initialized source module.
     """
     return SPHSource(
         T_g=T_g,
@@ -83,18 +219,18 @@ def mps_sourcegen(
 
 
 def adaptive_kernel_test_sourcegen(
-    T_g=np.ones(4) * 1.0e4 * U.K,
-    mHI_g=np.ones(4) * 1.0e4 * U.Msun,
-    xyz_g=np.ones((4, 3)) * 1.0e-3 * U.kpc,
-    vxyz_g=np.zeros((4, 3)) * U.km * U.s**-1,
-    hsm_g=np.array([3.0, 1.0, 0.55, 0.1]) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-):
+    T_g: U.Quantity[U.K] = np.ones(4) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(4) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = np.ones((4, 3)) * 1.0e-3 * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = np.zeros((4, 3)) * U.km * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.array([3.0, 1.0, 0.55, 0.1]) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+) -> SPHSource:
     """
-    Creates a 4-particle test source.
+    Create a 4-particle test source.
 
     A simple test source consisting of 4 particles will be created. The
     particles have a mass of 10^4 Msun, a temperature of 10^4 K, a position offset by
@@ -105,6 +241,63 @@ def adaptive_kernel_test_sourcegen(
     truncations where only the first would work), the third should fall back to
     a _GaussianKernel with a large truncation radius, and the last should fall back to
     a DiracDeltaKernel. Assumes 1kpc pixels, which is what we'll use for testing.
+
+    Parameters
+    ----------
+    T_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of temperature.
+        Particle temperature. (Default: ``np.ones(4) * 1.0e4 * U.K``).
+
+    mHI_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of mass.
+        Particle HI mass. (Default: ``np.ones(4) * 1.0e4 * U.Msun``).
+
+    xyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` , with dimensions of length.
+        Particle position offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default: ``np.ones((4, 3)) * 1.0e-3 * U.kpc``).
+
+    vxyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Particle velocity offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default: ``np.zeros((4, 3)) * U.km * U.s**-1``).
+
+    hsm_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
+        Smoothing lengths are variously defined in the literature as the radius where
+        the kernel amplitude reaches 0, or some rational fraction of this radius (and
+        other definitions may well exist). The FWHM requested here is not a standard
+        choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
+        ambiguity in the definition.
+        (Default: ``np.array([3.0, 1.0, 0.55, 0.1]) * U.kpc``).
+
+    distance : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: ``3 * U.Mpc``).
+
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Declination for the source centroid. (Default: ``0 * U.deg``).
+
+    vpeculiar : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Source peculiar velocity along the direction to the source centre.
+        (Default: ``0 * U.km * U.s**-1``).
+
+    Returns
+    -------
+    ~martini.sources.sph_source.SPHSource
+        The initialized source module.
     """
     return SPHSource(
         T_g=T_g,
@@ -120,18 +313,23 @@ def adaptive_kernel_test_sourcegen(
 
 
 def cross_sourcegen(
-    T_g=np.arange(4) * 1.0e4 * U.K,
-    mHI_g=np.ones(4) * 1.0e4 * U.Msun,
-    xyz_g=np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]]) * U.kpc,
-    vxyz_g=np.array([[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]]) * U.km * U.s**-1,
-    hsm_g=np.ones(4) * U.kpc,
-    distance=3 * U.Mpc,
-    ra=0 * U.deg,
-    dec=0 * U.deg,
-    vpeculiar=0 * U.km / U.s,
-):
+    T_g: U.Quantity[U.K] = np.arange(4) * 1.0e4 * U.K,
+    mHI_g: U.Quantity[U.Msun] = np.ones(4) * 1.0e4 * U.Msun,
+    xyz_g: U.Quantity[U.kpc] = np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]])
+    * U.kpc,
+    vxyz_g: U.Quantity[U.km / U.s] = np.array(
+        [[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]]
+    )
+    * U.km
+    * U.s**-1,
+    hsm_g: U.Quantity[U.kpc] = np.ones(4) * U.kpc,
+    distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+    ra: U.Quantity[U.deg] = 0 * U.deg,
+    dec: U.Quantity[U.deg] = 0 * U.deg,
+    vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+) -> SPHSource:
     """
-    Creates a source consisting of 4 particles arrayed in an asymmetric cross.
+    Create a source consisting of 4 particles arrayed in an asymmetric cross.
 
     A simple test source consisting of four particles will be created. Each has
     a mass of 10^4 Msun, a SPH smoothing length of 1 kpc, and will be placed in the Hubble
@@ -146,6 +344,64 @@ def cross_sourcegen(
     [0,  0, -1],
     [0,  1,  0]]
     Particles temperatures are [1, 2, 3, 4] * 1e4 Kelvin.
+
+    Parameters
+    ----------
+    T_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of temperature.
+        Particle temperature. (Default: ``np.ones(4) * 1.0e4 * U.K``).
+
+    mHI_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of mass.
+        Particle HI mass. (Default: ``np.ones(4) * 1.0e4 * U.Msun``).
+
+    xyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity` , with dimensions of length.
+        Particle position offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default: ``np.array([[0, 1, 0], [0, 0, 2], [0, -3, 0], [0, 0, -4]]) * U.kpc``).
+
+    vxyz_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Particle velocity offset from source centroid. Note that the 'y-z'
+        plane is that eventually placed in the plane of the "sky"; 'x' is
+        the axis corresponding to the "line of sight".
+        (Default:
+        ``np.array([[0, 0, 1], [0, -1, 0], [0, 0, -1], [0, 1, 0]]) * U.km * U.s**-1``).
+
+    hsm_g : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
+        Smoothing lengths are variously defined in the literature as the radius where
+        the kernel amplitude reaches 0, or some rational fraction of this radius (and
+        other definitions may well exist). The FWHM requested here is not a standard
+        choice (with the exception of SWIFT snapshots!), but has the advantage of avoiding
+        ambiguity in the definition.
+        (Default: ``np.ones(4) * U.kpc``).
+
+    distance : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of length.
+        Source distance, also used to set the velocity offset via Hubble's law.
+        (Default: ``3 * U.Mpc``).
+
+    ra : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Right ascension for the source centroid. (Default: ``0 * U.deg``).
+
+    dec : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of angle.
+        Declination for the source centroid. (Default: ``0 * U.deg``).
+
+    vpeculiar : ~astropy.units.Quantity, optional
+        :class:`~astropy.units.Quantity`, with dimensions of velocity.
+        Source peculiar velocity along the direction to the source centre.
+        (Default: ``0 * U.km * U.s**-1``).
+
+    Returns
+    -------
+    ~martini.sources.sph_source.SPHSource
+        The initialized source module.
     """
     return SPHSource(
         T_g=T_g,
@@ -161,7 +417,22 @@ def cross_sourcegen(
 
 
 @pytest.fixture(scope="function", params=[True, False])
-def m(request):
+def m(request: FixtureRequest) -> Martini:
+    """
+    Create a :class:`~martini.martini.Martini` object with default configuration.
+
+    This fixture runs source insertion, noise adding, and beam convolution.
+
+    Parameters
+    ----------
+    request : FixtureRequest
+        Provides access to configurable parameters for fixture.
+
+    Yields
+    ------
+    ~martini.martini.Martini
+        The :class:`~martini.martini.Martini` instance.
+    """
     source = sps_sourcegen()
     spectral_centre = source.distance * source.h * 100 * U.km / U.s / U.Mpc
     channel_width = 4 * U.km / U.s
@@ -200,7 +471,17 @@ def m(request):
 
 
 @pytest.fixture(scope="function")
-def m_init():
+def m_init() -> Martini:
+    """
+    Create a :class:`~martini.martini.Martini` object with default configuration.
+
+    This fixture does not run source insertion, noise adding, and beam convolution.
+
+    Yields
+    ------
+    ~martini.martini.Martini
+        The :class:`~martini.martini.Martini` instance.
+    """
     source = sps_sourcegen()
     datacube = DataCube(
         n_px_x=16,
@@ -225,7 +506,17 @@ def m_init():
 
 
 @pytest.fixture(scope="function")
-def m_nn():
+def m_nn() -> Martini:
+    """
+    Create a :class:`~martini.martini.Martini` object with default configuration.
+
+    This fixture runs source insertion and beam convolution. There is no added noise.
+
+    Yields
+    ------
+    ~martini.martini.Martini
+        The :class:`~martini.martini.Martini` instance.
+    """
     source = sps_sourcegen()
     datacube = DataCube(
         n_px_x=16,
@@ -255,7 +546,20 @@ def m_nn():
     scope="function",
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
-def dc_random(request):
+def dc_random(request: FixtureRequest) -> Martini:
+    """
+    Create a :class:`~martini.datacube.DataCube` object with random contents.
+
+    Parameters
+    ----------
+    request : FixtureRequest
+        Provides access to configurable parameters for fixture.
+
+    Yields
+    ------
+    ~martini.datacube.DataCube
+        The :class:`~martini.datacube.DataCube` instance.
+    """
     stokes_axis, freq_channels = request.param
     spectral_centre = 3 * 70 * U.km / U.s
     channel_width = 4 * U.km / U.s
@@ -297,7 +601,20 @@ def dc_random(request):
         "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header.permuted",
     ],
 )
-def dc_wcs(request):
+def dc_wcs(request: FixtureRequest) -> DataCube:
+    """
+    Create a :class:`~martini.datacube.DataCube` from an existing FITS header.
+
+    Parameters
+    ----------
+    request : FixtureRequest
+        Provides access to configurable parameters for fixture.
+
+    Yields
+    ------
+    ~martini.datacube.DataCube
+        The :class:`~martini.datacube.DataCube` instance.
+    """
     with open(os.path.join("tests/data/", request.param), "r") as f:
         hdr = f.read()
     with pytest.warns(wcs.FITSFixedWarning):
@@ -318,7 +635,20 @@ def dc_wcs(request):
     scope="function",
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
-def dc_zeros(request):
+def dc_zeros(request: FixtureRequest) -> DataCube:
+    """
+    Create a :class:`~martini.datacube.DataCube` object with zeroed contents.
+
+    Parameters
+    ----------
+    request : FixtureRequest
+        Provides access to configurable parameters for fixture.
+
+    Yields
+    ------
+    ~martini.datacube.DataCube
+        The :class:`~martini.datacube.DataCube` instance.
+    """
     stokes_axis, freq_channels = request.param
     spectral_centre = 3 * 70 * U.km / U.s
     channel_width = 4 * U.km / U.s
@@ -347,7 +677,15 @@ def dc_zeros(request):
 
 
 @pytest.fixture(scope="function")
-def adaptive_kernel_test_datacube():
+def adaptive_kernel_test_datacube() -> DataCube:
+    """
+    Create a :class:`~martini.datacube.DataCube` for testing adaptive kernels.
+
+    Yields
+    ------
+    ~martini.datacube.DataCube
+        The :class:`~martini.datacube.DataCube` instance.
+    """
     dc = DataCube(
         n_px_x=16,
         n_px_y=16,
@@ -360,7 +698,15 @@ def adaptive_kernel_test_datacube():
 
 
 @pytest.fixture(scope="function")
-def s():
+def s() -> SPHSource:
+    """
+    Create a :class:`~martini.sources.sph_source.SPHSource` from 1000 particles.
+
+    Yields
+    ------
+    ~martini.sources.sph_source.SPHSource
+        The :class:`~martini.sources.sph_source.SPHSource` instance.
+    """
     n_g = 1000
     phi = np.random.rand(n_g, 1) * 2 * np.pi
     R = np.random.rand(n_g, 1)
@@ -388,40 +734,80 @@ def s():
     T_g = np.ones(n_g) * 1e4 * U.K
     mHI_g = np.ones(n_g) * 1e9 * U.Msun / n_g
     hsm_g = 0.5 * U.kpc
-    particles = dict(
-        xyz_g=xyz_g,
-        vxyz_g=vxyz_g,
-        mHI_g=mHI_g,
-        T_g=T_g,
-        hsm_g=hsm_g,
-    )
+    particles = {
+        "xyz_g": xyz_g,
+        "vxyz_g": vxyz_g,
+        "mHI_g": mHI_g,
+        "T_g": T_g,
+        "hsm_g": hsm_g,
+    }
     s = SPHSource(**particles)
 
     yield s
 
 
 @pytest.fixture(scope="function")
-def cross_source():
+def cross_source() -> SPHSource:
+    """
+    Create a :class:`~martini.sources.sph_source.SPHSource` with a cross shape.
+
+    Yields
+    ------
+    ~martini.sources.sph_source.SPHSource
+        The :class:`~martini.sources.sph_source.SPHSource` instance.
+    """
     yield cross_sourcegen
 
 
 @pytest.fixture(scope="function")
-def single_particle_source():
+def single_particle_source() -> SPHSource:
+    """
+    Create a :class:`~martini.sources.sph_source.SPHSource` with 1 particle.
+
+    Yields
+    ------
+    ~martini.sources.sph_source.SPHSource
+        The :class:`~martini.sources.sph_source.SPHSource` instance.
+    """
     yield sps_sourcegen
 
 
 @pytest.fixture(scope="function")
-def many_particle_source():
+def many_particle_source() -> SPHSource:
+    """
+    Create a :class:`~martini.sources.sph_source.SPHSource` with 100 particles.
+
+    Yields
+    ------
+    ~martini.sources.sph_source.SPHSource
+        The :class:`~martini.sources.sph_source.SPHSource` instance.
+    """
     yield mps_sourcegen
 
 
 @pytest.fixture(scope="function")
-def adaptive_kernel_test_source():
+def adaptive_kernel_test_source() -> SPHSource:
+    """
+    Create a :class:`~martini.sources.sph_source.SPHSource` for kernel testing.
+
+    Yields
+    ------
+    ~martini.sources.sph_source.SPHSource
+        The :class:`~martini.sources.sph_source.SPHSource` instance.
+    """
     yield adaptive_kernel_test_sourcegen
 
 
 @pytest.fixture(scope="function")
-def gp():
+def gp() -> GlobalProfile:
+    """
+    Create a :class:`~martini.martini.GlobalProfile` with default configuration.
+
+    Yields
+    ------
+    ~martini.martini.GlobalProfile
+        The :class:`~martini.martini.GlobalProfile` instance.
+    """
     source = sps_sourcegen()
     spectral_model = GaussianSpectrum()
 

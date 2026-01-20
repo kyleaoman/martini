@@ -1,16 +1,16 @@
-"""
-Provides classes to represent the beam of a radio telescope.
-"""
+"""Provide classes to represent the beam of a radio telescope."""
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable
 import scipy.interpolate
 import numpy as np
 import astropy.units as U
+from martini.datacube import DataCube
 
 
 class _BaseBeam(object):
     """
-    Abstract base class for classes implementing a radio telescope beam model.
+    Implement a radio telescope beam model.
 
     Classes inheriting from _BaseBeam must implement three methods:
     :meth:`~martini.beams._BaseBeam.f_kernel`,
@@ -52,12 +52,22 @@ class _BaseBeam(object):
 
     __metaclass__ = ABCMeta
 
+    bmaj: U.Quantity[U.arcsec]
+    bmin: U.Quantity[U.arcsec]
+    bpa: U.Quantity[U.deg]
+    px_size: U.Quantity[U.arcsec] | None
+    kernel: U.Quantity[U.dimensionless_unscaled] | None
+    area: U.Quantity[U.arcsec**2]
+    vel: U.Quantity[U.km / U.s]
+    ra: U.Quantity[U.deg]
+    dec: U.Quantity[U.deg]
+
     def __init__(
         self,
-        bmaj=15.0 * U.arcsec,
-        bmin=15.0 * U.arcsec,
-        bpa=0.0 * U.deg,
-    ):
+        bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bpa: U.Quantity[U.deg] = 0.0 * U.deg,
+    ) -> None:
         # some beams need information from the datacube; in this case make
         # their call to _BaseBeam.__init__ with bmaj == bmin == bpa == None
         # and define a init_beam_header, to be called after the ra, dec,
@@ -75,22 +85,22 @@ class _BaseBeam(object):
 
         return
 
-    def needs_pad(self):
+    def needs_pad(self) -> tuple[int, int]:
         """
-        Determine the padding of the datacube required by the beam to prevent
-        edge effects during convolution.
+        Determine the padding of the datacube required by the beam.
+
+        The beam should be padded enough to prevent edge effects during convolution.
 
         Returns
         -------
-        out : tuple
+        tuple
             2-tuple, each element an integer, containing pad dimensions (x, y).
         """
-
         if self.kernel is None:
             raise RuntimeError("Beam kernel not initialized.")
         return self.kernel.shape[0] // 2, self.kernel.shape[1] // 2
 
-    def init_kernel(self, datacube):
+    def init_kernel(self, datacube: DataCube) -> None:
         """
         Calculate the required size of the beam image.
 
@@ -100,7 +110,6 @@ class _BaseBeam(object):
             Data cube to use, cube size is required for pixel size, position &
             velocity centroids.
         """
-
         self.px_size = datacube.px_size
         self.vel = datacube.spectral_centre
         self.ra = datacube.ra
@@ -150,44 +159,43 @@ class _BaseBeam(object):
         return
 
     @abstractmethod
-    def f_kernel(self):
+    def f_kernel(
+        self,
+    ) -> Callable[[float | np.ndarray, float | np.ndarray], U.Quantity]:
         """
-        Abstract method; returns a function defining the beam amplitude as a
-        function of position.
+        Return a function defining the beam amplitude as a function of position.
 
         The function returned by this method should accept two parameters, the
         RA and Dec offset from the beam centroid, and return the beam amplitude
         at that position. The offsets are provided as :class:`~astropy.units.Quantity`
         objects with dimensions of angle (arcsec).
         """
-
-        pass
-
-    @abstractmethod
-    def kernel_size_px(self):
-        """
-        Abstract method; returns a 2-tuple specifying the half-size of the beam
-        image to be initialized, in pixels.
-        """
-
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
-    def init_beam_header(self):
+    def kernel_size_px(self) -> tuple[int, int]:
         """
-        Abstract method; sets beam major/minor axis lengths and position angle.
+        Return a 2-tuple specifying the half-size of the beam image to be initialized.
+
+        Size is in pixels.
+        """
+        pass  # pragma: no cover
+
+    @abstractmethod
+    def init_beam_header(self) -> None:
+        """
+        Set beam major/minor axis lengths and position angle.
 
         This method is optional, and only needs to be defined if these
         parameters are not specified in the call to the ``__init__`` method of the
         derived class.
         """
-
-        pass
+        pass  # pragma: no cover
 
 
 class GaussianBeam(_BaseBeam):
     """
-    Class implementing a Gaussian beam model.
+    Implement a Gaussian beam model.
 
     Parameters
     ----------
@@ -207,35 +215,36 @@ class GaussianBeam(_BaseBeam):
         Number of FWHM at which to truncate the beam image.
     """
 
+    truncate: float
+
     def __init__(
         self,
-        bmaj=15.0 * U.arcsec,
-        bmin=15.0 * U.arcsec,
-        bpa=0.0 * U.deg,
-        truncate=4.0,
-    ):
+        bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bpa: U.Quantity[U.deg] = 0.0 * U.deg,
+        truncate: float = 4.0,
+    ) -> None:
         self.truncate = truncate
         super().__init__(bmaj=bmaj, bmin=bmin, bpa=bpa)
         return
 
     def f_kernel(
         self,
-    ):
+    ) -> Callable[[float | np.ndarray, float | np.ndarray], U.Quantity]:
         """
-        Returns a function defining the beam amplitude as a function of
-        position.
+        Return a function defining the beam amplitude as a function of position.
 
         The model implemented is a 2D Gaussian with FWHM's specified by ``bmaj``
         and ``bmin`` and orientation by ``bpa``.
 
         Returns
         -------
-        out : callable
+        callable
             Accepts 2 arguments (both ``ArrayLike``) and return an
             ``ArrayLike`` of corresponding size.
         """
 
-        def fwhm_to_sigma(fwhm):
+        def fwhm_to_sigma(fwhm: U.Quantity[U.deg]) -> U.Quantity[U.deg]:
             """
             Convert full-width at half-maximum to Gaussian sigma.
 
@@ -265,14 +274,15 @@ class GaussianBeam(_BaseBeam):
             -a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2)
         )
 
-    def kernel_size_px(self):
+    def kernel_size_px(self) -> tuple[int, int]:
         """
-        Returns a 2-tuple specifying the half-size of the beam image to be
-        initialized, in pixels.
+        Return a 2-tuple specifying the half-size of the beam image to be initialized.
+
+        Size measured in pixels.
 
         Returns
         -------
-        out : tuple
+        tuple
             2-tuple, each element an integer, specifying the kernel size (x, y) in pixels.
         """
         size = np.ceil(
@@ -283,3 +293,7 @@ class GaussianBeam(_BaseBeam):
         )
 
         return size, size
+
+    def init_beam_header(self) -> None:
+        """Do nothing - beam header initialized in __init__ for this class."""
+        pass  # pragma: no cover

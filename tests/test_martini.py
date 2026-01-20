@@ -1,3 +1,5 @@
+"""Test the functionality of the main martini module."""
+
 import os
 import pytest
 import numpy as np
@@ -16,6 +18,17 @@ from scipy.signal import fftconvolve
 
 
 def check_mass_accuracy(m, out_mode):
+    """
+    Check that mass in cube matches input mass by better than 1%.
+
+    Parameters
+    ----------
+    m : ~martini.martini.Martini
+        The martini instance to test for accuracy.
+
+    out_mode : str
+        Can be ``"fits"`` or ``"hdf5"``.
+    """
     if out_mode == "hdf5":
         h5py = pytest.importorskip(
             "h5py", reason="h5py (optional dependency) not available"
@@ -187,6 +200,8 @@ def check_mass_accuracy(m, out_mode):
 
 
 class TestMartini:
+    """Test functionality of the main martini class."""
+
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
     @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
@@ -194,11 +209,12 @@ class TestMartini:
         self, dc_zeros, sph_kernel, spectral_model, single_particle_source, out_mode
     ):
         """
+        Check that input mass in particles ends up in the output cube.
+
         Check that the input mass in the particles gives the correct total mass in the
         datacube, by checking the conversion back to total mass. Covers testing
         Martini.insert_source_in_cube.
         """
-
         hsm_g = (
             0.1 * U.kpc if sph_kernel.__name__ == "DiracDeltaKernel" else 1.0 * U.kpc
         )
@@ -216,9 +232,7 @@ class TestMartini:
         check_mass_accuracy(m, out_mode)
 
     def test_convolve_beam(self, single_particle_source):
-        """
-        Check that beam convolution gives result matching manual calculation.
-        """
+        """Check that beam convolution gives result matching manual calculation."""
         source = single_particle_source()
         datacube = DataCube(
             n_px_x=16,
@@ -258,9 +272,7 @@ class TestMartini:
         assert U.allclose(m.datacube._array, convolved_cube)
 
     def test_add_noise(self, m_init):
-        """
-        Check that noise provided goes into the datacube when we call add_noise.
-        """
+        """Check that noise provided goes into the datacube when we call add_noise."""
         assert (m_init.datacube._array.sum() == 0).all()
         assert m_init.noise.seed is not None
         expected_noise = m_init.noise.generate(m_init.datacube, m_init.beam)
@@ -327,6 +339,8 @@ class TestMartini:
         mass,
     ):
         """
+        Test pruning particles unused in the creation of the mock.
+
         Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
         the cube as expected.
         """
@@ -370,15 +384,15 @@ class TestMartini:
         sph_kernel = _CubicSplineKernel()
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
         # need to use _BaseMartini below to manipulate _prune_kwargs
-        kwargs = dict(
-            source=source,
-            datacube=datacube,
-            beam=beam,
-            noise=None,
-            sph_kernel=sph_kernel,
-            spectral_model=spectral_model,
-            _prune_kwargs=dict(spatial=spatial, spectral=spectral, mass=mass),
-        )
+        kwargs = {
+            "source": source,
+            "datacube": datacube,
+            "beam": beam,
+            "noise": None,
+            "sph_kernel": sph_kernel,
+            "spectral_model": spectral_model,
+            "_prune_kwargs": {"spatial": spatial, "spectral": spectral, "mass": mass},
+        }
         # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
         if not expect_particle:
@@ -392,6 +406,8 @@ class TestMartini:
 
     def test_prune_nan(self, single_particle_source):
         """
+        Check that particles with nan coordinates are removed.
+
         Particles can have nan pixel coordinates if they're more than 90deg in longitude
         away from the reference pixel location of the WCS (pretty sure that's the
         condition, else maybe 90deg longitude away from the 0 pixel). We want these to
@@ -439,9 +455,7 @@ class TestMartini:
         assert m.source.pixcoords.shape == (3, 1)
 
     def test_reset(self, m_nn):
-        """
-        Check that resetting martini instance zeros out datacube.
-        """
+        """Check that resetting martini instance zeros out datacube."""
         cube_array = m_nn.datacube._array
         assert m_nn.datacube._array.sum() > 0
         m_nn.reset()
@@ -455,6 +469,7 @@ class TestMartini:
         m_nn.reset()
 
     def test_reset_preserves_shape(self, single_particle_source, dc_zeros):
+        """Check that using the reset feature preserves the shape of the datacube."""
         m = Martini(
             source=single_particle_source(),
             datacube=dc_zeros,
@@ -469,17 +484,16 @@ class TestMartini:
 
     def test_explicit_init_spectra(self, m_init):
         """
-        Check that we can explicitly initialize the spectra (usually it happens later when
-        insert_source_in_cube is called).
+        Check that we can explicitly initialize the spectra.
+
+        Usually it happens later when ``insert_source_in_cube`` is called.
         """
         assert m_init.spectral_model.spectra is None
         m_init.init_spectra()
         assert m_init.spectral_model.spectra is not None
 
     def test_preview(self, m_init):
-        """
-        Simply check that the preview visualisation runs without error.
-        """
+        """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
@@ -498,10 +512,7 @@ class TestMartini:
         )
 
     def test_source_to_datacube_coord_transformation(self, single_particle_source):
-        """
-        Check that transformation is applied if source and datacube have different
-        coordinate frames.
-        """
+        """Check transformation is applied if source and datacube frames differ."""
         source = single_particle_source(hsm_g=0.01 * U.kpc)
         assert source.coordinate_frame.name == "icrs"
         datacube_icrs = DataCube(
@@ -525,16 +536,25 @@ class TestMartini:
         )
 
         def centre_pixels_slice(m):
+            """
+            Get 1/4 of the cube (excluding pad region) centered in RA and Dec.
+
+            Parameters
+            ----------
+            m : ~martini.martini.Martini
+                The martini object to get the region from.
+
+            Returns
+            -------
+            np.ndarray
+                The sub-region of the cube.
+            """
             datacube = m.datacube
             return m.datacube._array[
-                datacube.n_px_x // 2
-                - 1
-                + datacube.padx : datacube.n_px_x // 2
+                datacube.n_px_x // 2 - 1 + datacube.padx : datacube.n_px_x // 2
                 + 1
                 + datacube.padx,
-                datacube.n_px_y // 2
-                - 1
-                + datacube.pady : datacube.n_px_y // 2
+                datacube.n_px_y // 2 - 1 + datacube.pady : datacube.n_px_y // 2
                 + 1
                 + datacube.pady,
             ]
@@ -571,8 +591,10 @@ class TestMartini:
 
     def test_source_to_datacube_specsys_transformation(self, single_particle_source):
         """
-        Check that spectral reference transformation is applied if source and datacube
-        have different specsys.
+        Check that spectral reference transformation is applied when needed.
+
+        If the source and datacube have different specsys, we need to apply a coordinate
+        transformation when inserting the particles. Make sure that this happens.
         """
         source = single_particle_source(hsm_g=0.01 * U.kpc)
         datacube_icrs = DataCube(
@@ -597,6 +619,19 @@ class TestMartini:
         )
 
         def centre_channels_slice(m):
+            """
+            Get the central half of the spectral channels from a cube.
+
+            Parameters
+            ----------
+            m : ~martini.martini.Martini
+                The martini object to get the region from.
+
+            Returns
+            -------
+            np.ndarray
+                The sub-region of the cube.
+            """
             datacube = m.datacube
             return m.datacube._array[
                 :, :, datacube.n_channels // 2 - 1 : datacube.n_channels // 2 + 1
@@ -635,6 +670,7 @@ class TestMartini:
             )
 
     def test_hdf5_grids(self, m):
+        """Check the explicit RA, Dec and spectral grid optionally output in HDF5 mode."""
         h5py = pytest.importorskip(
             "h5py", reason="h5py (optional dependency) not available."
         )
@@ -713,10 +749,13 @@ class TestMartini:
 
 
 class TestParallel:
+    """Test that results running in parallel agree with those running serially."""
+
     def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
         """
-        Check that running the source insertion loop in parallel gives the same result
-        as running in serial.
+        Check running the source insertion loop in parallel.
+
+        Should give the same result as running in serial.
         """
         pytest.importorskip(
             "multiprocess", reason="multiprocess (optional dependency) not available"
@@ -751,15 +790,18 @@ class TestParallel:
 
 
 class TestGlobalProfile:
+    """Test the functionality of the simplified martini module for global profiles."""
+
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
     @pytest.mark.parametrize("ra", (0 * U.deg, 180 * U.deg))
     def test_mass_accuracy(self, spectral_model, single_particle_source, ra):
         """
+        Check that mass in final spectrum agrees with input mass within 1%.
+
         Check that the input mass in the particles gives the correct total mass in the
         spectrum, by checking the conversion back to total mass. Covers testing
         GlobalProfile.insert_source_in_spectrum.
         """
-
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         # we test both ra=0deg and ra=180deg to make sure all particles included
         source = single_particle_source(ra=ra)
@@ -828,8 +870,10 @@ class TestGlobalProfile:
         self, ra_off, ra_in, dec_off, dec_in, v_off, v_in, single_particle_source
     ):
         """
+        Test pruning particles unused in the creation of the mock.
+
         Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
-        the cube as expected. GlobalProfile should ignore RA, Dec when pruning.
+        the cube as expected.
         """
         # GlobalProfile should ignore RA, Dec when pruning:
         expect_particle = v_in
@@ -839,13 +883,13 @@ class TestGlobalProfile:
             distance=distance, ra=ra_off, dec=dec_off, vpeculiar=v_off
         )
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
-        kwargs = dict(
-            source=source,
-            spectral_model=spectral_model,
-            n_channels=2,
-            channel_width=1 * U.km / U.s,
-            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
-        )
+        kwargs = {
+            "source": source,
+            "spectral_model": spectral_model,
+            "n_channels": 2,
+            "channel_width": 1 * U.km / U.s,
+            "spectral_centre": source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        }
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
         if not expect_particle:
             with pytest.raises(
@@ -857,9 +901,7 @@ class TestGlobalProfile:
             assert GlobalProfile(**kwargs).source.npart == 1
 
     def test_reset(self, gp):
-        """
-        Check that resetting global profile instance zeros out datacube and spectrum.
-        """
+        """Check that resetting global profile zeros out datacube and spectrum."""
         cube_array = gp._datacube._array
         assert gp._datacube._array.sum() > 0
         spectrum = gp.spectrum
@@ -876,9 +918,7 @@ class TestGlobalProfile:
         gp.reset()
 
     def test_preview(self, gp):
-        """
-        Simply check that the preview visualisation runs without error.
-        """
+        """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
@@ -897,9 +937,7 @@ class TestGlobalProfile:
         )
 
     def test_channel_modes(self, single_particle_source):
-        """
-        Check that channels have expected units in both modes (frequency, velocity).
-        """
+        """Check that channels have expected units in both modes (frequency, velocity)."""
         source = single_particle_source()
         channel_width = 10 * U.km * U.s**-1
         m = GlobalProfile(
@@ -915,9 +953,7 @@ class TestGlobalProfile:
         m.channel_mids.to(expected_units)
 
     def test_view_spectrum(self, gp):
-        """
-        Simply check that plotting spectrum runs without error.
-        """
+        """Simply check that plotting spectrum runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
@@ -928,8 +964,11 @@ class TestGlobalProfile:
 
 
 class TestMartiniWithDataCubeFromWCS:
+    """Test the feature allowing setting up the datacube from an existing WCS."""
+
     @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
     def test_source_insertion(self, dc_wcs, single_particle_source, out_mode):
+        """Check that the mass in the final cube agrees with input mass within 1%."""
         datacube = dc_wcs
         distance = (
             datacube.spectral_centre.to(

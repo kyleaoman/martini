@@ -1,3 +1,5 @@
+"""Test the telescope beam modules."""
+
 import pytest
 import numpy as np
 from astropy import units as U
@@ -6,10 +8,10 @@ from martini import DataCube
 
 
 class TestGaussianBeam:
+    """Test the Gaussian beam module."""
+
     def test_Gaussian_beam_size(self):
-        """
-        Check that we produce a square beam array large enough to contain it.
-        """
+        """Check that we produce a square beam array large enough to contain it."""
         px_size = 1 * U.arcsec
         bmaj = 20 * U.arcsec
         bmin = 10 * U.arcsec
@@ -33,9 +35,7 @@ class TestGaussianBeam:
 
     @pytest.mark.parametrize("bpa", (0 * U.deg, 90 * U.deg))
     def test_Gaussian_beam_rotation(self, bpa):
-        """
-        Check that the beam amplitude is equal along the ellipse traced by the beam shape.
-        """
+        """Check that the beam amplitude is equal along the beam's elliptical outline."""
         px_size = 1 * U.arcsec
         bmaj = 20 * U.arcsec
         bmin = 10 * U.arcsec
@@ -64,9 +64,7 @@ class TestGaussianBeam:
             )
 
     def test_Gaussian_beam_integral(self):
-        """
-        Check that the beam integrates to 1.0.
-        """
+        """Check that the beam integrates to 1.0."""
         px_size = 1 * U.arcsec
         bmaj = 10 * U.arcsec
         bmin = 10 * U.arcsec

@@ -1,18 +1,25 @@
 """
-Provides the :class:`~martini.sources.colibre_source.ColibreSource` class for working with
-Colibre simulations as input.
+Provides the :class:`~martini.sources.colibre_source.ColibreSource` class.
+
+Facilitates working with Colibre simulations as input.
 """
 
 import numpy as np
+from typing import TYPE_CHECKING
 from astropy import units as U
 from astropy.coordinates import ICRS
 from .swiftgalaxy_source import SWIFTGalaxySource
 
+if TYPE_CHECKING:
+    from swiftgalaxy import SWIFTGalaxy
+    from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
+
 
 class ColibreSource(SWIFTGalaxySource):
     """
-    Class abstracting HI sources designed to work with Colibre simulations. Uses the
-    :mod:`swiftsimio` and :mod:`swiftgalaxy` modules.
+    Class abstracting HI sources designed to work with Colibre simulations.
+
+    Uses the :mod:`swiftsimio` and :mod:`swiftgalaxy` modules.
 
     Parameters
     ----------
@@ -22,12 +29,10 @@ class ColibreSource(SWIFTGalaxySource):
     distance : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
-        (Default: ``3 * U.Mpc``)
 
     vpeculiar : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
-        (Default: ``0 * U.km * U.s**-1``)
 
     rotation : dict, optional
         Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
@@ -35,29 +40,27 @@ class ColibreSource(SWIFTGalaxySource):
         plane of the "sky". The corresponding value must be:
 
         - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-        axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
-        dimensions of angle, indicating the angle to rotate through.
+          axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
+          dimensions of angle, indicating the angle to rotate through.
         - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
         - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
-        angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
-        angle). The routine will first attempt to identify a preferred plane \
-        based on the angular momenta of the central 1/3 of particles in the \
-        source. This plane will then be rotated to lie in the plane of the \
-        "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-        momentum pole (rotation about 'x'), and inclined (rotation about \
-        'y'). A 3-tuple may be provided instead, in which case the third \
-        value specifies the position angle on the sky (second rotation about 'x'). \
-        The default position angle is 270 degrees.
-
-        (Default: ``np.eye(3)``)
+          angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
+          angle). The routine will first attempt to identify a preferred plane \
+          based on the angular momenta of the central 1/3 of particles in the \
+          source. This plane will then be rotated to lie in the plane of the \
+          "sky" ('y-z'), rotated by the azimuthal angle about its angular \
+          momentum pole (rotation about 'x'), and inclined (rotation about \
+          'y'). A 3-tuple may be provided instead, in which case the third \
+          value specifies the position angle on the sky (second rotation about 'x'). \
+          The default position angle is 270 degrees.
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension for the source centroid. (Default: ``0 * U.deg``)
+        Right ascension for the source centroid.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Declination for the source centroid. (Default: ``0 * U.deg``)
+        Declination for the source centroid.
 
     coordinate_frame : ~astropy.coordinates.builtin_frames.baseradec.BaseRADecFrame, \
     optional
@@ -68,19 +71,18 @@ class ColibreSource(SWIFTGalaxySource):
         :class:`~astropy.coordinates.HCRS`, :class:`~astropy.coordinates.LSRK`,
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
-        (Default: ``astropy.coordinates.ICRS()``)
     """
 
     def __init__(
         self,
-        galaxy,
-        distance=3.0 * U.Mpc,
-        vpeculiar=0 * U.km / U.s,
-        rotation={"rotmat": np.eye(3)},
-        ra=0.0 * U.deg,
-        dec=0.0 * U.deg,
-        coordinate_frame=ICRS(),
-    ):
+        galaxy: "SWIFTGalaxy",
+        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
+        rotation: dict = {"rotmat": np.eye(3)},
+        ra: U.Quantity[U.deg] = 0.0 * U.deg,
+        dec: U.Quantity[U.deg] = 0.0 * U.deg,
+        coordinate_frame: "BaseRADecFrame" = ICRS(),
+    ) -> None:
         # No special functionality wanted/needed:
         super().__init__(
             galaxy,

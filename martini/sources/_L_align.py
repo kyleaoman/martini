@@ -1,19 +1,23 @@
-"""
-Provides the :func:`~martini.sources._L_align.L_align` function to align particles
-according to their angular momentum vector.
+"""Align particles according to their angular momentum vector."""
 
-Copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
-commit-id 63dc535c5de1a0dc3caf09f98a33c9d09aa0eddc
-Note: No git-based solution (e.g. via submodules) seems practical to include
-selected files from external repositories; a direct copy is included here
-to produce a self-contained package.
-"""
+# Copied from github.com/kyleaoman/kyleaoman_utilities/kyleaoman_utilities/
+# commit-id 63dc535c5de1a0dc3caf09f98a33c9d09aa0eddc
+# Note: No git-based solution (e.g. via submodules) seems practical to include
+# selected files from external repositories; a direct copy is included here
+# to produce a self-contained package.
 
 import numpy as np
 import astropy.units as U
 
 
-def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
+def L_align(
+    xyz: U.Quantity[U.kpc],
+    vxyz: U.Quantity[U.km / U.s],
+    m: U.Quantity[U.Msun],
+    frac: float = 0.3,
+    saverot: str | None = None,
+    Laxis: str = "z",
+) -> np.ndarray:
     """
     Determine the rotation matrix to align with the angular momentum vector of particles.
 
@@ -33,7 +37,6 @@ def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
 
     frac : float, optional
         Fraction of particles with smallest radii to use in calculation.
-        (Default: ``0.3``)
 
     saverot : str, optional
         If not ``None``, name of file in which to save the rotation matrix. Uses
@@ -41,16 +44,21 @@ def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
 
     Laxis : str, optional
         One of ``"x"``, ``"y"``, ``"z"``, specifying the axis to which the angular
-        momentum should be aligned. (Default: ``"z"``)
+        momentum should be aligned.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        The rotation matrix to align with the angular momentum vector.
     """
     transposed = False
     if xyz.ndim != 2:
         raise ValueError(
-            "L_align: cannot guess coordinate axis for input with" " ndim != 2."
+            "L_align: cannot guess coordinate axis for input with ndim != 2."
         )
     elif (xyz.shape[0] == 3) and (xyz.shape[1] == 3):
         raise ValueError(
-            "L_align: cannot guess coordinate axis for input with" " shape (3, 3)."
+            "L_align: cannot guess coordinate axis for input with shape (3, 3)."
         )
     elif xyz.shape[1] == 3:
         xyz = xyz.T
@@ -88,7 +96,13 @@ def L_align(xyz, vxyz, m, frac=0.3, saverot=None, Laxis="z"):
     xhat = xhat / np.sqrt(np.sum(np.power(xhat, 2)))  # normalized
     yhat = np.cross(zhat, xhat)  # guarantees right-handedness
 
-    rotmat = np.vstack((xhat, yhat, zhat)).to(U.dimensionless_unscaled).value
+    rotmat = np.vstack(
+        (
+            xhat.to_value(U.dimensionless_unscaled),
+            yhat.to_value(U.dimensionless_unscaled),
+            zhat.to_value(U.dimensionless_unscaled),
+        )
+    )
     if Laxis == "z":
         pass
     elif Laxis == "y":

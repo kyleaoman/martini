@@ -9,11 +9,7 @@ build:
     python: "3.12"
   jobs:
     post_create_environment:
-      - python3 -m pip install astromartini
+      - pip install .[docs]
 
 sphinx:
    configuration: docs/source/conf.py
-
-python:
-   install:
-   - requirements: docs/requirements.txt

@@ -1,3 +1,5 @@
+"""Test functionality of HI source module."""
+
 import os
 import pytest
 import numpy as np
@@ -12,10 +14,10 @@ from martini.__version__ import __version__
 
 
 class TestSourceUtilities:
+    """Test the utility functions related to manipulating source objects."""
+
     def test_L_align(self):
-        """
-        Test that L_align produces expected rotation matrices, including saving to file.
-        """
+        """Test that we produce expected rotation matrices, including saving to file."""
         # set up 4 particles in x-y plane rotating right-handed about zhat
         _xyz = np.array([[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]])
         _vxyz = np.array([[0, 1, 0], [-1, 0, 0], [0, -1, 0], [1, 0, 0]])
@@ -63,9 +65,7 @@ class TestSourceUtilities:
         assert np.allclose(rotmat, saved_rotmat)
 
     def test_translate(self):
-        """
-        Check that cartesian representation transforms correctly.
-        """
+        """Check that cartesian representation transforms correctly."""
         setattr(CartesianRepresentation, "translate", translate)
         cr = CartesianRepresentation(np.zeros(3) * U.kpc)
         translation = np.ones(3) * U.kpc
@@ -73,9 +73,7 @@ class TestSourceUtilities:
         assert U.allclose(cr_translated.get_xyz(), translation)
 
     def test_translate_d(self):
-        """
-        Check that cartesian differential transforms correctly.
-        """
+        """Check that cartesian differential transforms correctly."""
         setattr(CartesianDifferential, "translate", translate_d)
         cd = CartesianDifferential(np.zeros(3) * U.km / U.s)
         translation = np.ones(3) * U.km / U.s
@@ -84,10 +82,10 @@ class TestSourceUtilities:
 
 
 class TestSPHSource:
+    """Test the functionality of the generic source class."""
+
     def test_coordinate_input(self):
-        """
-        Check that different input shapes for coordinates give expected behaviour.
-        """
+        """Check that different input shapes for coordinates give expected behaviour."""
         mHI_g = np.zeros(4) * U.Msun
         row_coords = np.zeros((4, 3)) * U.kpc
         row_vels = np.zeros((4, 3)) * U.km / U.s
@@ -130,9 +128,7 @@ class TestSPHSource:
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     def test_ra_dec_rotation(self, ra, dec):
-        """
-        Check that coordinates rotate as needed before translation to observed position.
-        """
+        """Check that coordinates rotate before translation to observed position."""
         xyz_g = np.arange(3).reshape((1, 3)) * U.kpc
         vxyz_g = np.arange(3).reshape((1, 3)) * U.km / U.s
         mHI_g = np.zeros(3) * U.Msun
@@ -171,9 +167,7 @@ class TestSPHSource:
     @pytest.mark.parametrize("distance", (0 * U.Mpc, 3 * U.Mpc))
     @pytest.mark.parametrize("vpeculiar", (0 * U.km / U.s, 100 * U.km / U.s))
     def test_dist_vpec_translation(self, ra, dec, distance, vpeculiar):
-        """
-        Check that coordinates translate correctly to observed position.
-        """
+        """Check that coordinates translate correctly to observed position."""
         # avoid 0 values to check vhubble per particle works:
         xyz_g = np.arange(1, 4).reshape((1, 3)) * U.kpc
         vxyz_g = np.arange(1, 4).reshape((1, 3)) * U.km / U.s
@@ -219,9 +213,7 @@ class TestSPHSource:
         )
 
     def test_init_skycoords_resets(self, s):
-        """
-        Check that particle coordinate arrays are reset after initialising skycoords.
-        """
+        """Check that particle coordinate arrays reset after initialising skycoords."""
         initial_coords = s.coordinates_g
         s._init_skycoords()
         ax_equal = [
@@ -238,10 +230,7 @@ class TestSPHSource:
         assert not all(ax_equal)
 
     def test_init_pixcoords(self):
-        """
-        Check that pixel coordinates are accurately calculated from angular positions and
-        velocity offsets.
-        """
+        """Check pixel coordinates obtained from angular positions & velocity offsets."""
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         # line up particles 1 per 1kpc = 1arcsec interval in RA and Dec
@@ -289,9 +278,7 @@ class TestSPHSource:
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     def test_sky_location(self, ra, dec):
-        """
-        Check that particle ends up where expected on the sky.
-        """
+        """Check that particle ends up where expected on the sky."""
         from astropy.coordinates import Angle
 
         xyz_g = np.zeros((1, 3)) * U.kpc
@@ -303,9 +290,7 @@ class TestSPHSource:
         assert U.isclose(s.skycoords.dec[0], Angle(dec).wrap_at(180 * U.deg))
 
     def test_apply_mask(self, s):
-        """
-        Check that particle arrays can be masked.
-        """
+        """Check that particle arrays can be masked."""
         particle_fields = ("T_g", "mHI_g", "hsm_g")
         npart_before_mask = s.T_g.size
         particles_before = {k: getattr(s, k) for k in particle_fields}
@@ -332,9 +317,7 @@ class TestSPHSource:
         )
 
     def test_apply_badmask(self, s):
-        """
-        Check that bad masks are rejected.
-        """
+        """Check that bad masks are rejected."""
         with pytest.raises(
             ValueError, match="Mask must have same length as particle arrays."
         ):
@@ -345,9 +328,7 @@ class TestSPHSource:
             s.apply_mask(np.zeros(s.npart, dtype=int))
 
     def test_rotate_axis_angle(self, s):
-        """
-        Test that we can rotate by an axis-angle transformation.
-        """
+        """Test that we can rotate by an axis-angle transformation."""
         assert np.allclose(s.current_rotation, np.eye(3))
         axis = "z"
         angle = 30 * U.deg
@@ -363,9 +344,7 @@ class TestSPHSource:
         assert np.allclose(s.current_rotation, rotmat)
 
     def test_rotate_rotmat(self, s):
-        """
-        Check that we can rotate by a rotmat transformation.
-        """
+        """Check that we can rotate by a rotmat transformation."""
         assert np.allclose(s.current_rotation, np.eye(3))
         angle = 30 * U.deg
         rotmat = np.array(
@@ -386,9 +365,7 @@ class TestSPHSource:
     @pytest.mark.parametrize("az_rot", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("pa", (270 * U.deg, 300 * U.deg, 240 * U.deg))
     def test_rotate_L_coords(self, s, incl, az_rot, pa):
-        """
-        Check that we can rotate automatically to the angular momentum frame.
-        """
+        """Check that we can rotate automatically to the angular momentum frame."""
         assert np.allclose(s.current_rotation, np.eye(3))
         rotmat = L_align(
             s.coordinates_g.get_xyz(),
@@ -409,18 +386,14 @@ class TestSPHSource:
         assert np.allclose(s.current_rotation, rotmat)
 
     def test_composite_rotations(self, s):
-        """
-        Check that multiple rotations in a function call are blocked.
-        """
+        """Check that multiple rotations in a function call are blocked."""
         with pytest.raises(
             ValueError, match="Multiple rotations in a single call not allowed."
         ):
             s.rotate(axis_angle=("x", 30 * U.deg), rotmat=np.eye(3))
 
     def test_translate(self, s):
-        """
-        Check that coordinates translate correctly.
-        """
+        """Check that coordinates translate correctly."""
         for translation_shape in ((3, 1), (1, 3)):
             initial_coords = s.coordinates_g.get_xyz()
             translation = np.ones(3) * U.kpc
@@ -429,9 +402,7 @@ class TestSPHSource:
             assert U.allclose(s.coordinates_g.get_xyz(), expected_coords)
 
     def test_boost(self, s):
-        """
-        Check that velocities translate correctly.
-        """
+        """Check that velocities translate correctly."""
         for translation_shape in ((3, 1), (1, 3)):
             initial_vels = s.coordinates_g.differentials["s"].get_d_xyz()
             translation = np.ones(3) * U.km / U.s
@@ -442,9 +413,7 @@ class TestSPHSource:
             )
 
     def test_save_current_rotation(self, s):
-        """
-        Check that current rotation state can be output to file.
-        """
+        """Check that current rotation state can be output to file."""
         assert np.allclose(s.current_rotation, np.eye(3))
         angle = np.pi / 4
         rotmat = np.array(
@@ -465,9 +434,7 @@ class TestSPHSource:
         assert np.allclose(saved_rotmat, rotmat)
 
     def test_preview(self, s):
-        """
-        Simply check that the preview visualisation runs without error.
-        """
+        """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
@@ -485,9 +452,7 @@ class TestSPHSource:
 
     @pytest.mark.parametrize("ext", ("pdf", "png"))
     def test_preview_save(self, s, ext):
-        """
-        Check that we can output pdf and png preview images.
-        """
+        """Check that we can output pdf and png preview images."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
@@ -500,10 +465,10 @@ class TestSPHSource:
 
 
 class TestEagleSource:
+    """Test the functionality of the EAGLE-specific source module."""
+
     def test_notebook_version(self):
-        """
-        Check that notebook installs current verison of martini.
-        """
+        """Check that notebook installs current verison of martini."""
         with open("examples/martini_eagle.ipynb") as f:
             nb_content = f.read()
         assert (
@@ -518,9 +483,7 @@ class TestEagleSource:
         reason="sample data not locally available",
     )
     def test_eagle_notebook(self):
-        """
-        Check that the EAGLE example notebook runs.
-        """
+        """Check that the EAGLE example notebook runs."""
         pytest.importorskip(
             "nbmake", reason="nbmake (optional dependency) not available"
         )
@@ -546,10 +509,10 @@ class TestEagleSource:
 
 
 class TestSimbaSource:
+    """Test the functionality of the Simba-specific source module."""
+
     def test_notebook_version(self):
-        """
-        Check that notebook installs current verison of martini.
-        """
+        """Check that notebook installs current verison of martini."""
         with open("examples/martini_simba.ipynb") as f:
             nb_content = f.read()
         assert (
@@ -565,9 +528,7 @@ class TestSimbaSource:
         reason="sample data not locally available",
     )
     def test_simba_notebook(self):
-        """
-        Check that the Simba example notebook runs.
-        """
+        """Check that the Simba example notebook runs."""
         pytest.importorskip(
             "nbmake", reason="nbmake (optional dependency) not available"
         )
@@ -592,10 +553,10 @@ class TestSimbaSource:
 
 
 class TestTNGSource:
+    """Test the functionality of the TNG-specific source module."""
+
     def test_notebook_version(self):
-        """
-        Check that notebook installs current verison of martini.
-        """
+        """Check that notebook installs current verison of martini."""
         with open("examples/martini_TNG.ipynb") as f:
             nb_content = f.read()
         assert (
@@ -606,9 +567,7 @@ class TestTNGSource:
         )
 
     def test_tng_notebook(self):
-        """
-        Check that the TNG example notebook runs.
-        """
+        """Check that the TNG example notebook runs."""
         pytest.importorskip(
             "nbmake", reason="nbmake (optional dependency) not available"
         )
@@ -642,10 +601,10 @@ class TestTNGSource:
 
 
 class TestFIRESource:
+    """Test the functionality of the FIRE-specific source module."""
+
     def test_notebook_version(self):
-        """
-        Check that notebook installs current verison of martini.
-        """
+        """Check that notebook installs current verison of martini."""
         with open("examples/martini_fire.ipynb") as f:
             nb_content = f.read()
         assert (
@@ -660,9 +619,7 @@ class TestFIRESource:
         reason="sample data not locally available",
     )
     def test_fire_notebook(self):
-        """
-        Check that the FIRE example notebook runs.
-        """
+        """Check that the FIRE example notebook runs."""
         pytest.importorskip(
             "nbmake", reason="nbmake (optional dependency) not available"
         )
@@ -687,24 +644,36 @@ class TestFIRESource:
 
 
 class TestMagneticumSource:
+    """Test the functionality of the Magneticum-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test Magneticum source module if publicly released."""
         raise NotImplementedError
 
 
 class TestSOSource:
+    """Test the functionality of the simobj-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test SOSource source module if desired."""
         raise NotImplementedError
 
 
 class TestSWIFTGalaxySource:
+    """Test the functionality of the swiftgalaxy-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test SWIFTGalaxy source module."""
         raise NotImplementedError
 
 
 class TestColibreSource:
+    """Test the functionality of the Colibre-specific source module."""
+
     @pytest.mark.xfail
     def test_stuff(self):
+        """Reminder to test Colibre-specific source module if publicly released."""
         raise NotImplementedError

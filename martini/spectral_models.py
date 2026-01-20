@@ -1,12 +1,13 @@
-"""
-Provides classes for modelling the 21-cm spectral line emitted by a SPH particle.
-"""
+"""Provides classes for modelling the 21-cm spectral line emitted by a SPH particle."""
 
+from types import EllipsisType
 import numpy as np
 import astropy.units as U
 from astropy import constants as C
 from scipy.special import erf
 from abc import ABCMeta, abstractmethod
+from martini.datacube import DataCube
+from martini.sources import SPHSource
 
 
 class _BaseSpectrum(metaclass=ABCMeta):
@@ -37,7 +38,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
     ----------
     ncpu : int, optional
         Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided. (Default: ``None``)
+        provided.
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -49,13 +50,17 @@ class _BaseSpectrum(metaclass=ABCMeta):
     martini.spectral_models.DiracDeltaSpectrum
     """
 
-    def __init__(self, ncpu=None, spec_dtype=np.float64):
+    spectra: U.Quantity[U.Jy] | None
+    ncpu: int
+    spec_dtype: type
+
+    def __init__(self, ncpu: int | None = None, spec_dtype: type = np.float64) -> None:
         self.ncpu = ncpu if ncpu is not None else 1
         self.spectra = None
         self.spec_dtype = spec_dtype
         return
 
-    def init_spectra(self, source, datacube):
+    def init_spectra(self, source: SPHSource, datacube: DataCube) -> None:
         """
         Pre-compute the spectrum of each particle.
 
@@ -81,9 +86,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
             :class:`~martini.datacube.DataCube` object defining the observational
             parameters, including spectral channels.
         """
-
         self.channel_edges = datacube.velocity_channel_edges
-        channel_widths = np.abs(np.diff(self.channel_edges).to(U.km * U.s**-1))
+        channel_widths = np.abs(np.diff(self.channel_edges.to(U.km * U.s**-1)))
+        assert source.skycoords is not None
         self.vmids = source.skycoords.radial_velocity
         A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
 
@@ -99,9 +104,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
                         [
                             (
                                 np.s_[
-                                    icpu
-                                    * len(self.vmids)
-                                    // self.ncpu : (icpu + 1)
+                                    icpu * len(self.vmids) // self.ncpu : (icpu + 1)
                                     * len(self.vmids)
                                     // self.ncpu
                                 ]
@@ -121,7 +124,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
             self.spectra, channel_widths.astype(self.spec_dtype), out=self.spectra
         )
 
-        def MHI_to_Jy_inplace(x):
+        def MHI_to_Jy_inplace(x: U.Quantity[U.Msun]) -> None:
             """
             Apply the HI mass to flux density conversion, with no memory overhead.
 
@@ -143,9 +146,14 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         return
 
-    def evaluate_spectra(self, source, datacube, mask=np.s_[...]):
+    def evaluate_spectra(
+        self,
+        source: SPHSource,
+        datacube: DataCube,
+        mask: slice | EllipsisType = np.s_[...],
+    ) -> U.Quantity[U.dimensionless_unscaled]:
         """
-        The main portion of the calculation of the spectra.
+        Evaluate the spectra.
 
         Separated into this function so that it can be called by a parallel
         process pool.
@@ -161,13 +169,17 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         mask : slice, optional
             Slice defining the subset of particles to operate on.
-            (Default: ``np.s_[...]``)
+
+        Returns
+        -------
+        ~astropy.units.Quanitity
+            The evaluated dimensionless spectra.
         """
         vmids = self.vmids[mask]
         extra_data = self.get_spectral_function_extra_data(source, datacube, mask=mask)
         if all(np.diff(self.channel_edges) > 0):
-            lower_edges_slice = np.s_[:-1]
-            upper_edges_slice = np.s_[1:]
+            lower_edges_slice: slice = np.s_[:-1]
+            upper_edges_slice: slice = np.s_[1:]
         elif all(np.diff(self.channel_edges) < 0):
             lower_edges_slice = np.s_[1:]
             upper_edges_slice = np.s_[:-1]
@@ -188,10 +200,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
         )
 
     @abstractmethod
-    def half_width(self, source):
+    def half_width(self, source: SPHSource) -> U.Quantity[U.km / U.s]:
         """
-        Abstract method; calculate the half-width of the spectrum, either globally or
-        per-particle.
+        Abstract method; get the half-width of the spectrum, globally or per-particle.
 
         Parameters
         ----------
@@ -199,10 +210,16 @@ class _BaseSpectrum(metaclass=ABCMeta):
             The source object will be provided to allow access to particle
             properties.
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
-    def spectral_function(self, a, b, vmids, extra_data=None):
+    def spectral_function(
+        self,
+        a: U.Quantity[U.km / U.s],
+        b: U.Quantity[U.km / U.s],
+        vmids: U.Quantity[U.km / U.s],
+        extra_data: dict | None = None,
+    ) -> U.Quantity[U.dimensionless_unscaled]:
         """
         Abstract method; implementation of the spectral model.
 
@@ -231,12 +248,15 @@ class _BaseSpectrum(metaclass=ABCMeta):
         --------
         martini.spectral_models._BaseSpectrum.get_spectral_function_extra_data
         """
-
-        pass
+        pass  # pragma: no cover
 
     def get_spectral_function_extra_data(
-        self, source, datacube, mask=np.s_[...], extra_data=None
-    ):
+        self,
+        source: SPHSource,
+        datacube: DataCube,
+        mask: slice | EllipsisType = np.s_[...],
+        extra_data: dict[str, U.Quantity] | None = None,
+    ) -> dict[str, U.Quantity]:
         """
         Initialize extra data needed by spectral function. Default is no extra data.
 
@@ -258,7 +278,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         mask : slice, optional
             Slice defining the subset of particles to operate on.
-            (Default: ``np.s_[...]``)
 
         extra_data : dict, optional
             ``dict`` containing additional data arrays needed for the spectral function
@@ -267,7 +286,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Returns
         -------
-        out : dict
+        dict
             The extra data that have been read in and prepared for use.
 
         See Also
@@ -283,7 +302,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
 
 class GaussianSpectrum(_BaseSpectrum):
-    """
+    r"""
     Class implementing a Gaussian model for the spectrum of the HI line.
 
     The line is modelled as a Gaussian of either fixed width, or of width
@@ -298,11 +317,11 @@ class GaussianSpectrum(_BaseSpectrum):
         Width of the Gaussian modelling the line (constant for all particles),
         or specify ``"thermal"`` for width equal to :math:`\\sqrt{k_B T / m_p}` where
         :math:`k_B` is Boltzmann's constant, :math:`T` is the particle temperature and
-        :math:`m_p` is the particle mass. (Default: ``7 U.km * U.s**-1``)
+        :math:`m_p` is the particle mass.
 
     ncpu : int, optional
         Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided. (Default: ``None``)
+        provided.
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -314,15 +333,28 @@ class GaussianSpectrum(_BaseSpectrum):
     martini.spectral_models.DiracDeltaSpectrum
     """
 
-    def __init__(self, sigma=7.0 * U.km * U.s**-1, ncpu=None, spec_dtype=np.float64):
+    def __init__(
+        self,
+        sigma: U.Quantity[U.km / U.s] = 7.0 * U.km * U.s**-1,
+        ncpu: int | None = None,
+        spec_dtype: type = np.float64,
+    ) -> None:
         self.sigma_mode = sigma
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
 
         return
 
-    def spectral_function(self, a, b, vmids, extra_data=None):
+    def spectral_function(
+        self,
+        a: U.Quantity[U.km / U.s],
+        b: U.Quantity[U.km / U.s],
+        vmids: U.Quantity[U.km / U.s],
+        extra_data: dict[str, U.Quantity] | None = None,
+    ) -> U.Quantity[U.dimensionless_unscaled]:
         """
-        Evaluate a Gaussian integral in a channel. Requires sigma to be available from
+        Evaluate a Gaussian integral in a channel.
+
+        Requires sigma to be available from
         :attr:`~martini.spectral_models.GaussianSpectrum.spectral_function_extra_data`.
 
         Parameters
@@ -345,15 +377,18 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             The evaluated spectral model (dimensionless).
         """
-
         assert extra_data is not None
         sigma = extra_data["sigma"]
 
         # work in-place as much as possible to limit memory usage:
-        def term_in_place(x, vmids, sigma):
+        def term_in_place(
+            x: U.Quantity[U.km / U.s],
+            vmids: U.Quantity[U.km / U.s],
+            sigma: U.Quantity[U.km / U.s],
+        ) -> U.Quantity[U.dimensionless_unscaled]:
             """
             Evaluate partial expression for spectrum, working in-place in memory.
 
@@ -370,7 +405,7 @@ class GaussianSpectrum(_BaseSpectrum):
 
             Returns
             -------
-            out : ~astropy.units.Quantity
+            ~astropy.units.Quantity
                 :class:`~astropy.units.Quantity` (dimensionless).
             """
             term = x - vmids  # individually small, broadcast 2D array here
@@ -390,10 +425,16 @@ class GaussianSpectrum(_BaseSpectrum):
         return spectrum
 
     def get_spectral_function_extra_data(
-        self, source, datacube, mask=np.s_[...], extra_data=None
-    ):
+        self,
+        source: SPHSource,
+        datacube: DataCube,
+        mask: slice | EllipsisType = np.s_[...],
+        extra_data: dict[str, U.Quantity] | None = None,
+    ) -> dict[str, U.Quantity]:
         """
-        Helper function to expose particle velocity dispersions to
+        Expose particle velocity dispersions.
+
+        Access to these is needed by
         :meth:`~martini.spectral_models.GaussianSpectrum.spectral_function`.
 
         Parameters
@@ -406,7 +447,6 @@ class GaussianSpectrum(_BaseSpectrum):
 
         mask : slice, optional
             Slice defining the subset of particles to operate on.
-            (Default: ``np.s_[...]``)
 
         extra_data : dict, optional
             ``dict`` containing arrays of extra data for the spectral function
@@ -414,19 +454,17 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Returns
         -------
-        out : dict
+        dict
             The extra data that have been read in and prepared for use.
         """
-
-        extra_data = dict(sigma=self.half_width(source))
+        extra_data = {"sigma": self.half_width(source)}
         return super().get_spectral_function_extra_data(
             source, datacube, mask=mask, extra_data=extra_data
         )
 
-    def half_width(self, source):
+    def half_width(self, source: SPHSource) -> U.Quantity[U.km / U.s]:
         """
-        Calculate 1D velocity dispersions from particle temperatures, or return
-        constant.
+        Get 1D velocity dispersions from particle temperatures, or return constant.
 
         Parameters
         ----------
@@ -435,11 +473,10 @@ class GaussianSpectrum(_BaseSpectrum):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Velocity dispersion (constant, or per particle).
         """
-
         if self.sigma_mode == "thermal":
             # 3D velocity dispersion of an ideal gas is sqrt(3 * kB * T / mp)
             # So 1D velocity dispersion is sqrt(kB * T / mp)
@@ -459,18 +496,24 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     ----------
     ncpu : int, optional
         Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided. (Default: ``None``)
+        provided.
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
     """
 
-    def __init__(self, ncpu=None, spec_dtype=np.float64):
+    def __init__(self, ncpu: int | None = None, spec_dtype: type = np.float64) -> None:
         super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
         return
 
-    def spectral_function(self, a, b, vmids, extra_data=None):
+    def spectral_function(
+        self,
+        a: U.Quantity[U.km / U.s],
+        b: U.Quantity[U.km / U.s],
+        vmids: U.Quantity[U.km / U.s],
+        extra_data: dict[str, U.Quantity] | None = None,
+    ) -> U.Quantity[U.dimensionless_unscaled]:
         """
         Evaluate a Dirac-delta function in a channel.
 
@@ -494,11 +537,13 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             The evaluated spectral model (dimensionless).
         """
 
-        def term_in_place(x1, x2):
+        def term_in_place(
+            x1: U.Quantity[U.km / U.s], x2: U.Quantity[U.km / U.s]
+        ) -> U.Quantity[U.dimensionless_unscaled]:
             """
             Evaluate partial expression for spectrum, working in-place in memory.
 
@@ -512,7 +557,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
             Returns
             -------
-            out : ~astropy.units.Quantity
+            ~astropy.units.Quantity
                 :class:`~astropy.units.Quantity` (dimensionless).
             """
             term = x1 - x2  # individually small, broadcast 2D array here
@@ -524,7 +569,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         np.multiply(spectrum, term_in_place(b, vmids), out=spectrum)
         return spectrum
 
-    def half_width(self, source):
+    def half_width(self, source: SPHSource) -> U.Quantity[U.km / U.s]:
         """
         Dirac-delta function has 0 width.
 
@@ -535,9 +580,8 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
         Returns
         -------
-        out : ~astropy.units.Quantity
+        ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of velocity.
             Velocity dispersion of ``0 * U.km * U.s**-1``.
         """
-
         return 0 * U.km * U.s**-1
