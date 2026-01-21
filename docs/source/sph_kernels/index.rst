@@ -73,17 +73,17 @@ to the size of the pixels. The smoothing lengths are usually given in physical l
 the comparison also involves the distance from the observer. There are 3 regimes:
 
  - When the smoothing scale is much larger than a pixel (so a particle's flux will be
-distributed across many pixels) the approximate integrals are very accurate, so these are
-preferentially used.
+   distributed across many pixels) the approximate integrals are very accurate, so these
+   are preferentially used.
  - When the smoothing scale is less than half a pixel (so a particle's flux will on
-average land entirely in one pixel), MARTINI assigns all the flux from a particle to the
-pixel that its centre is enclosed in.
+   average land entirely in one pixel), MARTINI assigns all the flux from a particle to
+   the pixel that its centre is enclosed in.
  - In the intermediate case MARTINI substitutes the actual SPH kernel with a Gaussian
-kernel truncated at 6 standard deviations. The line integral through this kernel is
-evaluated accurately enough to guarantee the promised accuracy for smoothing length to
-pixel size ratios down to 0.5, below which the flux is instead assigned to a single pixel
-as explained in the previous bullet point. The change in shape should usually be barely
-noticeable since the kernel is so sparsely sampled in this regime.
+   kernel truncated at 6 standard deviations. The line integral through this kernel is
+   evaluated accurately enough to guarantee the promised accuracy for smoothing length to
+   pixel size ratios down to 0.5, below which the flux is instead assigned to a single
+   pixel as explained in the previous bullet point. The change in shape should usually be
+   barely noticeable since the kernel is so sparsely sampled in this regime.
 
 All of this is implemented in the :class:`martini.sph_kernels._AdaptiveKernel` class, from
 which the kernels listed above inherit. For advanced use, this class can be initialised
