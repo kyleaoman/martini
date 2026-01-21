@@ -8,6 +8,7 @@
 .\#*
 /docs/build/
 .ipynb_checkpoints
+examples/RefL0025N0376
 examples/RefL0025N0376/*
 examples/m11e_res7100/*
 examples/*.fits
