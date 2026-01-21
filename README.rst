@@ -108,7 +108,7 @@ If your use of MARTINI leads to a publication, please cite the `JOSS paper`_ (`A
         adsnote = {Provided by the SAO/NASA Astrophysics Data System}
     }
 
-Work that has used MARTINI includes: `Oman et al. (2019)`_, `Mancera Piña et al. (2019)`_, `Chauhan et al. (2019)`_, `Mancera Piña et al. (2020)`_, `Santos-Santos et al. (2020)`_, `Glowacki et al. (2021)`_, `Bilimogga et al. (2022)`_, `Glowacki et al. (2022)`_, `Roper et al. (2023)`_, `Oman et al. (2024)`_, `Elson (2024)`_ and `Perron-Cormier et al. (2025)`_. The ALMASim_ package (`Guglielmetti et al. 2023`_) builds on some of MARTINI's functionality. If your work has used MARTINI and is not listed here, please let me know (by email_ or github issue).
+Work that has used MARTINI includes: `Oman et al. (2019)`_, `Mancera Piña et al. (2019)`_, `Chauhan et al. (2019)`_, `Mancera Piña et al. (2020)`_, `Santos-Santos et al. (2020)`_, `Glowacki et al. (2021)`_, `Bilimogga et al. (2022)`_, `Glowacki et al. (2022)`_, `Roper et al. (2023)`_, `Oman et al. (2024)`_, `Elson (2024)`_, `Perron-Cormier et al. (2025)`_, `Lin et al. (2026)`_ and `Rabyang & Elson (2026)`_. The ALMASim_ package (`Guglielmetti et al. 2023`_) builds on some of MARTINI's functionality. If your work has used MARTINI and is not listed here, please let me know (by email_ or github issue).
 
 .. _JOSS paper: https://doi.org/10.21105/joss.06860
 .. _ADS listing: https://ui.adsabs.harvard.edu/abs/2024JOSS....9.6860O
@@ -132,6 +132,8 @@ Work that has used MARTINI includes: `Oman et al. (2019)`_, `Mancera Piña et al
 .. _Guglielmetti et al. 2023: https://doi.org/10.3390/psf2023009018
 .. _Elson (2024): https://doi.org/10.1093/mnras/stae2145
 .. _Perron-Cormier et al. (2025): https://doi.org/10.3847/1538-3881/ada567
+.. _Lin et al. (2026): https://doi.org/10.3847/1538-4357/ae29b7
+.. _Rabyang & Elson (2026): https://doi.org/10.48550/arXiv.2512.04582
 .. _email: mailto:kyle.a.oman@durham.ac.uk
 
 .. CITING_END_LABEL
