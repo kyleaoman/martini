@@ -580,7 +580,6 @@ class SPHSource(object):
                 else (self.hsm_g[mask].to_value(U.kpc) / lim)
             )
         size = 300 * size_scale if point_scaling == "auto" else 10
-        print(f"{hsm_factor=} {size=}")
         figure = plt.figure(fig, figsize=(12, 4))
         figure.clf()
         figure.suptitle(title)

@@ -35,7 +35,14 @@ def check_wcs_match(wcs1, wcs2):
 def test_deprecation_warnings():
     """Check that we get deprecation warnings where we expect them."""
     with pytest.warns(DeprecationWarning):
-        dc = DataCube(velocity_centre=0 * U.km / U.s)
+        dc = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+            velocity_centre=0 * U.km / U.s,
+        )
     with pytest.warns(DeprecationWarning):
         dc.velocity_channels()
     with pytest.warns(DeprecationWarning):
@@ -48,16 +55,35 @@ class TestDataCube:
     def test_invalid_channel_units(self):
         """Check that we get an error if the channel_width doesn't have valid units."""
         with pytest.raises(ValueError, match="Channel width must have"):
-            DataCube(channel_width=1 * U.K)
+            DataCube(
+                n_px_x=16,
+                n_px_y=16,
+                n_channels=16,
+                px_size=15 * U.arcsec,
+                channel_width=1 * U.K,
+            )
 
     def test_invalid_specsys(self):
         """Check that we get an error for an invalid specsys."""
         with pytest.raises(ValueError, match="Supported specsys values are"):
-            DataCube(specsys="rubbish")
+            DataCube(
+                n_px_x=16,
+                n_px_y=16,
+                n_channels=16,
+                px_size=15 * U.arcsec,
+                channel_width=4 * U.km / U.s,
+                specsys="rubbish",
+            )
 
     def test_datacube_dimensions(self):
         """Check that dimensions are as requested."""
-        datacube = DataCube(n_px_x=10, n_px_y=11, n_channels=12)
+        datacube = DataCube(
+            n_px_x=10,
+            n_px_y=11,
+            n_channels=12,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+        )
         expected_shape = (10, 11, 12, 1) if datacube.stokes_axis else (10, 11, 12)
         assert datacube._array.shape == expected_shape
 
@@ -255,6 +281,7 @@ class TestDataCube:
             "n_px_x": 16,
             "n_px_y": 16,
             "n_channels": 16,
+            "px_size": 15 * U.arcsec,
         }
         spectral_centre = 3 * 70 * U.km / U.s
         channel_width = 4 * U.km / U.s

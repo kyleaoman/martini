@@ -239,6 +239,8 @@ class TestMartini:
             n_px_y=16,
             n_channels=16,
             spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
         )
         beam = GaussianBeam()
         noise = None
@@ -500,11 +502,11 @@ class TestMartini:
         # with default arguments
         with pytest.warns(UserWarning, match="singular"):
             # warning: single-particle source is used, so axis limits try to be equal
-            m_init.preview()
+            m_init.preview(fig=5)
         # with non-default arguments
         m_init.preview(
             max_points=1000,
-            fig=2,
+            fig=6,
             lim="datacube",
             vlim="datacube",
             point_scaling="fixed",
@@ -925,11 +927,11 @@ class TestGlobalProfile:
         # with default arguments
         with pytest.warns(UserWarning, match="singular"):
             # warning: single-particle source is used, so axis limits try to be equal
-            gp.preview()
+            gp.preview(fig=7)
         # with non-default arguments
         gp.preview(
             max_points=1000,
-            fig=2,
+            fig=8,
             lim="datacube",
             vlim="datacube",
             point_scaling="fixed",

@@ -450,6 +450,8 @@ def m(request: FixtureRequest) -> Martini:
         n_px_y=16,
         n_channels=16,
         spectral_centre=spectral_centre,
+        px_size=15.0 * U.arcsec,
+        channel_width=4.0 * U.km / U.s,
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
@@ -488,6 +490,8 @@ def m_init() -> Martini:
         n_px_y=16,
         n_channels=16,
         spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        px_size=15.0 * U.arcsec,
+        channel_width=4.0 * U.km / U.s,
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = GaussianNoise(rms=1.0e-9 * U.Jy * U.beam**-1, seed=0)
@@ -523,6 +527,8 @@ def m_nn() -> Martini:
         n_px_y=16,
         n_channels=16,
         spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        px_size=15.0 * U.arcsec,
+        channel_width=4.0 * U.km / U.s,
     )
     beam = GaussianBeam(bmaj=20.0 * U.arcsec, bmin=15.0 * U.arcsec)
     noise = None
@@ -582,6 +588,7 @@ def dc_random(request: FixtureRequest) -> Martini:
         channel_width=channel_width,
         spectral_centre=spectral_centre,
         stokes_axis=stokes_axis,
+        px_size=15.0 * U.arcsec,
     )
 
     dc._array[...] = (
@@ -671,6 +678,7 @@ def dc_zeros(request: FixtureRequest) -> DataCube:
         channel_width=channel_width,
         spectral_centre=spectral_centre,
         stokes_axis=stokes_axis,
+        px_size=15.0 * U.arcsec,
     )
 
     yield dc
@@ -692,6 +700,7 @@ def adaptive_kernel_test_datacube() -> DataCube:
         n_channels=16,
         px_size=((1 * U.kpc) / (3 * U.Mpc)).to(U.arcsec, U.dimensionless_angles()),
         spectral_centre=3 * 70 * U.km / U.s,
+        channel_width=4.0 * U.km / U.s,
     )
 
     yield dc
@@ -741,7 +750,7 @@ def s() -> SPHSource:
         "T_g": T_g,
         "hsm_g": hsm_g,
     }
-    s = SPHSource(**particles)
+    s = SPHSource(**particles, distance=3 * U.Mpc)
 
     yield s
 
@@ -816,6 +825,7 @@ def gp() -> GlobalProfile:
         spectral_model=spectral_model,
         n_channels=16,
         spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+        channel_width=4 * U.km / U.s,
     )
     m.insert_source_in_spectrum()
     yield m

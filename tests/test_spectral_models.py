@@ -19,7 +19,12 @@ class TestGaussianSpectrum:
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
+            n_px_x=256,
+            n_px_y=256,
+            px_size=15 * U.arcsec,
+            n_channels=64,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
         )
         spectral_model.init_spectra(source, datacube)
         expected_flux = (
@@ -49,7 +54,12 @@ class TestGaussianSpectrum:
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
+            n_px_x=256,
+            n_px_y=256,
+            px_size=15 * U.arcsec,
+            n_channels=64,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
         )
         extra_data = spectral_model.get_spectral_function_extra_data(source, datacube)
         spectrum = spectral_model.spectral_function(
@@ -69,7 +79,12 @@ class TestGaussianSpectrum:
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
+            n_px_x=16,
+            n_px_y=16,
+            px_size=15 * U.arcsec,
+            n_channels=64,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
         )
         extra_data = spectral_model.get_spectral_function_extra_data(source, datacube)
         assert set(extra_data.keys()) == {"sigma"}
@@ -89,7 +104,12 @@ class TestDiracDeltaSpectrum:
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
+            n_px_x=16,
+            n_px_y=16,
+            px_size=15 * U.arcsec,
+            n_channels=64,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
         )
         spectral_model.init_spectra(source, datacube)
         expected_flux = (
@@ -110,7 +130,12 @@ class TestDiracDeltaSpectrum:
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
+            n_px_x=16,
+            n_px_y=16,
+            px_size=15 * U.arcsec,
+            n_channels=64,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
         )
         spectrum = spectral_model.spectral_function(
             datacube.velocity_channel_edges[1:],
@@ -124,7 +149,12 @@ class TestDiracDeltaSpectrum:
         source = single_particle_source()
         source._init_skycoords()
         datacube = DataCube(
-            n_channels=64, channel_width=4 * U.km / U.s, spectral_centre=source.vsys
+            n_px_x=16,
+            n_px_y=16,
+            px_size=15 * U.arcsec,
+            n_channels=64,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
         )
         spectral_model = DiracDeltaSpectrum()
         extra_data = spectral_model.get_spectral_function_extra_data(source, datacube)
@@ -138,7 +168,13 @@ def test_spectrum_precision(SpectralModel, dtype, single_particle_source):
     source = single_particle_source()
     source._init_skycoords()
     spectral_model = SpectralModel(spec_dtype=dtype)
-    datacube = DataCube()
+    datacube = DataCube(
+        n_px_x=256,
+        n_px_y=256,
+        n_channels=64,
+        px_size=15.0 * U.arcsec,
+        channel_width=4.0 * U.km / U.s,
+    )
     spectral_model.init_spectra(source, datacube)
     assert spectral_model.spectra.dtype == dtype
 
@@ -153,7 +189,13 @@ def test_parallel_spectra(SpectralModel, cross_source):
     source._init_skycoords()
     spectral_model_serial = SpectralModel()
     spectral_model_parallel = SpectralModel(ncpu=2)
-    datacube = DataCube()
+    datacube = DataCube(
+        n_px_x=256,
+        n_px_y=256,
+        n_channels=64,
+        px_size=15.0 * U.arcsec,
+        channel_width=4.0 * U.km / U.s,
+    )
     spectral_model_serial.init_spectra(source, datacube)
     spectral_model_parallel.init_spectra(source, datacube)
     assert U.allclose(spectral_model_serial.spectra, spectral_model_parallel.spectra)

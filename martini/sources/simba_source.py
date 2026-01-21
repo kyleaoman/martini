@@ -96,12 +96,12 @@ class SimbaSource(SPHSource):
 
     def __init__(
         self,
-        *,
         snapPath: str,
         snapName: str,
         groupPath: str,
         groupName: str,
         groupID: int,
+        *,
         aperture: U.Quantity[U.kpc] = 50.0 * U.kpc,
         distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,

@@ -175,10 +175,10 @@ class TNGSource(SPHSource):
 
     def __init__(
         self,
-        *,
         simulation: str,
         snapNum: int,
         subID: int,
+        *,
         api_key: str | None = None,
         cutout_dir: str | None = None,
         distance: U.Quantity[U.Mpc],

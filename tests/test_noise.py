@@ -14,7 +14,13 @@ class TestNoise:
         """Check that we generate noise with correct shape."""
         rms = 1.0 * U.Jy * U.beam**-1
         noise_generator = GaussianNoise(rms=rms)
-        datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
+        datacube = DataCube(
+            n_px_x=256,
+            n_px_y=256,
+            n_channels=64,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+        )
         beam = GaussianBeam()
         noise = noise_generator.generate(datacube, beam)
         assert noise.shape == datacube._array.shape
@@ -33,7 +39,13 @@ class TestNoise:
         """Check that if we use a seed we get repeatable results."""
         rms = 1.0 * U.Jy * U.beam**-1
         seed = 0
-        datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
+        datacube = DataCube(
+            n_px_x=256,
+            n_px_y=256,
+            n_channels=64,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+        )
         beam = GaussianBeam()
         noise_generator1 = GaussianNoise(rms=rms, seed=seed)
         noise_generator2 = GaussianNoise(rms=rms, seed=seed)
@@ -46,7 +58,13 @@ class TestNoise:
         """Check that if we use seed=None we get unpredictable results."""
         rms = 1.0 * U.Jy * U.beam**-1
         seed = None
-        datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
+        datacube = DataCube(
+            n_px_x=256,
+            n_px_y=256,
+            n_channels=64,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+        )
         beam = GaussianBeam()
         noise_generator1 = GaussianNoise(rms=rms, seed=seed)
         noise_generator2 = GaussianNoise(rms=rms, seed=seed)
@@ -59,7 +77,13 @@ class TestNoise:
         """Check that when we reset the rng we get the same results."""
         rms = 1.0 * U.Jy * U.beam**-1
         seed = 0
-        datacube = DataCube(n_px_x=256, n_px_y=256, n_channels=64)
+        datacube = DataCube(
+            n_px_x=256,
+            n_px_y=256,
+            n_channels=64,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+        )
         beam = GaussianBeam()
         noise_generator = GaussianNoise(rms=rms, seed=seed)
         noise1 = noise_generator.generate(datacube, beam)

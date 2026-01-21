@@ -89,13 +89,17 @@ class TestSPHSource:
         mHI_g = np.zeros(4) * U.Msun
         row_coords = np.zeros((4, 3)) * U.kpc
         row_vels = np.zeros((4, 3)) * U.km / U.s
-        s = SPHSource(xyz_g=row_coords, vxyz_g=row_vels, mHI_g=mHI_g)
+        s = SPHSource(
+            xyz_g=row_coords, vxyz_g=row_vels, mHI_g=mHI_g, distance=3 * U.Mpc
+        )
         assert s.coordinates_g.shape == (4,)
         assert s.coordinates_g.differentials["s"].shape == (4,)
         assert s.npart == 4
         col_coords = np.zeros((3, 4)) * U.kpc
         col_vels = np.zeros((3, 4)) * U.km / U.s
-        s = SPHSource(xyz_g=col_coords, vxyz_g=col_vels, mHI_g=mHI_g)
+        s = SPHSource(
+            xyz_g=col_coords, vxyz_g=col_vels, mHI_g=mHI_g, distance=3 * U.Mpc
+        )
         assert s.coordinates_g.shape == (4,)
         assert s.coordinates_g.differentials["s"].shape == (4,)
         assert s.npart == 4
@@ -105,7 +109,11 @@ class TestSPHSource:
         symm_vels = np.zeros((3, 3)) * U.km / U.s
         symm_vels[0, 1] = 1 * U.km / U.s
         s = SPHSource(
-            xyz_g=symm_coords, vxyz_g=symm_vels, mHI_g=mHI_g, coordinate_axis=0
+            xyz_g=symm_coords,
+            vxyz_g=symm_vels,
+            mHI_g=mHI_g,
+            coordinate_axis=0,
+            distance=3 * U.Mpc,
         )
         assert s.coordinates_g.shape == (3,)
         assert s.coordinates_g.differentials["s"].shape == (3,)
@@ -113,7 +121,11 @@ class TestSPHSource:
         assert s.coordinates_g.differentials["s"].d_x[1] == 1 * U.km / U.s
         assert s.npart == 3
         s = SPHSource(
-            xyz_g=symm_coords, vxyz_g=symm_vels, mHI_g=mHI_g, coordinate_axis=1
+            xyz_g=symm_coords,
+            vxyz_g=symm_vels,
+            mHI_g=mHI_g,
+            coordinate_axis=1,
+            distance=3 * U.Mpc,
         )
         assert s.coordinates_g.shape == (3,)
         assert s.coordinates_g.shape == (3,)
@@ -121,9 +133,13 @@ class TestSPHSource:
         assert s.coordinates_g.differentials["s"].d_y[0] == 1 * U.km / U.s
         assert s.npart == 3
         with pytest.raises(RuntimeError, match="cannot guess coordinate_axis"):
-            SPHSource(xyz_g=symm_coords, vxyz_g=symm_vels, mHI_g=mHI_g)
+            SPHSource(
+                xyz_g=symm_coords, vxyz_g=symm_vels, mHI_g=mHI_g, distance=3 * U.Mpc
+            )
         with pytest.raises(ValueError, match="must have matching shapes"):
-            SPHSource(xyz_g=row_coords, vxyz_g=col_vels, mHI_g=mHI_g)
+            SPHSource(
+                xyz_g=row_coords, vxyz_g=col_vels, mHI_g=mHI_g, distance=3 * U.Mpc
+            )
 
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
@@ -284,7 +300,9 @@ class TestSPHSource:
         xyz_g = np.zeros((1, 3)) * U.kpc
         vxyz_g = np.zeros((1, 3)) * U.km / U.s
         mHI_g = np.zeros(1) * U.Msun
-        s = SPHSource(xyz_g=xyz_g, vxyz_g=vxyz_g, ra=ra, dec=dec, mHI_g=mHI_g)
+        s = SPHSource(
+            xyz_g=xyz_g, vxyz_g=vxyz_g, ra=ra, dec=dec, mHI_g=mHI_g, distance=3 * U.Mpc
+        )
         s._init_skycoords()
         assert U.isclose(s.skycoords.ra[0], Angle(ra).wrap_at(360 * U.deg))
         assert U.isclose(s.skycoords.dec[0], Angle(dec).wrap_at(180 * U.deg))
@@ -439,7 +457,7 @@ class TestSPHSource:
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
         # with default arguments
-        s.preview()
+        s.preview(fig=1)
         # with non-default arguments
         s.preview(
             max_points=1000,
@@ -457,8 +475,9 @@ class TestSPHSource:
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
         testfile = f"preview.{ext}"
+        fig = {"pdf": 3, "png": 4}[ext]
         try:
-            s.preview(save=testfile)
+            s.preview(fig=fig, save=testfile)
         finally:
             if os.path.exists(testfile):
                 os.remove(testfile)
