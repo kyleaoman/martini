@@ -57,35 +57,36 @@ class DataCube(object):
 
     Parameters
     ----------
-    n_px_x : int, optional
+    n_px_x : int
         Pixel count along the x (RA) axis. Even integers strongly preferred.
 
-    n_px_y : int, optional
+    n_px_y : int
         Pixel count along the y (Dec) axis. Even integers strongly preferred.
 
-    n_channels : int, optional
+    n_channels : int
         Number of channels along the spectral axis.
 
-    px_size : ~astropy.units.Quantity, optional
+    px_size : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Angular scale of one pixel.
 
-    channel_width : ~astropy.units.Quantity, optional
+    channel_width : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
         frequency.
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
-        Velocity (or frequency) of the centre along the spectral axis.
+        Velocity (or frequency) of the centre along the spectral axis. Defaults to
+        0 km/s, normally set this to the systemic velocity of the source.
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Right ascension of the cube centroid.
+        Right ascension of the cube centroid. Defaults to 0 degrees.
 
     dec : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of angle.
-        Declination of the cube centroid.
+        Declination of the cube centroid. Defaults to 0 degrees.
 
     stokes_axis : bool, optional
         Whether the datacube should be initialized with a Stokes' axis.
@@ -155,11 +156,12 @@ class DataCube(object):
 
     def __init__(
         self,
-        n_px_x: int = 256,
-        n_px_y: int = 256,
-        n_channels: int = 64,
-        px_size: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
-        channel_width: U.Quantity[U.km * U.s**-1] = 4.0 * U.km * U.s**-1,
+        *,
+        n_px_x: int,
+        n_px_y: int,
+        n_channels: int,
+        px_size: U.Quantity[U.arcsec],
+        channel_width: U.Quantity[U.km * U.s**-1],
         spectral_centre: U.Quantity[U.km * U.s**-1] = 0.0 * U.km * U.s**-1,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
@@ -739,14 +741,14 @@ class DataCube(object):
             Copy of the :class:`~martini.datacube.DataCube` object.
         """
         copy = type(self)(
-            self.n_px_x,
-            self.n_px_y,
-            self.n_channels,
-            self.px_size,
-            self.channel_width,
-            self.spectral_centre,
-            self.ra,
-            self.dec,
+            n_px_x=self.n_px_x,
+            n_px_y=self.n_px_y,
+            n_channels=self.n_channels,
+            px_size=self.px_size,
+            channel_width=self.channel_width,
+            spectral_centre=self.spectral_centre,
+            ra=self.ra,
+            dec=self.dec,
         )
         copy.padx, copy.pady = self.padx, self.pady
         copy._wcs = self.wcs.copy()
@@ -890,15 +892,15 @@ class _GlobalProfileDataCube(DataCube):
 
     Parameters
     ----------
-    n_channels : int, optional
+    n_channels : int
         Number of channels along the spectral axis.
 
-    channel_width : ~astropy.units.Quantity, optional
+    channel_width : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
         frequency.
 
-    spectral_centre : ~astropy.units.Quantity, optional
+    spectral_centre : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
         Velocity (or frequency) of the centre along the spectral axis.
 
@@ -913,11 +915,10 @@ class _GlobalProfileDataCube(DataCube):
 
     def __init__(
         self,
-        n_channels: int = 64,
-        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 4.0 * U.km * U.s**-1,
-        spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0.0
-        * U.km
-        * U.s**-1,
+        *,
+        n_channels: int,
+        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
+        spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
         specsys: str = "icrs",
         velocity_centre: None = None,  # deprecated
     ) -> None:

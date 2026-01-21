@@ -28,7 +28,7 @@ constant, for example:
 
 The default is a constant 7 km/s line width, corresponding to a FWHM of about 16 km/s.
 Alternatively, the width of the Gaussian emitted by each particle can be tied to the gas
-temperature as :math:`'sqrt{k_B T_g / m_p}`, which is the 1D velocity dispersion of an
+temperature as :math:`\sqrt{k_B T_g / m_p}`, which is the 1D velocity dispersion of an
 ideal gas of protons, where :math:`k_B` is Boltzmann's constant, :math:`T_g` is the gas
 particle temperature and :math:`m_p` is the proton mass.
 
@@ -60,21 +60,15 @@ The spectra of all input particles are computed by default when
 insertion loop. After the main source insertion loop, calculation of the spectra is often
 the most computationally expensive step, although typically this is only noticeable for
 very large numbers of particles. If initializing the spectra is found to be slow, it may
-be significantly faster to calculate the spectra in parallel. There seems to be a limit to
-the acceleration that can be achieved because of the overheads involved in the parallel
-implementation. Parallel execution is specified when the spectral model module is
-initialized, for example:
+be significantly faster to calculate the spectra in parallel. Parallel execution is
+specified when the spectral model module is initialized, for example:
 
 .. code-block:: python
 
     spectral_model = GaussianSpectrum(ncpu=4)
 
 There is also a parallel mode for :meth:`~martini.martini.Martini.insert_source_in_cube`.
-Optimization of the two parts of the calculation should be considered separately: while it
-is almost always faster to run the source insertion in parallel, the dependence of the
-calculation of the spectra on the number of particles means that parallel execution should
-not be turned on blindly for this step. Some testing by users for their specific use cases
-is recommended.
+Optimization of the two parts of the calculation should be considered separately.
 
 Memory usage and data type of spectra (advanced usage)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++

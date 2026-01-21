@@ -46,7 +46,7 @@ class SPHSource(object):
 
     Parameters
     ----------
-    distance : ~astropy.units.Quantity, optional
+    distance : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
 
@@ -86,7 +86,7 @@ class SPHSource(object):
         Dimensionless hubble constant,
         :math:`H_0 = h (100\\,\\mathrm{km}\\,\\mathrm{s}^{-1}\\,\\mathrm{Mpc}^{-1})`.
 
-    T_g : ~astropy.units.Quantity
+    T_g : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of temperature.
         Particle temperature.
 
@@ -106,7 +106,7 @@ class SPHSource(object):
         plane is that eventually placed in the plane of the "sky"; 'x' is
         the axis corresponding to the "line of sight".
 
-    hsm_g : ~astropy.units.Quantity
+    hsm_g : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Particle SPH smoothing lengths, defined as the FWHM of the smoothing kernel.
         Smoothing lengths are variously defined in the literature as the radius where
@@ -154,7 +154,7 @@ class SPHSource(object):
     def __init__(
         self,
         *,
-        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0.0 * U.km / U.s,
         rotation: dict = {"rotmat": np.eye(3)},
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
@@ -327,7 +327,7 @@ class SPHSource(object):
 
         Parameters
         ----------
-        mask : ~numpy.typing.ArrayLike
+        mask : ~numpy.ndarray
             Boolean mask. Remove particles with indices corresponding to
             ``False`` values from the source arrays.
         """
@@ -371,7 +371,7 @@ class SPHSource(object):
             First element one of {``"x"``, ``"y"``, ``"z"``} for the axis to rotate about,
             second element a :class:`~astropy.units.Quantity` with dimensions of angle,
             indicating the angle to rotate through (right-handed rotation).
-        rotmat : ~numpy.typing.ArrayLike
+        rotmat : ~numpy.ndarray
             Rotation matrix with shape (3, 3).
         L_coords : tuple
             First element containing an inclination, second element an
@@ -561,13 +561,6 @@ class SPHSource(object):
         )
         nparts = cmask.sum()
         mask = np.arange(self.mHI_g.size)[cmask][:: max(nparts // max_points, 1)]
-        # mass_factor = (
-        #     1
-        #     if (self.mHI_g.isscalar or mask.size <= 1)
-        #     else (self.mHI_g[mask] / self.mHI_g[mask].max()).to_value(
-        #         U.dimensionless_unscaled
-        #     )
-        # )
         hsm_factor = (
             1
             if (self.hsm_g is None or self.hsm_g.isscalar or mask.size <= 1)

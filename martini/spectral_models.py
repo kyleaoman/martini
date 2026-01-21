@@ -172,7 +172,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
         Returns
         -------
-        ~astropy.units.Quanitity
+        ~astropy.units.Quantity
             The evaluated dimensionless spectra.
         """
         vmids = self.vmids[mask]

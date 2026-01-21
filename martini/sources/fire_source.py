@@ -60,7 +60,7 @@ class FIRESource(SPHSource):
     gizmo_io_verbose : bool, optional
         If ``True``, allow the gizmo.io module to print progress and diagnostic messages.
 
-    distance : ~astropy.units.Quantity, optional
+    distance : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
 
@@ -117,7 +117,7 @@ class FIRESource(SPHSource):
         assign_hosts: str = "mass",
         convert_float32: bool = False,
         gizmo_io_verbose: bool = False,
-        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: dict = {"rotmat": np.eye(3)},
         ra: U.Quantity[U.deg] = 0.0 * U.deg,

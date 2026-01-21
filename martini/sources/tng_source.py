@@ -126,7 +126,7 @@ class TNGSource(SPHSource):
         otherwise the data are downloaded and a local copy is saved in `cutout_dir` for
         future use.
 
-    distance : ~astropy.units.Quantity, optional
+    distance : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
 
@@ -175,12 +175,13 @@ class TNGSource(SPHSource):
 
     def __init__(
         self,
+        *,
         simulation: str,
         snapNum: int,
         subID: int,
         api_key: str | None = None,
         cutout_dir: str | None = None,
-        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: dict = {"rotmat": np.eye(3)},
         ra: U.Quantity[U.deg] = 0.0 * U.deg,

@@ -116,34 +116,23 @@ class _BaseMartini:
 
     def __init__(
         self,
-        source: SPHSource | None = None,
-        datacube: DataCube | None = None,
+        *,
+        source: SPHSource,
+        datacube: DataCube,
         beam: _BaseBeam | None = None,
         noise: _BaseNoise | None = None,
-        sph_kernel: _BaseSPHKernel | None = None,
-        spectral_model: _BaseSpectrum | None = None,
+        sph_kernel: _BaseSPHKernel,
+        spectral_model: _BaseSpectrum,
         quiet: bool = False,
         _prune_kwargs: dict = {},
     ) -> None:
         self.quiet = quiet
-        if source is not None:
-            self.source = source
-        else:
-            raise ValueError("A source instance is required.")
-        if datacube is not None:
-            self._datacube = datacube
-        else:
-            raise ValueError("A datacube instance is required.")
+        self.source = source
+        self._datacube = datacube
         self.beam = beam
         self.noise = noise
-        if sph_kernel is not None:
-            self.sph_kernel = sph_kernel
-        else:
-            raise ValueError("An SPH kernel instance is required.")
-        if spectral_model is not None:
-            self.spectral_model = spectral_model
-        else:
-            raise ValueError("A spectral model instance is required.")
+        self.sph_kernel = sph_kernel
+        self.spectral_model = spectral_model
 
         if self.beam is not None:
             self.beam.init_kernel(self._datacube)
@@ -313,7 +302,7 @@ class _BaseMartini:
         insertion_slice : int, tuple or slice
             Index into the datacube's _array specifying the insertion location.
 
-        insertion_data : ~numpy.typing.ArrayLike
+        insertion_data : ~numpy.ndarray
             1D array containing the spectrum at the location specified by insertion_slice.
         """
         self._datacube._array[insertion_slice] += insertion_data
@@ -852,12 +841,13 @@ class Martini(_BaseMartini):
 
     def __init__(
         self,
-        source: SPHSource | None = None,
-        datacube: DataCube | None = None,
+        *,
+        source: SPHSource,
+        datacube: DataCube,
         beam: _BaseBeam | None = None,
         noise: _BaseNoise | None = None,
-        sph_kernel: _BaseSPHKernel | None = None,
-        spectral_model: _BaseSpectrum | None = None,
+        sph_kernel: _BaseSPHKernel,
+        spectral_model: _BaseSpectrum,
         quiet: bool = False,
     ) -> None:
         super().__init__(
@@ -1464,17 +1454,18 @@ class GlobalProfile(_BaseMartini):
         other models is straightforward. See
         :doc:`sub-module documentation </spectral_models/index>`.
 
-    n_channels : int, optional
+    n_channels : int
         Number of channels along the spectral axis.
 
-    channel_width : ~astropy.units.Quantity, optional
+    channel_width : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of velocity or frequency.
         Step size along the spectral axis. Can be provided as a velocity or a
         frequency.
 
     spectral_centre : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity` with dimensions of velocity or frequency.
-        Velocity (or frequency) of the centre along the spectral axis.
+        Velocity (or frequency) of the centre along the spectral axis. Defaults to 0 km/s,
+        but should normally be set to the systemic velocity of the source.
 
     quiet : bool, optional
         If ``True``, suppress output to stdout.
@@ -1559,10 +1550,11 @@ class GlobalProfile(_BaseMartini):
 
     def __init__(
         self,
-        source: SPHSource | None = None,
-        spectral_model: _BaseSpectrum | None = None,
-        n_channels: int = 64,
-        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 4 * U.km * U.s**-1,
+        *,
+        source: SPHSource,
+        spectral_model: _BaseSpectrum,
+        n_channels: int,
+        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
         spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0 * U.km * U.s**-1,
         quiet: bool = False,
         channels: None = None,  # deprecated

@@ -27,7 +27,7 @@ def demo_source(N: int = 500) -> SPHSource:
 
     Returns
     -------
-    martini.source.SPHSource
+    ~martini.source.sph_source.SPHSource
         An initialized MARTINI source module containing a toy model of a galaxy.
     """
     phi = np.random.rand(N) * 2 * np.pi

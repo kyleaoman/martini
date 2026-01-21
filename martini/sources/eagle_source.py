@@ -59,7 +59,7 @@ class EAGLESource(SPHSource):
         will also slow down execution and impair the automatic routine used
         to find a disc plane.
 
-    distance : ~astropy.units.Quantity, optional
+    distance : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
 
@@ -117,9 +117,9 @@ class EAGLESource(SPHSource):
         fof: int,
         sub: int,
         db_user: str,
-        db_key: str,
+        db_key: str | None = None,
         subBoxSize: U.Quantity[U.kpc] = 50.0 * U.kpc,
-        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: dict = {"rotmat": np.eye(3)},
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
@@ -127,17 +127,6 @@ class EAGLESource(SPHSource):
         coordinate_frame: "BaseRADecFrame" = ICRS(),
         print_query: bool = False,
     ) -> None:
-        if snapPath is None:
-            raise ValueError("Provide snapPath argument to EAGLESource.")
-        if snapBase is None:
-            raise ValueError("Provide snapBase argument to EAGLESource.")
-        if fof is None:
-            raise ValueError("Provide fof argument to EAGLESource.")
-        if sub is None:
-            raise ValueError("Provide sub argument to EAGLESource.")
-        if db_user is None:
-            raise ValueError("Provide EAGLE database username.")
-
         # optional dependencies for this source class
         from eagleSqlTools import connect, execute_query
         from pyread_eagle import EagleSnapshot
@@ -166,7 +155,9 @@ class EAGLESource(SPHSource):
             print(query)
             print("-------QUERY-ENDS-------")
         if db_key is None:
-            print("EAGLE database")
+            from getpass import getpass
+
+            db_key = getpass("EAGLE database password:")
         q = execute_query(connect(db_user, db_key), query)
         redshift = q["redshift"]
         a = np.power(1 + redshift, -1)

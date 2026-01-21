@@ -149,11 +149,9 @@ are not provided due to the lack of publicly available snapshot data. Interested
 refer to the API documentation of the class.
 
 There is also a :class:`~martini.sources.swiftgalaxy_source.SWIFTGalaxySource` source
-module for SWIFT_ simulation data in conjunction with Velociraptor_ or Caesar_ halo
-catalogues; support for `HBT+`_ and/or SOAP_ is also planned.
-:class:`~martini.sources.colibre_source.ColibreSource` module exists, but since this
-galaxy formation model is still under development this is currently experimental
-functionality.
+module for SWIFT_ simulation data in conjunction with SOAP_, Velociraptor_ or Caesar_ halo
+catalogues. There is also a variant for the COLIBRE simulations, the
+:class:`~martini.sources.colibre_source.ColibreSource` module.
 
 Finally, there is an :class:`~martini.sources.so_source.SOSource` module that interfaces
 with the SimObj_ package. That package is no longer maintained, but may facilitate working
@@ -248,8 +246,8 @@ MARTINI offers three ways of specifying rotations:
    position angle are desired. This method first identifies the plane perpendicular to the
    angular momentum of the source (specifically, the angular momentum of the 1/3 of
    particles closest to the source centre). The source is then rotated to place this plane
-   in the `y-z`plane. There is a degree of freedom (a rotation about the angular momentum
-   vector) here; this is fixed with an arbitrary (but *not* random) choice. The
+   in the ``y-z`` plane. There is a degree of freedom (a rotation about the angular
+   momentum vector) here; this is fixed with an arbitrary (but *not* random) choice. The
    ``L_coords`` specification is then a 2-tuple or a 3-tuple. If a 2-tuple, the first
    element is the desired inclination angle and the second element controls a rotation
    around the pole (applied before the inclination). If a third element is provided, this
@@ -313,21 +311,22 @@ illustrate its usage, let's set up a randomly-oriented source using MARTINI's si
 
     source.preview(fig=1)  # uses matplotlib `plt.figure(1)`
 
-The preview function returns the ``Figure`` object, so this can be captured manipulated,
-if desired. The resulting preview looks like:
+The preview function returns the :class:`~matplotlib.figure.Figure` object, so this can be
+captured manipulated, if desired. The resulting preview looks like:
 
 .. image:: preview1.png
     :width: 800
     :alt: Approximate moment 1 map and major & minor axis PV diagrams of randomly-oriented
           galaxy.
 
-The number of particles plotted is limited to 5000 to avoid excessively large ``Figure``
-objects, but this can be controlled with the ``max_points`` keyword argument. The first
-panel shows the particle positions in the ``y-z`` plane (which approximately maps to RA
-and Dec), coloured by the ``x``-component of the velocity (which approximately maps to the
-line-of-sight velocity). The second panel shows the PV diagram of particle along the ``y``
-coordinate direction, and the third panel the same along the ``z`` coordinate direction.
-Let's rotate the disc to be edge on and preview it again:
+The number of particles plotted is limited to 5000 to avoid excessively large
+:class:`~matplotlib.figure.Figure` objects, but this can be controlled with the
+``max_points`` keyword argument. The first panel shows the particle positions in the
+``y-z`` plane (which approximately maps to RA and Dec), coloured by the ``x``-component of
+the velocity (which approximately maps to the line-of-sight velocity). The second panel
+shows the PV diagram of particle along the ``y`` coordinate direction, and the third panel
+the same along the ``z`` coordinate direction. Let's rotate the disc to be edge on and
+preview it again:
 
 .. code-block:: python
 
@@ -345,8 +344,10 @@ This does look like an edge on disc, and the PV diagrams now correspond to the m
 to 60 degrees inclined and a position angle offset 45 degrees from its previous value of
 270 degrees, and this time we'll show only 100 points.
 
-source.rotate(L_coords=(90 * U.deg, 0 * U.deg, 225 * U.deg))
-source.preview(max_points=100, fig=3)
+.. code-block:: python
+
+    source.rotate(L_coords=(90 * U.deg, 0 * U.deg, 225 * U.deg))
+    source.preview(max_points=100, fig=3)
 
 .. image:: preview3.png
     :width: 800

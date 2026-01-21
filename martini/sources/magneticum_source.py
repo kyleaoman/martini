@@ -30,11 +30,11 @@ class MagneticumSource(SPHSource):
         Path to snapshot file, omitting the portion numbering the snapshot
         pieces, e.g. ``/path/snap_136.0`` becomes ``/path/snap_136``.
 
-    haloPosition : ~numpy.typing.ArrayLike
+    haloPosition : ~numpy.ndarray
         Array with shape ``(3, )``.
         Location of source centre in simulation units.
 
-    haloVelocity : ~numpy.typing.ArrayLike
+    haloVelocity : ~numpy.ndarray
         Array with shape ``(3, )``.
         Velocity of halo in the simulation box frame, in simulation units.
 
@@ -69,7 +69,7 @@ class MagneticumSource(SPHSource):
         should be ``L`` (length), ``M`` (mass), ``V`` (velocity), ``T`` (temperature).
         The values should use :class:`~astropy.units.Quantity`.
 
-    distance : ~astropy.units.Quantity, optional
+    distance : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
 
@@ -135,7 +135,7 @@ class MagneticumSource(SPHSource):
             "V": U.km / U.s,
             "T": U.K,
         },
-        distance: U.Quantity[U.Mpc] = 3 * U.Mpc,
+        distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: dict = {"rotmat": np.eye(3)},
         ra: U.Quantity[U.deg] = 0 * U.deg,

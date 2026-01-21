@@ -240,8 +240,8 @@ class GaussianBeam(_BaseBeam):
         Returns
         -------
         callable
-            Accepts 2 arguments (both ``ArrayLike``) and return an
-            ``ArrayLike`` of corresponding size.
+            Accepts 2 arguments (both of :class:`~numpy.ndarray` type) and return an
+            :class:`~numpy.ndarray` of corresponding size.
         """
 
         def fwhm_to_sigma(fwhm: U.Quantity[U.deg]) -> U.Quantity[U.deg]:

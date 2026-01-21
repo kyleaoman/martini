@@ -25,7 +25,7 @@ class SOSource(SPHSource):
 
     Parameters
     ----------
-    distance : ~astropy.units.Quantity, optional
+    distance : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
 
@@ -90,7 +90,8 @@ class SOSource(SPHSource):
 
     def __init__(
         self,
-        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        *,
+        distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: dict = {"rotmat": np.eye(3)},
         ra: U.Quantity[U.deg] = 0.0 * U.deg,

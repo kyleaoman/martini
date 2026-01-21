@@ -25,7 +25,7 @@ class SWIFTGalaxySource(SPHSource):
     galaxy : ~swiftgalaxy.reader.SWIFTGalaxy
         Instance of a :class:`~swiftgalaxy.reader.SWIFTGalaxy`.
 
-    distance : ~astropy.units.Quantity, optional
+    distance : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of length.
         Source distance, also used to set the velocity offset via Hubble's law.
 
@@ -71,7 +71,7 @@ class SWIFTGalaxySource(SPHSource):
         :class:`~astropy.coordinates.LSRD` or :class:`~astropy.coordinates.LSR`. The frame
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
 
-    _mHI_g : swiftsimio.objects.cosmo_array, optional
+    _mHI_g : ~swiftsimio.objects.cosmo_array, optional
         If the ``galaxy`` does not provide ``galaxy.gas.atomic_hydrogen_masses``, provide
         the particle HI masses here.
     """
@@ -79,7 +79,8 @@ class SWIFTGalaxySource(SPHSource):
     def __init__(
         self,
         galaxy: "SWIFTGalaxy",
-        distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
+        *,
+        distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: dict = {"rotmat": np.eye(3)},
         ra: U.Quantity[U.deg] = 0.0 * U.deg,

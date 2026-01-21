@@ -81,7 +81,7 @@ class _BaseSPHKernel(object):
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Distances from pixel centre to particle positions, in pixels.
 
-        mask : ~numpy.typing.ArrayLike or Ellipsis, optional
+        mask : ~numpy.ndarray or Ellipsis, optional
             Boolean mask to apply to any maskable attributes.
 
         Returns
@@ -140,7 +140,7 @@ class _BaseSPHKernel(object):
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths in pixel units.
 
-        valid : ~numpy.typing.ArrayLike
+        valid : ~numpy.ndarray
             Boolean array specifying which particles fail validation.
 
         noraise : bool
@@ -180,14 +180,14 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        r : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+        r : ~numpy.ndarray or ~astropy.units.Quantity
             Distance parameter, same units (if applicable) as ``h``.
-        h : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+        h : ~numpy.ndarray or ~astropy.units.Quantity
             Smoothing scale parameter (FWHM), same units (if applicable) as ``r``.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at position(s) ``r``.
         """
         q = np.array(r / h / self._rescale)
@@ -207,7 +207,7 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        mask : ~numpy.typing.ArrayLike
+        mask : ~numpy.ndarray
             Boolean mask to apply to any maskable attributes.
         """
         self.sm_lengths = self.sm_lengths[mask]
@@ -251,12 +251,12 @@ class _BaseSPHKernel(object):
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         pass  # pragma: no cover
@@ -279,7 +279,7 @@ class _BaseSPHKernel(object):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : ~numpy.typing.ArrayLike or slice
+        mask : ~numpy.ndarray or slice
             Boolean array, or slice. If the kernel has other internal properties to
             mask, it may use this.
 
@@ -333,11 +333,11 @@ class _WendlandC2Kernel(_BaseSPHKernel):
     The expression:
 
     .. math::
-        W(q) = \\begin{cases}
-        \\frac{21}{2\\pi}(1-q)^4(4q+1)
-        &{\\rm for}\\;0 \\leq q < 1\\\\
-        0 &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        W(q) = \begin{cases}
+        \frac{21}{2\pi}(1-q)^4(4q+1)
+        &{\rm for}\;0 \leq q < 1\\
+        0 &{\rm for}\;q \geq 1
+        \end{cases}
 
     defines the WendlandC2 kernel.
     """
@@ -360,20 +360,20 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         The WendlandC2 kernel is here defined as:
 
         .. math::
-            W(q) = \\begin{cases}
-            \\frac{21}{2\\pi}(1-q)^4(4q+1)
-            &{\\rm for}\\;0 \\leq q < 1\\\\
-            0 &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            W(q) = \begin{cases}
+            \frac{21}{2\pi}(1-q)^4(4q+1)
+            &{\rm for}\;0 \leq q < 1\\
+            0 &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         W = np.where(q < 1, np.power(1 - q, 4) * (4 * q + 1), 0)
@@ -401,13 +401,13 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : ~numpy.typing.ArrayLike or slice
+        mask : ~numpy.ndarray or slice
             Boolean array, or slice. If the kernel has other internal properties to mask,
             it may use this.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
         dr2 = np.power(dij, 2).sum(axis=0)
@@ -474,11 +474,11 @@ class _WendlandC6Kernel(_BaseSPHKernel):
     The expression:
 
     .. math::
-        W(q) = \\begin{cases}
-        \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
-        &{\\rm for}\\;0 \\leq q < 1\\\\
-        0 &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        W(q) = \begin{cases}
+        \frac{1365}{64 \pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
+        &{\rm for}\;0 \leq q < 1\\
+        0 &{\rm for}\;q \geq 1
+        \end{cases}
 
     defines the WendlandC6 kernel.
     """
@@ -499,20 +499,20 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         The WendlandC6 kernel is here defined as:
 
         .. math::
-            W(q) = \\begin{cases}
-            \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
-            &{\\rm for}\\;0 \\leq q < 1\\\\
-            0 &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            W(q) = \begin{cases}
+            \frac{1365}{64 \pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
+            &{\rm for}\;0 \leq q < 1\\
+            0 &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         W = np.where(
@@ -545,13 +545,13 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in pixels.
-        mask : ~numpy.typing.ArrayLike or slice
+        mask : ~numpy.ndarray or slice
             Boolean array, or slice. If the kernel has other internal properties to mask,
             it may use this.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
 
@@ -561,15 +561,15 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
             Parameters
             ----------
-            R : ~numpy.typing.ArrayLike
+            R : ~numpy.ndarray
                 Dimensionless cylindrical radii.
 
-            z : ~numpy.typing.ArrayLike
+            z : ~numpy.ndarray
                 Dimensionless vertical coordinates.
 
             Returns
             -------
-            ~numpy.typing.ArrayLike
+            ~numpy.ndarray
                 Result of the expression.
             """
             return (
@@ -717,14 +717,14 @@ class _CubicSplineKernel(_BaseSPHKernel):
     The expression:
 
     .. math ::
-        W(q) = \\frac{8}{\\pi}\\begin{cases}
+        W(q) = \frac{8}{\pi}\begin{cases}
         (1 - 6q^2(1 - q))
-        &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
+        &{\rm for}\;0 \leq q < \frac{1}{2}\\
         2(1 - q)^3
-        &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
+        &{\rm for}\;\frac{1}{2} \leq q < 1\\
         0
-        &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        &{\rm for}\;q \geq 1
+        \end{cases}
 
     defines the cubic spline kernel.
     """
@@ -745,23 +745,23 @@ class _CubicSplineKernel(_BaseSPHKernel):
         The cubic spline kernel is here defined as:
 
         .. math ::
-            W(q) = \\frac{8}{\\pi}\\begin{cases}
+            W(q) = \frac{8}{\pi}\begin{cases}
             (1 - 6q^2(1 - q))
-            &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
+            &{\rm for}\;0 \leq q < \frac{1}{2}\\
             2(1 - q)^3
-            &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
+            &{\rm for}\;\frac{1}{2} \leq q < 1\\
             0
-            &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         W = np.where(
@@ -792,13 +792,13 @@ class _CubicSplineKernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels
             Particle smoothing lengths, in pixels.
-        mask : ~numpy.typing.ArrayLike or slice
+        mask : ~numpy.ndarray or slice
             Boolean array, or slice. If the kernel has other internal properties to mask,
             it may use this.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
         dij *= 2  # changes interval from [0, 2) to [0, 1)
@@ -889,14 +889,14 @@ class _GaussianKernel(_BaseSPHKernel):
     The Gaussian kernel is here defined as:
 
     .. math::
-        W(q) = \\begin{cases}
-        (\\sqrt{2\\pi}\\sigma)^{-3}
-        \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
-        &{\\rm for}\\;0 \\leq q < t\\\\
-        0 &{\\rm for}\\;q > t
-        \\end{cases}
+        W(q) = \begin{cases}
+        (\sqrt{2\pi}\sigma)^{-3}
+        \exp\left(-\frac{1}{2}\left(\frac{q}{\sigma}\right)^2\right)
+        &{\rm for}\;0 \leq q < t\\
+        0 &{\rm for}\;q > t
+        \end{cases}
 
-    with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
+    with :math:`\sigma=(2\sqrt{2\log(2)})^{-1}`, s.t. FWHM = 1, and
     :math:`t` being the truncation radius.
 
     Parameters
@@ -943,24 +943,24 @@ class _GaussianKernel(_BaseSPHKernel):
         The Gaussian kernel is here defined as:
 
         .. math::
-            W(q) = \\begin{cases}
-            (\\sqrt{2\\pi}\\sigma)^{-3}
-            \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
-            &{\\rm for}\\;0 \\leq q < t\\\\
-            0 &{\\rm for}\\;q > t
-            \\end{cases}
+            W(q) = \begin{cases}
+            (\sqrt{2\pi}\sigma)^{-3}
+            \exp\left(-\frac{1}{2}\left(\frac{q}{\sigma}\right)^2\right)
+            &{\rm for}\;0 \leq q < t\\
+            0 &{\rm for}\;q > t
+            \end{cases}
 
-        with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
+        with :math:`\sigma=(2\sqrt{2\log(2)})^{-1}`, s.t. FWHM = 1, and
         :math:`t` being the truncation radius.
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
@@ -995,13 +995,13 @@ class _GaussianKernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : ~numpy.typing.ArrayLike or slice
+        mask : ~numpy.ndarray or slice
             Boolean array, or slice. If the kernel has other internal properties to mask,
             it may use this.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel integral over the pixel area.
         """
         sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
@@ -1070,10 +1070,10 @@ class DiracDeltaKernel(_BaseSPHKernel):
     The Dirac-delta kernel is here defined as:
 
     .. math::
-        W(q) = \\begin{cases}
-        \\infty &{\\rm for}\\;q = 0\\\\
-        0 &{\\rm for}\\;q > 0
-        \\end{cases}
+        W(q) = \begin{cases}
+        \infty &{\rm for}\;q = 0\\
+        0 &{\rm for}\;q > 0
+        \end{cases}
 
     Parameters
     ----------
@@ -1099,19 +1099,19 @@ class DiracDeltaKernel(_BaseSPHKernel):
         The Dirac-delta kernel is here defined as:
 
         .. math::
-            W(q) = \\begin{cases}
-            \\infty &{\\rm for}\\;q = 0\\\\
-            0 &{\\rm for}\\;q > 0
-            \\end{cases}
+            W(q) = \begin{cases}
+            \infty &{\rm for}\;q = 0\\
+            0 &{\rm for}\;q > 0
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         return np.where(q, 0, np.inf)
@@ -1137,12 +1137,12 @@ class DiracDeltaKernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : ~numpy.typing.ArrayLike or slice, optional
+        mask : ~numpy.ndarray or slice, optional
             Boolean mask to apply to any maskable attributes.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel integral over the pixel area.
         """
         return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
@@ -1262,7 +1262,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        mask : ~numpy.typing.ArrayLike
+        mask : ~numpy.ndarray
             Boolean mask to apply to any maskable attributes.
         """
         assert isinstance(self.size_in_fwhm, np.ndarray)
@@ -1282,14 +1282,14 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        r : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+        r : ~numpy.ndarray or ~astropy.units.Quantity
             Distance parameter, same units as ``h``.
-        h : ~numpy.typing.ArrayLike or ~astropy.units.Quantity
+        h : ~numpy.ndarray or ~astropy.units.Quantity
             Smoothing scale parameter (FWHM), same units as ``r``.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at position(s) ``r``.
         """
         return self.kernels[0].eval_kernel(r, h)
@@ -1300,12 +1300,12 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         return self.kernels[0].kernel(q)
@@ -1329,13 +1329,13 @@ class _AdaptiveKernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths (FWHM), in pixels.
-        mask : ~numpy.typing.ArrayLike or slice
+        mask : ~numpy.ndarray or slice
             Boolean array, or slice. If the kernel has other internal properties to mask,
             it may use this.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
         retval = np.zeros(h.shape) * h.unit**-2
@@ -1395,16 +1395,16 @@ class _QuarticSplineKernel(_BaseSPHKernel):
     The expression:
 
     .. math ::
-        W(q) = \\frac{15625}{512\\pi}\\begin{cases}
-        (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
-        &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
-        (1 - q)^4 - 5(\\frac{3}{5} - q)^4
-        &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+        W(q) = \frac{15625}{512\pi}\begin{cases}
+        (1 - q)^4 - 5(\frac{3}{5} - q)^4 + 10(\frac{1}{5}-q)^4
+        &{\rm for}\;0 \leq q < \frac{1}{5}\\
+        (1 - q)^4 - 5(\frac{3}{5} - q)^4
+        &{\rm for}\;\frac{1}{5} \leq q < \frac{3}{5}\\
         (1 - q)^4
-        &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+        &{\rm for}\;\frac{3}{5} \leq q < 1\\
         0
-        &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        &{\rm for}\;q \geq 1
+        \end{cases}
 
     defines the quartic spline kernel.
     """
@@ -1425,25 +1425,25 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         The quartic spline kernel is here defined as:
 
         .. math ::
-            W(q) = \\frac{15625}{512\\pi}\\begin{cases}
-            (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
-            &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
-            (1 - q)^4 - 5(\\frac{3}{5} - q)^4
-            &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+            W(q) = \frac{15625}{512\pi}\begin{cases}
+            (1 - q)^4 - 5(\frac{3}{5} - q)^4 + 10(\frac{1}{5}-q)^4
+            &{\rm for}\;0 \leq q < \frac{1}{5}\\
+            (1 - q)^4 - 5(\frac{3}{5} - q)^4
+            &{\rm for}\;\frac{1}{5} \leq q < \frac{3}{5}\\
             (1 - q)^4
-            &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+            &{\rm for}\;\frac{3}{5} \leq q < 1\\
             0
-            &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         W: np.ndarray
@@ -1487,13 +1487,13 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         h : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of pixels.
             Particle smoothing lengths, in pixels.
-        mask : ~numpy.typing.ArrayLike or slice
+        mask : ~numpy.ndarray or slice
             Boolean array, or slice. If the kernel has other internal properties to mask,
             it may use this.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
@@ -1508,18 +1508,18 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
             Parameters
             ----------
-            R : ~numpy.typing.ArrayLike
+            R : ~numpy.ndarray
                 Dimensionless cylindrical radii.
 
-            z : ~numpy.typing.ArrayLike
+            z : ~numpy.ndarray
                 Dimensionless vertical coordinates.
 
-            A : ~numpy.typing.ArrayLike
+            A : ~numpy.ndarray
                 Dimensionless amplitudes.
 
             Returns
             -------
-            ~numpy.typing.ArrayLike
+            ~numpy.ndarray
                 Result of the expression.
             """
             q = np.sqrt(np.power(z, 2) + np.power(R, 2))
@@ -1596,11 +1596,11 @@ class WendlandC2Kernel(_AdaptiveKernel):
     The WendlandC2 kernel is here defined as:
 
     .. math::
-        W(q) = \\begin{cases}
-        \\frac{21}{2\\pi}(1-q)^4(4q+1)
-        &{\\rm for}\\;0 \\leq q < 1\\\\
-        0 &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        W(q) = \begin{cases}
+        \frac{21}{2\pi}(1-q)^4(4q+1)
+        &{\rm for}\;0 \leq q < 1\\
+        0 &{\rm for}\;q \geq 1
+        \end{cases}
 
     This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
     :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
@@ -1624,20 +1624,20 @@ class WendlandC2Kernel(_AdaptiveKernel):
         The WendlandC2 kernel is here defined as:
 
         .. math::
-            W(q) = \\begin{cases}
-            \\frac{21}{2\\pi}(1-q)^4(4q+1)
-            &{\\rm for}\\;0 \\leq q < 1\\\\
-            0 &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            W(q) = \begin{cases}
+            \frac{21}{2\pi}(1-q)^4(4q+1)
+            &{\rm for}\;0 \leq q < 1\\
+            0 &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1656,11 +1656,11 @@ class WendlandC6Kernel(_AdaptiveKernel):
     The WendlandC6 kernel is here defined as:
 
     .. math::
-        W(q) = \\begin{cases}
-        \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
-        &{\\rm for}\\;0 \\leq q < 1\\\\
-        0 &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        W(q) = \begin{cases}
+        \frac{1365}{64 \pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
+        &{\rm for}\;0 \leq q < 1\\
+        0 &{\rm for}\;q \geq 1
+        \end{cases}
 
     This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
     :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
@@ -1684,20 +1684,20 @@ class WendlandC6Kernel(_AdaptiveKernel):
         The WendlandC6 kernel is here defined as:
 
         .. math::
-            W(q) = \\begin{cases}
-            \\frac{1365}{64 \\pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
-            &{\\rm for}\\;0 \\leq q < 1\\\\
-            0 &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            W(q) = \begin{cases}
+            \frac{1365}{64 \pi} (1 - q)^8 (1 + 8q + 25q^2 + 32q^3)
+            &{\rm for}\;0 \leq q < 1\\
+            0 &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1716,14 +1716,14 @@ class CubicSplineKernel(_AdaptiveKernel):
     The cubic spline kernel is here defined as:
 
     .. math ::
-        W(q) = \\frac{8}{\\pi}\\begin{cases}
-        (1 - 6q^2(1 - \\frac{q}{2}))
-        &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
+        W(q) = \frac{8}{\pi}\begin{cases}
+        (1 - 6q^2(1 - \frac{q}{2}))
+        &{\rm for}\;0 \leq q < \frac{1}{2}\\
         2(1 - q)^3
-        &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
+        &{\rm for}\;\frac{1}{2} \leq q < 1\\
         0
-        &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        &{\rm for}\;q \geq 1
+        \end{cases}
 
     This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
     :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
@@ -1747,23 +1747,23 @@ class CubicSplineKernel(_AdaptiveKernel):
         The cubic spline kernel is here defined as:
 
         .. math ::
-            W(q) = \\frac{8}{\\pi}\\begin{cases}
-            (1 - 6q^2(1 - \\frac{q}{2}))
-            &{\\rm for}\\;0 \\leq q < \\frac{1}{2}\\\\
+            W(q) = \frac{8}{\pi}\begin{cases}
+            (1 - 6q^2(1 - \frac{q}{2}))
+            &{\rm for}\;0 \leq q < \frac{1}{2}\\
             2(1 - q)^3
-            &{\\rm for}\\;\\frac{1}{2} \\leq q < 1\\\\
+            &{\rm for}\;\frac{1}{2} \leq q < 1\\
             0
-            &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1781,14 +1781,14 @@ class GaussianKernel(_AdaptiveKernel):
     The Gaussian kernel is here defined as:
 
     .. math::
-        W(q) = \\begin{cases}
-        (\\sqrt{2\\pi}\\sigma)^{-3}
-        \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
-        &{\\rm for}\\;0 \\leq q < t\\\\
-        0 &{\\rm for}\\;q > t
-        \\end{cases}
+        W(q) = \begin{cases}
+        (\sqrt{2\pi}\sigma)^{-3}
+        \exp\left(-\frac{1}{2}\left(\frac{q}{\sigma}\right)^2\right)
+        &{\rm for}\;0 \leq q < t\\
+        0 &{\rm for}\;q > t
+        \end{cases}
 
-    with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
+    with :math:`\sigma=(2\sqrt{2\log(2)})^{-1}`, s.t. FWHM = 1, and
     :math:`t` being the truncation radius.
 
     This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
@@ -1823,24 +1823,24 @@ class GaussianKernel(_AdaptiveKernel):
         The Gaussian kernel is here defined as:
 
         .. math::
-            W(q) = \\begin{cases}
-            (\\sqrt{2\\pi}\\sigma)^{-3}
-            \\exp\\left(-\\frac{1}{2}\\left(\\frac{q}{\\sigma}\\right)^2\\right)
-            &{\\rm for}\\;0 \\leq q < t\\\\
-            0 &{\\rm for}\\;q > t
-            \\end{cases}
+            W(q) = \begin{cases}
+            (\sqrt{2\pi}\sigma)^{-3}
+            \exp\left(-\frac{1}{2}\left(\frac{q}{\sigma}\right)^2\right)
+            &{\rm for}\;0 \leq q < t\\
+            0 &{\rm for}\;q > t
+            \end{cases}
 
-        with :math:`\\sigma=(2\\sqrt{2\\log(2)})^{-1}`, s.t. FWHM = 1, and
+        with :math:`\sigma=(2\sqrt{2\log(2)})^{-1}`, s.t. FWHM = 1, and
         :math:`t` being the truncation radius.
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
@@ -1859,16 +1859,16 @@ class QuarticSplineKernel(_AdaptiveKernel):
     The quartic spline kernel is here defined as:
 
     .. math ::
-        W(q) = \\frac{15625}{512\\pi}\\begin{cases}
-        (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
-        &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
-        (1 - q)^4 - 5(\\frac{3}{5} - q)^4
-        &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+        W(q) = \frac{15625}{512\pi}\begin{cases}
+        (1 - q)^4 - 5(\frac{3}{5} - q)^4 + 10(\frac{1}{5}-q)^4
+        &{\rm for}\;0 \leq q < \frac{1}{5}\\
+        (1 - q)^4 - 5(\frac{3}{5} - q)^4
+        &{\rm for}\;\frac{1}{5} \leq q < \frac{3}{5}\\
         (1 - q)^4
-        &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+        &{\rm for}\;\frac{3}{5} \leq q < 1\\
         0
-        &{\\rm for}\\;q \\geq 1
-        \\end{cases}
+        &{\rm for}\;q \geq 1
+        \end{cases}
 
     This class falls back to the :class:`~martini.sph_kernels.DiracDeltaKernel` and
     :class:`~martini.sph_kernels.GaussianKernel` when the approximation used for the
@@ -1892,25 +1892,25 @@ class QuarticSplineKernel(_AdaptiveKernel):
         The quartic spline kernel is here defined as:
 
         .. math ::
-            W(q) = \\frac{15625}{512\\pi}\\begin{cases}
-            (1 - q)^4 - 5(\\frac{3}{5} - q)^4 + 10(\\frac{1}{5}-q)^4
-            &{\\rm for}\\;0 \\leq q < \\frac{1}{5}\\\\
-            (1 - q)^4 - 5(\\frac{3}{5} - q)^4
-            &{\\rm for}\\;\\frac{1}{5} \\leq q < \\frac{3}{5}\\\\
+            W(q) = \frac{15625}{512\pi}\begin{cases}
+            (1 - q)^4 - 5(\frac{3}{5} - q)^4 + 10(\frac{1}{5}-q)^4
+            &{\rm for}\;0 \leq q < \frac{1}{5}\\
+            (1 - q)^4 - 5(\frac{3}{5} - q)^4
+            &{\rm for}\;\frac{1}{5} \leq q < \frac{3}{5}\\
             (1 - q)^4
-            &{\\rm for}\\;\\frac{3}{5} \\leq q < 1\\\\
+            &{\rm for}\;\frac{3}{5} \leq q < 1\\
             0
-            &{\\rm for}\\;q \\geq 1
-            \\end{cases}
+            &{\rm for}\;q \geq 1
+            \end{cases}
 
         Parameters
         ----------
-        q : ~numpy.typing.ArrayLike
+        q : ~numpy.ndarray
             Dimensionless distance parameter.
 
         Returns
         -------
-        ~numpy.typing.ArrayLike
+        ~numpy.ndarray
             Kernel value at positions ``q``.
         """
         return super().kernel(q)
