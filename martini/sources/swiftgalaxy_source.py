@@ -52,7 +52,7 @@ class SWIFTGalaxySource(SPHSource):
           'y'). A 3-tuple may be provided instead, in which case the third \
           value specifies the position angle on the sky (second rotation about 'x'). \
           The default position angle is 270 degrees.
-  
+
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
         Right ascension for the source centroid.
