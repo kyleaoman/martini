@@ -16,6 +16,7 @@ mock-observing process.
 
 from .martini import Martini, GlobalProfile
 from .datacube import DataCube
+from .L_coords import L_coords
 from ._demo import demo, demo_source
 from .__version__ import __version__
 
@@ -23,6 +24,7 @@ __all__ = [
     "Martini",
     "GlobalProfile",
     "DataCube",
+    "L_coords",
     "demo",
     "demo_source",
     "__version__",

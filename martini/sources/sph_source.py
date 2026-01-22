@@ -19,6 +19,7 @@ import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
 from ..datacube import HIfreq, DataCube
+from ..L_coords import L_coords
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -101,25 +102,24 @@ class SPHSource(object):
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
 
-    rotation : dict, optional
-        Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
-        ``L_coords``. Note that the 'y-z' plane will be the one eventually placed in the
-        plane of the "sky". The corresponding value must be:
+    rotation : ~scipy.spatial.transform.Rotation, optional
+        A rotation to apply to the source particles, specified using the
+        :class:`~scipy.spatial.transform.Rotation` class. That class supports many ways to
+        specify a rotation (Euler angle, rotation matrices, quaternions, etc.). Refer to
+        the :mod:`scipy` documentation for details. Note that the ``y-z`` plane will be
+        the one eventually placed in the plane of the "sky". Cannot be used at the same
+        time as ``L_coords``.
 
-        - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-          axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
-          dimensions of angle, indicating the angle to rotate through.
-        - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
-        - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
-          angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
-          angle). The routine will first attempt to identify a preferred plane \
-          based on the angular momenta of the central 1/3 of particles in the \
-          source. This plane will then be rotated to lie in the plane of the \
-          "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-          momentum pole (rotation about 'x'), and inclined (rotation about \
-          'y'). A 3-tuple may be provided instead, in which case the third \
-          value specifies the position angle on the sky (second rotation about 'x'). \
-          The default position angle is 270 degrees.
+    L_coords : ~martini.L_coords.L_coords, optional
+        A 2-tuple containing an inclination and an azimuthal angle (both
+        :class:`~astropy.units.Quantity` instances with dimensions of angle). The routine
+        will first attempt to identify a preferred plane based on the angular momenta of
+        the central 1/3 of particles in the source. This plane will then be rotated to lie
+        in the plane of the "sky" ('y-z'), rotated by the azimuthal angle about its
+        angular momentum pole (rotation about 'x'), and inclined (rotation about 'y'). A
+        3-tuple may be provided instead, in which case the third value specifies the
+        position angle on the sky (second rotation about 'x'). The default position angle
+        is 270 degrees.
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
@@ -204,7 +204,8 @@ class SPHSource(object):
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0.0 * U.km / U.s,
-        rotation: Rotation | tuple = Rotation.identity(),
+        rotation: Rotation | None = Rotation.identity(),
+        L_coords: L_coords | None = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         h: float = 0.7,
@@ -216,6 +217,27 @@ class SPHSource(object):
         coordinate_axis: int | None = None,
         coordinate_frame: "BaseRADecFrame" = ICRS(),
     ) -> None:
+        if isinstance(rotation, dict):
+            raise ValueError(
+                "The method to specify rotations in martini has been updated. Replace:\n"
+                "1) rotation={'rotmat': <rotation_matrix>}\n"
+                "   with:\n"
+                "   from scipy.spatial.transform import Rotation\n"
+                "   rotation=Rotation.from_matrix(<rotation_matrix>)\n"
+                "2) rotation={'axis_angle': (<axis>, <angle>)}\n"
+                "   with:\n"
+                "   rotation=Rotation.from_euler(<axis>, <angle>.to_value(U.rad))\n"
+                "3) rotation={'L_coords': (<incl>, <az_rot>[, <pa>])}\n"
+                "   with:\n"
+                "   from martini import L_coords\n"
+                "   L_coords=L_coords(incl=<incl>, az_rot=<az_rot>[, pa=<pa>])\n"
+                "Refer to https://martini.readthedocs.io/en/stable/sources/index.html"
+                "#rotation-and-translation and "
+                "https://martini.readthedocs.io/en/stable/modules/"
+                "martini.sources.sph_source.html#martini.sources.sph_source.SPHSource "
+                "for further details."
+            )
+
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
                 coordinate_axis = 0
@@ -265,10 +287,7 @@ class SPHSource(object):
         self.vsys = self.vhubble + self.vpeculiar
         self._coordinate_affine_transform = np.eye(4)
         self._velocity_affine_transform = np.eye(4)
-        if isinstance(rotation, Rotation):
-            self.rotate(rotation)
-        else:
-            self.rotate(L_coords=rotation)
+        self.rotate(rotation=rotation, L_coords=L_coords)  # complains if both not None
         self.skycoords = None
         self.spectralcoords = None
         self.pixcoords = None
@@ -454,7 +473,7 @@ class SPHSource(object):
         self,
         rotation: Rotation | None = None,
         *,
-        L_coords: tuple[U.Quantity[U.deg], ...] | None = None,
+        L_coords: L_coords | None = None,
     ) -> None:
         """
         Rotate the source.
@@ -464,12 +483,12 @@ class SPHSource(object):
 
         Parameters
         ----------
-        rotation : ~scipy.spatial.transform.Rotation
+        rotation : ~scipy.spatial.transform.Rotation, optional
             A :class:`~scipy.spatial.transform.Rotation` specifying the rotation. This
             type of object can be initialized from many ways of specifying rotations:
-            rotation matrices, Euler angles, axis-angle, quaternions, etc. Refer to the
-            :mod:`scipy` documentation for details.
-        L_coords : tuple, optional
+            rotation matrices, Euler angles, quaternions, etc. Refer to the :mod:`scipy`
+            documentation for details.
+        L_coords : ~martini.L_coords.L_coords, optional
             First element containing an inclination, second element an
             azimuthal angle (both :class:`~astropy.units.Quantity` instances with
             dimensions of angle). The routine will first attempt to identify
@@ -493,11 +512,6 @@ class SPHSource(object):
 
         if L_coords is not None:
             do_rot = np.eye(3)
-            if len(L_coords) == 2:
-                incl, az_rot = L_coords
-                pa = 270 * U.deg
-            elif len(L_coords) == 3:
-                incl, az_rot, pa = L_coords
             do_rot = L_align(
                 self.coordinates_g.get_xyz(),
                 self.coordinates_g.differentials["s"].get_d_xyz(),
@@ -506,23 +520,27 @@ class SPHSource(object):
                 Laxis="x",
             ).dot(do_rot)
             do_rot = (
-                Rotation.from_euler("x", az_rot.to_value(U.rad)).as_matrix().dot(do_rot)
+                Rotation.from_euler("x", L_coords.az_rot.to_value(U.rad))
+                .as_matrix()
+                .dot(do_rot)
             )
             do_rot = (
-                Rotation.from_euler("y", incl.to_value(U.rad)).as_matrix().dot(do_rot)
+                Rotation.from_euler("y", L_coords.incl.to_value(U.rad))
+                .as_matrix()
+                .dot(do_rot)
             )
-            if incl >= 0:
-                do_rot = (
-                    Rotation.from_euler("x", (pa - 90 * U.deg).to_value(U.rad))
-                    .as_matrix()
-                    .dot(do_rot)
+            do_rot = (
+                Rotation.from_euler(
+                    "x",
+                    (
+                        L_coords.pa - 90 * U.deg
+                        if L_coords.incl >= 0
+                        else L_coords.pa - 270 * U.deg
+                    ).to_value(U.rad),
                 )
-            else:
-                do_rot = (
-                    Rotation.from_euler("x", (pa - 270 * U.deg).to_value(U.rad))
-                    .as_matrix()
-                    .dot(do_rot)
-                )
+                .as_matrix()
+                .dot(do_rot)
+            )
 
         affine_transform = np.eye(4)
         affine_transform[:3, :3] = do_rot

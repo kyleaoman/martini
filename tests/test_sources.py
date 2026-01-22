@@ -7,6 +7,7 @@ from scipy.spatial.transform import Rotation
 from astropy import units as U
 from martini.datacube import DataCube
 from martini.sources import SPHSource
+from martini.L_coords import L_coords
 from martini.sources._cartesian_translation import translate, translate_d
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
@@ -408,9 +409,9 @@ class TestSPHSource:
                 .dot(rotmat)
             )
         if U.isclose(pa, 270 * U.deg):
-            s.rotate(L_coords=(incl, az_rot))
+            s.rotate(L_coords=L_coords(incl=incl, az_rot=az_rot))
         else:
-            s.rotate(L_coords=(incl, az_rot, pa))
+            s.rotate(L_coords=L_coords(incl=incl, az_rot=az_rot, pa=pa))
         assert np.allclose(s.current_rotation, rotmat)
 
     def test_composite_rotations(self, s):
@@ -418,7 +419,25 @@ class TestSPHSource:
         with pytest.raises(
             ValueError, match="Multiple rotations in a single call not allowed."
         ):
-            s.rotate(Rotation.identity(), L_coords=(60 * U.deg, 0 * U.deg))
+            s.rotate(Rotation.identity(), L_coords=L_coords())
+
+    def test_deprecated_rotations(self):
+        """
+        Check that trying to use old-style rotations raises a helpful error message.
+
+        Any dict passed to the ``rotation`` argument should trigger the error.
+        """
+        with pytest.raises(
+            ValueError,
+            match="The method to specify rotations in martini has been updated.",
+        ):
+            SPHSource(
+                xyz_g=np.ones((3, 1)) * U.kpc,
+                vxyz_g=np.ones((3, 1)) * U.km / U.s,
+                mHI_g=np.ones(1) * U.Msun,
+                distance=3 * U.Mpc,
+                rotation={"rotmat": np.eye(3)},
+            )
 
     def test_translate(self, s):
         """Check that coordinates translate correctly."""
