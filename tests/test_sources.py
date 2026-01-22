@@ -3,8 +3,8 @@
 import os
 import pytest
 import numpy as np
+from scipy.spatial.transform import Rotation
 from astropy import units as U
-from astropy.coordinates.matrix_utilities import rotation_matrix
 from martini.datacube import DataCube
 from martini.sources import SPHSource
 from martini.sources._cartesian_translation import translate, translate_d
@@ -358,7 +358,7 @@ class TestSPHSource:
                 [0, 0, 1],
             ]
         )
-        s.rotate(axis_angle=(axis, angle))
+        s.rotate(Rotation.from_euler(axis, angle.to(U.deg), degrees=True))
         assert np.allclose(s.current_rotation, rotmat)
 
     def test_rotate_rotmat(self, s):
@@ -374,7 +374,7 @@ class TestSPHSource:
         )
         vector_before = s.coordinates_g.get_xyz()[:, 0]
         assert any(np.abs(vector_before) > 0)
-        s.rotate(rotmat=rotmat)
+        s.rotate(Rotation.from_matrix(rotmat))
         assert U.allclose(
             s.coordinates_g.get_xyz()[:, 0], np.dot(rotmat, vector_before)
         )
@@ -391,12 +391,22 @@ class TestSPHSource:
             s.mHI_g,
             Laxis="x",
         )
-        rotmat = rotation_matrix(az_rot, axis="x").T.dot(rotmat)
-        rotmat = rotation_matrix(incl, axis="y").T.dot(rotmat)
+        rotmat = (
+            Rotation.from_euler("x", az_rot.to_value(U.rad)).as_matrix().dot(rotmat)
+        )
+        rotmat = Rotation.from_euler("y", incl.to_value(U.rad)).as_matrix().dot(rotmat)
         if incl >= 0:
-            rotmat = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(rotmat)
+            rotmat = (
+                Rotation.from_euler("x", (pa - 90 * U.deg).to_value(U.rad))
+                .as_matrix()
+                .dot(rotmat)
+            )
         else:
-            rotmat = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(rotmat)
+            rotmat = (
+                Rotation.from_euler("x", (pa - 270 * U.deg).to_value(U.rad))
+                .as_matrix()
+                .dot(rotmat)
+            )
         if U.isclose(pa, 270 * U.deg):
             s.rotate(L_coords=(incl, az_rot))
         else:
@@ -408,7 +418,7 @@ class TestSPHSource:
         with pytest.raises(
             ValueError, match="Multiple rotations in a single call not allowed."
         ):
-            s.rotate(axis_angle=("x", 30 * U.deg), rotmat=np.eye(3))
+            s.rotate(Rotation.identity(), L_coords=(60 * U.deg, 0 * U.deg))
 
     def test_translate(self, s):
         """Check that coordinates translate correctly."""
@@ -434,14 +444,16 @@ class TestSPHSource:
         """Check that current rotation state can be output to file."""
         assert np.allclose(s.current_rotation, np.eye(3))
         angle = np.pi / 4
-        rotmat = np.array(
-            [
-                [np.cos(angle), -np.sin(angle), 0],
-                [np.sin(angle), np.cos(angle), 0],
-                [0, 0, 1],
-            ]
+        rotation = Rotation.from_matrix(
+            np.array(
+                [
+                    [np.cos(angle), -np.sin(angle), 0],
+                    [np.sin(angle), np.cos(angle), 0],
+                    [0, 0, 1],
+                ]
+            )
         )
-        s.rotate(rotmat=rotmat)
+        s.rotate(rotation)
         testfile = "testrotmat.npy"
         try:
             s.save_current_rotation(testfile)
@@ -449,7 +461,7 @@ class TestSPHSource:
         finally:
             if os.path.exists(testfile):
                 os.remove(testfile)
-        assert np.allclose(saved_rotmat, rotmat)
+        assert np.allclose(saved_rotmat, rotation.as_matrix())
 
     def test_preview(self, s):
         """Simply check that the preview visualisation runs without error."""

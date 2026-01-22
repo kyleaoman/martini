@@ -5,6 +5,7 @@ Enables working with any SPH or similar simulation as input.
 """
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
 from astropy.coordinates import (
     CartesianRepresentation,
@@ -14,7 +15,6 @@ from astropy.coordinates import (
     SpectralCoord,
     ICRS,
 )
-from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from ._L_align import L_align
 from ._cartesian_translation import translate, translate_d
@@ -204,7 +204,7 @@ class SPHSource(object):
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0.0 * U.km / U.s,
-        rotation: dict = {"rotmat": np.eye(3)},
+        rotation: Rotation | tuple = Rotation.identity(),
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         h: float = 0.7,
@@ -265,7 +265,10 @@ class SPHSource(object):
         self.vsys = self.vhubble + self.vpeculiar
         self._coordinate_affine_transform = np.eye(4)
         self._velocity_affine_transform = np.eye(4)
-        self.rotate(**rotation)
+        if isinstance(rotation, Rotation):
+            self.rotate(rotation)
+        else:
+            self.rotate(L_coords=rotation)
         self.skycoords = None
         self.spectralcoords = None
         self.pixcoords = None
@@ -290,8 +293,8 @@ class SPHSource(object):
         distance_vector = distance_unit_vector * self.distance
         vpeculiar_vector = distance_unit_vector * self.vpeculiar
 
-        self.rotate(axis_angle=("y", -self.dec))
-        self.rotate(axis_angle=("z", self.ra))
+        self.rotate(Rotation.from_euler("y", -self.dec.to_value(U.rad)))
+        self.rotate(Rotation.from_euler("z", self.ra.to_value(U.rad)))
         self.translate(distance_vector)
         # must be after translate:
         # \vec{v_H} = (100 h km/s/Mpc * D) * r^, but D * r^ is just \vec{r}:
@@ -330,8 +333,8 @@ class SPHSource(object):
             )
             self.boost(-vpeculiar_vector)
             self.translate(-distance_vector)
-            self.rotate(axis_angle=("z", -self.ra))
-            self.rotate(axis_angle=("y", self.dec))
+            self.rotate(Rotation.from_euler("z", -self.ra.to_value(U.rad)))
+            self.rotate(Rotation.from_euler("y", self.dec.to_value(U.rad)))
         return
 
     def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
@@ -449,9 +452,8 @@ class SPHSource(object):
 
     def rotate(
         self,
+        rotation: Rotation | None = None,
         *,
-        axis_angle: tuple[str, U.Quantity[U.deg]] | None = None,
-        rotmat: np.ndarray | None = None,
         L_coords: tuple[U.Quantity[U.deg], ...] | None = None,
     ) -> None:
         """
@@ -462,13 +464,12 @@ class SPHSource(object):
 
         Parameters
         ----------
-        axis_angle : tuple
-            First element one of {``"x"``, ``"y"``, ``"z"``} for the axis to rotate about,
-            second element a :class:`~astropy.units.Quantity` with dimensions of angle,
-            indicating the angle to rotate through (right-handed rotation).
-        rotmat : ~numpy.ndarray
-            Rotation matrix with shape (3, 3).
-        L_coords : tuple
+        rotation : ~scipy.spatial.transform.Rotation
+            A :class:`~scipy.spatial.transform.Rotation` specifying the rotation. This
+            type of object can be initialized from many ways of specifying rotations:
+            rotation matrices, Euler angles, axis-angle, quaternions, etc. Refer to the
+            :mod:`scipy` documentation for details.
+        L_coords : tuple, optional
             First element containing an inclination, second element an
             azimuthal angle (both :class:`~astropy.units.Quantity` instances with
             dimensions of angle). The routine will first attempt to identify
@@ -480,23 +481,18 @@ class SPHSource(object):
             sky is 270 degrees, but if a third element is provided it sets the
             position angle (second rotation about 'x').
         """
-        args_given = (axis_angle is not None, rotmat is not None, L_coords is not None)
+        args_given = (rotation is not None, L_coords is not None)
         if np.sum(args_given) == 0:
             # no-op
             return
         elif np.sum(args_given) > 1:
             raise ValueError("Multiple rotations in a single call not allowed.")
 
-        do_rot = np.eye(3)
-
-        if axis_angle is not None:
-            # rotation_matrix gives left-handed rotation, so transpose for right-handed
-            do_rot = rotation_matrix(axis_angle[1], axis=axis_angle[0]).T.dot(do_rot)
-
-        if rotmat is not None:
-            do_rot = rotmat.dot(do_rot)
+        if rotation is not None:
+            do_rot = rotation.as_matrix()
 
         if L_coords is not None:
+            do_rot = np.eye(3)
             if len(L_coords) == 2:
                 incl, az_rot = L_coords
                 pa = 270 * U.deg
@@ -509,13 +505,24 @@ class SPHSource(object):
                 frac=0.3,
                 Laxis="x",
             ).dot(do_rot)
-            # rotation_matrix gives left-handed rotation, so transpose for right-handed
-            do_rot = rotation_matrix(az_rot, axis="x").T.dot(do_rot)
-            do_rot = rotation_matrix(incl, axis="y").T.dot(do_rot)
+            do_rot = (
+                Rotation.from_euler("x", az_rot.to_value(U.rad)).as_matrix().dot(do_rot)
+            )
+            do_rot = (
+                Rotation.from_euler("y", incl.to_value(U.rad)).as_matrix().dot(do_rot)
+            )
             if incl >= 0:
-                do_rot = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(do_rot)
+                do_rot = (
+                    Rotation.from_euler("x", (pa - 90 * U.deg).to_value(U.rad))
+                    .as_matrix()
+                    .dot(do_rot)
+                )
             else:
-                do_rot = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(do_rot)
+                do_rot = (
+                    Rotation.from_euler("x", (pa - 270 * U.deg).to_value(U.rad))
+                    .as_matrix()
+                    .dot(do_rot)
+                )
 
         affine_transform = np.eye(4)
         affine_transform[:3, :3] = do_rot
