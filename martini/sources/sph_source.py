@@ -36,6 +36,53 @@ _origin = CartesianRepresentation(
     differentials={"s": CartesianDifferential(np.zeros((3, 1)) * U.km / U.s)},
 )
 
+# Affine transform matrices have mixed dimensionful and dimensionless elements so need to
+# be processed as raw arrays. We define conventional units for length and velocity type
+# affine transforms to ensure internal consistency.
+_COORDINATE_TRANSFORM_UNITS = U.Mpc
+_VELOCITY_TRANSFORM_UNITS = U.km / U.s
+
+
+def apply_affine_transform(
+    coords: U.Quantity, affine_transform: np.ndarray, transform_units: U.UnitBase
+) -> U.Quantity:
+    """
+    Apply an affine coordinate transformation to a coordinate array.
+
+    An arbitrary coordinate transformation mixing translations and rotations can be
+    expressed as a 4x4 matrix. However, such a matrix has mixed units, so we need to
+    assume a consistent unit for all transformations and work with bare arrays. We also
+    always assume comoving coordinates.
+
+    Parameters
+    ----------
+    coords : ~astropy.units.Quantity
+        The coordinate array to be transformed.
+
+    transform : ~numpy.ndarray
+        The 4x4 affine transformation matrix.
+
+    transform_units : ~astropy.units.UnitBase
+        The units assumed in the translation portion of the transformation matrix.
+
+    Returns
+    -------
+    ~astropy.units.Quantity
+        The coordinate array with transformation applied.
+    """
+    return (
+        U.Quantity(
+            np.hstack(
+                (
+                    coords.to_value(transform_units),
+                    np.ones(coords.shape[0])[:, np.newaxis],
+                )
+            ).dot(affine_transform)[:, :3],
+            transform_units,
+        )
+        << coords.unit
+    )
+
 
 class SPHSource(object):
     r"""
@@ -142,7 +189,8 @@ class SPHSource(object):
     dec: U.Quantity[U.deg]
     distance: U.Quantity[U.Mpc]
     vpeculiar: U.Quantity[U.km / U.s]
-    current_rotation: np.ndarray
+    _coordinate_affine_transform: np.ndarray
+    _velocity_affine_transform: np.ndarray
     vhubble: U.Quantity[U.km / U.s]
     vsys: U.Quantity[U.km / U.s]
     sky_coordinates: ICRS
@@ -215,7 +263,8 @@ class SPHSource(object):
         self.vpeculiar = vpeculiar
         self.vhubble = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
         self.vsys = self.vhubble + self.vpeculiar
-        self.current_rotation = np.eye(3)
+        self._coordinate_affine_transform = np.eye(4)
+        self._velocity_affine_transform = np.eye(4)
         self.rotate(**rotation)
         self.skycoords = None
         self.spectralcoords = None
@@ -352,6 +401,52 @@ class SPHSource(object):
             self.hsm_g = self.hsm_g[mask]
         return
 
+    def _append_to_coordinate_affine_transform(
+        self, affine_transform: np.ndarray
+    ) -> None:
+        """
+        Add a new transformation to the sequence for the spatial coordinates.
+
+        The cumulative transformation is stored as a single 4x4 transformation matrix,
+        so we update the current transformation using a dot product.
+
+        Affine transform matrices contain a mix of dimensionless and dimensionful values
+        so we need to process them as raw numpy arrays. By convention in :mod:`martini`
+        the elements with (implicit) length dimensions are always Mpc.
+
+        Parameters
+        ----------
+        affine_transform : :class:`~numpy.ndarray`
+            The affine transform to add to the cumulative coordinate transformation.
+        """
+        self._coordinate_affine_transform = self._coordinate_affine_transform.dot(
+            affine_transform
+        )
+        return
+
+    def _append_to_velocity_affine_transform(
+        self, affine_transform: np.ndarray
+    ) -> None:
+        """
+        Add a new transformation to the sequence for the velocity coordinates.
+
+        The cumulative transformation is stored as a single 4x4 transformation matrix,
+        so we update the current transformation using a dot product.
+
+        Affine transform matrices contain a mix of dimensionless and dimensionful values
+        so we need to process them as raw numpy arrays. By convention in :mod:`martini`
+        the elements with (implicit) velocity dimensions are always km/s.
+
+        Parameters
+        ----------
+        affine_transform : :class:`~numpy.ndarray`
+            The affine transform to add to the cumulative velocity transformation.
+        """
+        self._velocity_affine_transform = self._velocity_affine_transform.dot(
+            affine_transform
+        )
+        return
+
     def rotate(
         self,
         *,
@@ -422,7 +517,10 @@ class SPHSource(object):
             else:
                 do_rot = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(do_rot)
 
-        self.current_rotation = do_rot.dot(self.current_rotation)
+        affine_transform = np.eye(4)
+        affine_transform[:3, :3] = do_rot
+        self._append_to_coordinate_affine_transform(affine_transform)
+        self._append_to_velocity_affine_transform(affine_transform)
         self.coordinates_g = self.coordinates_g.transform(do_rot)
         return
 
@@ -439,6 +537,11 @@ class SPHSource(object):
             Vector by which to offset the source particle coordinates.
         """
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
+        affine_transform = np.eye(4)
+        affine_transform[3, :3] = translation_vector.squeeze().to_value(
+            _COORDINATE_TRANSFORM_UNITS
+        )
+        self._append_to_coordinate_affine_transform(affine_transform)
         return
 
     def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
@@ -457,7 +560,27 @@ class SPHSource(object):
         self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
             "s"
         ].translate(boost_vector)
+        affine_transform = np.eye(4)
+        affine_transform[3, :3] = boost_vector.squeeze().to_value(
+            _VELOCITY_TRANSFORM_UNITS
+        )
+        self._append_to_velocity_affine_transform(affine_transform)
         return
+
+    @property
+    def current_rotation(self) -> np.ndarray:
+        """
+        Current rotation matrix of the source.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            The rotation matrix taking the coordinate originally passed in to the source
+            to the current orientation.
+        """
+        # The rotation part of the _coordinate_affine_transform and the
+        # _velocity_affine_transform are identical, just pick one.
+        return self._coordinate_affine_transform[:3, :3]
 
     def save_current_rotation(self, fname: str) -> None:
         """
@@ -473,7 +596,7 @@ class SPHSource(object):
         fname : str
             File in which to save rotation matrix. A file handle can also be passed.
         """
-        np.savetxt(fname, self.current_rotation)
+        np.savetxt(fname, self._coordinate_affine_transform[:3, :3])
         return
 
     def preview(
