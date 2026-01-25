@@ -85,7 +85,7 @@ class SWIFTGalaxySource(SPHSource):
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
-        rotation: Rotation | None = Rotation.identity(),
+        rotation: Rotation | None = None,
         L_coords: L_coords | None = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
