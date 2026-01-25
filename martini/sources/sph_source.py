@@ -44,47 +44,6 @@ _COORDINATE_TRANSFORM_UNITS = U.Mpc
 _VELOCITY_TRANSFORM_UNITS = U.km / U.s
 
 
-def apply_affine_transform(
-    coords: U.Quantity, affine_transform: np.ndarray, transform_units: U.UnitBase
-) -> U.Quantity:
-    """
-    Apply an affine coordinate transformation to a coordinate array.
-
-    An arbitrary coordinate transformation mixing translations and rotations can be
-    expressed as a 4x4 matrix. However, such a matrix has mixed units, so we need to
-    assume a consistent unit for all transformations and work with bare arrays. We also
-    always assume comoving coordinates.
-
-    Parameters
-    ----------
-    coords : ~astropy.units.Quantity
-        The coordinate array to be transformed.
-
-    transform : ~numpy.ndarray
-        The 4x4 affine transformation matrix.
-
-    transform_units : ~astropy.units.UnitBase
-        The units assumed in the translation portion of the transformation matrix.
-
-    Returns
-    -------
-    ~astropy.units.Quantity
-        The coordinate array with transformation applied.
-    """
-    return (
-        U.Quantity(
-            np.hstack(
-                (
-                    coords.to_value(transform_units),
-                    np.ones(coords.shape[0])[:, np.newaxis],
-                )
-            ).dot(affine_transform)[:, :3],
-            transform_units,
-        )
-        << coords.unit
-    )
-
-
 class SPHSource(object):
     r"""
     Class abstracting HI emission sources consisting of SPH simulation particles.
@@ -622,10 +581,84 @@ class SPHSource(object):
         Parameters
         ----------
         fname : str
-            File in which to save rotation matrix. A file handle can also be passed.
+            File in which to save rotation matrix.
         """
         np.savetxt(fname, self._coordinate_affine_transform[:3, :3])
         return
+
+    def save_current_affine_transformations(self, fname_p: str, fname_v: str) -> None:
+        """
+        Output current affine transformation matrices (position and velocity) to a file.
+
+        These matrices encode the arbitrary combination of translations and rotations
+        that takes the source from its initial orientation when loaded into :mod:`martini`
+        to its current orientation. The rotation part is dimensionless, while the
+        translation part assumes dimensions of Mpc for positions or km/s for velocities
+        (but is encoded without units).
+
+        Parameters
+        ----------
+        fname_p : str
+            File in which to save position affine transformation matrix.
+
+        fname_v : str
+            File in which to save velocity affine transformation matrix.
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.load_affine_transformations
+        """
+        np.savetxt(fname_p, self._coordinate_affine_transform)
+        np.savetxt(fname_v, self._velocity_affine_transform)
+        return
+
+    def load_affine_transformations(self, fname_p: str, fname_v: str) -> None:
+        """
+        Load a set of affine transformation matrices (position and velocity) from a file.
+
+        These matrices encode an arbitrary combination of translations and rotations. When
+        loaded they are applied to the source to transform it from its current
+        orientation. The state is only the one that the source had when the files were
+        saved if it has not been transformed since being loaded into :mod:`martini`.
+        The rotation part of these matrices is dimensionless, while the translation part
+        assumed dimensions of Mpc for positions or km/s for velocities (but is encoded
+        without units).
+
+        Paramters
+        ---------
+        fname_p : str
+            File from which to load position affine transformation matrix.
+
+        fname_v : str
+            File from which to load velocity affine transformation matrix.
+
+        Raises
+        ------
+        ValueError
+            If the rotation part of the two matrices is not identical: this would result
+            in an inconsistent source state.
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        """
+        coordinate_affine_transform = np.load(fname_p)
+        velocity_affine_transform = np.load(fname_v)
+        if not np.allclose(
+            coordinate_affine_transform[:3, :3], velocity_affine_transform[:3, :3]
+        ):
+            raise ValueError(
+                "Rotation portion of position and velocity affine transforms do not"
+                " match, source would be put into an inconsistent state."
+            )
+        self.coordinates_g = self.coordinates_g.affine_transform(
+            coordinate_affine_transform, _COORDINATE_TRANSFORM_UNITS
+        )
+        self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
+            "s"
+        ].affine_transform_d(velocity_affine_transform, _VELOCITY_TRANSFORM_UNITS)
+        self._append_to_coordinate_affine_transform(coordinate_affine_transform)
+        self._append_to_velocity_affine_transform(velocity_affine_transform)
 
     def preview(
         self,
