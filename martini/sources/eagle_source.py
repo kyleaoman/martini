@@ -5,9 +5,11 @@ Facilitates working with EAGLE simulations as input.
 """
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
 from .sph_source import SPHSource
 from ..sph_kernels import _WendlandC2Kernel, find_fwhm
+from ..L_coords import L_coords
 from os.path import join, normpath, sep
 import astropy.units as U
 from astropy.coordinates import ICRS
@@ -67,25 +69,27 @@ class EAGLESource(SPHSource):
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
 
-    rotation : dict, optional
-        Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
-        ``L_coords``. Note that the 'y-z' plane will be the one eventually placed in the
-        plane of the "sky". The corresponding value must be:
+    rotation : ~scipy.spatial.transform.Rotation, optional
+        A rotation to apply to the source particles, specified using the
+        :class:`~scipy.spatial.transform.Rotation` class. That class supports many ways to
+        specify a rotation (Euler angle, rotation matrices, quaternions, etc.). Refer to
+        the :mod:`scipy` documentation for details. Note that the ``y-z`` plane will be
+        the one eventually placed in the plane of the "sky". Cannot be used at the same
+        time as ``L_coords``.
 
-        - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-          axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
-          dimensions of angle, indicating the angle to rotate through.
-        - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
-        - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
-          angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
-          angle). The routine will first attempt to identify a preferred plane \
-          based on the angular momenta of the central 1/3 of particles in the \
-          source. This plane will then be rotated to lie in the plane of the \
-          "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-          momentum pole (rotation about 'x'), and inclined (rotation about \
-          'y'). A 3-tuple may be provided instead, in which case the third \
-          value specifies the position angle on the sky (second rotation about 'x'). \
-          The default position angle is 270 degrees.
+    L_coords : ~martini.L_coords.L_coords, optional
+        A named tuple specifying 3 angles. Import it as ``from martini import L_coords``.
+        The angles are used to orient the galaxy relative to its angular momentum vector,
+        "L". The routine will first identify a preferred plane based on the angular
+        momenta of the central 1/3 of HI gas. This plane will then be rotated to lie in
+        the plane of the "sky" (``y-z`` plane), rotated by an angle ``az_rot`` around the
+        angular momentum vector (rotation around ``x``), then inclined by ``incl`` towards
+        or away from the line of sight (rotation around ``y``) and finally rotated on the
+        sky to set the position angle ``pa`` (second rotation around ``x``). All rotations
+        are extrinsic. The position angle refers to the receding side of the galaxy
+        measured East of North. The angles should be specified using syntax like:
+        ``L_coords=L_coords(incl=0 * U.deg, pa=270 * U.deg, az_rot=0 * U.deg)``. These
+        example values are the defaults. Cannot be used at the same time as ``rotation``.
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
@@ -121,7 +125,8 @@ class EAGLESource(SPHSource):
         subBoxSize: U.Quantity[U.kpc] = 50.0 * U.kpc,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
-        rotation: dict = {"rotmat": np.eye(3)},
+        rotation: Rotation | None = Rotation.identity(),
+        L_coords: L_coords | None = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         coordinate_frame: "BaseRADecFrame" = ICRS(),
@@ -237,6 +242,7 @@ class EAGLESource(SPHSource):
             distance=distance,
             vpeculiar=vpeculiar,
             rotation=rotation,
+            L_coords=L_coords,
             ra=ra,
             dec=dec,
             h=h,

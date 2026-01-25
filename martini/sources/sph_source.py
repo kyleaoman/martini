@@ -111,15 +111,18 @@ class SPHSource(object):
         time as ``L_coords``.
 
     L_coords : ~martini.L_coords.L_coords, optional
-        A 2-tuple containing an inclination and an azimuthal angle (both
-        :class:`~astropy.units.Quantity` instances with dimensions of angle). The routine
-        will first attempt to identify a preferred plane based on the angular momenta of
-        the central 1/3 of particles in the source. This plane will then be rotated to lie
-        in the plane of the "sky" ('y-z'), rotated by the azimuthal angle about its
-        angular momentum pole (rotation about 'x'), and inclined (rotation about 'y'). A
-        3-tuple may be provided instead, in which case the third value specifies the
-        position angle on the sky (second rotation about 'x'). The default position angle
-        is 270 degrees.
+        A named tuple specifying 3 angles. Import it as ``from martini import L_coords``.
+        The angles are used to orient the galaxy relative to its angular momentum vector,
+        "L". The routine will first identify a preferred plane based on the angular
+        momenta of the central 1/3 of HI gas. This plane will then be rotated to lie in
+        the plane of the "sky" (``y-z`` plane), rotated by an angle ``az_rot`` around the
+        angular momentum vector (rotation around ``x``), then inclined by ``incl`` towards
+        or away from the line of sight (rotation around ``y``) and finally rotated on the
+        sky to set the position angle ``pa`` (second rotation around ``x``). All rotations
+        are extrinsic. The position angle refers to the receding side of the galaxy
+        measured East of North. The angles should be specified using syntax like:
+        ``L_coords=L_coords(incl=0 * U.deg, pa=270 * U.deg, az_rot=0 * U.deg)``. These
+        example values are the defaults. Cannot be used at the same time as ``rotation``.
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
