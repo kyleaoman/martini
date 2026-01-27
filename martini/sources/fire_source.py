@@ -115,7 +115,7 @@ class FIRESource(SPHSource):
         self,
         *,
         simulation_directory: str = ".",
-        snapshot_directory: str,
+        snapshot_directory: str | None,
         snapshot: tuple[str, float] = ("redshift", 0.0),
         host_number: int = 1,
         assign_hosts: str = "mass",
