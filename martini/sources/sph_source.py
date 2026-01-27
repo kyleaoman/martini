@@ -570,6 +570,12 @@ class SPHSource(object):
         ~numpy.ndarray
             The rotation matrix taking the coordinate originally passed in to the source
             to the current orientation.
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.save_current_rotation
+        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        ~martini.sources.sph_source.SPHSource.load_current_affine_transformations
         """
         # The rotation part of the _coordinate_affine_transform and the
         # _velocity_affine_transform are identical, just pick one.
@@ -579,21 +585,32 @@ class SPHSource(object):
         """
         Output current rotation matrix to file.
 
-        This includes the rotations applied for RA and Dec. The rotation matrix can be
-        applied to astropy coordinates (e.g. a
+        This includes the rotations applied for RA and Dec if the main
+        :class:`~martini.martini.Martini` module has been initialized. The rotation matrix
+        can be applied to astropy coordinates (e.g. a
         :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation`) as
-        ``coordinates.transform(np.loadtxt(fname))``.
+        ``coordinates.transform(np.loadtxt(fname))``. If you want to save the full
+        coordinate transformation state of a :mod:`martini` source (and optionally re-load
+        it later), see
+        :meth:`~martini.source.sph_source.SPHSource.save_current_affine_transformations`
+        and
+        :meth:`~martini.source.sph_source.SPHSource.load_affine_transformations`.
 
         Parameters
         ----------
         fname : str
             File in which to save rotation matrix.
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        ~martini.sources.sph_source.SPHSource.load_affine_transformations
         """
         np.savetxt(fname, self._coordinate_affine_transform[:3, :3])
         return
 
-    def save_current_affine_transformations(self, fname_p: str, fname_v: str) -> None:
-        """
+    def save_current_affine_transformations(self, fname: str) -> None:
+        r"""
         Output current affine transformation matrices (position and velocity) to a file.
 
         These matrices encode the arbitrary combination of translations and rotations
@@ -602,24 +619,42 @@ class SPHSource(object):
         translation part assumes dimensions of Mpc for positions or km/s for velocities
         (but is encoded without units).
 
+        An affine transformation matrix looks like:
+
+        .. math::
+
+           A = \left[ {\begin{array}{cccc}
+           R_{00} & R_{01} & R_{02} & t_{0} \\
+           R_{10} & R_{11} & R_{12} & t_{1} \\
+           R_{20} & R_{21} & R_{22} & t_{2} \\
+           0 & 0 & 0 & 1 \\
+           \end{array} } \right]
+   
+        Where :math:`R` is a rotation matrix and :math:`t` is a translation vector (either
+        in position or velocity). The affine transformation applied to a vector :math:`x`
+        is equivalent to :math:`Rx+t`. The saved file contains two affine transformation
+        matrices (in order: one for position, one for velocity) as an array with shape
+        ``(2, 4, 4)``. The rotational part of the two matrices is identical.
+
         Parameters
         ----------
-        fname_p : str
-            File in which to save position affine transformation matrix.
-
-        fname_v : str
-            File in which to save velocity affine transformation matrix.
+        fname : str
+            File in which to save affine transformation matrices.
 
         See Also
         --------
         ~martini.sources.sph_source.SPHSource.load_affine_transformations
         """
-        np.savetxt(fname_p, self._coordinate_affine_transform)
-        np.savetxt(fname_v, self._velocity_affine_transform)
+        np.savetxt(
+            fname,
+            np.array(
+                [self._coordinate_affine_transform, self._velocity_affine_transform]
+            ),
+        )
         return
 
     def load_affine_transformations(self, fname_p: str, fname_v: str) -> None:
-        """
+        r"""
         Load a set of affine transformation matrices (position and velocity) from a file.
 
         These matrices encode an arbitrary combination of translations and rotations. When
@@ -627,8 +662,28 @@ class SPHSource(object):
         orientation. The state is only the one that the source had when the files were
         saved if it has not been transformed since being loaded into :mod:`martini`.
         The rotation part of these matrices is dimensionless, while the translation part
-        assumed dimensions of Mpc for positions or km/s for velocities (but is encoded
+        assumes dimensions of Mpc for positions or km/s for velocities (but is encoded
         without units).
+
+        An affine transformation matrix looks like:
+
+        .. math::
+
+           A = \left[ {\begin{array}{cccc}
+           R_{00} & R_{01} & R_{02} & t_{0} \\
+           R_{10} & R_{11} & R_{12} & t_{1} \\
+           R_{20} & R_{21} & R_{22} & t_{2} \\
+           0 & 0 & 0 & 1 \\
+           \end{array} } \right]
+
+        Where :math:`R` is a rotation matrix and :math:`t` is a translation vector (either
+        in position or velocity). The affine transformation applied to a vector :math:`x`
+        is equivalent to :math:`Rx+t`. The loaded file should contain two affine
+        transformation matrices (in order: one for position, one for velocity) as an array
+        with shape ``(2, 4, 4)``. The rotational part of the two matrices should be
+        identical. The translation parts should assume implicit units of Mpc and km/s.
+        This is the format saved by
+        :meth:`~martini.sources.sph_source.SPHSource.save_current_affine_transformations`.
 
         Paramters
         ---------
