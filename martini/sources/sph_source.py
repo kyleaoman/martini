@@ -17,7 +17,12 @@ from astropy.coordinates import (
 )
 import astropy.units as U
 from ._L_align import L_align
-from ._cartesian_translation import translate, translate_d
+from ._extra_cartesian_transforms import (
+    translate,
+    translate_d,
+    affine_transform,
+    affine_transform_d,
+)
 from ..datacube import HIfreq, DataCube
 from ..L_coords import L_coords
 
@@ -25,12 +30,13 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
-# Extend CartesianRepresentation to allow coordinate translation
+# Extend CartesianRepresentation to allow more transformations
 setattr(CartesianRepresentation, "translate", translate)
+setattr(CartesianRepresentation, "affine_transform", affine_transform)
 
-# Extend CartesianDifferential to allow velocity (or other differential)
-# translation
+# Extend CartesianDifferential to allow more transformations
 setattr(CartesianDifferential, "translate", translate_d)
+setattr(CartesianDifferential, "affine_transform", affine_transform_d)
 
 _origin = CartesianRepresentation(
     np.zeros((3, 1)) * U.kpc,
@@ -656,7 +662,7 @@ class SPHSource(object):
         )
         self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
             "s"
-        ].affine_transform_d(velocity_affine_transform, _VELOCITY_TRANSFORM_UNITS)
+        ].affine_transform(velocity_affine_transform, _VELOCITY_TRANSFORM_UNITS)
         self._append_to_coordinate_affine_transform(coordinate_affine_transform)
         self._append_to_velocity_affine_transform(velocity_affine_transform)
 

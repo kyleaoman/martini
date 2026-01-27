@@ -8,7 +8,13 @@ from astropy import units as U
 from martini.datacube import DataCube
 from martini.sources import SPHSource
 from martini.L_coords import L_coords
-from martini.sources._cartesian_translation import translate, translate_d
+from martini.sources._extra_cartesian_transforms import (
+    translate,
+    translate_d,
+    affine_transform,
+    affine_transform_d,
+    _apply_affine_transform,
+)
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 from martini.__version__ import __version__
@@ -80,6 +86,76 @@ class TestSourceUtilities:
         translation = np.ones(3) * U.km / U.s
         cd_translated = cd.translate(translation)
         assert U.allclose(cd_translated.get_d_xyz(), translation)
+
+    def test_apply_affine_transform(self):
+        """Check affine transform applied correctly."""
+        init = np.ones((3, 1)) * U.Mpc
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        trans = (
+            np.ones(3) * 100 * U.kpc
+        )  # not same units as trans_units, test conversion
+        trans_units = U.Mpc
+        affine = np.eye(4)
+        affine[:3, :3] = rot
+        affine[:3, 3] = trans.to_value(trans_units)
+        transformed = _apply_affine_transform(init, affine, transform_units=trans_units)
+        assert U.allclose(transformed, (np.dot(rot, init) + trans))
+
+    def test_affine_rotation_and_rotation_match(self):
+        """Check that a rotation and a rotation in an affine transform agree."""
+        setattr(CartesianRepresentation, "affine_transform", affine_transform)
+        init = np.ones((1, 3)) * U.Mpc
+        cr = CartesianRepresentation(init, xyz_axis=1)
+        cr_affine = CartesianRepresentation(init, xyz_axis=1)
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        affine = np.zeros((4, 4))
+        affine[:3, :3] = rot
+        cr_transformed = cr_affine.affine_transform(affine, transform_units=U.Mpc)
+        cr_rotated = cr.transform(rot)
+        assert U.allclose(cr_transformed.get_xyz(), cr_rotated.get_xyz())
+
+    def test_affine_transform(self):
+        """Check that cartesian representation transforms correctly."""
+        setattr(CartesianRepresentation, "affine_transform", affine_transform)
+        setattr(CartesianRepresentation, "translate", translate)
+        init = np.ones((1, 3)) * U.Mpc
+        v_init = np.ones((1, 3)) * U.km / U.s
+        cr_composite = CartesianRepresentation(init, xyz_axis=1)
+        cr_affine = CartesianRepresentation(
+            init,
+            xyz_axis=1,
+            differentials={"s": CartesianDifferential(v_init, xyz_axis=1)},
+        )
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        trans = np.ones(3) * 100 * U.kpc
+        trans_units = U.Mpc
+        affine = np.eye(4)
+        affine[:3, :3] = rot
+        affine[:3, 3] = trans.to_value(trans_units)
+        cr_transformed = cr_affine.affine_transform(affine, transform_units=trans_units)
+        cr_rotated_and_translated = cr_composite.transform(rot).translate(trans)
+        assert U.allclose(cr_transformed.get_xyz(), cr_rotated_and_translated.get_xyz())
+        # differential expected to be unchanged:
+        assert U.allclose(cr_affine.differentials["s"].get_d_xyz(), v_init)
+
+    def test_affine_transform_d(self):
+        """Check that cartesian differential transforms correctly."""
+        setattr(CartesianDifferential, "affine_transform", affine_transform_d)
+        setattr(CartesianDifferential, "translate", translate_d)
+        init = np.ones((1, 3)) * U.km / U.s
+        cd_composite = CartesianDifferential(init, xyz_axis=1)
+        cd_affine = CartesianDifferential(init, xyz_axis=1)
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        boost = np.ones(3) * 100 * U.m / U.s
+        boost_units = U.km / U.s
+        affine = np.eye(4)
+        affine[:3, :3] = rot
+        affine[:3, 3] = boost.to_value(boost_units)
+        cd_transformed = cd_affine.affine_transform(affine, transform_units=boost_units)
+        cd_rotated_and_boosted = cd_composite.transform(rot).translate(boost)
+        assert U.allclose(
+            cd_transformed.get_d_xyz(), cd_rotated_and_boosted.get_d_xyz()
+        )
 
 
 class TestSPHSource:

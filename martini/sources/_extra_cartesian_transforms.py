@@ -37,8 +37,7 @@ def _apply_affine_transform(
 
     An arbitrary coordinate transformation mixing translations and rotations can be
     expressed as a 4x4 matrix. However, such a matrix has mixed units, so we need to
-    assume a consistent unit for all transformations and work with bare arrays. We also
-    always assume comoving coordinates.
+    assume a consistent unit for all transformations and work with bare arrays.
 
     Parameters
     ----------
@@ -58,12 +57,15 @@ def _apply_affine_transform(
     """
     return (
         U.Quantity(
-            np.hstack(
-                (
-                    coords.to_value(transform_units),
-                    np.ones(coords.shape[0])[:, np.newaxis],
-                )
-            ).dot(affine_transform)[:, :3],
+            np.dot(
+                affine_transform,
+                np.vstack(
+                    (
+                        coords.to_value(transform_units),
+                        np.ones(coords.shape[1])[np.newaxis],
+                    )
+                ),
+            )[:3, :],
             transform_units,
         )
         << coords.unit
