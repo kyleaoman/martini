@@ -558,6 +558,86 @@ class TestSPHSource:
                 os.remove(testfile)
         assert np.allclose(saved_rotmat, rotation.as_matrix())
 
+    def test_save_and_load_affine_transforms(self, s):
+        """Check that we can reproduce coordinate transformations from a saved file."""
+        s_copy = SPHSource(
+            T_g=s.T_g,
+            mHI_g=s.mHI_g,
+            xyz_g=s.coordinates_g.get_xyz(),
+            vxyz_g=s.coordinates_g.differentials["s"].get_d_xyz(),
+            hsm_g=s.hsm_g,
+            distance=s.distance,
+            ra=s.ra,
+            dec=s.dec,
+            vpeculiar=s.vpeculiar,
+            coordinate_frame=s.coordinate_frame,
+        )
+        # make sure we start from a matching state
+        assert np.allclose(s._coordinate_affine_transform, np.eye(4))
+        assert np.allclose(s._velocity_affine_transform, np.eye(4))
+        assert np.allclose(s_copy._coordinate_affine_transform, np.eye(4))
+        assert np.allclose(s_copy._velocity_affine_transform, np.eye(4))
+        assert U.allclose(
+            s.coordinates_g.get_xyz(),
+            s_copy.coordinates_g.get_xyz(),
+        )
+        assert U.allclose(
+            s.coordinates_g.differentials["s"].get_d_xyz(),
+            s_copy.coordinates_g.differentials["s"].get_d_xyz(),
+        )
+        # apply some non-trivial transformations:
+        s.rotate(Rotation.from_euler("x", 23, degrees=True))
+        s.translate(np.array([1, 2, 3]) * U.kpc)
+        s.boost(np.array([5, 6, 7]) * U.km / U.s)
+        s.rotate(Rotation.from_euler("z", 14, degrees=True))
+        s.translate(np.array([2, 5, 9]) * U.kpc)
+        assert not np.allclose(s._coordinate_affine_transform, np.eye(4))
+        assert not np.allclose(s._velocity_affine_transform, np.eye(4))
+        testfile = "affine.npy"
+        try:
+            s.save_current_affine_transformations(testfile)
+            s_copy.load_affine_transformations(testfile)
+        finally:
+            if os.path.exists(testfile):
+                os.remove(testfile)
+        assert U.allclose(
+            s.coordinates_g.get_xyz(),
+            s_copy.coordinates_g.get_xyz(),
+        )
+        assert U.allclose(
+            s.coordinates_g.differentials["s"].get_d_xyz(),
+            s_copy.coordinates_g.differentials["s"].get_d_xyz(),
+        )
+
+    def test_invalid_load_affine_transformations(self, s):
+        """
+        Check that we reject an inconsistent set of affine transformations.
+
+        The rotation part of the matrices must match.
+        """
+        testfile = "bad_affine.npy"
+        try:
+            np.save(
+                testfile,
+                np.array(
+                    [
+                        np.eye(4),
+                        np.array(
+                            [[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+                        ),
+                    ]
+                ),
+            )
+            with pytest.raises(
+                ValueError,
+                match="Rotation portion of position and velocity affine transforms do not "
+                "match",
+            ):
+                s.load_affine_transformations(testfile)
+        finally:
+            if os.path.exists(testfile):
+                os.remove(testfile)
+
     def test_preview(self, s):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(

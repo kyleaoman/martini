@@ -409,8 +409,8 @@ class SPHSource(object):
         affine_transform : :class:`~numpy.ndarray`
             The affine transform to add to the cumulative coordinate transformation.
         """
-        self._coordinate_affine_transform = self._coordinate_affine_transform.dot(
-            affine_transform
+        self._coordinate_affine_transform = np.dot(
+            affine_transform, self._coordinate_affine_transform
         )
         return
 
@@ -432,8 +432,9 @@ class SPHSource(object):
         affine_transform : :class:`~numpy.ndarray`
             The affine transform to add to the cumulative velocity transformation.
         """
-        self._velocity_affine_transform = self._velocity_affine_transform.dot(
-            affine_transform
+        self._velocity_affine_transform = np.dot(
+            affine_transform,
+            self._velocity_affine_transform,
         )
         return
 
@@ -531,7 +532,7 @@ class SPHSource(object):
         """
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
         affine_transform = np.eye(4)
-        affine_transform[3, :3] = translation_vector.squeeze().to_value(
+        affine_transform[:3, 3] = translation_vector.squeeze().to_value(
             _COORDINATE_TRANSFORM_UNITS
         )
         self._append_to_coordinate_affine_transform(affine_transform)
@@ -554,7 +555,7 @@ class SPHSource(object):
             "s"
         ].translate(boost_vector)
         affine_transform = np.eye(4)
-        affine_transform[3, :3] = boost_vector.squeeze().to_value(
+        affine_transform[:3, 3] = boost_vector.squeeze().to_value(
             _VELOCITY_TRANSFORM_UNITS
         )
         self._append_to_velocity_affine_transform(affine_transform)
@@ -585,9 +586,7 @@ class SPHSource(object):
         """
         Output current rotation matrix to file.
 
-        This includes the rotations applied for RA and Dec if the main
-        :class:`~martini.martini.Martini` module has been initialized. The rotation matrix
-        can be applied to astropy coordinates (e.g. a
+        The rotation matrix can be applied to astropy coordinates (e.g. a
         :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation`) as
         ``coordinates.transform(np.loadtxt(fname))``. If you want to save the full
         coordinate transformation state of a :mod:`martini` source (and optionally re-load
@@ -599,7 +598,7 @@ class SPHSource(object):
         Parameters
         ----------
         fname : str
-            File in which to save rotation matrix.
+            File in which to save rotation matrix (as a text file).
 
         See Also
         --------
@@ -639,13 +638,13 @@ class SPHSource(object):
         Parameters
         ----------
         fname : str
-            File in which to save affine transformation matrices.
+            File in which to save affine transformation matrices (in ``*.npy`` format).
 
         See Also
         --------
         ~martini.sources.sph_source.SPHSource.load_affine_transformations
         """
-        np.savetxt(
+        np.save(
             fname,
             np.array(
                 [self._coordinate_affine_transform, self._velocity_affine_transform]
@@ -653,7 +652,7 @@ class SPHSource(object):
         )
         return
 
-    def load_affine_transformations(self, fname_p: str, fname_v: str) -> None:
+    def load_affine_transformations(self, fname: str) -> None:
         r"""
         Load a set of affine transformation matrices (position and velocity) from a file.
 
@@ -687,11 +686,8 @@ class SPHSource(object):
 
         Paramters
         ---------
-        fname_p : str
-            File from which to load position affine transformation matrix.
-
-        fname_v : str
-            File from which to load velocity affine transformation matrix.
+        fname : str
+            File from which to load affine transformation matrices (in ``*.npy`` format).
 
         Raises
         ------
@@ -703,8 +699,7 @@ class SPHSource(object):
         --------
         ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
         """
-        coordinate_affine_transform = np.load(fname_p)
-        velocity_affine_transform = np.load(fname_v)
+        coordinate_affine_transform, velocity_affine_transform = np.load(fname)
         if not np.allclose(
             coordinate_affine_transform[:3, :3], velocity_affine_transform[:3, :3]
         ):
