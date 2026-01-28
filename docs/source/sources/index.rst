@@ -234,44 +234,99 @@ after initialization with the :meth:`~martini.sources.sph_source.SPHSource.trans
 method (for "translations" in velocity use
 :meth:`~martini.sources.sph_source.SPHSource.boost`).
 
-MARTINI offers three ways of specifying rotations:
+MARTINI offers two ways of specifying rotations:
 
- - ``axis_angle`` defines a rotation with a 2-tuple where the first element is one of the
-   strings ``"x"``, ``"y"`` or ``"z"`` and the second element is an angle (with units
-   specified with :mod:`astropy.units`). The position and velocity vectors of each
-   particle are rotated about the specified axis (in the "source frame", not the "observer
-   frame").
- - ``rotmat`` defines a rotation with a 3x3 rotation matrix.
- - ``L_coords`` is offered as a convenience when an (approximate) inclination angle and
-   position angle are desired. This method first identifies the plane perpendicular to the
-   angular momentum of the source (specifically, the angular momentum of the 1/3 of
-   particles closest to the source centre). The source is then rotated to place this plane
-   in the ``y-z`` plane. There is a degree of freedom (a rotation about the angular
-   momentum vector) here; this is fixed with an arbitrary (but *not* random) choice. The
-   ``L_coords`` specification is then a 2-tuple or a 3-tuple. If a 2-tuple, the first
-   element is the desired inclination angle and the second element controls a rotation
-   around the pole (applied before the inclination). If a third element is provided, this
-   sets the position angle on the sky (otherwise this defaults to 270 degrees). All of
-   these angles should be specified using :mod:`astropy.units`.
+ - Using the :class:`scipy.spatial.transform.Rotation` class. This class allows specifying
+   rotations in many ways. For example, if a rotation matrix is known then
+   ``Rotation.from_matrix(np.eye(3))`` creates the
+   :class:`~scipy.spatial.transform.Rotation` object (here the identity rotation matrix
+   ``np.eye(3)`` is used as an example). Or, to rotate around the coordinate axes with
+   Euler angles: ``Rotation.from_euler("x", 90, degrees=True)`` (90 degree rotation around
+   the :math:`x` axis). Note that this :mod:`scipy` class is not aware of :mod:`astropy`
+   units so the ``degrees`` keyword argument should be set accordingly (if omitted radians
+   are assumed). Refer to the :class:`~scipy.spatial.transform.Rotation` documentation for
+   further details.
+ - A rotation that manipulates the angular momentum vector of the HI disc is also
+   available, called :class:`~martini._L_coords.L_coords` (:math:`L` for angular
+   momentum). This is intended as a convenience when an (approximate) inclination angle
+   and position angle are desired. This method first identifies the plane perpendicular to
+   the angular momentum of the source (specifically, the angular momentum of the 1/3 of
+   the HI by mass closest to the source centre). The source is then rotated to place this
+   plane in the ``y-z`` plane. There is a degree of freedom (a rotation about the angular
+   momentum vector) here; this is fixed with an arbitrary (but *not* random) choice. From
+   this reference orientation the final orientation can then be manipulated with up to 3
+   angles. First the galaxy can be rotated around its angular momentum vector (keeping the
+   plane of the disc fixed) by an angle ``az_rot``. Next it can be inclined by ``incl``
+   toward/away from the line of sight. Finally, it can be rotated by ``pa`` in the plane
+   of the sky. All of these angles should be specified using :mod:`astropy.units`. A
+   simple helper class :class:`~martini._L_coords.L_coords`
+   (``from martini import L_coords``) is used to specify the angles. For instance
+   ``L_coords(incl=60 * U.deg, az_rot=0 * U.deg, pa=20 * U.deg)``. The ``incl`` and
+   ``az_rot`` angles default to zero, but ``pa`` defaults to :math:`270^\circ` following
+   the convention that it points to the receding side of the galaxy measured East of
+   North.
 
-To specify a rotation when initializing the source, the rotation is given as a dictionary
-passed to the ``rotation`` keyword argument, for example:
+To specify a rotation when initializing the source, the rotation is passed through the
+corresponding keyword argument. For example for a
+:class:`~scipy.spatial.transform.Rotation`:
 
 .. code-block:: python
 
-    SPHSource(rotation={"axis_angle": ("x", 30 * U.deg)}, ...)  # or "rotmat", "L_coords"
+    from scipy.spatial.transform import Rotation
+    SPHSource(rotation=Rotation.from_matrix(np.eye(3)), ...)
 
-To specify a rotation for a source already initialized, use the ``axis_angle``, ``rotmat``
-or ``L_coords`` keyword arguments as:
+or for a :class:`~martini._L_coords.L_coords` rotation:
+
+.. code-block:: python
+
+   from martini import L_coords
+   SPHSource(L_coords=L_coords(incl=60 * U.deg, az_rot=0 * U.deg, pa=20 * U.deg))
+
+If the source is already initialized then the same arguments can be passed to
+:meth:`~martini.sources.sph_source.SPHSource.rotate`:
 
 .. code-block:: python
 
     source = SPHSource(...)
-    source.rotate(axis_angle=("x", 30 * U.deg))  # or rotmat or L_coords
+    source.rotate(rotation=Rotation.from_euler("x", 20, degrees=True))
+
+or
+
+.. code-block:: python
+
+    source = SPHSource(...)
+    source.rotate(L_coords=L_coords(incl=60 * U.deg, az_rot=0 * U.deg, pa=20 * U.deg))
+
+.. warning::
+
+   A subtlety to be aware of is that repeatedly using :class:`~martini._L_coords.L_coords`
+   on the same object will give a different orientation each time because of the form used
+   for the arbitrary choice used to fix the remaining degree of freedom. This is not
+   recommended. To be clear, initializing the source and using
+   :class:`~martini._L_coords.L_coords` once (with a given set of angles) will always give
+   the same result.
+
+Saving and loading coordinate transformations
++++++++++++++++++++++++++++++++++++++++++++++
 
 The current rotation state of a source (relative to the state in which the particles were
 passed in to MARTINI) can be written out to a file (always as a rotation matrix) using
-:meth:`~martini.sources.sph_source.SPHSource.save_current_rotation`.
+:meth:`~martini.sources.sph_source.SPHSource.save_current_rotation`. This rotation matrix
+alone is not enough to fully specify the transformed particle coordinates because they
+could have been rotated multiple times with translations interspersed. To avoid confusion
+there is no direct way offered to load a saved rotation matrix (but it could be used to
+create a :class:`~scipy.spatial.transform.Rotation`...). The full coordinate
+transformation for any arbitrary combination of
+:meth:`~martini.sources.sph_source.SPHSource.rotate`,
+:meth:`~martini.sources.sph_source.SPHSource.translate` and
+:meth:`~martini.sources.sph_source.SPHSource.boost` can be encoded in a pair of 4x4 affine
+transformation matrices. A :mod:`martini` source object keeps track of the cumulative
+transformation internally and this can be written out, then a series of transformations
+can be repeated by loading in the outputted matrices. The two functions used for this are
+:meth:`~martini.sources.sph_source.SPHSource.save_current_affine_transformations` and
+:meth:`~martini.sources.sph_source.SPHSource.load_affine_transformations`. Refer to the
+documentation for these functions for further details including the form of the affine
+transformation matrices.
 
 Masking
 +++++++
@@ -295,6 +350,7 @@ illustrate its usage, let's set up a randomly-oriented source using MARTINI's si
 
     import numpy as np
     import astropy.units as U
+    from scipy.spatial.transform import Rotation
     from martini import demo_source
 
     source = demo_source(N=20000)  # create simple disc with 20000 particles
@@ -307,7 +363,7 @@ illustrate its usage, let's set up a randomly-oriented source using MARTINI's si
         ]
     )
     # apply it so that the source has no particular orientation:
-    source.rotate(rotmat=rotmat)
+    source.rotate(Rotation.from_matrix(rotmat))
 
     source.preview(fig=1)  # uses matplotlib `plt.figure(1)`
 
@@ -330,8 +386,9 @@ preview it again:
 
 .. code-block:: python
 
+    from martini import L_coords
     source.rotate(
-        L_coords=(90 * U.deg, 0 * U.deg)  # (incl, polar rotation); implicit: PA=270deg
+        L_coords=L_coords(incl=90 * U.deg, az_rot=0 * U.deg, pa=270 * U.deg)
     )
     source.preview(fig=2)
 
@@ -346,7 +403,7 @@ to 60 degrees inclined and a position angle offset 45 degrees from its previous 
 
 .. code-block:: python
 
-    source.rotate(L_coords=(90 * U.deg, 0 * U.deg, 225 * U.deg))
+    source.rotate(L_coords=L_coords(incl=60 * U.deg, az_rot=0 * U.deg, pa=225 * U.deg))
     source.preview(max_points=100, fig=3)
 
 .. image:: preview3.png
@@ -413,10 +470,16 @@ accessible as attributes, for example:
 
 .. code-block:: python
 
-    tng_source.xyz_g
-    tng_source.vxyz_g
+    tng_source.coordinates_g  # positions and velocities
     tng_source.mHI_g
     tng_source.T_g
     tng_source.hsm_g
 
-The same attributes exist for all source modules available in MARTINI.
+The same attributes exist for all source modules available in MARTINI. The positions and
+velocities are stored using features of the :mod:`astropy.coordinates` module to help
+manipulate them. The positions and velocities can be accessed like this:
+
+.. code-block:: python
+
+    tng_source.coordinates_g.get_xyz()  # positions
+    tng_source.coordinates_g.differentials["s"].get_d_xyz()  # velocities
