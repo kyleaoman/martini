@@ -159,7 +159,7 @@ modules = [
     "martini.sources.sph_source",
     "martini.sources.swiftgalaxy_source",
     "martini.sources.tng_source",
-    "martini.sources._cartesian_translation",
+    "martini.sources._extra_cartesian_transforms",
     "martini.sources._L_align",
     "martini._demo",
 ]

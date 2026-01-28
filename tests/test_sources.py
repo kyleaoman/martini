@@ -3,11 +3,18 @@
 import os
 import pytest
 import numpy as np
+from scipy.spatial.transform import Rotation
 from astropy import units as U
-from astropy.coordinates.matrix_utilities import rotation_matrix
 from martini.datacube import DataCube
 from martini.sources import SPHSource
-from martini.sources._cartesian_translation import translate, translate_d
+from martini.L_coords import L_coords
+from martini.sources._extra_cartesian_transforms import (
+    translate,
+    translate_d,
+    affine_transform,
+    affine_transform_d,
+    _apply_affine_transform,
+)
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 from martini.__version__ import __version__
@@ -79,6 +86,76 @@ class TestSourceUtilities:
         translation = np.ones(3) * U.km / U.s
         cd_translated = cd.translate(translation)
         assert U.allclose(cd_translated.get_d_xyz(), translation)
+
+    def test_apply_affine_transform(self):
+        """Check affine transform applied correctly."""
+        init = np.ones((3, 1)) * U.Mpc
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        trans = (
+            np.ones(3) * 100 * U.kpc
+        )  # not same units as trans_units, test conversion
+        trans_units = U.Mpc
+        affine = np.eye(4)
+        affine[:3, :3] = rot
+        affine[:3, 3] = trans.to_value(trans_units)
+        transformed = _apply_affine_transform(init, affine, transform_units=trans_units)
+        assert U.allclose(transformed, (np.dot(rot, init) + trans))
+
+    def test_affine_rotation_and_rotation_match(self):
+        """Check that a rotation and a rotation in an affine transform agree."""
+        setattr(CartesianRepresentation, "affine_transform", affine_transform)
+        init = np.ones((1, 3)) * U.Mpc
+        cr = CartesianRepresentation(init, xyz_axis=1)
+        cr_affine = CartesianRepresentation(init, xyz_axis=1)
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        affine = np.zeros((4, 4))
+        affine[:3, :3] = rot
+        cr_transformed = cr_affine.affine_transform(affine, transform_units=U.Mpc)
+        cr_rotated = cr.transform(rot)
+        assert U.allclose(cr_transformed.get_xyz(), cr_rotated.get_xyz())
+
+    def test_affine_transform(self):
+        """Check that cartesian representation transforms correctly."""
+        setattr(CartesianRepresentation, "affine_transform", affine_transform)
+        setattr(CartesianRepresentation, "translate", translate)
+        init = np.ones((1, 3)) * U.Mpc
+        v_init = np.ones((1, 3)) * U.km / U.s
+        cr_composite = CartesianRepresentation(init, xyz_axis=1)
+        cr_affine = CartesianRepresentation(
+            init,
+            xyz_axis=1,
+            differentials={"s": CartesianDifferential(v_init, xyz_axis=1)},
+        )
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        trans = np.ones(3) * 100 * U.kpc
+        trans_units = U.Mpc
+        affine = np.eye(4)
+        affine[:3, :3] = rot
+        affine[:3, 3] = trans.to_value(trans_units)
+        cr_transformed = cr_affine.affine_transform(affine, transform_units=trans_units)
+        cr_rotated_and_translated = cr_composite.transform(rot).translate(trans)
+        assert U.allclose(cr_transformed.get_xyz(), cr_rotated_and_translated.get_xyz())
+        # differential expected to be unchanged:
+        assert U.allclose(cr_affine.differentials["s"].get_d_xyz(), v_init)
+
+    def test_affine_transform_d(self):
+        """Check that cartesian differential transforms correctly."""
+        setattr(CartesianDifferential, "affine_transform", affine_transform_d)
+        setattr(CartesianDifferential, "translate", translate_d)
+        init = np.ones((1, 3)) * U.km / U.s
+        cd_composite = CartesianDifferential(init, xyz_axis=1)
+        cd_affine = CartesianDifferential(init, xyz_axis=1)
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+        boost = np.ones(3) * 100 * U.m / U.s
+        boost_units = U.km / U.s
+        affine = np.eye(4)
+        affine[:3, :3] = rot
+        affine[:3, 3] = boost.to_value(boost_units)
+        cd_transformed = cd_affine.affine_transform(affine, transform_units=boost_units)
+        cd_rotated_and_boosted = cd_composite.transform(rot).translate(boost)
+        assert U.allclose(
+            cd_transformed.get_d_xyz(), cd_rotated_and_boosted.get_d_xyz()
+        )
 
 
 class TestSPHSource:
@@ -358,7 +435,7 @@ class TestSPHSource:
                 [0, 0, 1],
             ]
         )
-        s.rotate(axis_angle=(axis, angle))
+        s.rotate(Rotation.from_euler(axis, angle.to(U.deg), degrees=True))
         assert np.allclose(s.current_rotation, rotmat)
 
     def test_rotate_rotmat(self, s):
@@ -374,7 +451,7 @@ class TestSPHSource:
         )
         vector_before = s.coordinates_g.get_xyz()[:, 0]
         assert any(np.abs(vector_before) > 0)
-        s.rotate(rotmat=rotmat)
+        s.rotate(Rotation.from_matrix(rotmat))
         assert U.allclose(
             s.coordinates_g.get_xyz()[:, 0], np.dot(rotmat, vector_before)
         )
@@ -391,16 +468,26 @@ class TestSPHSource:
             s.mHI_g,
             Laxis="x",
         )
-        rotmat = rotation_matrix(az_rot, axis="x").T.dot(rotmat)
-        rotmat = rotation_matrix(incl, axis="y").T.dot(rotmat)
+        rotmat = (
+            Rotation.from_euler("x", az_rot.to_value(U.rad)).as_matrix().dot(rotmat)
+        )
+        rotmat = Rotation.from_euler("y", incl.to_value(U.rad)).as_matrix().dot(rotmat)
         if incl >= 0:
-            rotmat = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(rotmat)
+            rotmat = (
+                Rotation.from_euler("x", (pa - 90 * U.deg).to_value(U.rad))
+                .as_matrix()
+                .dot(rotmat)
+            )
         else:
-            rotmat = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(rotmat)
+            rotmat = (
+                Rotation.from_euler("x", (pa - 270 * U.deg).to_value(U.rad))
+                .as_matrix()
+                .dot(rotmat)
+            )
         if U.isclose(pa, 270 * U.deg):
-            s.rotate(L_coords=(incl, az_rot))
+            s.rotate(L_coords=L_coords(incl=incl, az_rot=az_rot))
         else:
-            s.rotate(L_coords=(incl, az_rot, pa))
+            s.rotate(L_coords=L_coords(incl=incl, az_rot=az_rot, pa=pa))
         assert np.allclose(s.current_rotation, rotmat)
 
     def test_composite_rotations(self, s):
@@ -408,7 +495,25 @@ class TestSPHSource:
         with pytest.raises(
             ValueError, match="Multiple rotations in a single call not allowed."
         ):
-            s.rotate(axis_angle=("x", 30 * U.deg), rotmat=np.eye(3))
+            s.rotate(Rotation.identity(), L_coords=L_coords())
+
+    def test_deprecated_rotations(self):
+        """
+        Check that trying to use old-style rotations raises a helpful error message.
+
+        Any dict passed to the ``rotation`` argument should trigger the error.
+        """
+        with pytest.raises(
+            ValueError,
+            match="The method to specify rotations in martini has been updated.",
+        ):
+            SPHSource(
+                xyz_g=np.ones((3, 1)) * U.kpc,
+                vxyz_g=np.ones((3, 1)) * U.km / U.s,
+                mHI_g=np.ones(1) * U.Msun,
+                distance=3 * U.Mpc,
+                rotation={"rotmat": np.eye(3)},
+            )
 
     def test_translate(self, s):
         """Check that coordinates translate correctly."""
@@ -434,14 +539,16 @@ class TestSPHSource:
         """Check that current rotation state can be output to file."""
         assert np.allclose(s.current_rotation, np.eye(3))
         angle = np.pi / 4
-        rotmat = np.array(
-            [
-                [np.cos(angle), -np.sin(angle), 0],
-                [np.sin(angle), np.cos(angle), 0],
-                [0, 0, 1],
-            ]
+        rotation = Rotation.from_matrix(
+            np.array(
+                [
+                    [np.cos(angle), -np.sin(angle), 0],
+                    [np.sin(angle), np.cos(angle), 0],
+                    [0, 0, 1],
+                ]
+            )
         )
-        s.rotate(rotmat=rotmat)
+        s.rotate(rotation)
         testfile = "testrotmat.npy"
         try:
             s.save_current_rotation(testfile)
@@ -449,7 +556,87 @@ class TestSPHSource:
         finally:
             if os.path.exists(testfile):
                 os.remove(testfile)
-        assert np.allclose(saved_rotmat, rotmat)
+        assert np.allclose(saved_rotmat, rotation.as_matrix())
+
+    def test_save_and_load_affine_transforms(self, s):
+        """Check that we can reproduce coordinate transformations from a saved file."""
+        s_copy = SPHSource(
+            T_g=s.T_g,
+            mHI_g=s.mHI_g,
+            xyz_g=s.coordinates_g.get_xyz(),
+            vxyz_g=s.coordinates_g.differentials["s"].get_d_xyz(),
+            hsm_g=s.hsm_g,
+            distance=s.distance,
+            ra=s.ra,
+            dec=s.dec,
+            vpeculiar=s.vpeculiar,
+            coordinate_frame=s.coordinate_frame,
+        )
+        # make sure we start from a matching state
+        assert np.allclose(s._coordinate_affine_transform, np.eye(4))
+        assert np.allclose(s._velocity_affine_transform, np.eye(4))
+        assert np.allclose(s_copy._coordinate_affine_transform, np.eye(4))
+        assert np.allclose(s_copy._velocity_affine_transform, np.eye(4))
+        assert U.allclose(
+            s.coordinates_g.get_xyz(),
+            s_copy.coordinates_g.get_xyz(),
+        )
+        assert U.allclose(
+            s.coordinates_g.differentials["s"].get_d_xyz(),
+            s_copy.coordinates_g.differentials["s"].get_d_xyz(),
+        )
+        # apply some non-trivial transformations:
+        s.rotate(Rotation.from_euler("x", 23, degrees=True))
+        s.translate(np.array([1, 2, 3]) * U.kpc)
+        s.boost(np.array([5, 6, 7]) * U.km / U.s)
+        s.rotate(Rotation.from_euler("z", 14, degrees=True))
+        s.translate(np.array([2, 5, 9]) * U.kpc)
+        assert not np.allclose(s._coordinate_affine_transform, np.eye(4))
+        assert not np.allclose(s._velocity_affine_transform, np.eye(4))
+        testfile = "affine.npy"
+        try:
+            s.save_current_affine_transformations(testfile)
+            s_copy.load_affine_transformations(testfile)
+        finally:
+            if os.path.exists(testfile):
+                os.remove(testfile)
+        assert U.allclose(
+            s.coordinates_g.get_xyz(),
+            s_copy.coordinates_g.get_xyz(),
+        )
+        assert U.allclose(
+            s.coordinates_g.differentials["s"].get_d_xyz(),
+            s_copy.coordinates_g.differentials["s"].get_d_xyz(),
+        )
+
+    def test_invalid_load_affine_transformations(self, s):
+        """
+        Check that we reject an inconsistent set of affine transformations.
+
+        The rotation part of the matrices must match.
+        """
+        testfile = "bad_affine.npy"
+        try:
+            np.save(
+                testfile,
+                np.array(
+                    [
+                        np.eye(4),
+                        np.array(
+                            [[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+                        ),
+                    ]
+                ),
+            )
+            with pytest.raises(
+                ValueError,
+                match="Rotation portion of position and velocity affine transforms do not "
+                "match",
+            ):
+                s.load_affine_transformations(testfile)
+        finally:
+            if os.path.exists(testfile):
+                os.remove(testfile)
 
     def test_preview(self, s):
         """Simply check that the preview visualisation runs without error."""

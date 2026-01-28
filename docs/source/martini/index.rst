@@ -69,6 +69,7 @@ to draw the boundaries of the observation. The following example sets up a
 .. code-block:: python
 
     import numpy as np
+    from scipy.spatial.transform import Rotation
     import astropy.units as U
     from martini import demo_source, DataCube, Martini
     from martini.beams import GaussianBeam
@@ -86,7 +87,7 @@ to draw the boundaries of the observation. The following example sets up a
         ]
     )
     # apply it so that the source has no particular orientation:
-    source.rotate(rotmat=rotmat)
+    source.rotate(Rotation.from_matrix(rotmat))
 
     datacube = DataCube(
         n_px_x=128,

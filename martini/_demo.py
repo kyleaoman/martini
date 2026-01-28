@@ -6,6 +6,7 @@ demonstrate an example configuration and usage of the package.
 """
 
 from . import Martini, DataCube
+from .L_coords import L_coords
 from .beams import GaussianBeam
 from .noise import GaussianNoise
 from .spectral_models import GaussianSpectrum
@@ -63,7 +64,7 @@ def demo_source(N: int = 500) -> SPHSource:
 
     source = SPHSource(
         distance=3.0 * U.Mpc,
-        rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+        L_coords=L_coords(incl=60.0 * U.deg, az_rot=0.0 * U.deg, pa=270 * U.deg),
         ra=0.0 * U.deg,
         dec=0.0 * U.deg,
         h=0.7,

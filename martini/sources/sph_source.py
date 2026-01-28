@@ -5,6 +5,7 @@ Enables working with any SPH or similar simulation as input.
 """
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
 from astropy.coordinates import (
     CartesianRepresentation,
@@ -14,27 +15,39 @@ from astropy.coordinates import (
     SpectralCoord,
     ICRS,
 )
-from astropy.coordinates.matrix_utilities import rotation_matrix
 import astropy.units as U
 from ._L_align import L_align
-from ._cartesian_translation import translate, translate_d
+from ._extra_cartesian_transforms import (
+    translate,
+    translate_d,
+    affine_transform,
+    affine_transform_d,
+)
 from ..datacube import HIfreq, DataCube
+from ..L_coords import L_coords
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
-# Extend CartesianRepresentation to allow coordinate translation
+# Extend CartesianRepresentation to allow more transformations
 setattr(CartesianRepresentation, "translate", translate)
+setattr(CartesianRepresentation, "affine_transform", affine_transform)
 
-# Extend CartesianDifferential to allow velocity (or other differential)
-# translation
+# Extend CartesianDifferential to allow more transformations
 setattr(CartesianDifferential, "translate", translate_d)
+setattr(CartesianDifferential, "affine_transform", affine_transform_d)
 
 _origin = CartesianRepresentation(
     np.zeros((3, 1)) * U.kpc,
     differentials={"s": CartesianDifferential(np.zeros((3, 1)) * U.km / U.s)},
 )
+
+# Affine transform matrices have mixed dimensionful and dimensionless elements so need to
+# be processed as raw arrays. We define conventional units for length and velocity type
+# affine transforms to ensure internal consistency.
+_COORDINATE_TRANSFORM_UNITS = U.Mpc
+_VELOCITY_TRANSFORM_UNITS = U.km / U.s
 
 
 class SPHSource(object):
@@ -54,25 +67,27 @@ class SPHSource(object):
         :class:`~astropy.units.Quantity`, with dimensions of velocity.
         Source peculiar velocity along the direction to the source centre.
 
-    rotation : dict, optional
-        Must have a single key, which must be one of ``axis_angle``, ``rotmat`` or
-        ``L_coords``. Note that the 'y-z' plane will be the one eventually placed in the
-        plane of the "sky". The corresponding value must be:
+    rotation : ~scipy.spatial.transform.Rotation, optional
+        A rotation to apply to the source particles, specified using the
+        :class:`~scipy.spatial.transform.Rotation` class. That class supports many ways to
+        specify a rotation (Euler angle, rotation matrices, quaternions, etc.). Refer to
+        the :mod:`scipy` documentation for details. Note that the ``y-z`` plane will be
+        the one eventually placed in the plane of the "sky". Cannot be used at the same
+        time as ``L_coords``.
 
-        - ``axis_angle`` : 2-tuple, first element one of 'x', 'y', 'z' for the \
-          axis to rotate about, second element a :class:`~astropy.units.Quantity` with \
-          dimensions of angle, indicating the angle to rotate through.
-        - ``rotmat`` : A (3, 3) :class:`~numpy.ndarray` specifying a rotation.
-        - ``L_coords`` : A 2-tuple containing an inclination and an azimuthal \
-          angle (both :class:`~astropy.units.Quantity` instances with dimensions of \
-          angle). The routine will first attempt to identify a preferred plane \
-          based on the angular momenta of the central 1/3 of particles in the \
-          source. This plane will then be rotated to lie in the plane of the \
-          "sky" ('y-z'), rotated by the azimuthal angle about its angular \
-          momentum pole (rotation about 'x'), and inclined (rotation about \
-          'y'). A 3-tuple may be provided instead, in which case the third \
-          value specifies the position angle on the sky (second rotation about 'x'). \
-          The default position angle is 270 degrees.
+    L_coords : ~martini.L_coords.L_coords, optional
+        A named tuple specifying 3 angles. Import it as ``from martini import L_coords``.
+        The angles are used to orient the galaxy relative to its angular momentum vector,
+        "L". The routine will first identify a preferred plane based on the angular
+        momenta of the central 1/3 of HI gas. This plane will then be rotated to lie in
+        the plane of the "sky" (``y-z`` plane), rotated by an angle ``az_rot`` around the
+        angular momentum vector (rotation around ``x``), then inclined by ``incl`` towards
+        or away from the line of sight (rotation around ``y``) and finally rotated on the
+        sky to set the position angle ``pa`` (second rotation around ``x``). All rotations
+        are extrinsic. The position angle refers to the receding side of the galaxy
+        measured East of North. The angles should be specified using syntax like:
+        ``L_coords=L_coords(incl=0 * U.deg, pa=270 * U.deg, az_rot=0 * U.deg)``. These
+        example values are the defaults. Cannot be used at the same time as ``rotation``.
 
     ra : ~astropy.units.Quantity, optional
         :class:`~astropy.units.Quantity`, with dimensions of angle.
@@ -142,7 +157,8 @@ class SPHSource(object):
     dec: U.Quantity[U.deg]
     distance: U.Quantity[U.Mpc]
     vpeculiar: U.Quantity[U.km / U.s]
-    current_rotation: np.ndarray
+    _coordinate_affine_transform: np.ndarray
+    _velocity_affine_transform: np.ndarray
     vhubble: U.Quantity[U.km / U.s]
     vsys: U.Quantity[U.km / U.s]
     sky_coordinates: ICRS
@@ -156,7 +172,8 @@ class SPHSource(object):
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0.0 * U.km / U.s,
-        rotation: dict = {"rotmat": np.eye(3)},
+        rotation: Rotation | None = None,
+        L_coords: L_coords | None = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         h: float = 0.7,
@@ -168,6 +185,27 @@ class SPHSource(object):
         coordinate_axis: int | None = None,
         coordinate_frame: "BaseRADecFrame" = ICRS(),
     ) -> None:
+        if isinstance(rotation, dict):
+            raise ValueError(
+                "The method to specify rotations in martini has been updated. Replace:\n"
+                "1) rotation={'rotmat': <rotation_matrix>}\n"
+                "   with:\n"
+                "   from scipy.spatial.transform import Rotation\n"
+                "   rotation=Rotation.from_matrix(<rotation_matrix>)\n"
+                "2) rotation={'axis_angle': (<axis>, <angle>)}\n"
+                "   with:\n"
+                "   rotation=Rotation.from_euler(<axis>, <angle>.to_value(U.rad))\n"
+                "3) rotation={'L_coords': (<incl>, <az_rot>[, <pa>])}\n"
+                "   with:\n"
+                "   from martini import L_coords\n"
+                "   L_coords=L_coords(incl=<incl>, az_rot=<az_rot>[, pa=<pa>])\n"
+                "Refer to https://martini.readthedocs.io/en/stable/sources/index.html"
+                "#rotation-and-translation and "
+                "https://martini.readthedocs.io/en/stable/modules/"
+                "martini.sources.sph_source.html#martini.sources.sph_source.SPHSource "
+                "for further details."
+            )
+
         if coordinate_axis is None:
             if (xyz_g.shape[0] == 3) and (xyz_g.shape[1] != 3):
                 coordinate_axis = 0
@@ -215,8 +253,9 @@ class SPHSource(object):
         self.vpeculiar = vpeculiar
         self.vhubble = (self.h * 100.0 * U.km * U.s**-1 * U.Mpc**-1) * self.distance
         self.vsys = self.vhubble + self.vpeculiar
-        self.current_rotation = np.eye(3)
-        self.rotate(**rotation)
+        self._coordinate_affine_transform = np.eye(4)
+        self._velocity_affine_transform = np.eye(4)
+        self.rotate(rotation=rotation, L_coords=L_coords)  # complains if both not None
         self.skycoords = None
         self.spectralcoords = None
         self.pixcoords = None
@@ -241,8 +280,8 @@ class SPHSource(object):
         distance_vector = distance_unit_vector * self.distance
         vpeculiar_vector = distance_unit_vector * self.vpeculiar
 
-        self.rotate(axis_angle=("y", -self.dec))
-        self.rotate(axis_angle=("z", self.ra))
+        self.rotate(Rotation.from_euler("y", -self.dec.to_value(U.rad)))
+        self.rotate(Rotation.from_euler("z", self.ra.to_value(U.rad)))
         self.translate(distance_vector)
         # must be after translate:
         # \vec{v_H} = (100 h km/s/Mpc * D) * r^, but D * r^ is just \vec{r}:
@@ -281,8 +320,8 @@ class SPHSource(object):
             )
             self.boost(-vpeculiar_vector)
             self.translate(-distance_vector)
-            self.rotate(axis_angle=("z", -self.ra))
-            self.rotate(axis_angle=("y", self.dec))
+            self.rotate(Rotation.from_euler("z", -self.ra.to_value(U.rad)))
+            self.rotate(Rotation.from_euler("y", self.dec.to_value(U.rad)))
         return
 
     def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
@@ -352,12 +391,58 @@ class SPHSource(object):
             self.hsm_g = self.hsm_g[mask]
         return
 
+    def _append_to_coordinate_affine_transform(
+        self, affine_transform: np.ndarray
+    ) -> None:
+        """
+        Add a new transformation to the sequence for the spatial coordinates.
+
+        The cumulative transformation is stored as a single 4x4 transformation matrix,
+        so we update the current transformation using a dot product.
+
+        Affine transform matrices contain a mix of dimensionless and dimensionful values
+        so we need to process them as raw numpy arrays. By convention in :mod:`martini`
+        the elements with (implicit) length dimensions are always Mpc.
+
+        Parameters
+        ----------
+        affine_transform : :class:`~numpy.ndarray`
+            The affine transform to add to the cumulative coordinate transformation.
+        """
+        self._coordinate_affine_transform = np.dot(
+            affine_transform, self._coordinate_affine_transform
+        )
+        return
+
+    def _append_to_velocity_affine_transform(
+        self, affine_transform: np.ndarray
+    ) -> None:
+        """
+        Add a new transformation to the sequence for the velocity coordinates.
+
+        The cumulative transformation is stored as a single 4x4 transformation matrix,
+        so we update the current transformation using a dot product.
+
+        Affine transform matrices contain a mix of dimensionless and dimensionful values
+        so we need to process them as raw numpy arrays. By convention in :mod:`martini`
+        the elements with (implicit) velocity dimensions are always km/s.
+
+        Parameters
+        ----------
+        affine_transform : :class:`~numpy.ndarray`
+            The affine transform to add to the cumulative velocity transformation.
+        """
+        self._velocity_affine_transform = np.dot(
+            affine_transform,
+            self._velocity_affine_transform,
+        )
+        return
+
     def rotate(
         self,
+        rotation: Rotation | None = None,
         *,
-        axis_angle: tuple[str, U.Quantity[U.deg]] | None = None,
-        rotmat: np.ndarray | None = None,
-        L_coords: tuple[U.Quantity[U.deg], ...] | None = None,
+        L_coords: L_coords | None = None,
     ) -> None:
         """
         Rotate the source.
@@ -367,13 +452,12 @@ class SPHSource(object):
 
         Parameters
         ----------
-        axis_angle : tuple
-            First element one of {``"x"``, ``"y"``, ``"z"``} for the axis to rotate about,
-            second element a :class:`~astropy.units.Quantity` with dimensions of angle,
-            indicating the angle to rotate through (right-handed rotation).
-        rotmat : ~numpy.ndarray
-            Rotation matrix with shape (3, 3).
-        L_coords : tuple
+        rotation : ~scipy.spatial.transform.Rotation, optional
+            A :class:`~scipy.spatial.transform.Rotation` specifying the rotation. This
+            type of object can be initialized from many ways of specifying rotations:
+            rotation matrices, Euler angles, quaternions, etc. Refer to the :mod:`scipy`
+            documentation for details.
+        L_coords : ~martini.L_coords.L_coords, optional
             First element containing an inclination, second element an
             azimuthal angle (both :class:`~astropy.units.Quantity` instances with
             dimensions of angle). The routine will first attempt to identify
@@ -385,28 +469,18 @@ class SPHSource(object):
             sky is 270 degrees, but if a third element is provided it sets the
             position angle (second rotation about 'x').
         """
-        args_given = (axis_angle is not None, rotmat is not None, L_coords is not None)
+        args_given = (rotation is not None, L_coords is not None)
         if np.sum(args_given) == 0:
             # no-op
             return
         elif np.sum(args_given) > 1:
             raise ValueError("Multiple rotations in a single call not allowed.")
 
-        do_rot = np.eye(3)
-
-        if axis_angle is not None:
-            # rotation_matrix gives left-handed rotation, so transpose for right-handed
-            do_rot = rotation_matrix(axis_angle[1], axis=axis_angle[0]).T.dot(do_rot)
-
-        if rotmat is not None:
-            do_rot = rotmat.dot(do_rot)
+        if rotation is not None:
+            do_rot = rotation.as_matrix()
 
         if L_coords is not None:
-            if len(L_coords) == 2:
-                incl, az_rot = L_coords
-                pa = 270 * U.deg
-            elif len(L_coords) == 3:
-                incl, az_rot, pa = L_coords
+            do_rot = np.eye(3)
             do_rot = L_align(
                 self.coordinates_g.get_xyz(),
                 self.coordinates_g.differentials["s"].get_d_xyz(),
@@ -414,15 +488,33 @@ class SPHSource(object):
                 frac=0.3,
                 Laxis="x",
             ).dot(do_rot)
-            # rotation_matrix gives left-handed rotation, so transpose for right-handed
-            do_rot = rotation_matrix(az_rot, axis="x").T.dot(do_rot)
-            do_rot = rotation_matrix(incl, axis="y").T.dot(do_rot)
-            if incl >= 0:
-                do_rot = rotation_matrix(pa - 90 * U.deg, axis="x").T.dot(do_rot)
-            else:
-                do_rot = rotation_matrix(pa - 270 * U.deg, axis="x").T.dot(do_rot)
+            do_rot = (
+                Rotation.from_euler("x", L_coords.az_rot.to_value(U.rad))
+                .as_matrix()
+                .dot(do_rot)
+            )
+            do_rot = (
+                Rotation.from_euler("y", L_coords.incl.to_value(U.rad))
+                .as_matrix()
+                .dot(do_rot)
+            )
+            do_rot = (
+                Rotation.from_euler(
+                    "x",
+                    (
+                        L_coords.pa - 90 * U.deg
+                        if L_coords.incl >= 0
+                        else L_coords.pa - 270 * U.deg
+                    ).to_value(U.rad),
+                )
+                .as_matrix()
+                .dot(do_rot)
+            )
 
-        self.current_rotation = do_rot.dot(self.current_rotation)
+        affine_transform = np.eye(4)
+        affine_transform[:3, :3] = do_rot
+        self._append_to_coordinate_affine_transform(affine_transform)
+        self._append_to_velocity_affine_transform(affine_transform)
         self.coordinates_g = self.coordinates_g.transform(do_rot)
         return
 
@@ -439,6 +531,11 @@ class SPHSource(object):
             Vector by which to offset the source particle coordinates.
         """
         self.coordinates_g = self.coordinates_g.translate(translation_vector)
+        affine_transform = np.eye(4)
+        affine_transform[:3, 3] = translation_vector.squeeze().to_value(
+            _COORDINATE_TRANSFORM_UNITS
+        )
+        self._append_to_coordinate_affine_transform(affine_transform)
         return
 
     def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
@@ -457,24 +554,167 @@ class SPHSource(object):
         self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
             "s"
         ].translate(boost_vector)
+        affine_transform = np.eye(4)
+        affine_transform[:3, 3] = boost_vector.squeeze().to_value(
+            _VELOCITY_TRANSFORM_UNITS
+        )
+        self._append_to_velocity_affine_transform(affine_transform)
         return
+
+    @property
+    def current_rotation(self) -> np.ndarray:
+        """
+        Current rotation matrix of the source.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            The rotation matrix taking the coordinate originally passed in to the source
+            to the current orientation.
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.save_current_rotation
+        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        ~martini.sources.sph_source.SPHSource.load_current_affine_transformations
+        """
+        # The rotation part of the _coordinate_affine_transform and the
+        # _velocity_affine_transform are identical, just pick one.
+        return self._coordinate_affine_transform[:3, :3]
 
     def save_current_rotation(self, fname: str) -> None:
         """
         Output current rotation matrix to file.
 
-        This includes the rotations applied for RA and Dec. The rotation matrix can be
-        applied to astropy coordinates (e.g. a
+        The rotation matrix can be applied to astropy coordinates (e.g. a
         :class:`~astropy.coordinates.representation.cartesian.CartesianRepresentation`) as
-        ``coordinates.transform(np.loadtxt(fname))``.
+        ``coordinates.transform(np.loadtxt(fname))``. If you want to save the full
+        coordinate transformation state of a :mod:`martini` source (and optionally re-load
+        it later), see
+        :meth:`~martini.source.sph_source.SPHSource.save_current_affine_transformations`
+        and
+        :meth:`~martini.source.sph_source.SPHSource.load_affine_transformations`.
 
         Parameters
         ----------
         fname : str
-            File in which to save rotation matrix. A file handle can also be passed.
+            File in which to save rotation matrix (as a text file).
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        ~martini.sources.sph_source.SPHSource.load_affine_transformations
         """
-        np.savetxt(fname, self.current_rotation)
+        np.savetxt(fname, self._coordinate_affine_transform[:3, :3])
         return
+
+    def save_current_affine_transformations(self, fname: str) -> None:
+        r"""
+        Output current affine transformation matrices (position and velocity) to a file.
+
+        These matrices encode the arbitrary combination of translations and rotations
+        that takes the source from its initial orientation when loaded into :mod:`martini`
+        to its current orientation. The rotation part is dimensionless, while the
+        translation part assumes dimensions of Mpc for positions or km/s for velocities
+        (but is encoded without units).
+
+        An affine transformation matrix looks like:
+
+        .. math::
+
+           A = \left[ {\begin{array}{cccc}
+           R_{00} & R_{01} & R_{02} & t_{0} \\
+           R_{10} & R_{11} & R_{12} & t_{1} \\
+           R_{20} & R_{21} & R_{22} & t_{2} \\
+           0 & 0 & 0 & 1 \\
+           \end{array} } \right]
+   
+        Where :math:`R` is a rotation matrix and :math:`t` is a translation vector (either
+        in position or velocity). The affine transformation applied to a vector :math:`x`
+        is equivalent to :math:`Rx+t`. The saved file contains two affine transformation
+        matrices (in order: one for position, one for velocity) as an array with shape
+        ``(2, 4, 4)``. The rotational part of the two matrices is identical.
+
+        Parameters
+        ----------
+        fname : str
+            File in which to save affine transformation matrices (in ``*.npy`` format).
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.load_affine_transformations
+        """
+        np.save(
+            fname,
+            np.array(
+                [self._coordinate_affine_transform, self._velocity_affine_transform]
+            ),
+        )
+        return
+
+    def load_affine_transformations(self, fname: str) -> None:
+        r"""
+        Load a set of affine transformation matrices (position and velocity) from a file.
+
+        These matrices encode an arbitrary combination of translations and rotations. When
+        loaded they are applied to the source to transform it from its current
+        orientation. The state is only the one that the source had when the files were
+        saved if it has not been transformed since being loaded into :mod:`martini`.
+        The rotation part of these matrices is dimensionless, while the translation part
+        assumes dimensions of Mpc for positions or km/s for velocities (but is encoded
+        without units).
+
+        An affine transformation matrix looks like:
+
+        .. math::
+
+           A = \left[ {\begin{array}{cccc}
+           R_{00} & R_{01} & R_{02} & t_{0} \\
+           R_{10} & R_{11} & R_{12} & t_{1} \\
+           R_{20} & R_{21} & R_{22} & t_{2} \\
+           0 & 0 & 0 & 1 \\
+           \end{array} } \right]
+
+        Where :math:`R` is a rotation matrix and :math:`t` is a translation vector (either
+        in position or velocity). The affine transformation applied to a vector :math:`x`
+        is equivalent to :math:`Rx+t`. The loaded file should contain two affine
+        transformation matrices (in order: one for position, one for velocity) as an array
+        with shape ``(2, 4, 4)``. The rotational part of the two matrices should be
+        identical. The translation parts should assume implicit units of Mpc and km/s.
+        This is the format saved by
+        :meth:`~martini.sources.sph_source.SPHSource.save_current_affine_transformations`.
+
+        Paramters
+        ---------
+        fname : str
+            File from which to load affine transformation matrices (in ``*.npy`` format).
+
+        Raises
+        ------
+        ValueError
+            If the rotation part of the two matrices is not identical: this would result
+            in an inconsistent source state.
+
+        See Also
+        --------
+        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        """
+        coordinate_affine_transform, velocity_affine_transform = np.load(fname)
+        if not np.allclose(
+            coordinate_affine_transform[:3, :3], velocity_affine_transform[:3, :3]
+        ):
+            raise ValueError(
+                "Rotation portion of position and velocity affine transforms do not"
+                " match, source would be put into an inconsistent state."
+            )
+        self.coordinates_g = self.coordinates_g.affine_transform(
+            coordinate_affine_transform, _COORDINATE_TRANSFORM_UNITS
+        )
+        self.coordinates_g.differentials["s"] = self.coordinates_g.differentials[
+            "s"
+        ].affine_transform(velocity_affine_transform, _VELOCITY_TRANSFORM_UNITS)
+        self._append_to_coordinate_affine_transform(coordinate_affine_transform)
+        self._append_to_velocity_affine_transform(velocity_affine_transform)
 
     def preview(
         self,
