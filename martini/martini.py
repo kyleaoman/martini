@@ -369,26 +369,16 @@ class _BaseMartini:
             # not multiprocessing, need serialization from dill not pickle
 
             total = len(ij_pxs)
-            chunksize = 1
             with ThreadPool(processes=ncpu) as pool:
-                self._datacube._array = np.reshape(
-                    U.Quantity(
-                        list(
-                            tqdm(
-                                pool.imap(
-                                    lambda ij_px: self._evaluate_pixel_spectrum(ij_px)[
-                                        1
-                                    ],
-                                    ij_pxs,
-                                ),
-                                total=total,
-                                disable=not progressbar,
-                                chunksize=chunksize,
-                            )
-                        )
+                for insertion_slice, insertion_spectrum in tqdm(
+                    pool.imap(
+                        self._evaluate_pixel_spectrum,
+                        ij_pxs,
                     ),
-                    self._datacube._array.shape,
-                )
+                    total=total,
+                    disable=not progressbar,
+                ):
+                    self._insert_pixel(insertion_slice, insertion_spectrum)
 
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
