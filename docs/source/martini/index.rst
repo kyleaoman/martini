@@ -192,13 +192,8 @@ parallelization simply specify the number of processes to use, for example:
 
     m.insert_source_in_cube(ncpu=2)
 
-Executing with ``N`` processes is almost exactly ``N`` times faster than using a single
-process (provided that ``N`` cpus are available and otherwise idle). There is a small
-overhead to create processes (usually a second or less per process), usually dwarfed by
-the actual calculation by the time parallelization becomes a concern!
-
-Progress bars work in principle in parallel mode, with one bar per process, although the
-formatting of the bars seems to occasionally get a bit glitchy.
+Executing with ``N`` processes is usually almost exactly ``N`` times faster than using a
+single process (provided that ``N`` cpus are available and otherwise idle).
 
 .. warning::
 
