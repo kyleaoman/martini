@@ -241,7 +241,7 @@ class _BaseMartini:
 
     def _evaluate_pixel_spectrum(
         self, ij_px: tuple[int, int]
-    ) -> tuple[slice | tuple, U.Quantity[U.Jy / U.arcsec**2]]:
+    ) -> U.Quantity[U.Jy / U.arcsec**2]:
         """
         Add up contributions of particles to the spectrum in a pixel.
 
@@ -262,12 +262,10 @@ class _BaseMartini:
 
         Returns
         -------
-        tuple
-            A 2-tuple containing an "insertion slice" that is an index into the
-            ``datacube._array`` instance held by this martini instance
-            where the pixel spectrum is to be placed, and a 1D array containing the
-            spectrum, whose length must match the length of the spectral axis of the
-            datacube.
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with dimensions of Jy per sq. arcsec.
+            A 1D array containing the spectrum, whose length must match the length of the
+            spectral axis of the datacube.
         """
         ij = np.array(ij_px)[..., np.newaxis] * U.pix
         mask = (
@@ -276,37 +274,12 @@ class _BaseMartini:
         weights = self.sph_kernel._px_weight(
             self.source.pixcoords[:2, mask] - ij, mask=mask
         )
-        insertion_slice = (
-            np.s_[ij_px[0], ij_px[1], :, 0]
-            if self._datacube.stokes_axis
-            else np.s_[ij_px[0], ij_px[1], :]
-        )
         assert self.spectral_model.spectra is not None
         tmp = self.spectral_model.spectra[mask]
         np.multiply(tmp, weights[:, np.newaxis], out=tmp)
         insertion_values = np.sum(tmp, axis=-2)
         del tmp
-        return (
-            insertion_slice,
-            insertion_values,
-        )
-
-    def _insert_pixel(
-        self, insertion_slice: int | tuple | slice, insertion_data: np.ndarray
-    ) -> None:
-        """
-        Insert the spectrum for a single pixel into the datacube array.
-
-        Parameters
-        ----------
-        insertion_slice : int, tuple or slice
-            Index into the datacube's _array specifying the insertion location.
-
-        insertion_data : ~numpy.ndarray
-            1D array containing the spectrum at the location specified by insertion_slice.
-        """
-        self._datacube._array[insertion_slice] += insertion_data
-        return
+        return insertion_values
 
     def _insert_source_in_cube(
         self,
@@ -361,8 +334,12 @@ class _BaseMartini:
         from tqdm.autonotebook import tqdm
 
         if ncpu == 1:
-            for ij_px in tqdm(ij_pxs, disable=not progressbar):
-                self._insert_pixel(*self._evaluate_pixel_spectrum(ij_px))
+            self._datacube._array = U.Quantity(
+                [
+                    self._evaluate_pixel_spectrum(ij_px)
+                    for ij_px in tqdm(ij_pxs, disable=not progressbar)
+                ]
+            ).reshape(self._datacube._array.shape)
         else:
             from multiprocess.pool import ThreadPool
 
@@ -370,15 +347,18 @@ class _BaseMartini:
 
             total = len(ij_pxs)
             with ThreadPool(processes=ncpu) as pool:
-                for insertion_slice, insertion_spectrum in tqdm(
-                    pool.imap(
-                        self._evaluate_pixel_spectrum,
-                        ij_pxs,
-                    ),
-                    total=total,
-                    disable=not progressbar,
-                ):
-                    self._insert_pixel(insertion_slice, insertion_spectrum)
+                self._datacube._array = U.Quantity(
+                    list(
+                        tqdm(
+                            pool.imap(
+                                self._evaluate_pixel_spectrum,
+                                ij_pxs,
+                            ),
+                            total=total,
+                            disable=not progressbar,
+                        )
+                    )
+                ).reshape(self._datacube._array.shape)
 
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
