@@ -782,7 +782,9 @@ class TestTNGSource:
         import pathlib
 
         assert "TNG_API_KEY" in os.environ or os.path.isfile("examples/tng_api.key")
-
+        # if the secret isn't available (e.g. github workflow on fork) then skip
+        if "TNG_API_KEY" in os.environ and not os.environ["TNG_API_KEY"]:
+            pytest.skip("TNG API key not available.")
         if os.path.isfile("examples/martini-cutout-grnr-TNG100-1-99-400547.npy"):
             os.remove("examples/martini-cutout-grnr-TNG100-1-99-400547.npy")
         if os.path.isfile("examples/martini-cutout-TNG100-1-99-517.hdf5"):
