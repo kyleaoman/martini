@@ -231,6 +231,30 @@ class TestMartini:
         m.insert_source_in_cube(progressbar=False)
         check_mass_accuracy(m, out_mode)
 
+    @pytest.mark.parametrize("sph_kernel", simple_kernels)
+    @pytest.mark.parametrize("spectral_model", (GaussianSpectrum,))
+    @pytest.mark.parametrize("dtype", (None, np.float32, np.float64, np.int32))
+    def test_fits_dtype(self, dc_zeros, sph_kernel, dtype, spectral_model, single_particle_source):
+        source = single_particle_source()
+        m = Martini(
+            source=source,
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            spectral_model=spectral_model(),
+            sph_kernel=sph_kernel()
+        )
+        filename = "cube.fits"
+        try:
+            m.write_fits(filename, dtype=dtype)
+            with fits.open(filename) as f:
+                if dtype == None:
+                    dtype = np.float64
+                assert f[0].data.dtype.type == dtype
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
+
     def test_convolve_beam(self, single_particle_source):
         """Check that beam convolution gives result matching manual calculation."""
         source = single_particle_source()

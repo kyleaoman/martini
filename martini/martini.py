@@ -970,6 +970,7 @@ class Martini(_BaseMartini):
         overwrite: bool = True,
         obj_name: str = "MOCK",
         channels: None = None,  # deprecated
+        dtype: str | np.dtype = None
     ) -> None:
         """
         Output the data cube to a FITS-format file.
@@ -978,7 +979,7 @@ class Martini(_BaseMartini):
         ----------
         filename : str
             Name of the file to write. ``'.fits'`` will be appended if not already
-            present.
+            present in the filename. ``'.fits.gz'`` etc. will be recognized.
 
         overwrite : bool, optional
             Whether to allow overwriting existing files.
@@ -989,6 +990,10 @@ class Martini(_BaseMartini):
         channels : str, deprecated
             Deprecated, channels and their units now fixed at
             :class:`~martini.datacube.DataCube` initialization.
+
+        dtype : str or dtype
+            Typecode or data-type to which the array is cast. Should be supported
+            by fits. Default to not do data type conversion.
         """
         if channels is not None:  # pragma: no cover
             warnings.warn(
@@ -999,7 +1004,8 @@ class Martini(_BaseMartini):
             )
         self._datacube.drop_pad()
 
-        filename = filename if filename[-5:] == ".fits" else filename + ".fits"
+        filename = str(filename)
+        filename = filename + ".fits" if "fits" not in filename.split(".") else filename
 
         wcs_header = self._datacube.wcs.to_header()
         wcs_header.rename_keyword("WCSAXES", "NAXIS")
@@ -1068,9 +1074,10 @@ class Martini(_BaseMartini):
         header.append(("RESTFRQ", wcs_header["RESTFRQ"]))
 
         # flip axes to write
-        hdu = fits.PrimaryHDU(
-            header=header, data=self._datacube._array.to_value(datacube_array_units).T
-        )
+        data = self._datacube._array.to_value(datacube_array_units).T
+        if dtype is not None:
+            data = data.astype(dtype, copy=False)
+        hdu = fits.PrimaryHDU(header=header, data=data)
         hdu.writeto(filename, overwrite=overwrite)
 
         return
