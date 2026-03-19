@@ -215,7 +215,6 @@ class TNGSource(SPHSource):
             "Velocities",
             "InternalEnergy",
             "ElectronAbundance",
-            "NeutralHydrogenAbundance",
             "StarFormationRate",
             "Density",
             "Coordinates",
@@ -252,14 +251,13 @@ class TNGSource(SPHSource):
             if have_cutout:
                 # check for an existing local cutout file
                 assert cutout_dir is not None  # guaranteed
-                if not os.path.exists(
-                    os.path.join(cutout_dir, cutout_file(simulation, snapNum, haloID))
-                ):
-                    have_cutout = False
                 cfname = os.path.join(
                     cutout_dir, cutout_file(simulation, snapNum, haloID)
                 )
-                print(f"Using local cutout file {os.path.basename(cfname)}")
+                if not os.path.exists(cfname):
+                    have_cutout = False
+                else:
+                    print(f"Using local cutout file {os.path.basename(cfname)}")
             if not have_cutout:  # not else because previous if can modify have_cutout
                 print("No local cutout found, cutout will be downloaded.")
                 sub_api_path = f"{simulation}/snapshots/{snapNum}/subhalos/{subID}"
@@ -277,11 +275,14 @@ class TNGSource(SPHSource):
                     cutout = api_get(
                         cutout_api_path, params=cutout_request, api_key=api_key
                     )
-                except HTTPError:
-                    cutout_request = {"gas": ",".join(mini_fields_g)}
-                    cutout = api_get(
-                        cutout_api_path, params=cutout_request, api_key=api_key
-                    )
+                except HTTPError as exc:
+                    if "400 Client Error: Bad Request for url" in exc.args[0]:
+                        cutout_request = {"gas": ",".join(mini_fields_g)}
+                        cutout = api_get(
+                            cutout_api_path, params=cutout_request, api_key=api_key
+                        )
+                    else:
+                        raise
                 assert isinstance(cutout, Response)
                 # hold file in memory
                 cfbuf = io.BytesIO(cutout.content)
@@ -362,17 +363,43 @@ class TNGSource(SPHSource):
         h = data_header["HubbleParam"]
         xe_g = data_g["ElectronAbundance"]
         rho_g = data_g["Density"] << 1e10 / h * U.Msun * np.power(a / h * U.kpc, -3)
-        u_g = data_g["InternalEnergy"] << (U.km/U.s)**2
+        u_g = data_g["InternalEnergy"] << (U.km / U.s) ** 2
         mu_g = 4 / (1 + 3 * X_H_g + 4 * X_H_g * xe_g)
         gamma = 5.0 / 3.0  # see http://www.tng-project.org/data/docs/faq/#gen4
         T_g = (gamma - 1) / C.k_B * (u_g * mu_g * C.m_p) << U.K
         m_g = data_g["Masses"] << 1e10 / h * U.Msun
         nH_g = rho_g * X_H_g / C.m_p << U.cm**-3
-        fneutral_g = data_g["NeutralHydrogenAbundance"].copy()
+        if "NeutralHydrogenAbundance" in data_g:
+            fneutral_g = data_g["NeutralHydrogenAbundance"].copy()
+        else:
+            from warnings import warn
+            from Hdecompose.RahmatiEtal2013 import neutral_frac
+
+            warn(
+                "NeutralHydrogenAbundance not available for mini snapshots, approximating"
+                " following Rahmati et al. (2013) - to avoid this use a full snapshot"
+                " instead.",
+                UserWarning,
+            )
+            fneutral_g = neutral_frac(
+                z,
+                nH_g,
+                T_g,
+                onlyA1=True,
+                mu=mu_g,
+                # explicitly blank unused:
+                SFR=None,
+                TNG_corrections=False,  # Diemer et al. 2018 corrections applied below
+                gamma=None,
+                fH=None,
+                Habundance=None,
+                T0=None,
+                rho=None,
+            )
         gamma = 5.0 / 3.0
         # cold
         mu_c = 4 / (1 + 3 * X_H_g) << C.m_p
-        u_c = C.k_B * (1e3 << U.K) / (mu_c * (gamma - 1.)) << (U.km / U.s)**2
+        u_c = C.k_B * (1e3 << U.K) / (mu_c * (gamma - 1.0)) << (U.km / U.s) ** 2
         del mu_c
         # hot
         mu_h = 4 / (3 + 5 * X_H_g) << C.m_p  # He fully ionized
@@ -381,21 +408,20 @@ class TNGSource(SPHSource):
             + 5.73e7
             / (1 + 573 * np.maximum(1.0, nH_g.to_value(U.cm**-3) / 0.13) ** -0.8)
         ) << U.K  # Springel & Hernquist 03; Stevens 19
-        u_h = C.k_B * T_h / (mu_h * (gamma - 1.)) << (U.km/U.s)**2
+        u_h = C.k_B * T_h / (mu_h * (gamma - 1.0)) << (U.km / U.s) ** 2
         del mu_h
         sfr_g = data_g["StarFormationRate"] << U.Msun / U.yr
         possfr_mask = sfr_g > 0
-        u_h_pos = u_h[possfr_mask]
-        fneutral_g[possfr_mask] = (
-            1.0 / (u_h_pos - u_c[possfr_mask]) * (u_h_pos - u_g[possfr_mask])
-        ).to_value(U.dimensionless_unscaled)
-        del u_h_pos, sfr_g, possfr_mask, u_c, u_h
+        fneutral_g[possfr_mask] = (1.0 / (u_h - u_c) * (u_h - u_g))[
+            possfr_mask
+        ].to_value(U.dimensionless_unscaled)
+        del sfr_g, possfr_mask, u_c, u_h
 
         # partial pressure is used; see Marinacci 17 & Diemer 18 eq. 6
-        P_g = (gamma - 1.) / C.k_B * u_g * fneutral_g * rho_g << U.K / U.cm**3
-        fatomic_g = 1. / (1. +
-            (1. / (1.7e4 << U.K / U.cm**3) * P_g) ** 0.8 # Leroy 08
-            # (1. / (4.3e4 << U.K / U.cm**3) * P_g) ** 0.92 # Blitz & Rosolowsky 06
+        P_g = (gamma - 1.0) / C.k_B * u_g * fneutral_g * rho_g << U.K / U.cm**3
+        fatomic_g = 1.0 / (
+            1.0 + (1.0 / (1.7e4 << U.K / U.cm**3) * P_g) ** 0.8  # Leroy 08
+            # (1. / (4.3e4 << U.K / U.cm**3) * P_g) ** 0.92  # Blitz & Rosolowsky 06
         )
         del P_g, rho_g, u_g
 
