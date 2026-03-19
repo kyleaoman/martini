@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout martini
+        uses: actions/checkout@v6
       - name: Run flake8
         uses: py-actions/flake8@v2
       - uses: astral-sh/ruff-action@v3
@@ -23,10 +25,8 @@ jobs:
         run: ruff check
       - name: Ruff formatting checks
         run: ruff format --check --diff
-      - name: Checkout martini
-        uses: actions/checkout@v4
       - name: Set up Python environment
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install numpydoc
@@ -92,6 +92,6 @@ jobs:
       run: |
         pytest --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
