@@ -631,8 +631,8 @@ class TestSPHSource:
             )
             with pytest.raises(
                 ValueError,
-                match="Rotation portion of position and velocity affine transforms do not "
-                "match",
+                match="Rotation portion of position and velocity affine transforms do not"
+                " match",
             ):
                 s.load_affine_transformations(testfile)
         finally:
