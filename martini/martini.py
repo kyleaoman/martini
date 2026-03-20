@@ -970,7 +970,7 @@ class Martini(_BaseMartini):
         overwrite: bool = True,
         obj_name: str = "MOCK",
         channels: None = None,  # deprecated
-        dtype: str | np.dtype = None
+        dtype: str | np.dtype | None = None,
     ) -> None:
         """
         Output the data cube to a FITS-format file.

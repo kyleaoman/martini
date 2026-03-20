@@ -51,7 +51,7 @@ simbasource = ["h5py"]
 swiftgalaxysource = [
     "swiftgalaxy",
 ]
-tngsource = ["h5py", "requests", "six"]
+tngsource = ["hdecompose", "h5py", "requests", "six"]
 extra_sources = ["astromartini[eaglesource,tngsource,magneticumsource,simbasource,swiftgalaxysource,colibresource,firesource]"]
 docs = [
     "sphinx",

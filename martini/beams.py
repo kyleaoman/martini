@@ -270,8 +270,8 @@ class GaussianBeam(_BaseBeam):
         ) / (2.0 * np.power(sigmamaj, 2))
         A = np.power(2.0 * np.pi * sigmamin * sigmamaj, -1)  # arcsec^-2
 
-        return lambda x, y: A * np.exp(
-            -a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2)
+        return lambda x, y: (
+            A * np.exp(-a * np.power(x, 2) - 2.0 * b * x * y - c * np.power(y, 2))
         )
 
     def kernel_size_px(self) -> tuple[int, int]:
