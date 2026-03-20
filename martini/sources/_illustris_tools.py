@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from pathlib import Path
 
 """
 The illustris_python toolkit doesn't provide an installable package that we could depend
@@ -31,6 +32,8 @@ def partTypeNum(partType: int | str) -> int:
         return 0
     if str(partType).lower() in ["dm", "darkmatter"]:
         return 1
+    if str(partType).lower() in ["dmlowres"]:
+        return 2  # only zoom simulations, not present in full periodic boxes
     if str(partType).lower() in ["tracer", "tracers", "tracermc", "trmc"]:
         return 3
     if str(partType).lower() in ["star", "stars", "stellar"]:
@@ -59,12 +62,15 @@ def getNumPart(header: dict) -> np.ndarray:
     ~numpy.ndarray
         Array with the number of particles for each of the 6 types.
     """
+    if "NumPart_Total_HighWord" not in header:
+        return header["NumPart_Total"].astype(np.int64)  # new uint64 convention
+
     nTypes = 6
 
     nPart = np.zeros(nTypes, dtype=np.int64)
     for j in range(nTypes):
         nPart[j] = header["NumPart_Total"][j] | (
-            header["NumPart_Total_HighWord"][j] << 32
+            np.int64(header["NumPart_Total_HighWord"][j]) << 32
         )
 
     return nPart
@@ -96,7 +102,7 @@ def gcPath(basePath: str, snapNum: int, chunkNum: int = 0) -> str:
     filePath1 = gcPath + "groups_%03d.%d.hdf5" % (snapNum, chunkNum)
     filePath2 = gcPath + "fof_subhalo_tab_%03d.%d.hdf5" % (snapNum, chunkNum)
 
-    if os.path.isfile(filePath1):
+    if os.path.isfile(os.path.expanduser(filePath1)):
         return filePath1
     return filePath2
 
@@ -120,7 +126,9 @@ def offsetPath(basePath: str, snapNum: int) -> str:
     str
         Path to the offset file.
     """
-    offsetPath = basePath + "/../postprocessing/offsets/offsets_%03d.hdf5" % snapNum
+    offsetPath = os.path.join(
+        Path(basePath).parent, "postprocessing/offsets/offsets_%03d.hdf5" % snapNum
+    )
 
     return offsetPath
 
@@ -148,9 +156,14 @@ def snapPath(basePath: str, snapNum: int, chunkNum: int = 0) -> str:
         Path to the offset file.
     """
     snapPath = basePath + "/snapdir_" + str(snapNum).zfill(3) + "/"
-    filePath = snapPath + "snap_" + str(snapNum).zfill(3)
-    filePath += "." + str(chunkNum) + ".hdf5"
-    return filePath
+    filePath1 = (
+        snapPath + "snap_" + str(snapNum).zfill(3) + "." + str(chunkNum) + ".hdf5"
+    )
+    filePath2 = filePath1.replace("/snap_", "/snapshot_")
+
+    if os.path.isfile(filePath1):
+        return filePath1
+    return filePath2
 
 
 def loadSingle(
@@ -222,9 +235,14 @@ def loadSubset(
     mdi: list[int | None] | None = None,
     sq: bool = True,
     float32: bool = False,
+    result: dict | None = None,
 ) -> dict:
     """
     Load a subset of fields for all particles/cells of a given partType.
+
+    If result is not None, should be a dict containing pre-allocated ndarrays for each
+    requested field. And optionally: {field}_write_offset specifying the starting write
+    offset to place the result within result[{field}].
 
     Reproduced from the illustris_python toolkit.
 
@@ -258,6 +276,11 @@ def loadSubset(
         If float32 is True, load any float64 datatype arrays directly as float32 (save
         memory).
 
+    result : dict, optional
+        If result is not None, should be a dict containing pre-allocated ndarrays for each
+        requested field. And optionally: {field}_write_offset specifying the starting
+        write offset to place the result within result[{field}].
+
     Returns
     -------
     dict
@@ -266,7 +289,8 @@ def loadSubset(
     import h5py
     import six
 
-    result = {}
+    if result is None:
+        result = {}
 
     ptNum = partTypeNum(partType)
     gName = "PartType" + str(ptNum)
@@ -334,13 +358,16 @@ def loadSubset(
                 shape = [shape[0]]
 
             # allocate within return dict
-            dtype = f[gName][field].dtype
-            if dtype == np.float64 and float32:
-                dtype = np.float32
-            result[field] = np.zeros(shape, dtype=dtype)
+            if field not in result:
+                dtype = f[gName][field].dtype
+                if dtype == np.float64 and float32:
+                    dtype = np.float32
+                result[field] = np.zeros(shape, dtype=dtype)
 
     # loop over chunks
-    wOffset = 0
+    wOffset = (
+        0 if field + "_write_offset" not in result else result[field + "_write_offset"]
+    )
     origNumToRead = numToRead
 
     while numToRead:
@@ -359,19 +386,24 @@ def loadSubset(
         numToReadLocal = numToRead
 
         if fileOff + numToReadLocal > numTypeLocal:
-            numToReadLocal = numTypeLocal - fileOff
+            numToReadLocal = int(numTypeLocal - fileOff)
 
-        # loop over each requested field for this particle type
+        # define slice in destination array
+        out_slice = np.s_[wOffset : wOffset + numToReadLocal]
+
+        # loop over each requested field for this particle type and load
         for i, field in enumerate(fields):
-            # read data local to the current file
-            if mdi is None or mdi[i] is None:
-                result[field][wOffset : wOffset + numToReadLocal] = f[gName][field][
-                    fileOff : fileOff + numToReadLocal
-                ]
-            else:
-                result[field][wOffset : wOffset + numToReadLocal] = f[gName][field][
-                    fileOff : fileOff + numToReadLocal, mdi[i]
-                ]
+            # define hyperslab in source file
+
+            source_slice = (
+                np.s_[fileOff : fileOff + numToReadLocal, mdi[i]]
+                if mdi is not None and mdi[i] is not None
+                else np.s_[fileOff : fileOff + numToReadLocal]
+            )
+
+            f[gName][field].read_direct(
+                result[field], source_sel=source_slice, dest_sel=out_slice
+            )
 
         wOffset += numToReadLocal
         numToRead -= numToReadLocal
@@ -424,7 +456,7 @@ def loadHeader(basePath: str, snapNum: int) -> dict:
     return header
 
 
-def getSnapOffsets(basePath, snapNum, id: int, type: str) -> dict:
+def getSnapOffsets(basePath: str, snapNum: int, id: int, type: str) -> dict:
     """
     Compute offsets within snapshot for a particular group/subgroup.
 
@@ -479,6 +511,11 @@ def getSnapOffsets(basePath, snapNum, id: int, type: str) -> dict:
     if "fof_subhalo" in gcPath(basePath, snapNum):
         with h5py.File(offsetPath(basePath, snapNum), "r") as f:
             r["offsetType"] = f[type + "/SnapByType"][id, :]
+
+            # add TNG-Cluster specific offsets if present
+            if "OriginalZooms" in f:
+                for key in f["OriginalZooms"]:
+                    r[key] = f["OriginalZooms"][key][()]
     else:
         with h5py.File(gcPath(basePath, snapNum, fileNum), "r") as f:
             r["offsetType"] = f["Offsets"][type + "_SnapByType"][groupOffset, :]
