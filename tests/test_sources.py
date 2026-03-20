@@ -824,7 +824,7 @@ class TestTNGSource:
                 api_key = f.read()
         simulation = "TNG100-1"
         snapshot = 98  # a mini snapshot
-        subhalo_id = 17227
+        subhalo_id = 270239
         api_key = "b71135524a8c29fabe36a08e92b7120c"
         cutout_dir = "examples"
         with pytest.warns(UserWarning, match="NeutralHydrogenAbundance not available"):
@@ -847,7 +847,7 @@ class TestTNGSource:
             )
         )
         with h5py.File(
-            os.path.join(cutout_dir, cutout_file(simulation, snapshot, halo_id), "r")
+            os.path.join(cutout_dir, cutout_file(simulation, snapshot, halo_id)), "r"
         ) as f:
             # this was actually a mini snapshot:
             assert "CenterOfMass" not in f["PartType0"].keys()
