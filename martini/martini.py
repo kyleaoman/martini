@@ -492,64 +492,38 @@ class _BaseMartini:
         """
         import matplotlib.pyplot as plt
 
-        y_cube = (
-            (self._datacube.ra - self.source.ra)
-            / np.cos(self.source.dec)
-            * self.source.distance
-        ).to(U.kpc, U.dimensionless_angles())
-        z_cube = ((self._datacube.dec - self.source.dec) * self.source.distance).to(
-            U.kpc, U.dimensionless_angles()
-        )
-        v_cube = (self._datacube.spectral_centre - self.source.vsys).to(U.km / U.s)
-        dy_cube = 0.5 * (
-            self._datacube.px_size * self._datacube.n_px_x * self.source.distance
-        ).to(U.kpc, U.dimensionless_angles())  # half-length
-        dz_cube = 0.5 * (
-            self._datacube.px_size * self._datacube.n_px_y * self.source.distance
-        ).to(U.kpc, U.dimensionless_angles())  # half-length
-        dv_cube = 0.5 * (self._datacube.channel_width * self._datacube.n_channels).to(
-            U.km / U.s
-        )
-        # should issue some warnings if dRA or dDec > 5deg, or if dec within 5 deg of pole
-        clip_lim = lim == "datacube"
-        if clip_lim:
-            lim = max(
-                np.abs(
-                    U.Quantity(
-                        [
-                            y_cube - dy_cube,
-                            y_cube + dy_cube,
-                            z_cube - dz_cube,
-                            z_cube + dz_cube,
-                        ]
-                    )
-                )
-            )
-        clip_vlim = vlim == "datacube"
-        if clip_vlim:
-            clip_vlim = True
-            vlim = max(np.abs(U.Quantity([v_cube - dv_cube, v_cube + dv_cube])))
-        else:
-            clip_vlim = False
         # pass through arguments, except save (which we will do later if desired)
         figure = self.source.preview(
             max_points=max_points,
             fig=fig,
-            lim=lim,
-            vlim=vlim,
+            lim=lim if lim != "datacube" else None,
+            vlim=vlim if vlim != "datacube" else None,
             point_scaling=point_scaling,
             title=title,
             save=None,
         )
-        sp1, cb, sp2, sp3 = figure.get_axes()
+        y_cube = self._datacube.ra.to_value(U.deg)
+        z_cube = self._datacube.dec.to_value(U.deg)
+        v_cube = self._datacube.spectral_centre.to_value(U.km / U.s)
+        dy_cube = 0.5 * (self._datacube.px_size * self._datacube.n_px_x).to_value(
+            U.deg
+        )  # half-length
+        dz_cube = 0.5 * (self._datacube.px_size * self._datacube.n_px_y).to_value(
+            U.deg
+        )  # half-length
+        dv_cube = 0.5 * (
+            self._datacube.channel_width * self._datacube.n_channels
+        ).to_value(U.km / U.s)
+        # should issue some warnings if dRA or dDec > 5deg, or if dec within 5 deg of pole
+        sp1, sp2, sp3, cb = figure.get_axes()
         sp1.add_patch(
             plt.Rectangle(
                 (
-                    (y_cube - dy_cube).to_value(U.kpc),
-                    (z_cube - dz_cube).to_value(U.kpc),
+                    (y_cube - dy_cube),
+                    (z_cube - dz_cube),
                 ),
-                2 * dy_cube.to_value(U.kpc),
-                2 * dz_cube.to_value(U.kpc),
+                2 * dy_cube,
+                2 * dz_cube,
                 linewidth=5,
                 edgecolor="red",
                 facecolor="None",
@@ -558,11 +532,11 @@ class _BaseMartini:
         sp2.add_patch(
             plt.Rectangle(
                 (
-                    (y_cube - dy_cube).to_value(U.kpc),
-                    (v_cube - dv_cube).to_value(U.km / U.s),
+                    (y_cube - dy_cube),
+                    (v_cube - dv_cube),
                 ),
-                2 * dy_cube.to_value(U.kpc),
-                2 * dv_cube.to_value(U.km / U.s),
+                2 * dy_cube,
+                2 * dv_cube,
                 linewidth=5,
                 edgecolor="red",
                 facecolor="None",
@@ -571,80 +545,66 @@ class _BaseMartini:
         sp3.add_patch(
             plt.Rectangle(
                 (
-                    (z_cube - dz_cube).to_value(U.kpc),
-                    (v_cube - dv_cube).to_value(U.km / U.s),
+                    (z_cube - dz_cube),
+                    (v_cube - dv_cube),
                 ),
-                2 * dz_cube.to_value(U.kpc),
-                2 * dv_cube.to_value(U.km / U.s),
+                2 * dz_cube,
+                2 * dv_cube,
                 linewidth=5,
                 edgecolor="red",
                 facecolor="None",
             )
         )
-        if clip_lim:
-            sp1.set_xlim(
-                (y_cube + dy_cube).to_value(U.kpc), (y_cube - dy_cube).to_value(U.kpc)
-            )
-            sp1.set_ylim(
-                (z_cube - dz_cube).to_value(U.kpc), (z_cube + dz_cube).to_value(U.kpc)
-            )
-            sp2.set_xlim(
-                (y_cube + dy_cube).to_value(U.kpc), (y_cube - dy_cube).to_value(U.kpc)
-            )
-            sp3.set_xlim(
-                (z_cube - dz_cube).to_value(U.kpc), (z_cube + dz_cube).to_value(U.kpc)
-            )
-        else:
-            if lim is None:
-                lim = sp1.get_xlim()[1] * U.kpc
-            assert isinstance(lim, U.Quantity)
+        if lim == "datacube":
+            sp1.set_xlim((y_cube + dy_cube), (y_cube - dy_cube))
+            sp1.set_ylim((z_cube - dz_cube), (z_cube + dz_cube))
+            sp2.set_xlim((y_cube + dy_cube), (y_cube - dy_cube))
+            sp3.set_xlim((z_cube - dz_cube), (z_cube + dz_cube))
+        elif lim is None:
             sp1.set_xlim(
                 (
-                    max(1.1 * (y_cube + dy_cube), lim).to_value(U.kpc),
-                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
+                    max((y_cube + 1.05 * dy_cube), sp1.get_xlim()[0]),
+                    min((y_cube - 1.05 * dy_cube), sp1.get_xlim()[1]),
                 )
             )
             sp2.set_xlim(
                 (
-                    max(1.1 * (y_cube + dy_cube), lim).to_value(U.kpc),
-                    min(1.1 * (y_cube - dy_cube), -lim).to_value(U.kpc),
+                    max((y_cube + 1.05 * dy_cube), sp2.get_xlim()[0]),
+                    min((y_cube - 1.05 * dy_cube), sp2.get_xlim()[1]),
                 )
             )
             sp1.set_ylim(
                 (
-                    min(1.1 * (z_cube - dz_cube), -lim).to_value(U.kpc),
-                    max(1.1 * (z_cube + dz_cube), lim).to_value(U.kpc),
+                    min((z_cube - 1.05 * dz_cube), sp1.get_ylim()[0]),
+                    max((z_cube + 1.05 * dz_cube), sp1.get_ylim()[1]),
                 )
             )
             sp3.set_xlim(
                 (
-                    min(1.1 * (z_cube - dz_cube), -lim).to_value(U.kpc),
-                    max(1.1 * (z_cube + dz_cube), lim).to_value(U.kpc),
+                    min((z_cube - 1.05 * dz_cube), sp3.get_xlim()[0]),
+                    max((z_cube + 1.05 * dz_cube), sp3.get_xlim()[1]),
                 )
             )
-        if clip_vlim:
+        if vlim == "datacube":
             sp2.set_ylim(
-                (v_cube - dv_cube).to_value(U.km / U.s),
-                (v_cube + dv_cube).to_value(U.km / U.s),
+                (v_cube - dv_cube),
+                (v_cube + dv_cube),
             )
             sp3.set_ylim(
-                (v_cube - dv_cube).to_value(U.km / U.s),
-                (v_cube + dv_cube).to_value(U.km / U.s),
+                (v_cube - dv_cube),
+                (v_cube + dv_cube),
             )
-        else:
-            if vlim is None:
-                vlim = sp2.get_ylim()[1] * U.km / U.s
-            assert isinstance(vlim, U.Quantity)
+        elif vlim is None:
             sp2.set_ylim(
                 (
-                    min(1.1 * (v_cube - dv_cube), -vlim).to_value(U.km / U.s),
-                    max(1.1 * (v_cube + dv_cube), vlim).to_value(U.km / U.s),
+                    min((v_cube - 1.05 * dv_cube), sp2.get_ylim()[0]),
+                    max((v_cube + 1.05 * dv_cube), sp2.get_ylim()[1]),
                 )
             )
             sp3.set_ylim(
                 (
-                    min(1.1 * (v_cube - dv_cube), -vlim).to_value(U.km / U.s),
-                    max(1.1 * (v_cube + dv_cube), vlim).to_value(U.km / U.s),
+                    min((v_cube - 1.05 * dv_cube), sp3.get_ylim()[0]),
+                    max((v_cube + 1.05 * dv_cube), sp3.get_ylim()[1]),
                 )
             )
 

@@ -6,6 +6,7 @@ observation.
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 from astropy import units as U
 from martini.sources.sph_source import SPHSource
 from martini.datacube import DataCube
@@ -141,6 +142,8 @@ class CombinedSource(SPHSource):
                     "Pass a list of `SPHSource` (or derived class) objects as `sources`"
                     " argument."
                 )
+        if len(sources) == 0:
+            raise ValueError("List of `sources` must contain at least one item.")
         self.coordinate_frame = sources[0].coordinate_frame
         for source in sources:
             if source.coordinate_frame != self.coordinate_frame:
@@ -153,22 +156,12 @@ class CombinedSource(SPHSource):
         return
 
     def _init_skycoords(self, _reset: bool = True) -> None:
-        # can save a bit of memory by copying these one at a time, I guess
         for source in self.sources:
             source._init_skycoords(_reset=_reset)
-        # self.skycoords = np.concatenate([source.skycoords for source in self.sources])
-        # for source in self.sources:
-        #     del source.skycoords
-        # self.spectralcoords = np.concatenate(
-        #     [source.spectralcoords for source in self.sources]
-        # )
-        # for source in self.sources:
-        #     del source.spectralcoords
 
     def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
         for source in self.sources:
             source._init_pixcoords(datacube=datacube, origin=origin)
-        # self.pixcoords = np.vstack([source.pixcoords for source in self.sources])
 
     @property
     def distance(self):
@@ -178,29 +171,39 @@ class CombinedSource(SPHSource):
             )
         return self._distance
 
-    @property
-    def ra(self):
-        if self._ra is None:
-            self._ra = np.mean(  # not happy with this, but just used for preview
-                U.Quantity([source.ra for source in self.sources])
+    def preview(
+        self,
+        max_points: int = 5000,
+        fig: int = 1,
+        lim: U.Quantity[U.deg] | None = None,
+        vlim: U.Quantity[U.km / U.s] | None = None,
+        point_scaling: str = "auto",
+        title: str = "",
+        save: str | None = None,
+    ):
+        # guaranteed by __init__ to have at least one source.
+        figure = self.sources[0].preview(
+            max_points=max_points,
+            fig=fig,
+            lim=lim,
+            vlim=vlim,
+            point_scaling=point_scaling,
+            title=title,
+            save=None,
+        )
+        for source in self.sources[1:]:
+            source.preview(
+                max_points=max_points,
+                fig=figure,
+                lim=lim,
+                vlim=vlim,
+                point_scaling=point_scaling,
+                title=title,
+                save=None,
             )
-        return self._ra
-
-    @property
-    def dec(self):
-        if self._dec is None:
-            self._dec = np.mean(  # not happy with this, but just used for preview
-                U.Quantity([source.dec for source in self.sources])
-            )
-        return self._dec
-
-    @property
-    def vsys(self):
-        if self._vsys is None:
-            self._vsys = np.mean(  # not happy with this, but just used for preview
-                U.Quantity([source.vsys for source in self.sources])
-            )
-        return self._vsys
+        if save is not None:
+            plt.savefig(save)
+        return figure
 
     @property
     def T_g(self):
@@ -303,7 +306,4 @@ class CombinedSource(SPHSource):
             "Cannot load affine transformations of CombinedSource."
         )
 
-    # sph_kernel's _init_sm_lengths(source=self.source, ...) must work
-    # martini's _prune_particles() must work
-    # spectral_model's init_spectra(self.source) must work
     # must work with GlobalProfile
