@@ -8,10 +8,15 @@ observation.
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy import units as U
+from astropy.coordinates import SkyCoord, SpectralCoord, CartesianRepresentation
 from martini.sources.sph_source import SPHSource
 from martini.datacube import DataCube
 from ..L_coords import L_coords
 from scipy.spatial.transform import Rotation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from martplotlib.figure import Figure
 
 
 class CombinedSource(SPHSource):
@@ -156,15 +161,53 @@ class CombinedSource(SPHSource):
         return
 
     def _init_skycoords(self, _reset: bool = True) -> None:
+        """
+        Initialize the sky coordinates of the particles.
+
+        This is just delegated to each of the combined sources.
+
+        Parameters
+        ----------
+        _reset : bool
+            If ``True``, return particles to their original positions. Setting to
+            ``False`` is only intended for testing.
+        """
         for source in self.sources:
             source._init_skycoords(_reset=_reset)
 
     def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
+        """
+        Initialize pixel coordinates of the particles.
+
+        This is just delegated to each of the combined sources.
+
+        Parameters
+        ----------
+        datacube : ~martini.datacube.DataCube
+            The DataCube (including its WCS) for which to calculate coordinates.
+
+        origin : int
+            Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
+        """
         for source in self.sources:
             source._init_pixcoords(datacube=datacube, origin=origin)
 
     @property
-    def distance(self):
+    def distance(self) -> U.Quantity[U.Mpc]:
+        """
+        The approximate distance of the source.
+
+        A :class:`~martini.sources.combined_source.CombinedSource` has no well-defined
+        distance. This property estimates a distance as the mean distance of the
+        combined sources. This has no influence on the output produced by :mod:`martini`,
+        but can influence values that are printed in messages.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of length. The mean distance
+            of the combined sources.
+        """
         if self._distance is None:
             self._distance = np.mean(  # not happy with this, but just used for messages
                 U.Quantity([source.distance for source in self.sources])
@@ -180,7 +223,54 @@ class CombinedSource(SPHSource):
         point_scaling: str = "auto",
         title: str = "",
         save: str | None = None,
-    ):
+    ) -> "Figure":
+        """
+        Produce a figure showing the source particle coordinates and velocities.
+
+        Makes a 3-panel figure showing the projection of the combined source as it will
+        appear in the mock observation. The first panel shows the particles in the y-z
+        plane, coloured by the x-component of velocity (MARTINI projects the source along
+        the x-axis). The second and third panels are position-velocity diagrams showing
+        the x-component of velocity against the y and z coordinates, respectively.
+
+        Parameters
+        ----------
+        max_points : int, optional
+            Maximum number of points to draw per panel, the particles will be randomly
+            subsampled if the source has more.
+
+        fig : int, optional
+            Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
+
+        lim : ~astropy.units.Quantity, optional
+            :class:`~astropy.units.Quantity`, with dimensions of length.
+            The coordinate axes extent from -lim to lim. If unspecified, the maximum
+            absolute coordinate of particles in the source is used.
+
+        vlim : ~astropy.units.Quantity, optional
+            :class:`~astropy.units.Quantity`, with dimensions of speed.
+            The velocity axes and colour bar extend from ``-vlim`` to ``vlim``. If
+            unspecified, the maximum absolute velocity of particles in the source is used.
+
+        point_scaling : str, optional
+            By default points are scaled in size and transparency according to their HI
+            mass and the smoothing length (loosely proportional to their surface
+            densities, but with different scaling to achieve a visually useful plot). For
+            some sources the automatic scaling may not give useful results, using
+            ``point_scaling="fixed"`` will plot points of constant size without opacity.
+
+        title : str, optional
+            A title for the figure can be provided.
+
+        save : str, optional
+            If provided, the figure is saved using ``plt.savefig(save)``. A ``.png`` or
+            ``.pdf`` suffix is recommended.
+
+        Returns
+        -------
+        ~matplotlib.figure.Figure
+            The preview figure.
+        """
         # guaranteed by __init__ to have at least one source.
         figure = self.sources[0].preview(
             max_points=max_points,
@@ -206,25 +296,60 @@ class CombinedSource(SPHSource):
         return figure
 
     @property
-    def T_g(self):
+    def T_g(self) -> U.Quantity[U.K]:
+        """
+        Get the combined particle temperatures from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of temperature. Particle
+            temperatures.
+        """
         if self._T_g is None:
             self._T_g = np.concatenate([source.T_g for source in self.sources])
         return self._T_g
 
     @property
-    def mHI_g(self):
+    def mHI_g(self) -> U.Quantity[U.Msun]:
+        """
+        Get the combined particle HI masses from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of mass. Particle HI masses.
+        """
         if self._mHI_g is None:
             self._mHI_g = np.concatenate([source.mHI_g for source in self.sources])
         return self._mHI_g
 
     @property
-    def hsm_g(self):
+    def hsm_g(self) -> U.Quantity[U.kpc]:
+        """
+        Get the combined particle smoothing lengths from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of length. Particle
+            smoothing lengths.
+        """
         if self._hsm_g is None:
             self._hsm_g = np.concatenate([source.hsm_g for source in self.sources])
         return self._hsm_g
 
     @property
-    def coordinates_g(self):
+    def coordinates_g(self) -> CartesianRepresentation:
+        """
+        Get the combined particle cartesian coordinates from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.coordinates.CartesianRepresentation
+            The combined :class:`~astropy.coordinates.CartesianRepresentation` object
+            (including differentials).
+        """
         if self._coordinates_g is None:
             self._coordinates_g = np.concatenate(
                 [source.coordinates_g for source in self.sources]
@@ -232,7 +357,15 @@ class CombinedSource(SPHSource):
         return self._coordinates_g
 
     @property
-    def skycoords(self):
+    def skycoords(self) -> SkyCoord:
+        """
+        Get the combined sky coordinates from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.coordinates.SkyCoord
+            The combined :class:`~astropy.coordinates.SkyCoord` object.
+        """
         if self._skycoords is None:
             self._skycoords = np.concatenate(
                 [source.skycoords for source in self.sources]
@@ -240,7 +373,15 @@ class CombinedSource(SPHSource):
         return self._skycoords
 
     @property
-    def spectralcoords(self):
+    def spectralcoords(self) -> SpectralCoord:
+        """
+        Get the combined spectral coordinates from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.coordinates.SpectralCoord
+            The combined :class:`~astropy.coordinates.SpectralCoord` object.
+        """
         if self._spectralcoords is None:
             self._spectralcoords = np.concatenate(
                 [source.spectralcoords for source in self.sources]
@@ -248,12 +389,30 @@ class CombinedSource(SPHSource):
         return self._spectralcoords
 
     @property
-    def pixcoords(self):
+    def pixcoords(self) -> U.Quantity[U.pix]:
+        """
+        Get the combined pixel coordinates from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels. 2D coordinates
+            of particles in pixel coordinates.
+        """
         if self._pixcoords is None:
             self._pixcoords = np.hstack([source.pixcoords for source in self.sources])
         return self._pixcoords
 
     def apply_mask(self, mask: np.ndarray) -> None:
+        """
+        Remove particles from source arrays according to a mask.
+
+        Parameters
+        ----------
+        mask : ~numpy.ndarray
+            Boolean mask. Remove particles with indices corresponding to ``False`` values
+            from the source arrays.
+        """
         count = 0
         # check that the mask is the right size here
         for source in self.sources:
@@ -279,29 +438,149 @@ class CombinedSource(SPHSource):
         *,
         L_coords: L_coords | None = None,
     ) -> None:
+        """
+        Rotate the source.
+
+        Not available for :class:`~martini.sources.combined_source.CombinedSource`,
+        rotate individual sources instead.
+
+        Parameters
+        ----------
+        rotation : ~scipy.spatial.transform.Rotation, optional
+            A :class:`~scipy.spatial.transform.Rotation` specifying the rotation. This
+            type of object can be initialized from many ways of specifying rotations:
+            rotation matrices, Euler angles, quaternions, etc. Refer to the :mod:`scipy`
+            documentation for details.
+        L_coords : ~martini.L_coords.L_coords, optional
+            First element containing an inclination, second element an
+            azimuthal angle (both :class:`~astropy.units.Quantity` instances with
+            dimensions of angle). The routine will first attempt to identify
+            a preferred plane based on the angular momenta of the central 1/3
+            of particles in the source. This plane will then be rotated to lie
+            in the 'y-z' plane, followed by a rotation by the azimuthal angle
+            about its angular momentum pole (rotation about 'x'), and then
+            inclined (rotation about 'y'). By default the position angle on the
+            sky is 270 degrees, but if a third element is provided it sets the
+            position angle (second rotation about 'x').
+
+        Raises
+        ------
+        NotImplementedError
+            Always raises.
+        """
         raise NotImplementedError("Rotate individual sources, not CombinedSource.")
 
     def translate(self, translation_vector: U.Quantity[U.kpc]) -> None:
+        """
+        Translate the source.
+
+        Not available for :class:`~martini.sources.combined_source.CombinedSource`,
+        translate individual sources instead.
+
+        Parameters
+        ----------
+        translation_vector : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of length.
+            Vector by which to offset the source particle coordinates.
+
+        Raises
+        ------
+        NotImplementedError
+            Always raises.
+        """
         raise NotImplementedError("Translate individual sources, not CombinedSource.")
 
     def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
+        """
+        Apply an offset to the source velocity.
+
+        Not available for :class:`~martini.sources.combined_source.CombinedSource`,
+        boost individual sources instead.
+
+        Parameters
+        ----------
+        boost_vector : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity` with shape (3, ), with dimensions of
+            velocity.
+            Vector by which to offset the source particle velocities.
+
+        Raises
+        ------
+        NotImplementedError
+            Always raises.
+        """
         raise NotImplementedError("Translate individual sources, not CombinedSource.")
 
     @property
     def curent_rotation(self) -> None:
+        """
+        Current rotation matrix of the source.
+
+        Not available for :class:`~martini.sources.combined_source.CombinedSource`.
+
+        Raises
+        ------
+        NotImplementedError
+            Always raises.
+        """
         raise NotImplementedError(
             "Current rotation not available for a CombinedSource."
         )
 
     def save_current_rotation(self, fname: str) -> None:
+        """
+        Output current rotation matrix to file.
+
+        Parameters
+        ----------
+        fname : str
+            File in which to save rotation matrix (as a text file).
+
+        Raises
+        ------
+        NotImplementedError
+            Always raises.
+        """
         raise NotImplementedError("Cannot save rotation of CombinedSource.")
 
     def save_current_affine_transformations(self, fname: str) -> None:
+        """
+        Output current affine transformation matrices (position and velocity) to a file.
+
+        This is not supported for
+        :class:`~martini.sources.combined_source.CombinedSource`.
+
+        Parameters
+        ----------
+        fname : str
+            File in which to save affine transformation matrices (in ``*.npy`` format).
+
+        Raises
+        ------
+        NotImplementedError
+            Always raises.
+        """
         raise NotImplementedError(
             "Cannot save affine transformations of CombinedSource."
         )
 
     def load_affine_transformations(self, fname: str) -> None:
+        """
+        Load a set of affine transformation matrices (position and velocity) from a file.
+
+        This is not supported for
+        :class:`~martini.sources.combined_source.CombinedSource`.
+
+        Parameters
+        ----------
+        fname : str
+            File from which to load affine transformation matrices (in ``*.npy`` format).
+
+        Raises
+        ------
+        NotImplementedError
+            Always raises.
+        """
         raise NotImplementedError(
             "Cannot load affine transformations of CombinedSource."
         )

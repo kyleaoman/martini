@@ -166,6 +166,7 @@ class SPHSource(object):
     pixcoords: U.Quantity[U.pix]
     input_mass: U.Quantity[U.Msun]
     skycoords: SkyCoord | None
+    spectralcoords: SpectralCoord | None
 
     def __init__(
         self,
@@ -367,8 +368,8 @@ class SPHSource(object):
         Parameters
         ----------
         mask : ~numpy.ndarray
-            Boolean mask. Remove particles with indices corresponding to
-            ``False`` values from the source arrays.
+            Boolean mask. Remove particles with indices corresponding to ``False`` values
+            from the source arrays.
         """
         if mask.size != self.npart:
             raise ValueError("Mask must have same length as particle arrays.")
