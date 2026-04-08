@@ -109,11 +109,11 @@ class SOSource(SPHSource):
 
         self._SO_args = SO_args
         self.rescale_hsm_g = rescale_hsm_g
-        if (SO_args is not None) and (SO_instance is not None):
+        if (self._SO_args is not None) and (SO_instance is not None):
             raise ValueError(
                 "martini.source.SOSource: Provide SO_args or SO_instance, not both."
             )
-        elif SO_args is not None:
+        elif self._SO_args is not None:
             with SimObj(**self._SO_args) as SO:
                 particles = {
                     "T_g": SO.T_g,
