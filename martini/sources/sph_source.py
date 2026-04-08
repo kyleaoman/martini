@@ -726,7 +726,7 @@ class SPHSource(object):
     def preview(
         self,
         max_points: int = 5000,
-        fig: int = 1,
+        fig: "int | Figure" = 1,
         lim: U.Quantity[U.deg] | None = None,
         vlim: U.Quantity[U.km / U.s] | None = None,
         point_scaling: str = "auto",
@@ -748,8 +748,9 @@ class SPHSource(object):
             Maximum number of points to draw per panel, the particles will be randomly
             subsampled if the source has more.
 
-        fig : int, optional
+        fig : int or ~matplotlib.figure.Figure, optional
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
+            Or, an existing figure can be provided.
 
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of length.
