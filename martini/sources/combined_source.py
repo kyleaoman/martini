@@ -508,7 +508,7 @@ class CombinedSource(SPHSource):
             The combined :class:`~astropy.coordinates.SpectralCoord` object.
         """
         if self._spectralcoords is None:
-            if any([source.spectralcoords is None for source in self.sources]):
+            if any([source.skycoords is None for source in self.sources]):
                 raise RuntimeError(
                     "Call _init_skycoords before accessing spectralcoords."
                 )
@@ -526,7 +526,12 @@ class CombinedSource(SPHSource):
             )
             self._spectralcoords = SpectralCoord(
                 np.concatenate(
-                    [source.skycoords.radial_velocity for source in self.sources]
+                    [
+                        getattr(
+                            source.skycoords, "radial_velocity", None
+                        )  # placate mypy
+                        for source in self.sources
+                    ]
                 ),
                 doppler_convention="radio",
                 doppler_rest=HIfreq,
