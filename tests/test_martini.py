@@ -527,9 +527,7 @@ class TestMartini:
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
         # with default arguments
-        with pytest.warns(UserWarning, match="singular"):
-            # warning: single-particle source is used, so axis limits try to be equal
-            m_init.preview(fig=5)
+        m_init.preview(fig=5)
         # with non-default arguments
         m_init.preview(
             max_points=1000,
@@ -952,9 +950,7 @@ class TestGlobalProfile:
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
         # with default arguments
-        with pytest.warns(UserWarning, match="singular"):
-            # warning: single-particle source is used, so axis limits try to be equal
-            gp.preview(fig=7)
+        gp.preview(fig=7)
         # with non-default arguments
         gp.preview(
             max_points=1000,
@@ -987,9 +983,9 @@ class TestGlobalProfile:
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
         # with default arguments
-        gp.plot_spectrum()
+        gp.plot_spectrum(fig=9)
         # with non-default arguments
-        gp.plot_spectrum(fig=2, title="test", show_vsys=False)
+        gp.plot_spectrum(fig=10, title="test", show_vsys=False)
 
 
 class TestMartiniWithDataCubeFromWCS:

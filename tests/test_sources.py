@@ -1019,6 +1019,6 @@ class TestCombinedSource:
             sph_kernel=sph_kernel,
             spectral_model=spectral_model,
         )
-        m.preview(save="scratch.pdf")
+        m.preview(save="scratch.pdf", fig=99)
         m.insert_source_in_cube()
         m.convolve_beam()

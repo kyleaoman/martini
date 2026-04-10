@@ -793,7 +793,7 @@ class SPHSource(object):
                 np.max(np.abs((self.skycoords.dec - self.dec).to_value(U.deg))),
             )
             if lim is None
-            else lim.to_value(U.deg)
+            else lim.to_value(U.kpc)
         )
         vlim = (
             np.max(
