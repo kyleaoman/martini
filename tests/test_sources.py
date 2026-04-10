@@ -7,7 +7,7 @@ import h5py
 from scipy.spatial.transform import Rotation
 from astropy import units as U
 from martini.datacube import DataCube
-from martini.sources import SPHSource, TNGSource, CombinedSource
+from martini.sources import SPHSource, TNGSource
 from martini.L_coords import L_coords
 from martini.sources._extra_cartesian_transforms import (
     translate,
@@ -19,10 +19,6 @@ from martini.sources._extra_cartesian_transforms import (
 from martini.sources._L_align import L_align
 from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 from martini.__version__ import __version__
-from martini.beams import GaussianBeam
-from martini.sph_kernels import GaussianKernel
-from martini.spectral_models import GaussianSpectrum
-from martini.martini import Martini
 
 
 class TestSourceUtilities:
@@ -939,86 +935,75 @@ class TestColibreSource:
 class TestCombinedSource:
     """Test the functionality of the combined source module."""
 
-    def test_scratch(self):
-        """SCRATCH."""
-        n = 1000
-        r = np.random.rand(n) * 5 * U.kpc
-        v = 100 * U.km / U.s
-        t = np.random.rand(n) * 2 * np.pi * U.rad
+    def test_combined_particles(self, combined_source):
+        """Check that properties of combined source particles are those of each source."""
+        n1 = combined_source.sources[0].npart
+        n2 = combined_source.sources[1].npart
+        assert combined_source.npart == n1 + n2
+        for prop in ("T_g", "hsm_g", "mHI_g"):
+            assert U.allclose(
+                getattr(combined_source, prop)[:n1],
+                getattr(combined_source.sources[0], prop),
+            )
+            assert U.allclose(
+                getattr(combined_source, prop)[n1 : n1 + n2],
+                getattr(combined_source.sources[1], prop),
+            )
+            assert getattr(combined_source, prop).size == n1 + n2
+        assert U.allclose(
+            combined_source.coordinates_g.xyz[:, :n1],
+            combined_source.sources[0].coordinates_g.xyz,
+        )
+        assert U.allclose(
+            combined_source.coordinates_g.xyz[:, n1 : n1 + n2],
+            combined_source.sources[1].coordinates_g.xyz,
+        )
+        assert combined_source.coordinates_g.size == n1 + n2
+        assert U.allclose(
+            combined_source.coordinates_g.differentials["s"].d_xyz[:, :n1],
+            combined_source.sources[0].coordinates_g.differentials["s"].d_xyz,
+        )
+        assert U.allclose(
+            combined_source.coordinates_g.differentials["s"].d_xyz[:, n1 : n1 + n2],
+            combined_source.sources[1].coordinates_g.differentials["s"].d_xyz,
+        )
+        assert combined_source.coordinates_g.differentials["s"].size == n1 + n2
 
-        source1 = SPHSource(
-            distance=10 * U.Mpc,
-            vpeculiar=30 * U.km / U.s,
-            rotation=Rotation.from_euler("y", (30 * U.deg).to_value(U.rad)),
-            ra=49.95 * U.deg,
-            dec=29.95 * U.deg,
-            T_g=np.ones(n) * U.K,
-            mHI_g=np.ones(n) * 1e7 * U.Msun,
-            xyz_g=U.Quantity(
-                [
-                    np.zeros(n) * U.kpc,
-                    r * np.cos(t),
-                    r * np.sin(t),
-                ]
-            ),
-            vxyz_g=U.Quantity(
-                [
-                    np.zeros(n) * U.km / U.s,
-                    -v * np.sin(t),
-                    v * np.cos(t),
-                ]
-            ),
-            hsm_g=np.ones(n) * 0.3 * U.kpc,
+    def test_combined_skycoords_spectralcoords(self, combined_source):
+        """Check that particle sky coordinates are those of each source."""
+        n1 = combined_source.sources[0].npart
+        n2 = combined_source.sources[1].npart
+        assert combined_source._skycoords is None
+        assert combined_source._spectralcoords is None
+        for i in (0, 1):
+            assert combined_source.sources[i].skycoords is None
+            assert combined_source.sources[i].spectralcoords is None
+        with pytest.raises(RuntimeError, match="Call _init_skycoords before"):
+            combined_source.skycoords
+        with pytest.raises(RuntimeError, match="Call _init_skycoords before"):
+            combined_source.spectralcoords
+        combined_source._init_skycoords()
+        assert combined_source.skycoords is not None
+        assert combined_source.spectralcoords is not None
+        for i in (0, 1):
+            assert combined_source.sources[i].skycoords is not None
+            assert combined_source.sources[i].spectralcoords is not None
+        for prop in ("ra", "dec", "distance"):
+            assert U.allclose(
+                getattr(combined_source.skycoords, prop)[:n1],
+                getattr(combined_source.sources[0].skycoords, prop),
+            )
+            assert U.allclose(
+                getattr(combined_source.skycoords, prop)[n1 : n1 + n2],
+                getattr(combined_source.sources[1].skycoords, prop),
+            )
+            assert getattr(combined_source.skycoords, prop).size == n1 + n2
+        assert U.allclose(
+            combined_source.spectralcoords.radial_velocity[:n1],
+            combined_source.sources[0].spectralcoords.radial_velocity,
         )
-        source2 = SPHSource(
-            distance=12 * U.Mpc,
-            vpeculiar=-50 * U.km / U.s,
-            rotation=Rotation.from_euler("z", (60 * U.deg).to_value(U.rad)),
-            ra=50.05 * U.deg,
-            dec=30.05 * U.deg,
-            T_g=np.ones(n) * U.K,
-            mHI_g=np.ones(n) * 1e7 * U.Msun,
-            xyz_g=U.Quantity(
-                [
-                    np.zeros(n) * U.kpc,
-                    r * np.cos(t),
-                    r * np.sin(t),
-                ]
-            ),
-            vxyz_g=U.Quantity(
-                [
-                    np.zeros(n) * U.km / U.s,
-                    -v * np.sin(t),
-                    v * np.cos(t),
-                ]
-            ),
-            hsm_g=np.ones(n) * 0.3 * U.kpc,
+        assert U.allclose(
+            combined_source.spectralcoords.radial_velocity[n1 : n1 + n2],
+            combined_source.sources[1].spectralcoords.radial_velocity,
         )
-        source = CombinedSource([source1, source2])
-        datacube = DataCube(
-            n_px_x=128,
-            n_px_y=128,
-            n_channels=128,
-            px_size=5 * U.arcsec,
-            channel_width=3 * U.km / U.s,
-            spectral_centre=760 * U.km / U.s,
-            ra=50 * U.deg,
-            dec=30 * U.deg,
-        )
-        beam = GaussianBeam(
-            bmaj=15 * U.arcsec,
-            bmin=15 * U.arcsec,
-        )
-        sph_kernel = GaussianKernel()
-        spectral_model = GaussianSpectrum(sigma="thermal")
-        m = Martini(
-            source=source,
-            datacube=datacube,
-            beam=beam,
-            noise=None,
-            sph_kernel=sph_kernel,
-            spectral_model=spectral_model,
-        )
-        m.preview(save="scratch.pdf", fig=99)
-        m.insert_source_in_cube()
-        m.convolve_beam()
+        assert combined_source.spectralcoords.radial_velocity.size == n1 + n2

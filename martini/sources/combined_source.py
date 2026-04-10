@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from astropy import units as U
 from astropy.coordinates import SkyCoord, SpectralCoord, CartesianRepresentation
 from martini.sources.sph_source import SPHSource
-from martini.datacube import DataCube
+from ..datacube import HIfreq, DataCube
 from ..L_coords import L_coords
 from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
@@ -470,6 +470,8 @@ class CombinedSource(SPHSource):
             The combined :class:`~astropy.coordinates.SkyCoord` object.
         """
         if self._skycoords is None:
+            if any([s.skycoords is None for s in self.sources]):
+                raise RuntimeError("Call _init_skycoords before accessing skycoords.")
             self._skycoords = np.concatenate(
                 [source.skycoords for source in self.sources]
             )
@@ -506,8 +508,30 @@ class CombinedSource(SPHSource):
             The combined :class:`~astropy.coordinates.SpectralCoord` object.
         """
         if self._spectralcoords is None:
-            self._spectralcoords = np.concatenate(
-                [source.spectralcoords for source in self.sources]
+            if any([source.spectralcoords is None for source in self.sources]):
+                raise RuntimeError(
+                    "Call _init_skycoords before accessing spectralcoords."
+                )
+            # seems there's a bug in astropy: can't just concatenate SkyCoords
+            origin_skycoord = SkyCoord(
+                x=0 * U.kpc,
+                y=0 * U.kpc,
+                z=0 * U.kpc,
+                v_x=0 * U.km / U.s,
+                v_y=0 * U.km / U.s,
+                v_z=0 * U.km / U.s,
+                representation_type="cartesian",
+                differential_type="cartesian",
+                frame=self.coordinate_frame,
+            )
+            self._spectralcoords = SpectralCoord(
+                np.concatenate(
+                    [source.skycoords.radial_velocity for source in self.sources]
+                ),
+                doppler_convention="radio",
+                doppler_rest=HIfreq,
+                target=np.concatenate([source.skycoords for source in self.sources]),
+                observer=origin_skycoord,
             )
         return self._spectralcoords
 
