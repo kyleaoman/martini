@@ -159,6 +159,10 @@ class CombinedSource(SPHSource):
                     "Pass a list of `SPHSource` (or derived class) objects as `sources`"
                     " argument."
                 )
+            if isinstance(source, CombinedSource):
+                raise ValueError(
+                    "Cannot use `CombinedSource` to combine `CombinedSource`s."
+                )
         if len(sources) == 0:
             raise ValueError("List of `sources` must contain at least one item.")
         self.coordinate_frame = sources[0].coordinate_frame
@@ -323,6 +327,28 @@ class CombinedSource(SPHSource):
             self._T_g = np.concatenate([source.T_g for source in self.sources])
         return self._T_g
 
+    @T_g.setter
+    def T_g(self, value: U.Quantity[U.K]) -> None:
+        """
+        Set the particle temperatures.
+
+        Parameters
+        ----------
+        value : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of temperature.
+            The temperature values. The values are "unconcatenated" in the order of
+            the ``self.sources`` and assigned to each, in addition to setting
+            ``self._T_g``.
+        """
+        nparts = [s.npart for s in self.sources]
+        if value.size != self.npart:
+            raise ValueError("Wrong number of elements for T_g.")
+        for s, T_g_fragment in zip(
+            self.sources, np.split(value, np.cumsum(nparts)[:-1])
+        ):
+            s.T_g = T_g_fragment
+        self._T_g = value
+
     @property
     def mHI_g(self) -> U.Quantity[U.Msun]:
         """
@@ -336,6 +362,28 @@ class CombinedSource(SPHSource):
         if self._mHI_g is None:
             self._mHI_g = np.concatenate([source.mHI_g for source in self.sources])
         return self._mHI_g
+
+    @mHI_g.setter
+    def mHI_g(self, value: U.Quantity[U.Msun]) -> None:
+        """
+        Set the particle HI masses.
+
+        Parameters
+        ----------
+        value : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of mass.
+            The HI mass values. The values are "unconcatenated" in the order of
+            the ``self.sources`` and assigned to each, in addition to setting
+            ``self._mHI_g``.
+        """
+        nparts = [s.npart for s in self.sources]
+        if value.size != self.npart:
+            raise ValueError("Wrong number of elements for mHI_g.")
+        for s, mHI_g_fragment in zip(
+            self.sources, np.split(value, np.cumsum(nparts)[:-1])
+        ):
+            s.mHI_g = mHI_g_fragment
+        self._mHI_g = value
 
     @property
     def hsm_g(self) -> U.Quantity[U.kpc]:
@@ -351,6 +399,28 @@ class CombinedSource(SPHSource):
         if self._hsm_g is None:
             self._hsm_g = np.concatenate([source.hsm_g for source in self.sources])
         return self._hsm_g
+
+    @hsm_g.setter
+    def hsm_g(self, value: U.Quantity[U.kpc]) -> None:
+        """
+        Set the particle smoothing lengths.
+
+        Parameters
+        ----------
+        value : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of length.
+            The smoothing length values. The values are "unconcatenated" in the order of
+            the ``self.sources`` and assigned to each, in addition to setting
+            ``self._hsm_g``.
+        """
+        nparts = [s.npart for s in self.sources]
+        if value.size != self.npart:
+            raise ValueError("Wrong number of elements for hsm_g.")
+        for s, hsm_g_fragment in zip(
+            self.sources, np.split(value, np.cumsum(nparts)[:-1])
+        ):
+            s.hsm_g = hsm_g_fragment
+        self._hsm_g = value
 
     @property
     def coordinates_g(self) -> CartesianRepresentation:
@@ -369,6 +439,26 @@ class CombinedSource(SPHSource):
             )
         return self._coordinates_g
 
+    @coordinates_g.setter
+    def coordinates_g(self, value: CartesianRepresentation) -> None:
+        """
+        Set the particle coordinates (including velocities).
+
+        Parameters
+        ----------
+        value : ~astropy.coordinates.CartesianRepresentation
+            The coordinates, including velocities as differentials. The values are
+            "unconcatenated" in the order of the ``self.sources`` and assigned to each,
+            in addition to setting ``self._coordinates_g``.
+        """
+        nparts = [s.npart for s in self.sources]
+        if value.size != self.npart:
+            raise ValueError("Wrong number of elements for coordinates_g.")
+        for i, s in enumerate(self.sources):
+            cumul_count = np.r_[0, np.cumsum(nparts)]
+            s.coordinates_g = value[cumul_count[i] : cumul_count[i + 1]]
+        self._coordinates_g = value
+
     @property
     def skycoords(self) -> SkyCoord:
         """
@@ -385,6 +475,26 @@ class CombinedSource(SPHSource):
             )
         return self._skycoords
 
+    @skycoords.setter
+    def skycoords(self, value: SkyCoord) -> None:
+        """
+        Set the particle sky coordinates.
+
+        Parameters
+        ----------
+        value : ~astropy.coordinates.SkyCoord
+            The sky coordinates. The values are "unconcatenated" in the order of the
+            ``self.sources`` and assigned to each, in addition to setting
+            ``self._skycoords``.
+        """
+        nparts = [s.npart for s in self.sources]
+        if value.size != self.npart:
+            raise ValueError("Wrong number of elements for skycoords.")
+        for i, s in enumerate(self.sources):
+            cumul_count = np.r_[0, np.cumsum(nparts)]
+            s.skycoords = value[cumul_count[i] : cumul_count[i + 1]]
+        self._skycoords = value
+
     @property
     def spectralcoords(self) -> SpectralCoord:
         """
@@ -400,6 +510,26 @@ class CombinedSource(SPHSource):
                 [source.spectralcoords for source in self.sources]
             )
         return self._spectralcoords
+
+    @spectralcoords.setter
+    def spectralcoords(self, value: SpectralCoord) -> None:
+        """
+        Set the particle spectral coordinates.
+
+        Parameters
+        ----------
+        value : ~astropy.coordinates.SpectralCoord
+            The spectral coordinates. The values are "unconcatenated" in the order of the
+            ``self.sources`` and assigned to each, in addition to setting
+            ``self._spectralcoords``.
+        """
+        nparts = [s.npart for s in self.sources]
+        if value.size != self.npart:
+            raise ValueError("Wrong number of elements for spectralcoords.")
+        for i, s in enumerate(self.sources):
+            cumul_count = np.r_[0, np.cumsum(nparts)]
+            s.spectralcoords = value[cumul_count[i] : cumul_count[i + 1]]
+        self._spectralcoords = value
 
     @property
     def pixcoords(self) -> U.Quantity[U.pix]:

@@ -784,6 +784,7 @@ class SPHSource(object):
         import matplotlib.pyplot as plt
 
         self._init_skycoords()
+        assert self.skycoords is not None  # placate mypy
 
         # every Nth particle to plot at most max_points, or all particles
         lim = (
@@ -863,9 +864,15 @@ class SPHSource(object):
             sp2.set_ylabel(r"$v_r\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
             sp3.set_xlabel(r"$\mathrm{Dec}\,[\mathrm{deg}]$")
             sp3.set_ylabel(r"$v_r\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+            vmin, vmax = -vlim, vlim
         else:
             sp1, sp2, sp3, _ = figure.axes
             cb = sp1.collections[0].colorbar
+            if cb is not None:
+                vmin, vmax = (
+                    min(-vlim, cb.mappable.get_clim()[0]),
+                    max(vlim, cb.mappable.get_clim()[1]),
+                )
         scatter = sp1.scatter(
             self.skycoords.ra[mask].to_value(U.deg),
             self.skycoords.dec[mask].to_value(U.deg),
@@ -874,8 +881,8 @@ class SPHSource(object):
             cmap="coolwarm",
             edgecolor="None",
             s=size,
-            vmin=-vlim if newfig else min(-vlim, cb.mappable.get_clim()[0]),
-            vmax=vlim if newfig else max(vlim, cb.mappable.get_clim()[1]),
+            vmin=vmin,
+            vmax=vmax,
             alpha=alpha,
             zorder=0,
         )
@@ -912,12 +919,8 @@ class SPHSource(object):
                 r"$v_\mathrm{r} - v_\mathrm{sys}\,[\mathrm{km}\,\mathrm{s}^{-1}]$"
             )
         else:
-            cb.mappable.set_clim(
-                (
-                    min(cb.mappable.get_clim()[0], -vlim),
-                    max(cb.mappable.get_clim()[1], vlim),
-                )
-            )
+            if cb is not None:
+                cb.mappable.set_clim((vmin, vmax))
         # ----- PV Y -----
         sp2.scatter(
             self.skycoords.ra[mask].to_value(U.deg),
