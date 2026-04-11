@@ -585,6 +585,7 @@ class CombinedSource(SPHSource):
             Boolean mask. Remove particles with indices corresponding to ``False`` values
             from the source arrays.
         """
+        self.npart = mask.sum()
         count = 0
         # check that the mask is the right size here
         for source in self.sources:

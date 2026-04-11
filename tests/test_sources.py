@@ -1065,3 +1065,90 @@ class TestCombinedSource:
                     os.remove("aff.npy")
         with pytest.raises(NotImplementedError, match="Cannot load affine"):
             combined_source.load_affine_transformations("aff.npy")
+
+    def test_mask_uninitialized_props(self, combined_source, dc_zeros):
+        """Test that masking applies to both combined and contained sources."""
+        initial_npart = combined_source.npart
+        initial_npart_s = [combined_source.sources[i].npart for i in range(2)]
+        mask = np.ones(combined_source.npart, dtype=bool)
+        mask[::2] = False
+        assert combined_source._T_g is None
+        assert combined_source._mHI_g is None
+        assert combined_source._hsm_g is None
+        assert combined_source._coordinates_g is None
+        assert combined_source._skycoords is None
+        assert combined_source._spectralcoords is None
+        assert combined_source._pixcoords is None
+        combined_source.apply_mask(mask)
+        assert combined_source.npart == initial_npart // 2
+        assert combined_source.T_g.size == initial_npart // 2
+        assert combined_source.mHI_g.size == initial_npart // 2
+        assert combined_source.hsm_g.size == initial_npart // 2
+        assert combined_source.coordinates_g.size == initial_npart // 2
+        combined_source._init_skycoords()
+        assert combined_source.skycoords.size == initial_npart // 2
+        assert combined_source.spectralcoords.size == initial_npart // 2
+        combined_source._init_pixcoords(dc_zeros)
+        assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        for i in range(2):
+            assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].hsm_g.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].coordinates_g.size == initial_npart_s[i] // 2
+            )
+            assert combined_source.sources[i].skycoords.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].spectralcoords.size
+                == initial_npart_s[i] // 2
+            )
+            assert (
+                combined_source.sources[i].pixcoords.shape[1] == initial_npart_s[i] // 2
+            )
+
+    def test_mask_initialized_props(self, combined_source, dc_zeros):
+        """Test that masking applies to both combined and contained sources."""
+        initial_npart = combined_source.npart
+        initial_npart_s = [combined_source.sources[i].npart for i in range(2)]
+        mask = np.ones(combined_source.npart, dtype=bool)
+        mask[::2] = False
+        combined_source.T_g
+        combined_source.mHI_g
+        combined_source.hsm_g
+        combined_source.coordinates_g
+        combined_source._init_skycoords()
+        combined_source.skycoords
+        combined_source.spectralcoords
+        combined_source._init_pixcoords(dc_zeros)
+        combined_source.pixcoords
+        assert combined_source._T_g is not None
+        assert combined_source._mHI_g is not None
+        assert combined_source._hsm_g is not None
+        assert combined_source._coordinates_g is not None
+        assert combined_source._skycoords is not None
+        assert combined_source._spectralcoords is not None
+        assert combined_source._pixcoords is not None
+        combined_source.apply_mask(mask)
+        assert combined_source.npart == initial_npart // 2
+        assert combined_source.T_g.size == initial_npart // 2
+        assert combined_source.mHI_g.size == initial_npart // 2
+        assert combined_source.hsm_g.size == initial_npart // 2
+        assert combined_source.coordinates_g.size == initial_npart // 2
+        assert combined_source.skycoords.size == initial_npart // 2
+        assert combined_source.spectralcoords.size == initial_npart // 2
+        assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        for i in range(2):
+            assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].hsm_g.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].coordinates_g.size == initial_npart_s[i] // 2
+            )
+            assert combined_source.sources[i].skycoords.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].spectralcoords.size
+                == initial_npart_s[i] // 2
+            )
+            assert (
+                combined_source.sources[i].pixcoords.shape[1] == initial_npart_s[i] // 2
+            )
