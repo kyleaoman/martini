@@ -684,7 +684,7 @@ class CombinedSource(SPHSource):
         raise NotImplementedError("Translate individual sources, not CombinedSource.")
 
     @property
-    def curent_rotation(self) -> None:
+    def current_rotation(self) -> np.ndarray:
         """
         Current rotation matrix of the source.
 
@@ -756,5 +756,3 @@ class CombinedSource(SPHSource):
         raise NotImplementedError(
             "Cannot load affine transformations of CombinedSource."
         )
-
-    # must work with GlobalProfile

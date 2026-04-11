@@ -7,7 +7,7 @@ import h5py
 from scipy.spatial.transform import Rotation
 from astropy import units as U
 from martini.datacube import DataCube
-from martini.sources import SPHSource, TNGSource
+from martini.sources import SPHSource, TNGSource, CombinedSource
 from martini.L_coords import L_coords
 from martini.sources._extra_cartesian_transforms import (
     translate,
@@ -17,8 +17,14 @@ from martini.sources._extra_cartesian_transforms import (
     _apply_affine_transform,
 )
 from martini.sources._L_align import L_align
-from astropy.coordinates import CartesianRepresentation, CartesianDifferential
+from astropy.coordinates import (
+    CartesianRepresentation,
+    CartesianDifferential,
+    ICRS,
+    FK5,
+)
 from martini.__version__ import __version__
+from conftest import sps_sourcegen
 
 
 class TestSourceUtilities:
@@ -1018,3 +1024,44 @@ class TestCombinedSource:
             combined_source.sources[1].spectralcoords.radial_velocity,
         )
         assert combined_source.spectralcoords.radial_velocity.size == n1 + n2
+
+    def test_invalid_init(self, combined_source, s):
+        """Check that invalid inputs are rejected."""
+        with pytest.raises(ValueError, match="Pass a list of `SPHSource`"):
+            CombinedSource(sources=[1])
+        with pytest.raises(ValueError, match="Cannot use `CombinedSource` to combine"):
+            CombinedSource(sources=[combined_source])
+        with pytest.raises(ValueError, match="List of `sources` must contain at least"):
+            CombinedSource(sources=[])
+        with pytest.raises(ValueError, match="All sources must have the same"):
+            CombinedSource(
+                sources=[
+                    sps_sourcegen(coordinate_frame=ICRS()),
+                    sps_sourcegen(coordinate_frame=FK5()),
+                ]
+            )
+
+    def test_unsupported_operations(self, combined_source):
+        """Check that unsupported function calls raise."""
+        with pytest.raises(NotImplementedError, match="Rotate individual sources"):
+            combined_source.rotate(Rotation.from_matrix(np.eye(3)))
+        with pytest.raises(NotImplementedError, match="Translate individual sources"):
+            combined_source.translate(np.ones(3) * U.kpc)
+        with pytest.raises(NotImplementedError, match="Translate individual sources"):
+            combined_source.boost(np.ones(3) * U.km / U.s)
+        with pytest.raises(NotImplementedError, match="Current rotation not available"):
+            combined_source.current_rotation
+        with pytest.raises(NotImplementedError, match="Cannot save rotation"):
+            try:
+                combined_source.save_current_rotation("rot.npy")
+            finally:
+                if os.path.isfile("rot.npy"):
+                    os.remove("rot.npy")
+        with pytest.raises(NotImplementedError, match="Cannot save affine"):
+            try:
+                combined_source.save_current_affine_transformations("aff.npy")
+            finally:
+                if os.path.isfile("aff.npy"):
+                    os.remove("aff.npy")
+        with pytest.raises(NotImplementedError, match="Cannot load affine"):
+            combined_source.load_affine_transformations("aff.npy")
