@@ -526,16 +526,19 @@ class TestMartini:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
         # with default arguments
-        m_init.preview(fig=5)
+        plt.close(m_init.preview())
         # with non-default arguments
-        m_init.preview(
-            max_points=1000,
-            fig=6,
-            lim="datacube",
-            vlim="datacube",
-            point_scaling="fixed",
-            title="test",
+        plt.close(
+            m_init.preview(
+                max_points=1000,
+                lim="datacube",
+                vlim="datacube",
+                point_scaling="fixed",
+                title="test",
+            )
         )
 
     def test_source_to_datacube_coord_transformation(self, single_particle_source):
@@ -949,16 +952,19 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
         # with default arguments
-        gp.preview(fig=7)
+        plt.close(gp.preview())
         # with non-default arguments
-        gp.preview(
-            max_points=1000,
-            fig=8,
-            lim="datacube",
-            vlim="datacube",
-            point_scaling="fixed",
-            title="test",
+        plt.close(
+            gp.preview(
+                max_points=1000,
+                lim="datacube",
+                vlim="datacube",
+                point_scaling="fixed",
+                title="test",
+            )
         )
 
     def test_channel_modes(self, single_particle_source):
@@ -982,10 +988,12 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
         # with default arguments
-        gp.plot_spectrum(fig=9)
+        plt.close(gp.plot_spectrum())
         # with non-default arguments
-        gp.plot_spectrum(fig=10, title="test", show_vsys=False)
+        plt.close(gp.plot_spectrum(title="test", show_vsys=False))
 
 
 class TestMartiniWithDataCubeFromWCS:

@@ -639,33 +639,44 @@ class TestSPHSource:
             if os.path.exists(testfile):
                 os.remove(testfile)
 
-    def test_preview(self, s):
+
+@pytest.mark.parametrize("source_fixture", ["s", "combined_source"])
+class TestPreview:
+    """Tests of the source preview functionality."""
+
+    def test_preview(self, source_fixture, request):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
+        source = request.getfixturevalue(source_fixture)
         # with default arguments
-        s.preview(fig=1)
+        plt.close(source.preview())
         # with non-default arguments
-        s.preview(
-            max_points=1000,
-            fig=2,
-            lim=10 * U.kpc,
-            vlim=100 * U.km / U.s,
-            point_scaling="fixed",
-            title="test",
+        plt.close(
+            source.preview(
+                max_points=1000,
+                lim=10 * U.kpc,
+                vlim=100 * U.km / U.s,
+                point_scaling="fixed",
+                title="test",
+            )
         )
 
     @pytest.mark.parametrize("ext", ("pdf", "png"))
-    def test_preview_save(self, s, ext):
+    def test_preview_save(self, source_fixture, request, ext):
         """Check that we can output pdf and png preview images."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
+        source = request.getfixturevalue(source_fixture)
         testfile = f"preview.{ext}"
-        fig = {"pdf": 3, "png": 4}[ext]
         try:
-            s.preview(fig=fig, save=testfile)
+            plt.close(source.preview(save=testfile))
         finally:
             if os.path.exists(testfile):
                 os.remove(testfile)

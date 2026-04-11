@@ -37,7 +37,7 @@ try:
             stderr=_devnull,
             cwd=os.path.dirname(os.path.realpath(__file__)),
         )
-except (subprocess.CalledProcessError, FileNotFoundError):
+except (subprocess.CalledProcessError, FileNotFoundError):  # pragma: no cover
     gc = b""
 else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
