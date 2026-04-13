@@ -12,13 +12,22 @@ from astropy.coordinates import (
     SkyCoord,
     SpectralCoord,
     CartesianRepresentation,
-    concatenate,  # can replace with np.concatenate in astropy>=7
+    CartesianDifferential,
 )
 from martini.sources.sph_source import SPHSource
 from ..datacube import HIfreq, DataCube
 from ..L_coords import L_coords
 from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
+
+from importlib.metadata import version
+from packaging.version import Version
+
+ASTROPY_VERSION = Version(version("astropy"))
+if ASTROPY_VERSION < Version("7.0.0"):
+    from astropy.coordinates import concatenate
+else:
+    concatenate = np.concatenate
 
 if TYPE_CHECKING:
     from martplotlib.figure import Figure
@@ -440,9 +449,27 @@ class CombinedSource(SPHSource):
             (including differentials).
         """
         if self._coordinates_g is None:
-            self._coordinates_g = np.concatenate(
-                [source.coordinates_g for source in self.sources]
-            )
+            if ASTROPY_VERSION < Version("7.0.0"):
+                # Neither np.concatenate nor astropy.coordinates.concatenate can handle
+                # this, despite what astropy.coordinates.concatenate docs claim. Do it
+                # "by hand".
+                self._coordinates_g = CartesianRepresentation(
+                    np.hstack([source.coordinates_g.xyz for source in self.sources]),
+                    differentials={
+                        "s": CartesianDifferential(
+                            np.hstack(
+                                [
+                                    source.coordinates_g.differentials["s"].d_xyz
+                                    for source in self.sources
+                                ]
+                            ),
+                        )
+                    },
+                )
+            else:
+                self._coordinates_g = np.concatenate(
+                    [source.coordinates_g for source in self.sources]
+                )
         return self._coordinates_g
 
     @coordinates_g.setter
@@ -516,7 +543,9 @@ class CombinedSource(SPHSource):
                 raise RuntimeError(
                     "Call _init_skycoords before accessing spectralcoords."
                 )
-            # seems there's a bug in astropy: can't just concatenate SkyCoords
+            # Seems there's a bug in astropy: can't concatenate SkyCoords with either
+            # astropy.coordinates.concatenate nor np.concatenate, so do it "manually".
+            # https://github.com/astropy/astropy/issues/19560
             origin_skycoord = SkyCoord(
                 x=0 * U.kpc,
                 y=0 * U.kpc,
