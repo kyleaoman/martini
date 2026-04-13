@@ -8,7 +8,12 @@ observation.
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy import units as U
-from astropy.coordinates import SkyCoord, SpectralCoord, CartesianRepresentation
+from astropy.coordinates import (
+    SkyCoord,
+    SpectralCoord,
+    CartesianRepresentation,
+    concatenate,  # can replace with np.concatenate in astropy>=7
+)
 from martini.sources.sph_source import SPHSource
 from ..datacube import HIfreq, DataCube
 from ..L_coords import L_coords
@@ -473,9 +478,7 @@ class CombinedSource(SPHSource):
         if self._skycoords is None:
             if any([s.skycoords is None for s in self.sources]):
                 raise RuntimeError("Call _init_skycoords before accessing skycoords.")
-            self._skycoords = np.concatenate(
-                [source.skycoords for source in self.sources]
-            )
+            self._skycoords = concatenate([source.skycoords for source in self.sources])
         return self._skycoords
 
     @skycoords.setter
@@ -509,7 +512,7 @@ class CombinedSource(SPHSource):
             The combined :class:`~astropy.coordinates.SpectralCoord` object.
         """
         if self._spectralcoords is None:
-            if any([source.skycoords is None for source in self.sources]):
+            if any([source.spectralcoords is None for source in self.sources]):
                 raise RuntimeError(
                     "Call _init_skycoords before accessing spectralcoords."
                 )
@@ -536,7 +539,7 @@ class CombinedSource(SPHSource):
                 ),
                 doppler_convention="radio",
                 doppler_rest=HIfreq,
-                target=np.concatenate([source.skycoords for source in self.sources]),
+                target=concatenate([source.skycoords for source in self.sources]),
                 observer=origin_skycoord,
             )
         return self._spectralcoords

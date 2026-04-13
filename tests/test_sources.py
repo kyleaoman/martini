@@ -960,6 +960,7 @@ class TestCombinedSource:
         n2 = combined_source.sources[1].npart
         assert combined_source.npart == n1 + n2
         for prop in ("T_g", "hsm_g", "mHI_g"):
+            assert isinstance(getattr(combined_source, prop), U.Quantity)
             assert U.allclose(
                 getattr(combined_source, prop)[:n1],
                 getattr(combined_source.sources[0], prop),
@@ -1004,6 +1005,8 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         assert combined_source.skycoords is not None
         assert combined_source.spectralcoords is not None
+        assert isinstance(combined_source.skycoords, SkyCoord)
+        assert isinstance(combined_source.spectralcoords, SpectralCoord)
         for i in (0, 1):
             assert combined_source.sources[i].skycoords is not None
             assert combined_source.sources[i].spectralcoords is not None
