@@ -648,7 +648,7 @@ class TestSPHSource:
                 os.remove(testfile)
 
 
-@pytest.mark.parametrize("source_fixture", ["s", "combined_source"])
+@pytest.mark.parametrize("source_fixture", ("s", "combined_source"))
 class TestPreview:
     """Tests of the source preview functionality."""
 
@@ -1307,13 +1307,16 @@ class TestCombinedSource:
         for source in combined_source.sources:
             assert (source.spectralcoords.radial_velocity != 0).all()
 
-    def test_distance(self, combined_source):
-        """Check that the nominal distance is the mass-weighted mean of the sources."""
+    @pytest.mark.parametrize("prop", ("distance", "vsys"))
+    def test_scalar_properties(self, combined_source, prop):
+        """Check that distance and vsys are the mass-weighted mean of those of sources."""
         masses = U.Quantity([source.mHI_g.sum() for source in combined_source.sources])
         assert np.isclose(
-            combined_source.distance,
+            getattr(combined_source, prop),
             np.sum(
-                U.Quantity([source.distance for source in combined_source.sources])
+                U.Quantity(
+                    [getattr(source, prop) for source in combined_source.sources]
+                )
                 * masses
             )
             / masses.sum(),

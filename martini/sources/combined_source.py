@@ -228,15 +228,15 @@ class CombinedSource(SPHSource):
         The approximate distance of the source.
 
         A :class:`~martini.sources.combined_source.CombinedSource` has no well-defined
-        distance. This property estimates a distance as the mean distance of the
-        combined sources. This has no influence on the output produced by :mod:`martini`,
-        but can influence values that are printed in messages.
+        distance. This property estimates a distance as the HI mass-weighted mean distance
+        of the combined sources. This has no influence on the output produced by
+        :mod:`martini`, but can influence values that are printed in messages.
 
         Returns
         -------
         ~astropy.units.Quantity
-            :class:`~astropy.units.Quantity`, with dimensions of length. The mean distance
-            of the combined sources.
+            :class:`~astropy.units.Quantity`, with dimensions of length. The HI
+            mass-weighted mean distance of the combined sources.
         """
         if self._distance is None:
             self._distance = np.average(
@@ -244,6 +244,30 @@ class CombinedSource(SPHSource):
                 weights=U.Quantity([source.mHI_g.sum() for source in self.sources]),
             )
         return self._distance
+
+    @property
+    def vsys(self) -> U.Quantity[U.km / U.s]:
+        """
+        The approximate systemic velocity of the source.
+
+        A :class:`~martini.sources.combined_source.CombinedSource` has no well-defined
+        systemic velocity. This property estimates a systemic velocity as the HI
+        mass-weighted systemic velocity of the combined sources. This has no influence on
+        the output produced by :mod:`martini`, but can influence values that are printed
+        in messages.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of speed. The HI
+            mass-weighted mean systemic velocity of the combined sources.
+        """
+        if self._vsys is None:
+            self._vsys = np.average(
+                U.Quantity([source.vsys for source in self.sources]),
+                weights=U.Quantity([source.mHI_g.sum() for source in self.sources]),
+            )
+        return self._vsys
 
     def preview(
         self,
@@ -339,7 +363,12 @@ class CombinedSource(SPHSource):
             temperatures.
         """
         if self._T_g is None:
-            self._T_g = np.concatenate([source.T_g for source in self.sources])
+            self._T_g = np.concatenate(
+                [
+                    np.atleast_1d(source.T_g) if source.T_g is not None else None
+                    for source in self.sources
+                ]
+            )
         return self._T_g
 
     @T_g.setter
@@ -375,7 +404,9 @@ class CombinedSource(SPHSource):
             :class:`~astropy.units.Quantity`, with dimensions of mass. Particle HI masses.
         """
         if self._mHI_g is None:
-            self._mHI_g = np.concatenate([source.mHI_g for source in self.sources])
+            self._mHI_g = np.concatenate(
+                [np.atleast_1d(source.mHI_g) for source in self.sources]
+            )
         return self._mHI_g
 
     @mHI_g.setter
@@ -412,7 +443,12 @@ class CombinedSource(SPHSource):
             smoothing lengths.
         """
         if self._hsm_g is None:
-            self._hsm_g = np.concatenate([source.hsm_g for source in self.sources])
+            self._hsm_g = np.concatenate(
+                [
+                    np.atleast_1d(source.hsm_g) if source.hsm_g is not None else None
+                    for source in self.sources
+                ]
+            )
         return self._hsm_g
 
     @hsm_g.setter
