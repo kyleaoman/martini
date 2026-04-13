@@ -225,8 +225,9 @@ class CombinedSource(SPHSource):
             of the combined sources.
         """
         if self._distance is None:
-            self._distance = np.mean(  # not happy with this, but just used for messages
-                U.Quantity([source.distance for source in self.sources])
+            self._distance = np.average(
+                U.Quantity([source.distance for source in self.sources]),
+                weights=U.Quantity([source.mHI_g.sum() for source in self.sources]),
             )
         return self._distance
 

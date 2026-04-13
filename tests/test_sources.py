@@ -1303,3 +1303,15 @@ class TestCombinedSource:
         assert combined_source._spectralcoords is not None
         for source in combined_source.sources:
             assert (source.spectralcoords.radial_velocity != 0).all()
+
+    def test_distance(self, combined_source):
+        """Check that the nominal distance is the mass-weighted mean of the sources."""
+        masses = U.Quantity([source.mHI_g.sum() for source in combined_source.sources])
+        assert np.isclose(
+            combined_source.distance,
+            np.sum(
+                U.Quantity([source.distance for source in combined_source.sources])
+                * masses
+            )
+            / masses.sum(),
+        )
