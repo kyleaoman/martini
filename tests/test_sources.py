@@ -6,7 +6,7 @@ import numpy as np
 import h5py
 from scipy.spatial.transform import Rotation
 from astropy import units as U
-from martini.datacube import DataCube
+from martini.datacube import DataCube, HIfreq
 from martini.sources import SPHSource, TNGSource, CombinedSource
 from martini.L_coords import L_coords
 from martini.sources._extra_cartesian_transforms import (
@@ -20,6 +20,8 @@ from martini.sources._L_align import L_align
 from astropy.coordinates import (
     CartesianRepresentation,
     CartesianDifferential,
+    SkyCoord,
+    SpectralCoord,
     ICRS,
     FK5,
 )
@@ -1152,3 +1154,152 @@ class TestCombinedSource:
             assert (
                 combined_source.sources[i].pixcoords.shape[1] == initial_npart_s[i] // 2
             )
+
+    @pytest.mark.parametrize(
+        "field, unit", [("T_g", U.K), ("mHI_g", U.Msun), ("hsm_g", U.kpc)]
+    )
+    def test_setter(self, combined_source, field, unit):
+        """Check that the particle property setters work correctly."""
+        setattr(combined_source, f"_{field}", None)
+        for source in combined_source.sources:
+            getattr(source, field)[...] = 0 * unit
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            setattr(combined_source, field, np.ones(combined_source.npart - 1) * unit)
+        setattr(combined_source, field, np.ones(combined_source.npart) * unit)
+        assert getattr(combined_source, f"_{field}") is not None
+        for source in combined_source.sources:
+            assert (getattr(source, field) != 0).all()
+
+    def test_coordinates_setter(self, combined_source):
+        """Check that the particle coordinate setter works correctly."""
+        combined_source._coordinates_g = None
+        for source in combined_source.sources:
+            source.coordinates_g.xyz[...] = 0 * U.Mpc
+            source.coordinates_g.differentials["s"].d_xyz[...] = 0 * U.km / U.s
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.coordinates_g = CartesianRepresentation(
+                np.ones((combined_source.npart - 1, 3)) * U.Mpc,
+                xyz_axis=1,
+                differentials={
+                    "s": CartesianDifferential(
+                        np.ones((combined_source.npart - 1, 3)) * U.km / U.s, xyz_axis=1
+                    )
+                },
+            )
+        combined_source.coordinates_g = CartesianRepresentation(
+            np.ones((combined_source.npart, 3)) * U.Mpc,
+            xyz_axis=1,
+            differentials={
+                "s": CartesianDifferential(
+                    np.ones((combined_source.npart, 3)) * U.km / U.s, xyz_axis=1
+                )
+            },
+        )
+        assert combined_source._coordinates_g is not None
+        for source in combined_source.sources:
+            assert (source.coordinates_g.xyz != 0).all()
+            assert (source.coordinates_g.differentials["s"].d_xyz != 0).all()
+
+    def test_skycoords_setter(self, combined_source):
+        """Check that the skycoords setter works correctly."""
+        combined_source._skycoords = None
+        for source in combined_source.sources:
+            source._init_skycoords()
+            source.skycoords.ra[...] = 0 * U.deg
+            source.skycoords.dec[...] = 0 * U.deg
+            source.skycoords.distance[...] = 0 * U.Mpc
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.skycoords = SkyCoord(
+                CartesianRepresentation(
+                    np.ones((combined_source.npart - 1, 3)) * U.Mpc,
+                    xyz_axis=1,
+                    differentials={
+                        "s": CartesianDifferential(
+                            np.ones((combined_source.npart - 1, 3)) * U.km / U.s,
+                            xyz_axis=1,
+                        )
+                    },
+                ),
+                frame=ICRS(),
+                copy=True,
+            )
+        combined_source.skycoords = SkyCoord(
+            CartesianRepresentation(
+                np.ones((combined_source.npart, 3)) * U.Mpc,
+                xyz_axis=1,
+                differentials={
+                    "s": CartesianDifferential(
+                        np.ones((combined_source.npart, 3)) * U.km / U.s, xyz_axis=1
+                    )
+                },
+            ),
+            frame=ICRS(),
+            copy=True,
+        )
+        assert combined_source._skycoords is not None
+        for source in combined_source.sources:
+            assert (source.skycoords.ra != 0).all()
+            assert (source.skycoords.dec != 0).all()
+            assert (source.skycoords.distance != 0).all()
+
+    def test_spectralcoords_setter(self, combined_source):
+        """Check that the spectralcoords setter works correctly."""
+        combined_source._spectralcoords = None
+        for source in combined_source.sources:
+            source._init_skycoords()
+            source.spectralcoords.radial_velocity[...] = 0 * U.km / U.s
+        origin_skycoord = SkyCoord(
+            x=0 * U.kpc,
+            y=0 * U.kpc,
+            z=0 * U.kpc,
+            v_x=0 * U.km / U.s,
+            v_y=0 * U.km / U.s,
+            v_z=0 * U.km / U.s,
+            representation_type="cartesian",
+            differential_type="cartesian",
+            frame=combined_source.coordinate_frame,
+        )
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.spectralcoords = SpectralCoord(
+                np.ones(combined_source.npart - 1) * U.km / U.s,
+                doppler_convention="radio",
+                doppler_rest=HIfreq,
+                target=SkyCoord(
+                    CartesianRepresentation(
+                        np.ones((combined_source.npart - 1, 3)) * U.Mpc,
+                        xyz_axis=1,
+                        differentials={
+                            "s": CartesianDifferential(
+                                np.ones((combined_source.npart - 1, 3)) * U.km / U.s,
+                                xyz_axis=1,
+                            )
+                        },
+                    ),
+                    frame=ICRS(),
+                    copy=True,
+                ),
+                observer=origin_skycoord,
+            )
+        combined_source.spectralcoords = SpectralCoord(
+            np.ones(combined_source.npart) * U.km / U.s,
+            doppler_convention="radio",
+            doppler_rest=HIfreq,
+            target=SkyCoord(
+                CartesianRepresentation(
+                    np.ones((combined_source.npart, 3)) * U.Mpc,
+                    xyz_axis=1,
+                    differentials={
+                        "s": CartesianDifferential(
+                            np.ones((combined_source.npart, 3)) * U.km / U.s,
+                            xyz_axis=1,
+                        )
+                    },
+                ),
+                frame=ICRS(),
+                copy=True,
+            ),
+            observer=origin_skycoord,
+        )
+        assert combined_source._spectralcoords is not None
+        for source in combined_source.sources:
+            assert (source.spectralcoords.radial_velocity != 0).all()
