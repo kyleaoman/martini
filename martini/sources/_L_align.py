@@ -94,7 +94,7 @@ def L_align(
         )
     xhat = xaxis - xaxis.dot(zhat) * zhat
     xhat = xhat / np.sqrt(np.sum(np.power(xhat, 2)))  # normalized
-    yhat = np.cross(zhat, xhat)  # guarantees right-handedness
+    yhat: U.Quantity = np.cross(zhat, xhat)  # guarantees right-handedness
 
     rotmat = np.vstack(
         (
