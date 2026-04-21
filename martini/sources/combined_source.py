@@ -6,7 +6,6 @@ observation.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 from astropy import units as U
 from astropy.coordinates import (
     SkyCoord,
@@ -327,6 +326,8 @@ class CombinedSource(SPHSource):
         ~matplotlib.figure.Figure
             The preview figure.
         """
+        import matplotlib.pyplot as plt
+
         # guaranteed by __init__ to have at least one source.
         figure = self.sources[0].preview(
             max_points=max_points,
