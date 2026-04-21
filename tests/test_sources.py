@@ -6,8 +6,8 @@ import numpy as np
 import h5py
 from scipy.spatial.transform import Rotation
 from astropy import units as U
-from martini.datacube import DataCube
-from martini.sources import SPHSource, TNGSource
+from martini.datacube import DataCube, HIfreq
+from martini.sources import SPHSource, TNGSource, CombinedSource
 from martini.L_coords import L_coords
 from martini.sources._extra_cartesian_transforms import (
     translate,
@@ -17,8 +17,16 @@ from martini.sources._extra_cartesian_transforms import (
     _apply_affine_transform,
 )
 from martini.sources._L_align import L_align
-from astropy.coordinates import CartesianRepresentation, CartesianDifferential
+from astropy.coordinates import (
+    CartesianRepresentation,
+    CartesianDifferential,
+    SkyCoord,
+    SpectralCoord,
+    ICRS,
+    FK5,
+)
 from martini.__version__ import __version__
+from conftest import sps_sourcegen
 
 
 class TestSourceUtilities:
@@ -639,33 +647,44 @@ class TestSPHSource:
             if os.path.exists(testfile):
                 os.remove(testfile)
 
-    def test_preview(self, s):
+
+@pytest.mark.parametrize("source_fixture", ("s", "combined_source"))
+class TestPreview:
+    """Tests of the source preview functionality."""
+
+    def test_preview(self, source_fixture, request):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
+        source = request.getfixturevalue(source_fixture)
         # with default arguments
-        s.preview(fig=1)
+        plt.close(source.preview())
         # with non-default arguments
-        s.preview(
-            max_points=1000,
-            fig=2,
-            lim=10 * U.kpc,
-            vlim=100 * U.km / U.s,
-            point_scaling="fixed",
-            title="test",
+        plt.close(
+            source.preview(
+                max_points=1000,
+                lim=10 * U.kpc,
+                vlim=100 * U.km / U.s,
+                point_scaling="fixed",
+                title="test",
+            )
         )
 
     @pytest.mark.parametrize("ext", ("pdf", "png"))
-    def test_preview_save(self, s, ext):
+    def test_preview_save(self, source_fixture, request, ext):
         """Check that we can output pdf and png preview images."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
+        source = request.getfixturevalue(source_fixture)
         testfile = f"preview.{ext}"
-        fig = {"pdf": 3, "png": 4}[ext]
         try:
-            s.preview(fig=fig, save=testfile)
+            plt.close(source.preview(save=testfile))
         finally:
             if os.path.exists(testfile):
                 os.remove(testfile)
@@ -930,3 +949,375 @@ class TestColibreSource:
     def test_stuff(self):
         """Reminder to test Colibre-specific source module if publicly released."""
         raise NotImplementedError
+
+
+class TestCombinedSource:
+    """Test the functionality of the combined source module."""
+
+    def test_combined_particles(self, combined_source):
+        """Check that properties of combined source particles are those of each source."""
+        n1 = combined_source.sources[0].npart
+        n2 = combined_source.sources[1].npart
+        assert combined_source.npart == n1 + n2
+        for prop in ("T_g", "hsm_g", "mHI_g"):
+            assert isinstance(getattr(combined_source, prop), U.Quantity)
+            assert U.allclose(
+                getattr(combined_source, prop)[:n1],
+                getattr(combined_source.sources[0], prop),
+            )
+            assert U.allclose(
+                getattr(combined_source, prop)[n1 : n1 + n2],
+                getattr(combined_source.sources[1], prop),
+            )
+            assert getattr(combined_source, prop).size == n1 + n2
+        assert U.allclose(
+            combined_source.coordinates_g.xyz[:, :n1],
+            combined_source.sources[0].coordinates_g.xyz,
+        )
+        assert U.allclose(
+            combined_source.coordinates_g.xyz[:, n1 : n1 + n2],
+            combined_source.sources[1].coordinates_g.xyz,
+        )
+        assert combined_source.coordinates_g.size == n1 + n2
+        assert U.allclose(
+            combined_source.coordinates_g.differentials["s"].d_xyz[:, :n1],
+            combined_source.sources[0].coordinates_g.differentials["s"].d_xyz,
+        )
+        assert U.allclose(
+            combined_source.coordinates_g.differentials["s"].d_xyz[:, n1 : n1 + n2],
+            combined_source.sources[1].coordinates_g.differentials["s"].d_xyz,
+        )
+        assert combined_source.coordinates_g.differentials["s"].size == n1 + n2
+
+    def test_combined_skycoords_spectralcoords(self, combined_source):
+        """Check that particle sky coordinates are those of each source."""
+        n1 = combined_source.sources[0].npart
+        n2 = combined_source.sources[1].npart
+        assert combined_source._skycoords is None
+        assert combined_source._spectralcoords is None
+        for i in (0, 1):
+            assert combined_source.sources[i].skycoords is None
+            assert combined_source.sources[i].spectralcoords is None
+        with pytest.raises(RuntimeError, match="Call _init_skycoords before"):
+            combined_source.skycoords
+        with pytest.raises(RuntimeError, match="Call _init_skycoords before"):
+            combined_source.spectralcoords
+        combined_source._init_skycoords()
+        assert combined_source.skycoords is not None
+        assert combined_source.spectralcoords is not None
+        assert isinstance(combined_source.skycoords, SkyCoord)
+        assert isinstance(combined_source.spectralcoords, SpectralCoord)
+        for i in (0, 1):
+            assert combined_source.sources[i].skycoords is not None
+            assert combined_source.sources[i].spectralcoords is not None
+        for prop in ("ra", "dec", "distance"):
+            assert U.allclose(
+                getattr(combined_source.skycoords, prop)[:n1],
+                getattr(combined_source.sources[0].skycoords, prop),
+            )
+            assert U.allclose(
+                getattr(combined_source.skycoords, prop)[n1 : n1 + n2],
+                getattr(combined_source.sources[1].skycoords, prop),
+            )
+            assert getattr(combined_source.skycoords, prop).size == n1 + n2
+        assert U.allclose(
+            combined_source.spectralcoords.radial_velocity[:n1],
+            combined_source.sources[0].spectralcoords.radial_velocity,
+        )
+        assert U.allclose(
+            combined_source.spectralcoords.radial_velocity[n1 : n1 + n2],
+            combined_source.sources[1].spectralcoords.radial_velocity,
+        )
+        assert combined_source.spectralcoords.radial_velocity.size == n1 + n2
+
+    def test_invalid_init(self, combined_source, s):
+        """Check that invalid inputs are rejected."""
+        with pytest.raises(ValueError, match="Pass a list of `SPHSource`"):
+            CombinedSource(sources=[1])
+        with pytest.raises(ValueError, match="Cannot use `CombinedSource` to combine"):
+            CombinedSource(sources=[combined_source])
+        with pytest.raises(ValueError, match="List of `sources` must contain at least"):
+            CombinedSource(sources=[])
+        with pytest.raises(ValueError, match="All sources must have the same"):
+            CombinedSource(
+                sources=[
+                    sps_sourcegen(coordinate_frame=ICRS()),
+                    sps_sourcegen(coordinate_frame=FK5()),
+                ]
+            )
+
+    def test_unsupported_operations(self, combined_source):
+        """Check that unsupported function calls raise."""
+        with pytest.raises(NotImplementedError, match="Rotate individual sources"):
+            combined_source.rotate(Rotation.from_matrix(np.eye(3)))
+        with pytest.raises(NotImplementedError, match="Translate individual sources"):
+            combined_source.translate(np.ones(3) * U.kpc)
+        with pytest.raises(NotImplementedError, match="Translate individual sources"):
+            combined_source.boost(np.ones(3) * U.km / U.s)
+        with pytest.raises(NotImplementedError, match="Current rotation not available"):
+            combined_source.current_rotation
+        with pytest.raises(NotImplementedError, match="Cannot save rotation"):
+            try:
+                combined_source.save_current_rotation("rot.npy")
+            finally:
+                if os.path.isfile("rot.npy"):
+                    os.remove("rot.npy")
+        with pytest.raises(NotImplementedError, match="Cannot save affine"):
+            try:
+                combined_source.save_current_affine_transformations("aff.npy")
+            finally:
+                if os.path.isfile("aff.npy"):
+                    os.remove("aff.npy")
+        with pytest.raises(NotImplementedError, match="Cannot load affine"):
+            combined_source.load_affine_transformations("aff.npy")
+
+    def test_mask_uninitialized_props(self, combined_source, dc_zeros):
+        """Test that masking applies to both combined and contained sources."""
+        initial_npart = combined_source.npart
+        initial_npart_s = [combined_source.sources[i].npart for i in range(2)]
+        mask = np.ones(combined_source.npart, dtype=bool)
+        mask[::2] = False
+        assert combined_source._T_g is None
+        assert combined_source._mHI_g is None
+        assert combined_source._hsm_g is None
+        assert combined_source._coordinates_g is None
+        assert combined_source._skycoords is None
+        assert combined_source._spectralcoords is None
+        assert combined_source._pixcoords is None
+        combined_source.apply_mask(mask)
+        assert combined_source.npart == initial_npart // 2
+        assert combined_source.T_g.size == initial_npart // 2
+        assert combined_source.mHI_g.size == initial_npart // 2
+        assert combined_source.hsm_g.size == initial_npart // 2
+        assert combined_source.coordinates_g.size == initial_npart // 2
+        combined_source._init_skycoords()
+        assert combined_source.skycoords.size == initial_npart // 2
+        assert combined_source.spectralcoords.size == initial_npart // 2
+        combined_source._init_pixcoords(dc_zeros)
+        assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        for i in range(2):
+            assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].hsm_g.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].coordinates_g.size == initial_npart_s[i] // 2
+            )
+            assert combined_source.sources[i].skycoords.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].spectralcoords.size
+                == initial_npart_s[i] // 2
+            )
+            assert (
+                combined_source.sources[i].pixcoords.shape[1] == initial_npart_s[i] // 2
+            )
+
+    def test_mask_initialized_props(self, combined_source, dc_zeros):
+        """Test that masking applies to both combined and contained sources."""
+        initial_npart = combined_source.npart
+        initial_npart_s = [combined_source.sources[i].npart for i in range(2)]
+        mask = np.ones(combined_source.npart, dtype=bool)
+        mask[::2] = False
+        combined_source.T_g
+        combined_source.mHI_g
+        combined_source.hsm_g
+        combined_source.coordinates_g
+        combined_source._init_skycoords()
+        combined_source.skycoords
+        combined_source.spectralcoords
+        combined_source._init_pixcoords(dc_zeros)
+        combined_source.pixcoords
+        assert combined_source._T_g is not None
+        assert combined_source._mHI_g is not None
+        assert combined_source._hsm_g is not None
+        assert combined_source._coordinates_g is not None
+        assert combined_source._skycoords is not None
+        assert combined_source._spectralcoords is not None
+        assert combined_source._pixcoords is not None
+        combined_source.apply_mask(mask)
+        assert combined_source.npart == initial_npart // 2
+        assert combined_source.T_g.size == initial_npart // 2
+        assert combined_source.mHI_g.size == initial_npart // 2
+        assert combined_source.hsm_g.size == initial_npart // 2
+        assert combined_source.coordinates_g.size == initial_npart // 2
+        assert combined_source.skycoords.size == initial_npart // 2
+        assert combined_source.spectralcoords.size == initial_npart // 2
+        assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        for i in range(2):
+            assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
+            assert combined_source.sources[i].hsm_g.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].coordinates_g.size == initial_npart_s[i] // 2
+            )
+            assert combined_source.sources[i].skycoords.size == initial_npart_s[i] // 2
+            assert (
+                combined_source.sources[i].spectralcoords.size
+                == initial_npart_s[i] // 2
+            )
+            assert (
+                combined_source.sources[i].pixcoords.shape[1] == initial_npart_s[i] // 2
+            )
+
+    @pytest.mark.parametrize(
+        "field, unit", [("T_g", U.K), ("mHI_g", U.Msun), ("hsm_g", U.kpc)]
+    )
+    def test_setter(self, combined_source, field, unit):
+        """Check that the particle property setters work correctly."""
+        setattr(combined_source, f"_{field}", None)
+        for source in combined_source.sources:
+            getattr(source, field)[...] = 0 * unit
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            setattr(combined_source, field, np.ones(combined_source.npart - 1) * unit)
+        setattr(combined_source, field, np.ones(combined_source.npart) * unit)
+        assert getattr(combined_source, f"_{field}") is not None
+        for source in combined_source.sources:
+            assert (getattr(source, field) != 0).all()
+
+    def test_coordinates_setter(self, combined_source):
+        """Check that the particle coordinate setter works correctly."""
+        combined_source._coordinates_g = None
+        for source in combined_source.sources:
+            source.coordinates_g.xyz[...] = 0 * U.Mpc
+            source.coordinates_g.differentials["s"].d_xyz[...] = 0 * U.km / U.s
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.coordinates_g = CartesianRepresentation(
+                np.ones((combined_source.npart - 1, 3)) * U.Mpc,
+                xyz_axis=1,
+                differentials={
+                    "s": CartesianDifferential(
+                        np.ones((combined_source.npart - 1, 3)) * U.km / U.s, xyz_axis=1
+                    )
+                },
+            )
+        combined_source.coordinates_g = CartesianRepresentation(
+            np.ones((combined_source.npart, 3)) * U.Mpc,
+            xyz_axis=1,
+            differentials={
+                "s": CartesianDifferential(
+                    np.ones((combined_source.npart, 3)) * U.km / U.s, xyz_axis=1
+                )
+            },
+        )
+        assert combined_source._coordinates_g is not None
+        for source in combined_source.sources:
+            assert (source.coordinates_g.xyz != 0).all()
+            assert (source.coordinates_g.differentials["s"].d_xyz != 0).all()
+
+    def test_skycoords_setter(self, combined_source):
+        """Check that the skycoords setter works correctly."""
+        combined_source._skycoords = None
+        for source in combined_source.sources:
+            source._init_skycoords()
+            source.skycoords.ra[...] = 0 * U.deg
+            source.skycoords.dec[...] = 0 * U.deg
+            source.skycoords.distance[...] = 0 * U.Mpc
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.skycoords = SkyCoord(
+                CartesianRepresentation(
+                    np.ones((combined_source.npart - 1, 3)) * U.Mpc,
+                    xyz_axis=1,
+                    differentials={
+                        "s": CartesianDifferential(
+                            np.ones((combined_source.npart - 1, 3)) * U.km / U.s,
+                            xyz_axis=1,
+                        )
+                    },
+                ),
+                frame=ICRS(),
+                copy=True,
+            )
+        combined_source.skycoords = SkyCoord(
+            CartesianRepresentation(
+                np.ones((combined_source.npart, 3)) * U.Mpc,
+                xyz_axis=1,
+                differentials={
+                    "s": CartesianDifferential(
+                        np.ones((combined_source.npart, 3)) * U.km / U.s, xyz_axis=1
+                    )
+                },
+            ),
+            frame=ICRS(),
+            copy=True,
+        )
+        assert combined_source._skycoords is not None
+        for source in combined_source.sources:
+            assert (source.skycoords.ra != 0).all()
+            assert (source.skycoords.dec != 0).all()
+            assert (source.skycoords.distance != 0).all()
+
+    def test_spectralcoords_setter(self, combined_source):
+        """Check that the spectralcoords setter works correctly."""
+        combined_source._spectralcoords = None
+        for source in combined_source.sources:
+            source._init_skycoords()
+            source.spectralcoords.radial_velocity[...] = 0 * U.km / U.s
+        origin_skycoord = SkyCoord(
+            x=0 * U.kpc,
+            y=0 * U.kpc,
+            z=0 * U.kpc,
+            v_x=0 * U.km / U.s,
+            v_y=0 * U.km / U.s,
+            v_z=0 * U.km / U.s,
+            representation_type="cartesian",
+            differential_type="cartesian",
+            frame=combined_source.coordinate_frame,
+        )
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.spectralcoords = SpectralCoord(
+                np.ones(combined_source.npart - 1) * U.km / U.s,
+                doppler_convention="radio",
+                doppler_rest=HIfreq,
+                target=SkyCoord(
+                    CartesianRepresentation(
+                        np.ones((combined_source.npart - 1, 3)) * U.Mpc,
+                        xyz_axis=1,
+                        differentials={
+                            "s": CartesianDifferential(
+                                np.ones((combined_source.npart - 1, 3)) * U.km / U.s,
+                                xyz_axis=1,
+                            )
+                        },
+                    ),
+                    frame=ICRS(),
+                    copy=True,
+                ),
+                observer=origin_skycoord,
+            )
+        combined_source.spectralcoords = SpectralCoord(
+            np.ones(combined_source.npart) * U.km / U.s,
+            doppler_convention="radio",
+            doppler_rest=HIfreq,
+            target=SkyCoord(
+                CartesianRepresentation(
+                    np.ones((combined_source.npart, 3)) * U.Mpc,
+                    xyz_axis=1,
+                    differentials={
+                        "s": CartesianDifferential(
+                            np.ones((combined_source.npart, 3)) * U.km / U.s,
+                            xyz_axis=1,
+                        )
+                    },
+                ),
+                frame=ICRS(),
+                copy=True,
+            ),
+            observer=origin_skycoord,
+        )
+        assert combined_source._spectralcoords is not None
+        for source in combined_source.sources:
+            assert (source.spectralcoords.radial_velocity != 0).all()
+
+    @pytest.mark.parametrize("prop", ("distance", "vsys"))
+    def test_scalar_properties(self, combined_source, prop):
+        """Check that distance and vsys are the mass-weighted mean of those of sources."""
+        masses = U.Quantity([source.mHI_g.sum() for source in combined_source.sources])
+        assert np.isclose(
+            getattr(combined_source, prop),
+            np.sum(
+                U.Quantity(
+                    [getattr(source, prop) for source in combined_source.sources]
+                )
+                * masses
+            )
+            / masses.sum(),
+        )

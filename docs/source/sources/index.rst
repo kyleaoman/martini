@@ -136,6 +136,8 @@ modules, any conversion of smoothing lengths is handled internally.
 Simulation-specific source modules
 ++++++++++++++++++++++++++++++++++
 
+.. _sim-specific-sources:
+
 MARTINI provides source modules to simplify working with publicly-available simulation
 data sets. These currently include the :class:`~martini.sources.eagle_source.EAGLESource`,
 :class:`~martini.sources.tng_source.TNGSource`,
@@ -334,6 +336,32 @@ Masking
 A source can be masked to remove particles, if desired. The method
 :meth:`~martini.sources.sph_source.SPHSource.apply_mask` enables this. It accepts a
 boolean array (or other objects that can be used to index numpy arrays).
+
+Combining sources
++++++++++++++++++
+
+Martini can only insert a single source into a mock observation, but multiple sources can
+be combined into one using the :class:`~martini.sources.combined_source.CombinedSource`
+module. To use this set up individual sources using
+:class:`~martini.sources.sph_source.SPHSource` and/or the
+:ref:`simulation-specific source modules <sim-specific-sources>`, specifying
+their distances, sky positions, particle properties, etc. individually. Then they are
+straightforward to combine with:
+
+.. code-block:: python
+
+    from martini.sources import SPHSource, CombinedSource
+
+    source1 = SPHSource(...)
+    source2 = SPHSource(...)
+    source3 = SPHSource(...)
+    source = CombinedSource(sources=[source1, source2, source3])
+
+The resulting datacube is identical to making individual datacubes from the constituent
+sources and summing them. Some log messages, however, may be more approximate than usual,
+e.g. if the individual sources have very different distances the estimated HI mass in the
+datacube is not very accurate. This does not impact the accuracy of the mock data cube
+itself.
 
 Inspecting a source before making a mock
 ----------------------------------------

@@ -12,7 +12,7 @@ from martini.martini import Martini, GlobalProfile
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
-from martini.sources import SPHSource
+from martini.sources import SPHSource, CombinedSource
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import _GaussianKernel
 
@@ -829,3 +829,68 @@ def gp() -> GlobalProfile:
     )
     m.insert_source_in_spectrum()
     yield m
+
+
+@pytest.fixture(scope="function")
+def combined_source() -> CombinedSource:
+    """
+    Create a :class:`~martini.sources.combined_source.CombinedSource`.
+
+    The two constituent sources have slightly different distance, ra, dec, vpeculiar, etc.
+
+    Yields
+    ------
+    ~martini.sources.combined_source.CombinedSource
+        The :class:`~martini.sources.combined_source.CombinedSource` instance.
+    """
+    n = 100
+    r = np.random.rand(n) * 5 * U.kpc
+    t = np.random.rand(n) * 2 * np.pi * U.rad
+    v = 100 * U.km / U.s
+    source1 = mps_sourcegen(
+        T_g=np.ones(n) * 1.0e4 * U.K,
+        mHI_g=np.ones(n) * 1.0e7 * U.Msun,
+        xyz_g=U.Quantity(
+            [
+                np.zeros(n) * U.kpc,
+                r * np.cos(t),
+                r * np.sin(t),
+            ]
+        ),
+        vxyz_g=U.Quantity(
+            [
+                np.zeros(n) * U.km / U.s,
+                -v * np.sin(t),
+                v * np.cos(t),
+            ]
+        ),
+        hsm_g=np.ones(n) * 0.3 * U.kpc,
+        distance=10 * U.Mpc,
+        ra=49.95 * U.deg,
+        dec=29.95 * U.deg,
+        vpeculiar=30 * U.km / U.s,
+    )
+    source2 = mps_sourcegen(
+        T_g=2 * np.ones(n) * 1.0e4 * U.K,
+        mHI_g=2 * np.ones(n) * 1.0e7 * U.Msun,
+        xyz_g=U.Quantity(
+            [
+                np.zeros(n) * U.kpc,
+                r * np.cos(t),
+                r * np.sin(t),
+            ]
+        ),
+        vxyz_g=U.Quantity(
+            [
+                np.zeros(n) * U.km / U.s,
+                -v * np.sin(t),
+                v * np.cos(t),
+            ]
+        ),
+        hsm_g=np.ones(n) * 0.3 * U.kpc,
+        distance=12 * U.Mpc,
+        ra=50.05 * U.deg,
+        dec=30.05 * U.deg,
+        vpeculiar=-50 * U.km / U.s,
+    )
+    yield CombinedSource([source1, source2])

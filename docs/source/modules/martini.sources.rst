@@ -5,6 +5,7 @@ sources module
    :maxdepth: 0
 
    martini.sources.sph_source
+   martini.sources.combined_source
    martini.sources.so_source
    martini.sources.swiftgalaxy_source
    martini.sources.colibre_source

@@ -35,7 +35,20 @@ def demo_source(N: int = 500) -> SPHSource:
     r = np.empty(N, dtype=float)
     for i, L in enumerate(np.random.rand(N)):
 
-        def f(r: float) -> float:
+        def f(r: np.ndarray) -> np.ndarray:
+            """
+            Implicit function to solve when building up an exponential profile.
+
+            Parameters
+            ----------
+            r : ~numpy.ndarray
+                The radial coordinates.
+
+            Returns
+            -------
+            ~numpy.ndarray
+                Evaluated implicit function.
+            """
             return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
 
         r[i] = fsolve(f, 1.0)[0]

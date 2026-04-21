@@ -14,6 +14,7 @@ from .magneticum_source import MagneticumSource
 from .simba_source import SimbaSource
 from .tng_source import TNGSource
 from .fire_source import FIRESource
+from .combined_source import CombinedSource
 
 __all__ = [
     "SPHSource",
@@ -25,4 +26,5 @@ __all__ = [
     "SimbaSource",
     "TNGSource",
     "FIRESource",
+    "CombinedSource",
 ]

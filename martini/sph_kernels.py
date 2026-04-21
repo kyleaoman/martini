@@ -28,7 +28,24 @@ def find_fwhm(f: Callable[[np.ndarray], np.ndarray]) -> float:
     float
         FWHM of the input function.
     """
-    return 2 * fsolve(lambda q: f(q) - f(np.zeros(1)) / 2, 0.5)[0]
+
+    def shifted_kernel(q: np.ndarray) -> np.ndarray:
+        """
+        Shift the kernel funciton by half its maximum.
+
+        Parameters
+        ----------
+        q : ~numpy.ndarray
+            The locations to evaluate the shifted kernel.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            The shifted kernel function evaluations.
+        """
+        return f(q) - f(np.zeros(1)) / 2
+
+    return 2 * fsolve(shifted_kernel, 0.5)[0]
 
 
 class _BaseSPHKernel(object):

@@ -166,6 +166,7 @@ class SPHSource(object):
     pixcoords: U.Quantity[U.pix]
     input_mass: U.Quantity[U.Msun]
     skycoords: SkyCoord | None
+    spectralcoords: SpectralCoord | None
 
     def __init__(
         self,
@@ -367,8 +368,8 @@ class SPHSource(object):
         Parameters
         ----------
         mask : ~numpy.ndarray
-            Boolean mask. Remove particles with indices corresponding to
-            ``False`` values from the source arrays.
+            Boolean mask. Remove particles with indices corresponding to ``False`` values
+            from the source arrays.
         """
         if mask.size != self.npart:
             raise ValueError("Mask must have same length as particle arrays.")
@@ -478,7 +479,7 @@ class SPHSource(object):
         args_given = (rotation is not None, L_coords is not None)
         if np.sum(args_given) == 0:
             # no-op
-            return
+            return Rotation.identity()
         elif np.sum(args_given) > 1:
             raise ValueError("Multiple rotations in a single call not allowed.")
 
@@ -725,9 +726,9 @@ class SPHSource(object):
     def preview(
         self,
         max_points: int = 5000,
-        fig: int = 1,
-        lim: U.Quantity[U.kpc] = None,
-        vlim: U.Quantity[U.km / U.s] = None,
+        fig: "int | Figure" = 1,
+        lim: U.Quantity[U.deg] | None = None,
+        vlim: U.Quantity[U.km / U.s] | None = None,
         point_scaling: str = "auto",
         title: str = "",
         save: str | None = None,
@@ -747,8 +748,9 @@ class SPHSource(object):
             Maximum number of points to draw per panel, the particles will be randomly
             subsampled if the source has more.
 
-        fig : int, optional
+        fig : int or ~matplotlib.figure.Figure, optional
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
+            Or, an existing figure can be provided.
 
         lim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of length.
@@ -781,27 +783,34 @@ class SPHSource(object):
         """
         import matplotlib.pyplot as plt
 
+        self._init_skycoords()
+        assert self.skycoords is not None  # placate mypy
+
         # every Nth particle to plot at most max_points, or all particles
         lim = (
             max(
-                np.max(np.abs(self.coordinates_g.y.to_value(U.kpc))),
-                np.max(np.abs(self.coordinates_g.z.to_value(U.kpc))),
+                np.max(np.abs((self.skycoords.ra - self.ra).to_value(U.deg))),
+                np.max(np.abs((self.skycoords.dec - self.dec).to_value(U.deg))),
             )
             if lim is None
             else lim.to_value(U.kpc)
         )
         vlim = (
             np.max(
-                np.abs(self.coordinates_g.differentials["s"].d_x.to_value(U.km / U.s))
+                np.abs(
+                    (self.skycoords.radial_velocity - self.vsys).to_value(U.km / U.s)
+                )
             )
             if vlim is None
             else vlim.to_value(U.km / U.s)
         )
         cmask = np.logical_and.reduce(
             (
-                np.abs(self.coordinates_g.y.to_value(U.kpc)) < lim,
-                np.abs(self.coordinates_g.z.to_value(U.kpc)) < lim,
-                np.abs(self.coordinates_g.differentials["s"].d_x.to_value(U.km / U.s))
+                np.abs((self.skycoords.ra - self.ra)).to_value(U.deg) < lim,
+                np.abs((self.skycoords.dec - self.dec)).to_value(U.deg) < lim,
+                np.abs((self.skycoords.radial_velocity - self.vsys)).to_value(
+                    U.km / U.s
+                )
                 < vlim,
             )
         )
@@ -821,45 +830,101 @@ class SPHSource(object):
             size_scale = 1
         else:
             size_scale = (
-                self.hsm_g.to_value(U.kpc) / lim
+                self.hsm_g.to_value(U.kpc)
+                / (lim * U.deg * self.distance).to_value(
+                    U.kpc, U.dimensionless_angles()
+                )
                 if (self.hsm_g.isscalar or mask.size <= 1)
-                else (self.hsm_g[mask].to_value(U.kpc) / lim)
+                else (
+                    self.hsm_g[mask].to_value(U.kpc)
+                    / (lim * U.deg * self.distance).to_value(
+                        U.kpc, U.dimensionless_angles()
+                    )
+                )
             )
         size = 300 * size_scale if point_scaling == "auto" else 10
-        figure = plt.figure(fig, figsize=(12, 4))
-        figure.clf()
+
+        if newfig := not isinstance(fig, plt.Figure):
+            figure = plt.figure(fig, figsize=(12, 4))
+        else:
+            figure = fig
         figure.suptitle(title)
 
         # ----- MOMENT 1 -----
-        sp1 = figure.add_subplot(1, 3, 1, aspect="equal")
-        sp1.set_facecolor("#222222")
+        if newfig:
+            sp1 = figure.add_subplot(1, 3, 1, aspect="equal")
+            sp1.set_facecolor("#222222")
+            sp2 = figure.add_subplot(1, 3, 2)
+            sp2.set_facecolor("#222222")
+            sp3 = figure.add_subplot(1, 3, 3)
+            sp3.set_facecolor("#222222")
+            sp1.set_xlabel(r"$\mathrm{RA}\,[\mathrm{deg}]$")
+            sp1.set_ylabel(r"$\mathrm{Dec}\,[\mathrm{deg}]$")
+            sp2.set_xlabel(r"$\mathrm{RA}\,[\mathrm{deg}]$")
+            sp2.set_ylabel(r"$v_r\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+            sp3.set_xlabel(r"$\mathrm{Dec}\,[\mathrm{deg}]$")
+            sp3.set_ylabel(r"$v_r\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+            vmin, vmax = -vlim, vlim
+        else:
+            sp1, sp2, sp3, _ = figure.axes
+            cb = sp1.collections[0].colorbar
+            if cb is not None:
+                vmin, vmax = (
+                    min(-vlim, cb.mappable.get_clim()[0]),
+                    max(vlim, cb.mappable.get_clim()[1]),
+                )
         scatter = sp1.scatter(
-            self.coordinates_g.y[mask].to_value(U.kpc),
-            self.coordinates_g.z[mask].to_value(U.kpc),
-            c=self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            self.skycoords.ra[mask].to_value(U.deg),
+            self.skycoords.dec[mask].to_value(U.deg),
+            c=(self.skycoords.radial_velocity[mask] - self.vsys).to_value(U.km / U.s),
             marker="o",
             cmap="coolwarm",
             edgecolor="None",
             s=size,
+            vmin=vmin,
+            vmax=vmax,
             alpha=alpha,
-            vmin=-vlim,
-            vmax=vlim,
             zorder=0,
         )
-        sp1.plot([0], [0], marker="+", ls="None", mec="grey", ms=6, zorder=1)
-        sp1.set_xlabel(r"$y\,[\mathrm{kpc}]$")
-        sp1.set_ylabel(r"$z\,[\mathrm{kpc}]$")
-        sp1.set_xlim((lim, -lim))
-        sp1.set_ylim((-lim, lim))
-        cb = figure.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
-        cb.set_label(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
-
+        sp1.plot(
+            [self.ra.to_value(U.deg)],
+            [self.dec.to_value(U.deg)],
+            marker="+",
+            ls="None",
+            mec="grey",
+            ms=6,
+            zorder=1,
+        )
+        if newfig:
+            sp1.set_xlim((self.ra.to_value(U.deg) + lim, self.ra.to_value(U.deg) - lim))
+            sp1.set_ylim(
+                (self.dec.to_value(U.deg) - lim, self.dec.to_value(U.deg) + lim)
+            )
+        else:
+            sp1.set_xlim(
+                (
+                    max(sp1.get_xlim()[0], self.ra.to_value(U.deg) + lim),
+                    min(sp1.get_xlim()[1], self.ra.to_value(U.deg) - lim),
+                )
+            )
+            sp1.set_ylim(
+                (
+                    min(sp1.get_ylim()[0], self.dec.to_value(U.deg) - lim),
+                    max(sp1.get_ylim()[1], self.dec.to_value(U.deg) + lim),
+                )
+            )
+        if newfig:
+            cb = figure.colorbar(mappable=scatter, ax=sp1, orientation="horizontal")
+            cb.set_label(
+                r"$v_\mathrm{r} - v_\mathrm{sys}\,[\mathrm{km}\,\mathrm{s}^{-1}]$"
+            )
+        else:
+            if cb is not None:
+                cb.mappable.set_clim((vmin, vmax))
         # ----- PV Y -----
-        sp2 = figure.add_subplot(1, 3, 2)
-        sp2.set_facecolor("#222222")
         sp2.scatter(
-            self.coordinates_g.y[mask].to_value(U.kpc),
-            self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            self.skycoords.ra[mask].to_value(U.deg),
+            self.skycoords.radial_velocity[mask].to_value(U.km / U.s),
             c="white",
             edgecolors="None",
             marker="o",
@@ -867,18 +932,41 @@ class SPHSource(object):
             alpha=alpha,
             zorder=0,
         )
-        sp2.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
-        sp2.set_xlim((lim, -lim))
-        sp2.set_ylim((-vlim, vlim))
-        sp2.set_xlabel(r"$y\,[\mathrm{kpc}]$")
-        sp2.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+        sp2.plot(
+            [self.ra.to_value(U.deg)],
+            [self.vsys.to_value(U.km / U.s)],
+            marker="+",
+            ls="None",
+            mec="red",
+            ms=6,
+            zorder=1,
+        )
+        if newfig:
+            sp2.set_xlim((self.ra.to_value(U.deg) + lim, self.ra.to_value(U.deg) - lim))
+            sp2.set_ylim(
+                (
+                    self.vsys.to_value(U.km / U.s) - vlim,
+                    self.vsys.to_value(U.km / U.s) + vlim,
+                )
+            )
+        else:
+            sp2.set_xlim(
+                (
+                    max(sp2.get_xlim()[0], self.ra.to_value(U.deg) + lim),
+                    min(sp2.get_xlim()[1], self.ra.to_value(U.deg) - lim),
+                )
+            )
+            sp2.set_ylim(
+                (
+                    min(sp2.get_ylim()[0], self.vsys.to_value(U.km / U.s) - vlim),
+                    max(sp2.get_ylim()[1], self.vsys.to_value(U.km / U.s) + vlim),
+                )
+            )
 
         # ----- PV Z -----
-        sp3 = figure.add_subplot(1, 3, 3)
-        sp3.set_facecolor("#222222")
         sp3.scatter(
-            self.coordinates_g.z[mask].to_value(U.kpc),
-            self.coordinates_g.differentials["s"].d_x[mask].to_value(U.km / U.s),
+            self.skycoords.dec[mask].to_value(U.deg),
+            self.skycoords.radial_velocity[mask].to_value(U.km / U.s),
             c="white",
             edgecolors="None",
             marker="o",
@@ -886,11 +974,38 @@ class SPHSource(object):
             alpha=alpha,
             zorder=0,
         )
-        sp3.plot([0], [0], marker="+", ls="None", mec="red", ms=6, zorder=1)
-        sp3.set_xlim((-lim, lim))
-        sp3.set_ylim((-vlim, vlim))
-        sp3.set_xlabel(r"$z\,[\mathrm{kpc}]$")
-        sp3.set_ylabel(r"$v_x\,[\mathrm{km}\,\mathrm{s}^{-1}]$")
+        sp3.plot(
+            [self.dec.to_value(U.deg)],
+            [self.vsys.to_value(U.km / U.s)],
+            marker="+",
+            ls="None",
+            mec="red",
+            ms=6,
+            zorder=1,
+        )
+        if newfig:
+            sp3.set_xlim(
+                (self.dec.to_value(U.deg) - lim, self.dec.to_value(U.deg) + lim)
+            )
+            sp3.set_ylim(
+                (
+                    self.vsys.to_value(U.km / U.s) - vlim,
+                    self.vsys.to_value(U.km / U.s) + vlim,
+                )
+            )
+        else:
+            sp3.set_xlim(
+                (
+                    min(sp3.get_xlim()[0], self.dec.to_value(U.deg) - lim),
+                    max(sp3.get_xlim()[1], self.dec.to_value(U.deg) + lim),
+                )
+            )
+            sp3.set_ylim(
+                (
+                    min(sp3.get_ylim()[0], self.vsys.to_value(U.km / U.s) - vlim),
+                    max(sp3.get_ylim()[1], self.vsys.to_value(U.km / U.s) + vlim),
+                )
+            )
 
         figure.subplots_adjust(wspace=0.3)
         if save is not None:

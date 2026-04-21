@@ -9,7 +9,7 @@ from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels
 from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
-from martini.sources import SPHSource
+from martini.sources import SPHSource, CombinedSource
 from astropy import units as U
 from astropy.io import fits
 from astropy import wcs
@@ -205,8 +205,15 @@ class TestMartini:
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
     @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
+    @pytest.mark.parametrize("combined_source", (True, False))
     def test_mass_accuracy(
-        self, dc_zeros, sph_kernel, spectral_model, single_particle_source, out_mode
+        self,
+        dc_zeros,
+        sph_kernel,
+        spectral_model,
+        single_particle_source,
+        out_mode,
+        combined_source,
     ):
         """
         Check that input mass in particles ends up in the output cube.
@@ -219,6 +226,8 @@ class TestMartini:
             0.1 * U.kpc if sph_kernel.__name__ == "DiracDeltaKernel" else 1.0 * U.kpc
         )
         source = single_particle_source(hsm_g=hsm_g)
+        if combined_source:
+            source = CombinedSource([source, source])
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         m = Martini(
             source=source,
@@ -526,18 +535,19 @@ class TestMartini:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
         # with default arguments
-        with pytest.warns(UserWarning, match="singular"):
-            # warning: single-particle source is used, so axis limits try to be equal
-            m_init.preview(fig=5)
+        plt.close(m_init.preview())
         # with non-default arguments
-        m_init.preview(
-            max_points=1000,
-            fig=6,
-            lim="datacube",
-            vlim="datacube",
-            point_scaling="fixed",
-            title="test",
+        plt.close(
+            m_init.preview(
+                max_points=1000,
+                lim="datacube",
+                vlim="datacube",
+                point_scaling="fixed",
+                title="test",
+            )
         )
 
     def test_source_to_datacube_coord_transformation(self, single_particle_source):
@@ -823,7 +833,10 @@ class TestGlobalProfile:
 
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
     @pytest.mark.parametrize("ra", (0 * U.deg, 180 * U.deg))
-    def test_mass_accuracy(self, spectral_model, single_particle_source, ra):
+    @pytest.mark.parametrize("combined_source", (True, False))
+    def test_mass_accuracy(
+        self, spectral_model, single_particle_source, ra, combined_source
+    ):
         """
         Check that mass in final spectrum agrees with input mass within 1%.
 
@@ -834,6 +847,8 @@ class TestGlobalProfile:
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
         # we test both ra=0deg and ra=180deg to make sure all particles included
         source = single_particle_source(ra=ra)
+        if combined_source:
+            source = CombinedSource([source, source])
         m = GlobalProfile(
             source=source,
             spectral_model=spectral_model(),
@@ -951,18 +966,19 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
         # with default arguments
-        with pytest.warns(UserWarning, match="singular"):
-            # warning: single-particle source is used, so axis limits try to be equal
-            gp.preview(fig=7)
+        plt.close(gp.preview())
         # with non-default arguments
-        gp.preview(
-            max_points=1000,
-            fig=8,
-            lim="datacube",
-            vlim="datacube",
-            point_scaling="fixed",
-            title="test",
+        plt.close(
+            gp.preview(
+                max_points=1000,
+                lim="datacube",
+                vlim="datacube",
+                point_scaling="fixed",
+                title="test",
+            )
         )
 
     def test_channel_modes(self, single_particle_source):
@@ -986,10 +1002,12 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib.pyplot as plt
+
         # with default arguments
-        gp.plot_spectrum()
+        plt.close(gp.plot_spectrum())
         # with non-default arguments
-        gp.plot_spectrum(fig=2, title="test", show_vsys=False)
+        plt.close(gp.plot_spectrum(title="test", show_vsys=False))
 
 
 class TestMartiniWithDataCubeFromWCS:
