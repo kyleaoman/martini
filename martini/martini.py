@@ -866,6 +866,7 @@ class Martini(_BaseMartini):
             )
 
         unit = self._datacube._array.unit
+        assert self.beam.kernel is not None  # placate mypy
         for spatial_slice in self._datacube.spatial_slices:
             # use a view [...] to force in-place modification
             spatial_slice[...] = (

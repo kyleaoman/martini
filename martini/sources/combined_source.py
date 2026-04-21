@@ -679,7 +679,7 @@ class CombinedSource(SPHSource):
         rotation: Rotation | None = None,
         *,
         L_coords: L_coords | None = None,
-    ) -> None:
+    ) -> Rotation:
         """
         Rotate the source.
 

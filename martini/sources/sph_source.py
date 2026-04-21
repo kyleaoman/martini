@@ -479,7 +479,7 @@ class SPHSource(object):
         args_given = (rotation is not None, L_coords is not None)
         if np.sum(args_given) == 0:
             # no-op
-            return
+            return Rotation.identity()
         elif np.sum(args_given) > 1:
             raise ValueError("Multiple rotations in a single call not allowed.")
 
