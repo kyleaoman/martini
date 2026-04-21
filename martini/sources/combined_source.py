@@ -24,7 +24,7 @@ from importlib.metadata import version
 from packaging.version import Version
 
 ASTROPY_VERSION = Version(version("astropy"))
-if ASTROPY_VERSION < Version("7.0.0"):
+if ASTROPY_VERSION < Version("7.0.0"):  # pragma: no cover
     from astropy.coordinates import concatenate
 else:
     concatenate = np.concatenate
@@ -485,7 +485,7 @@ class CombinedSource(SPHSource):
             (including differentials).
         """
         if self._coordinates_g is None:
-            if ASTROPY_VERSION < Version("7.0.0"):
+            if ASTROPY_VERSION < Version("7.0.0"):  # pragma: no cover
                 # Neither np.concatenate nor astropy.coordinates.concatenate can handle
                 # this, despite what astropy.coordinates.concatenate docs claim. Do it
                 # "by hand".
