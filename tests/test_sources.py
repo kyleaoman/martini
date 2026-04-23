@@ -667,9 +667,7 @@ class TestPreview:
         plt.close(
             source.preview(
                 max_points=1000,
-                lim=(10 * U.kpc / source.distance).to_value(
-                    U.deg, U.dimensionless_angles()
-                ),
+                lim=(10 * U.kpc / source.distance).to(U.deg, U.dimensionless_angles()),
                 vlim=100 * U.km / U.s,
                 point_scaling="fixed",
                 title="test",
