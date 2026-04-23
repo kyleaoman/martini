@@ -550,6 +550,37 @@ class TestMartini:
             )
         )
 
+    def test_preview_warning_ra_dec(self, m_init):
+        """Check that we warn if the datacube is too big in RA."""
+        pytest.importorskip(
+            "matplotlib", reason="matplotlib (optional dependency) not available."
+        )
+        import matplotlib.pyplot as plt
+
+        m_init._datacube.px_size = 20 * U.deg / m_init._datacube.n_px_x
+        assert m_init._datacube.px_size * m_init._datacube.n_px_x > 10 * U.deg
+        assert m_init._datacube.px_size * m_init._datacube.n_px_y > 10 * U.deg
+        with (
+            pytest.warns(UserWarning, match="DataCube RA range > 5deg"),
+            pytest.warns(UserWarning, match="DataCube Dec range > 5deg"),
+        ):
+            plt.close(m_init.preview())
+
+    @pytest.mark.parametrize("dec", (89 * U.deg, -89 * U.deg))
+    def test_preview_warning_pole(self, m_init, dec):
+        """Check that we warn if the datacube is too close to the pole."""
+        pytest.importorskip(
+            "matplotlib", reason="matplotlib (optional dependency) not available."
+        )
+        import matplotlib.pyplot as plt
+
+        m_init._datacube.dec = dec
+        assert np.abs(m_init._datacube.dec) - 90 * U.deg < 5 * U.deg
+        with (
+            pytest.warns(UserWarning, match="DataCube extent within 5deg of pole"),
+        ):
+            plt.close(m_init.preview())
+
     def test_source_to_datacube_coord_transformation(self, single_particle_source):
         """Check transformation is applied if source and datacube frames differ."""
         source = single_particle_source(hsm_g=0.01 * U.kpc)
