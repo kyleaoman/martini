@@ -4,6 +4,7 @@ import os
 import pytest
 import numpy as np
 import h5py
+from requests.exceptions import HTTPError
 from scipy.spatial.transform import Rotation
 from astropy import units as U
 from martini.datacube import DataCube, HIfreq
@@ -816,7 +817,13 @@ class TestTNGSource:
         try:
             result = nbr.execute()
             if result.error is not None:
-                raise NotebookFailedException(result)
+                if (
+                    "HTTPError" in result.error.summary
+                    and "500 Server Error" in result.error.summary
+                ):
+                    pytest.xfail("Notebook failed, but due to TNG server issue.")
+                else:
+                    raise NotebookFailedException(result)
         finally:
             files_to_cleanup = (
                 "examples/tng_martini_demo_beam.fits",
@@ -849,29 +856,44 @@ class TestTNGSource:
         api_key = "b71135524a8c29fabe36a08e92b7120c"
         cutout_dir = "examples"
         with pytest.warns(UserWarning, match="NeutralHydrogenAbundance not available"):
-            # happy enough if we don't crash creating the source:
-            TNGSource(
-                simulation,
-                snapshot,
-                subhalo_id,
-                api_key=api_key,
-                cutout_dir=cutout_dir,
-                distance=4 * U.Mpc,
-                rotation=Rotation.identity(),
-                ra=0.0 * U.deg,
-                dec=0.0 * U.deg,
-            )
-        halo_id = np.load(
-            os.path.join(
-                cutout_dir,
-                f"martini-cutout-grnr-{simulation}-{snapshot}-{subhalo_id}.npy",
-            )
-        )
-        with h5py.File(
-            os.path.join(cutout_dir, cutout_file(simulation, snapshot, halo_id)), "r"
-        ) as f:
-            # this was actually a mini snapshot:
-            assert "CenterOfMass" not in f["PartType0"].keys()
+            try:
+                # happy enough if we don't crash creating the source:
+                TNGSource(
+                    simulation,
+                    snapshot,
+                    subhalo_id,
+                    api_key=api_key,
+                    cutout_dir=cutout_dir,
+                    distance=4 * U.Mpc,
+                    rotation=Rotation.identity(),
+                    ra=0.0 * U.deg,
+                    dec=0.0 * U.deg,
+                )
+                halo_id = np.load(
+                    os.path.join(
+                        cutout_dir,
+                        f"martini-cutout-grnr-{simulation}-{snapshot}-{subhalo_id}.npy",
+                    )
+                )
+                with h5py.File(
+                    os.path.join(
+                        cutout_dir, cutout_file(simulation, snapshot, halo_id)
+                    ),
+                    "r",
+                ) as f:
+                    # this was actually a mini snapshot:
+                    assert "CenterOfMass" not in f["PartType0"].keys()
+            except HTTPError:
+                pytest.xfail("Failed, but due to TNG server issue.")
+            finally:
+                files_to_cleanup = (
+                    f"{cutout_dir}/martini-cutout-grnr-TNG100-1-98-17227.npy",
+                    f"{cutout_dir}/martini-cutout-grnr-TNG100-1-98-270239.npy",
+                    f"{cutout_dir}/martini-cutout-TNG100-1-98-110.hdf5",
+                )
+                for file_to_cleanup in files_to_cleanup:
+                    if os.path.isfile(file_to_cleanup):
+                        os.remove(file_to_cleanup)
 
 
 class TestFIRESource:
