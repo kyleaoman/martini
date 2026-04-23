@@ -753,9 +753,10 @@ class SPHSource(object):
             Or, an existing figure can be provided.
 
         lim : ~astropy.units.Quantity, optional
-            :class:`~astropy.units.Quantity`, with dimensions of length.
-            The coordinate axes extend from -lim to lim. If unspecified, the maximum
-            absolute coordinate of particles in the source is used.
+            :class:`~astropy.units.Quantity`, with dimensions of angle.
+            The coordinate axes extend from ``-lim`` to ``lim``. If unspecified, the
+            maximum angular separation between the source centre defined by its ``ra`` and
+            ``dec`` and the particle sky positions is used.
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity`, with dimensions of speed.
@@ -786,14 +787,14 @@ class SPHSource(object):
         self._init_skycoords()
         assert self.skycoords is not None  # placate mypy
 
-        # every Nth particle to plot at most max_points, or all particles
         lim = (
-            max(
-                np.max(np.abs((self.skycoords.ra - self.ra).to_value(U.deg))),
-                np.max(np.abs((self.skycoords.dec - self.dec).to_value(U.deg))),
+            np.max(
+                SkyCoord(self.ra, self.dec, frame=self.coordinate_frame)
+                .separation(self.skycoords)
+                .to_value(U.deg)
             )
             if lim is None
-            else lim.to_value(U.kpc)
+            else lim.to_value(U.deg)
         )
         vlim = (
             np.max(
@@ -804,9 +805,10 @@ class SPHSource(object):
             if vlim is None
             else vlim.to_value(U.km / U.s)
         )
+        wrapped_ra = self.skycoords.ra.wrap_at(self.ra + 180 * U.deg)
         cmask = np.logical_and.reduce(
             (
-                np.abs((self.skycoords.ra - self.ra)).to_value(U.deg) < lim,
+                np.abs((wrapped_ra - self.ra)).to_value(U.deg) < lim,
                 np.abs((self.skycoords.dec - self.dec)).to_value(U.deg) < lim,
                 np.abs((self.skycoords.radial_velocity - self.vsys)).to_value(
                     U.km / U.s
@@ -815,6 +817,7 @@ class SPHSource(object):
             )
         )
         nparts = cmask.sum()
+        # every Nth particle to plot at most max_points, or all particles:
         mask = np.arange(self.mHI_g.size)[cmask][:: max(nparts // max_points, 1)]
         hsm_factor = (
             1
@@ -874,7 +877,7 @@ class SPHSource(object):
                     max(vlim, cb.mappable.get_clim()[1]),
                 )
         scatter = sp1.scatter(
-            self.skycoords.ra[mask].to_value(U.deg),
+            wrapped_ra[mask].to_value(U.deg),
             self.skycoords.dec[mask].to_value(U.deg),
             c=(self.skycoords.radial_velocity[mask] - self.vsys).to_value(U.km / U.s),
             marker="o",
@@ -891,7 +894,7 @@ class SPHSource(object):
             [self.dec.to_value(U.deg)],
             marker="+",
             ls="None",
-            mec="grey",
+            mec="white",
             ms=6,
             zorder=1,
         )
@@ -923,7 +926,7 @@ class SPHSource(object):
                 cb.mappable.set_clim((vmin, vmax))
         # ----- PV Y -----
         sp2.scatter(
-            self.skycoords.ra[mask].to_value(U.deg),
+            wrapped_ra[mask].to_value(U.deg),
             self.skycoords.radial_velocity[mask].to_value(U.km / U.s),
             c="white",
             edgecolors="None",

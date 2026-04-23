@@ -14,6 +14,7 @@ import numpy as np
 import astropy.units as U
 from astropy.io import fits
 from astropy.time import Time
+from astropy.coordinates import Angle
 from astropy import __version__ as astropy_version
 from itertools import product
 from .__version__ import __version__ as martini_version
@@ -427,7 +428,7 @@ class _BaseMartini:
         self,
         max_points: int = 5000,
         fig: int = 1,
-        lim: str | U.Quantity[U.kpc] | None = None,
+        lim: str | U.Quantity[U.deg] | None = None,
         vlim: str | U.Quantity[U.km / U.s] | None = None,
         point_scaling: str = "auto",
         title: str = "",
@@ -456,12 +457,13 @@ class _BaseMartini:
             Number of the figure in matplotlib, it will be created as ``plt.figure(fig)``.
 
         lim : ~astropy.units.Quantity, optional
-            :class:`~astropy.units.Quantity` with dimensions of length.
+            :class:`~astropy.units.Quantity` with dimensions of angle.
             The coordinate axes extend from ``-lim`` to ``lim``. If unspecified, the
-            maximum absolute coordinate of particles in the source is used. Whether
-            specified or not, the axes are expanded if necessary to contain the extent of
-            the data cube. Alternatively, the string ``"datacube"`` can be passed. In this
-            case the axis limits are set by the extent of the data cube.
+            maximum angular separation between the source centre defined by its ``ra`` and
+            ``dec`` and the particle sky positions is used. Whether specified or not, the
+            axes are expanded if necessary to contain the extent of the data cube.
+            Alternatively, the string ``"datacube"`` can be passed. In this case the axis
+            limits are set by the extent of the data cube.
 
         vlim : ~astropy.units.Quantity, optional
             :class:`~astropy.units.Quantity` with dimensions of speed.
@@ -492,6 +494,9 @@ class _BaseMartini:
         """
         import matplotlib.pyplot as plt
 
+        self.source.ra = 359.99 * U.deg
+        self._datacube.ra = 0 * U.deg
+
         # pass through arguments, except save (which we will do later if desired)
         figure = self.source.preview(
             max_points=max_points,
@@ -502,7 +507,11 @@ class _BaseMartini:
             title=title,
             save=None,
         )
-        y_cube = self._datacube.ra.to_value(U.deg)
+        y_cube = (
+            Angle(self._datacube.ra)
+            .wrap_at(self.source.ra + 180 * U.deg)
+            .to_value(U.deg)
+        )
         z_cube = self._datacube.dec.to_value(U.deg)
         v_cube = self._datacube.spectral_centre.to_value(U.km / U.s)
         dy_cube = 0.5 * (self._datacube.px_size * self._datacube.n_px_x).to_value(
@@ -514,7 +523,12 @@ class _BaseMartini:
         dv_cube = 0.5 * (
             self._datacube.channel_width * self._datacube.n_channels
         ).to_value(U.km / U.s)
-        # should issue some warnings if dRA or dDec > 5deg, or if dec within 5 deg of pole
+        if dy_cube > 5:
+            warn("DataCube RA range > 5deg, preview is very approximate!")
+        if dz_cube > 5:
+            warn("DataCube Dec range > 5deg, preview is very approximate!")
+        if np.abs(self._datacube.dec.to_value(U.deg)) + 0.5 * dz_cube > 85:
+            warn("DataCube extent within 5deg of pole, preview is very approximate!")
         sp1, sp2, sp3, cb = figure.get_axes()
         sp1.add_patch(
             plt.Rectangle(
