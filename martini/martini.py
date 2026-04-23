@@ -494,9 +494,6 @@ class _BaseMartini:
         """
         import matplotlib.pyplot as plt
 
-        self.source.ra = 359.99 * U.deg
-        self._datacube.ra = 0 * U.deg
-
         # pass through arguments, except save (which we will do later if desired)
         figure = self.source.preview(
             max_points=max_points,
