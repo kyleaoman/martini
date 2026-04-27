@@ -39,7 +39,7 @@ class _BaseBeam(object):
 
     bmin : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Beam minor axis (FWHM) angular size.
+        Beam minor axis (FWHM) angular size. Defaults to major axis size if omitted.
 
     bpa : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimesions of angle.
@@ -65,7 +65,7 @@ class _BaseBeam(object):
     def __init__(
         self,
         bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
-        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] | None = None,
         bpa: U.Quantity[U.deg] = 0.0 * U.deg,
     ) -> None:
         # some beams need information from the datacube; in this case make
@@ -73,7 +73,7 @@ class _BaseBeam(object):
         # and define a init_beam_header, to be called after the ra, dec,
         # vel, etc. of the datacube are known
         self.bmaj = bmaj
-        self.bmin = bmin
+        self.bmin = bmin if bmin is not None else bmaj
         self.bpa = bpa
         self.px_size = None
         self.kernel = None
@@ -205,7 +205,7 @@ class GaussianBeam(_BaseBeam):
 
     bmin : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of angle.
-        Beam minor axis (FWHM) angular size.
+        Beam minor axis (FWHM) angular size. Defaults to major axis size if omitted.
 
     bpa : ~astropy.units.Quantity
         :class:`~astropy.units.Quantity`, with dimensions of angle.
@@ -220,7 +220,7 @@ class GaussianBeam(_BaseBeam):
     def __init__(
         self,
         bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
-        bmin: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
+        bmin: U.Quantity[U.arcsec] | None = None,
         bpa: U.Quantity[U.deg] = 0.0 * U.deg,
         truncate: float = 4.0,
     ) -> None:

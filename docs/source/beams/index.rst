@@ -17,10 +17,9 @@ Using MARTINI's beam classes
 The :class:`~martini.beams.GaussianBeam` class accepts the full width at half-maximum
 (FWHM) angular size of the beam via the ``bmaj`` and ``bmin`` keyword arguments. These
 should be specified with :mod:`astropy.units`. Unequal ``bmaj`` and ``bmin`` results in an
-elliptical Gaussian beam. Make sure to always specify both the major and minor axis
-lengths (otherwise a default value may be used). The position angle of the ellipse (East
-of North) can be set with the ``bpa`` keyword argument. An example initialization looks
-like:
+elliptical Gaussian beam; for a circular beam the minor axis length can be omitted. The
+position angle of the ellipse (East of North) can be set with the ``bpa`` keyword
+argument. An example initialization looks like:
 
 .. code-block:: python
 
