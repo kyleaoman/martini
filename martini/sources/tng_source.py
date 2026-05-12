@@ -20,9 +20,7 @@ if TYPE_CHECKING:
     from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 
-def api_get(
-    path: str, params: dict | None = None, api_key: str | None = None
-) -> Response | dict:
+def api_get(path: str, *, params: dict | None = None, api_key: str) -> Response | dict:
     """
     Make a request to the TNG web API service.
 
