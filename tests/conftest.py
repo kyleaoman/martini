@@ -4,7 +4,7 @@ import pytest
 from pytest import FixtureRequest
 import os
 import numpy as np
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator, Callable
 from astropy import units as U
 from astropy import wcs
 from astropy.coordinates import ICRS
@@ -417,7 +417,7 @@ def cross_sourcegen(
 
 
 @pytest.fixture(scope="function", params=[True, False])
-def m(request: FixtureRequest) -> Martini:
+def m(request: FixtureRequest) -> Generator[Martini, None, None]:
     """
     Create a :class:`~martini.martini.Martini` object with default configuration.
 
@@ -473,7 +473,7 @@ def m(request: FixtureRequest) -> Martini:
 
 
 @pytest.fixture(scope="function")
-def m_init() -> Martini:
+def m_init() -> Generator[Martini, None, None]:
     """
     Create a :class:`~martini.martini.Martini` object with default configuration.
 
@@ -510,7 +510,7 @@ def m_init() -> Martini:
 
 
 @pytest.fixture(scope="function")
-def m_nn() -> Martini:
+def m_nn() -> Generator[Martini, None, None]:
     """
     Create a :class:`~martini.martini.Martini` object with default configuration.
 
@@ -552,7 +552,7 @@ def m_nn() -> Martini:
     scope="function",
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
-def dc_random(request: FixtureRequest) -> Martini:
+def dc_random(request: FixtureRequest) -> Generator[DataCube, None, None]:
     """
     Create a :class:`~martini.datacube.DataCube` object with random contents.
 
@@ -608,7 +608,7 @@ def dc_random(request: FixtureRequest) -> Martini:
         "comb_10tracks_J1337_28_HI_r10_t90_mg095_2.image.header.permuted",
     ],
 )
-def dc_wcs(request: FixtureRequest) -> DataCube:
+def dc_wcs(request: FixtureRequest) -> Generator[DataCube, None, None]:
     """
     Create a :class:`~martini.datacube.DataCube` from an existing FITS header.
 
@@ -642,7 +642,7 @@ def dc_wcs(request: FixtureRequest) -> DataCube:
     scope="function",
     params=[(True, True), (True, False), (False, True), (False, False)],
 )
-def dc_zeros(request: FixtureRequest) -> DataCube:
+def dc_zeros(request: FixtureRequest) -> Generator[DataCube, None, None]:
     """
     Create a :class:`~martini.datacube.DataCube` object with zeroed contents.
 
@@ -685,7 +685,7 @@ def dc_zeros(request: FixtureRequest) -> DataCube:
 
 
 @pytest.fixture(scope="function")
-def adaptive_kernel_test_datacube() -> DataCube:
+def adaptive_kernel_test_datacube() -> Generator[DataCube, None, None]:
     """
     Create a :class:`~martini.datacube.DataCube` for testing adaptive kernels.
 
@@ -707,7 +707,7 @@ def adaptive_kernel_test_datacube() -> DataCube:
 
 
 @pytest.fixture(scope="function")
-def s() -> SPHSource:
+def s() -> Generator[SPHSource, None, None]:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` from 1000 particles.
 
@@ -756,7 +756,24 @@ def s() -> SPHSource:
 
 
 @pytest.fixture(scope="function")
-def cross_source() -> SPHSource:
+def cross_source() -> Generator[
+    Callable[
+        [
+            U.Quantity[U.K],
+            U.Quantity[U.Msun],
+            U.Quantity[U.kpc],
+            U.Quantity[U.km / U.s],
+            U.Quantity[U.kpc],
+            U.Quantity[U.Mpc],
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.km / U.s],
+        ],
+        SPHSource,
+    ],
+    None,
+    None,
+]:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` with a cross shape.
 
@@ -769,7 +786,25 @@ def cross_source() -> SPHSource:
 
 
 @pytest.fixture(scope="function")
-def single_particle_source() -> SPHSource:
+def single_particle_source() -> Generator[
+    Callable[
+        [
+            U.Quantity[U.K],
+            U.Quantity[U.Msun],
+            U.Quantity[U.kpc],
+            U.Quantity[U.km / U.s],
+            U.Quantity[U.kpc],
+            U.Quantity[U.Mpc],
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.km / U.s],
+            "BaseRADecFrame",
+        ],
+        SPHSource,
+    ],
+    None,
+    None,
+]:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` with 1 particle.
 
@@ -782,7 +817,24 @@ def single_particle_source() -> SPHSource:
 
 
 @pytest.fixture(scope="function")
-def many_particle_source() -> SPHSource:
+def many_particle_source() -> Generator[
+    Callable[
+        [
+            U.Quantity[U.K],
+            U.Quantity[U.Msun],
+            U.Quantity[U.kpc],
+            U.Quantity[U.km / U.s],
+            U.Quantity[U.kpc],
+            U.Quantity[U.Mpc],
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.km / U.s],
+        ],
+        SPHSource,
+    ],
+    None,
+    None,
+]:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` with 100 particles.
 
@@ -795,7 +847,24 @@ def many_particle_source() -> SPHSource:
 
 
 @pytest.fixture(scope="function")
-def adaptive_kernel_test_source() -> SPHSource:
+def adaptive_kernel_test_source() -> Generator[
+    Callable[
+        [
+            U.Quantity[U.K],
+            U.Quantity[U.Msun],
+            U.Quantity[U.kpc],
+            U.Quantity[U.km / U.s],
+            U.Quantity[U.kpc],
+            U.Quantity[U.Mpc],
+            U.Quantity[U.deg],
+            U.Quantity[U.deg],
+            U.Quantity[U.km / U.s],
+        ],
+        SPHSource,
+    ],
+    None,
+    None,
+]:
     """
     Create a :class:`~martini.sources.sph_source.SPHSource` for kernel testing.
 
@@ -808,7 +877,7 @@ def adaptive_kernel_test_source() -> SPHSource:
 
 
 @pytest.fixture(scope="function")
-def gp() -> GlobalProfile:
+def gp() -> Generator[GlobalProfile, None, None]:
     """
     Create a :class:`~martini.martini.GlobalProfile` with default configuration.
 
@@ -832,7 +901,7 @@ def gp() -> GlobalProfile:
 
 
 @pytest.fixture(scope="function")
-def combined_source() -> CombinedSource:
+def combined_source() -> Generator[CombinedSource, None, None]:
     """
     Create a :class:`~martini.sources.combined_source.CombinedSource`.
 
