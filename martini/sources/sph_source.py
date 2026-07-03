@@ -164,6 +164,7 @@ class SPHSource(object):
     sky_coordinates: ICRS
     coordinate_frame: "BaseRADecFrame"
     pixcoords: U.Quantity[U.pix]
+    los_pixcoords: U.Quantity[U.pix]
     input_mass: U.Quantity[U.Msun]
     skycoords: SkyCoord | None
     spectralcoords: SpectralCoord | None
@@ -260,6 +261,7 @@ class SPHSource(object):
         self.skycoords = None
         self.spectralcoords = None
         self.pixcoords = None
+        self.los_pixcoords = None
         return
 
     def _init_skycoords(self, _reset: bool = True) -> None:
@@ -361,6 +363,44 @@ class SPHSource(object):
         )
         return
 
+    def _init_los_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
+        """
+        Initialize coordinates for particles along the line of sight direction.
+
+        One pixel length along the line of sight is equal to one pixel length in the
+        transverse direction at the source distance. This assumes that the source angular
+        extent is small enough that the RA-Dec-Distance grid is close to rectilinear.
+
+        Parameters
+        ----------
+        datacube : ~martini.datacube.DataCube
+            The DataCube (including its WCS) for which to calculate coordinates.
+
+        origin : int
+            Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
+        """
+        # Some work is being duplicated here.
+        # Merge into _init_pixcoords with a `los: bool = False` option?
+        assert self.skycoords is not None, (
+            "Initialize source.skycoords before calling _init_los_pixcoords."
+        )
+        skycoords_df_frame = self.skycoords.transform_to(datacube.coordinate_frame)
+        distances = skycoords_df_frame.distance
+        # The LoS depth is assumed equal to the width and height of the datacube at the
+        # source distance. They must be equal.
+        assert datacube.n_px_x == datacube.n_px_y
+        # The *centre* of the first pixel is coordinate origin, trim one pixel from
+        # interval (i.e. the half pixel from each side).
+        distance_interval = (
+            (datacube.n_px_x - 1) * datacube.px_size * self.distance
+        ).to(distances.unit, U.dimensionless_angles())
+        self.los_pixcoords = origin + (
+            (distances - self.distance + distance_interval / 2)
+            * (datacube.n_px_x - 1)
+            / distance_interval
+            * U.pix
+        )
+
     def apply_mask(self, mask: np.ndarray) -> None:
         """
         Remove particles from source arrays according to a mask.
@@ -388,6 +428,8 @@ class SPHSource(object):
             self.spectralcoords = self.spectralcoords[mask]
         if self.pixcoords is not None:
             self.pixcoords = self.pixcoords[:, mask]
+        if self.los_pixcoords is not None:
+            self.los_pixcoords = self.los_pixcoords[:, mask]
         if self.hsm_g is not None and not self.hsm_g.isscalar:
             self.hsm_g = self.hsm_g[mask]
         return
