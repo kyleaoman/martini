@@ -1366,6 +1366,774 @@ class Martini(_BaseMartini):
             return None
 
 
+class Mochi(Martini):
+    """
+    Creates synthetic HI data cubes from simulation data.
+
+    Usual use of martini involves first creating instances of classes from each
+    of the required and optional sub-modules, then creating a
+    :class:`~martini.martini.Martini` with these instances as arguments. The object can
+    then be used to create synthetic observations, usually by calling
+    :meth:`~martini.martini.Martini.insert_source_in_cube`,
+    (optionally) :meth:`~martini.martini.Martini.add_noise`, (optionally)
+    :meth:`~martini.martini.Martini.convolve_beam` and
+    :meth:`~martini.martini.Martini.write_fits` in order.
+
+    Parameters
+    ----------
+    source : SPHSource
+        An instance of a class derived from
+        :class:`~martini.sources.sph_source.SPHSource`.
+        A description of the HI emitting object, including position, geometry
+        and an interface to the simulation data (SPH particle masses,
+        positions, etc.). See :doc:`sub-module documentation </sources/index>`.
+
+    datacube : ~martini.datacube.DataCube
+        A :class:`~martini.datacube.DataCube` instance.
+        A description of the datacube to create, including pixels, channels,
+        sky position. See :doc:`sub-module documentation </datacube/index>`.
+
+    beam : _BaseBeam, optional
+        An instance of a class derived from `~martini.beams._BaseBeam`.
+        A description of the beam for the simulated telescope. Given a
+        description, either mathematical or as an image, the creation of a
+        custom beam is straightforward. See
+        :doc:`sub-module documentation </beams/index>`.
+
+    noise : _BaseNoise, optional
+        An instance of a class derived from :class:`~martini.noise._BaseNoise`.
+        A description of the simulated noise. A simple Gaussian noise model is
+        provided; implementation of other noise models is straightforward. See
+        :doc:`sub-module documentation </noise/index>`.
+
+    sph_kernel : _BaseSPHKernel
+        An instance of a class derived from :class:`~martini.sph_kernels._BaseSPHKernel`.
+        A description of the SPH smoothing kernel. Check simulation
+        documentation for the kernel used in a particular simulation, and
+        :doc:`SPH kernel sub-module documentation </sph_kernels/index>` for guidance.
+
+    spectral_model : _BaseSpectrum
+        An instance of a class derived from
+        :class:`~martini.spectral_models._BaseSpectrum`.
+        A description of the HI line produced by a particle of given
+        properties. A Dirac-delta spectrum, and both fixed-width and
+        temperature-dependent Gaussian line models are provided; implementing
+        other models is straightforward. See
+        :doc:`sub-module documentation </spectral_models/index>`.
+
+    quiet : bool, optional
+        If ``True``, suppress output to stdout.
+
+    See Also
+    --------
+    martini.sources.sph_source.SPHSource
+    martini.datacube.DataCube
+    martini.beams
+    martini.noise
+    martini.sph_kernels
+    martini.spectral_models
+    martini.martini.GlobalProfile
+
+    Examples
+    --------
+    More detailed examples can be found in the examples directory in the github
+    distribution of the package.
+
+    The following example illustrates basic use of MARTINI, using a (very!)
+    crude model of a gas disk. This example can be run by doing
+    'from martini import demo; demo()'::
+
+        # ------make a toy galaxy----------
+        N = 500
+        phi = np.random.rand(N) * 2 * np.pi
+        r = []
+        for L in np.random.rand(N):
+
+            def f(r):
+                return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
+
+        r.append(fsolve(f, 1.0)[0])
+        r = np.array(r)
+        # exponential disk
+        r *= 3 / np.sort(r)[N // 2]
+        z = -np.log(np.random.rand(N))
+        # exponential scale height
+        z *= 0.5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - 0.5)
+        x = r * np.cos(phi)
+        y = r * np.sin(phi)
+        xyz_g = np.vstack((x, y, z)) * U.kpc
+        # linear rotation curve
+        vphi = 100 * r / 6.0
+        vx = -vphi * np.sin(phi)
+        vy = vphi * np.cos(phi)
+        # small pure random z velocities
+        vz = (np.random.rand(N) * 2.0 - 1.0) * 5
+        vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
+        T_g = np.ones(N) * 8e3 * U.K
+        mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
+        # ~mean interparticle spacing smoothing
+        hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
+        # ---------------------------------
+
+        source = SPHSource(
+            distance=3.0 * U.Mpc,
+            rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
+            ra=0.0 * U.deg,
+            dec=0.0 * U.deg,
+            h=0.7,
+            T_g=T_g,
+            mHI_g=mHI_g,
+            xyz_g=xyz_g,
+            vxyz_g=vxyz_g,
+            hsm_g=hsm_g,
+        )
+
+        datacube = DataCube(
+            n_px_x=128,
+            n_px_y=128,
+            n_channels=32,
+            px_size=10.0 * U.arcsec,
+            channel_width=10.0 * U.km * U.s**-1,
+            spectral_centre=source.vsys,
+        )
+
+        beam = GaussianBeam(
+            bmaj=30.0 * U.arcsec, bmin=30.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
+        )
+
+        noise = GaussianNoise(rms=3.0e-5 * U.Jy * U.beam**-1)
+
+        spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
+
+        sph_kernel = CubicSplineKernel()
+
+        M = Martini(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=noise,
+            spectral_model=spectral_model,
+            sph_kernel=sph_kernel,
+        )
+
+        M.insert_source_in_cube()
+        M.add_noise()
+        M.convolve_beam()
+        M.write_beam_fits(beamfile)
+        M.write_fits(cubefile)
+        print(f"Wrote demo fits output to {cubefile}, and beam image to {beamfile}.")
+        try:
+            M.write_hdf5(hdf5file)
+        except ModuleNotFoundError:
+            print("h5py package not present, skipping hdf5 output demo.")
+        else:
+            print(f"Wrote demo hdf5 output to {hdf5file}.")
+    """
+
+    def __init__(
+        self,
+        *,
+        source: SPHSource,
+        datacube: DataCube,
+        beam: _BaseBeam | None = None,
+        noise: _BaseNoise | None = None,
+        sph_kernel: _BaseSPHKernel,
+        spectral_model: _BaseSpectrum,
+        quiet: bool = False,
+    ) -> None:
+        super().__init__(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=noise,
+            sph_kernel=sph_kernel,
+            spectral_model=spectral_model,
+            quiet=quiet,
+        )
+
+        return
+
+    @property
+    def datacube(self) -> DataCube:
+        """
+        The :class:`~martini.datacube.DataCube` object for this mock observation.
+
+        Returns
+        -------
+        ~martini.datacube.DataCube
+            The :class:`~martini.datacube.DataCube` contained by this
+            :class:`~martini.martini.Martini` instance.
+        """
+        return self._datacube
+
+    def insert_source_in_cube(
+        self,
+        skip_validation: bool = False,
+        progressbar: bool | None = None,
+        ncpu: int = 1,
+    ) -> None:
+        """
+        Populate the DataCube with flux from the particles in the source.
+
+        Parameters
+        ----------
+        skip_validation : bool, optional
+            SPH kernel interpolation onto the :class:`~martini.datacube.DataCube`
+            is approximated for increased speed. For some combinations of pixel size,
+            distance and SPH smoothing length, the approximation may break down. The
+            kernel class will check whether this will occur and raise a
+            ``RuntimeError`` if so. This validation can be skipped (at the cost
+            of accuracy!) by setting this parameter ``True``.
+
+        progressbar : bool, optional
+            A progress bar is shown by default. Progress bars work, with perhaps
+            some visual glitches, in parallel. If :class:`~martini.martini.Martini` was
+            initialised with ``quiet`` set to ``True``, progress bars are switched off
+            unless explicitly turned on.
+
+        ncpu : int
+            Number of processes to use in main source insertion loop. Using more than
+            one cpu requires the :mod:`multiprocess` module (n.b. not the same as
+            ``multiprocessing``).
+        """
+        self.source._init_los_pixcoords(self.datacube)
+        self.sph_kernel._init_sm_ranges()
+        self.make_adaptive_cube()
+        return
+
+    def make_adaptive_cube(self):
+        assert self.datacube.n_px_x == self.datacube.n_px_y
+        # For now we are restricted to a cube (not cuboid) voxel grid.
+        # Hard code a starting grid just to get going:
+        initial_grid_size = 2
+        pix_range = [(0, self.datacube.n_px_x)] * 3
+        initial_cells = np.column_stack(
+            [
+                np.linspace(*start_end, initial_grid_size, endpoint=False)
+                for start_end in pix_range
+            ]
+            + [np.ones(initial_grid_size) * self.datacube.n_px_x / initial_grid_size],
+        )
+        print(self.source.pixcoords[0])
+        print(self.source.pixcoords[1])
+        print(self.source.los_pixcoords)
+        positions = np.vstack(
+            (
+                self.source.pixcoords[0],
+                self.source.pixcoords[1],
+                self.source.los_pixcoords,
+            )
+        )
+        radii = self.sph_kernel.sm_ranges
+        print(positions)
+        print(radii)
+
+    def convolve_beam(self) -> None:
+        """Convolve the beam and data cube."""
+        if self.beam is None:
+            warn("Skipping beam convolution, no beam object provided to Martini.")
+            return
+
+        minimum_padding = self.beam.needs_pad()
+        if (self._datacube.padx < minimum_padding[0]) or (
+            self._datacube.pady < minimum_padding[1]
+        ):
+            raise ValueError(
+                "datacube padding insufficient for beam convolution (perhaps you loaded a"
+                " datacube state with datacube.load_state that was previously initialized"
+                " by martini with a smaller beam?)"
+            )
+
+        unit = self._datacube._array.unit
+        assert self.beam.kernel is not None  # placate mypy
+        for spatial_slice in self._datacube.spatial_slices:
+            # use a view [...] to force in-place modification
+            spatial_slice[...] = (
+                fftconvolve(spatial_slice, self.beam.kernel, mode="same") * unit
+            )
+        self._datacube.drop_pad()
+        self._datacube._array = self._datacube._array.to(
+            U.Jy * U.beam**-1,
+            equivalencies=U.beam_angular_area(self.beam.area),
+        )
+        if not self.quiet:
+            print(
+                "Beam convolved.",
+                "  Data cube RMS after beam convolution:"
+                f" {np.std(self._datacube._array):.2e}",
+                f"  Maximum pixel: {self._datacube._array.max():.2e}",
+                "  Median non-zero pixel:"
+                f" {np.median(self._datacube._array[self._datacube._array > 0]):.2e}",
+                sep="\n",
+            )
+        return
+
+    def add_noise(self) -> None:
+        """Insert noise into the data cube."""
+        if self.noise is None:
+            warn("Skipping noise, no noise object provided to Martini.")
+            return
+
+        if self.beam is None:
+            warn(
+                "Skipping noise, no beam object (required to estimate post-convolution"
+                " noise level) provided to Martini."
+            )
+            return
+
+        # this unit conversion means noise can be added before or after source insertion:
+        noise_cube = (
+            self.noise.generate(self._datacube, self.beam)
+            .to(
+                U.Jy * U.arcsec**-2,
+                equivalencies=U.beam_angular_area(self.beam.area),
+            )
+            .to(
+                self._datacube._array.unit,
+                equivalencies=[self._datacube.arcsec2_to_pix],
+            )
+        )
+        self._datacube._array = self._datacube._array + noise_cube
+        if not self.quiet:
+            print(
+                "Noise added.",
+                f"  Noise cube RMS: {np.std(noise_cube):.2e} (before beam convolution).",
+                "  Data cube RMS after noise addition (before beam convolution): "
+                f"{np.std(self._datacube._array):.2e}",
+                sep="\n",
+            )
+        return
+
+    def write_fits(
+        self,
+        filename: str,
+        overwrite: bool = True,
+        obj_name: str = "MOCK",
+        channels: None = None,  # deprecated
+        dtype: str | np.dtype | None = None,
+    ) -> None:
+        """
+        Output the data cube to a FITS-format file.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to write. ``'.fits'`` will be appended if not already
+            present in the filename. ``'.fits.gz'`` etc. will be recognized.
+
+        overwrite : bool, optional
+            Whether to allow overwriting existing files.
+
+        obj_name : str
+            Name to write in the ``OBJECT`` FITS header field (max 16 characters).
+
+        channels : str, deprecated
+            Deprecated, channels and their units now fixed at
+            :class:`~martini.datacube.DataCube` initialization.
+
+        dtype : str or dtype
+            Typecode or data-type to which the array is cast. Should be supported
+            by fits. Default to not do data type conversion.
+        """
+        if channels is not None:  # pragma: no cover
+            warnings.warn(
+                DeprecationWarning(
+                    "`channels` argument to `write_fits` ignored, channels and their"
+                    " units now fixed at DataCube initialization."
+                )
+            )
+        self._datacube.drop_pad()
+
+        filename = str(filename)
+        filename = filename + ".fits" if "fits" not in filename.split(".") else filename
+
+        wcs_header = self._datacube.wcs.to_header()
+        wcs_header.rename_keyword("WCSAXES", "NAXIS")
+
+        header = fits.Header()
+        header.append(("SIMPLE", "T"))
+        header.append(("BITPIX", 16))
+        header.append(("NAXIS", wcs_header["NAXIS"]))
+        header.append(("NAXIS1", self._datacube.n_px_x))
+        header.append(("NAXIS2", self._datacube.n_px_y))
+        header.append(("NAXIS3", self._datacube.n_channels))
+        if self._datacube.stokes_axis:
+            header.append(("NAXIS4", 1))
+        header.append(("EXTEND", "T"))
+        header.append(("CDELT1", wcs_header["CDELT1"]))
+        header.append(("CRPIX1", wcs_header["CRPIX1"]))
+        header.append(("CRVAL1", wcs_header["CRVAL1"]))
+        header.append(("CTYPE1", wcs_header["CTYPE1"]))
+        header.append(("CUNIT1", wcs_header["CUNIT1"]))
+        header.append(("CDELT2", wcs_header["CDELT2"]))
+        header.append(("CRPIX2", wcs_header["CRPIX2"]))
+        header.append(("CRVAL2", wcs_header["CRVAL2"]))
+        header.append(("CTYPE2", wcs_header["CTYPE2"]))
+        header.append(("CUNIT2", wcs_header["CUNIT2"]))
+        header.append(("CDELT3", wcs_header["CDELT3"]))
+        header.append(("CRPIX3", wcs_header["CRPIX3"]))
+        header.append(("CRVAL3", wcs_header["CRVAL3"]))
+        header.append(("CTYPE3", wcs_header["CTYPE3"]))
+        header.append(("CUNIT3", wcs_header["CUNIT3"]))
+        if self._datacube.stokes_axis:
+            header.append(("CDELT4", wcs_header["CDELT4"]))
+            header.append(("CRPIX4", wcs_header["CRPIX4"]))
+            header.append(("CRVAL4", wcs_header["CRVAL4"]))
+            header.append(("CTYPE4", wcs_header["CTYPE4"]))
+            header.append(("CUNIT4", "PAR"))
+        header.append(("EPOCH", 2000))
+        header.append(("INSTRUME", "MARTINI", martini_version))
+        header.append(("BSCALE", 1.0))
+        header.append(("BZERO", 0.0))
+        datacube_array_units = self._datacube._array.unit
+        header.append(
+            ("DATAMAX", np.max(self._datacube._array.to_value(datacube_array_units)))
+        )
+        header.append(
+            ("DATAMIN", np.min(self._datacube._array.to_value(datacube_array_units)))
+        )
+        header.append(("ORIGIN", "astropy v" + astropy_version))
+        # long names break fits format, don't let the user set this
+        if len(obj_name) > 16:
+            warnings.warn(
+                "obj_name longer than 16 characters, truncating", RuntimeWarning
+            )
+            obj_name = obj_name[:16]
+        header.append(("OBJECT", obj_name))
+        if self.beam is not None:
+            header.append(("BPA", self.beam.bpa.to_value(U.deg)))
+        header.append(("OBSERVER", "K. Oman"))
+        header.append(("BUNIT", datacube_array_units.to_string("fits")))
+        header.append(("DATE-OBS", Time.now().to_value("fits")))
+        header.append(("MJD-OBS", Time.now().to_value("mjd")))
+        if self.beam is not None:
+            header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
+            header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
+        header.append(("BTYPE", "Intensity"))
+        header.append(("SPECSYS", wcs_header["SPECSYS"]))
+        header.append(("RESTFRQ", wcs_header["RESTFRQ"]))
+
+        # flip axes to write
+        data = self._datacube._array.to_value(datacube_array_units).T
+        if dtype is not None:
+            data = data.astype(dtype, copy=False)
+        hdu = fits.PrimaryHDU(header=header, data=data)
+        hdu.writeto(filename, overwrite=overwrite)
+
+        return
+
+    def write_beam_fits(
+        self,
+        filename: str,
+        overwrite: bool = True,
+        channels: None = None,  # deprecated
+    ) -> None:
+        """
+        Output the beam to a FITS-format file.
+
+        The beam is written to file, with pixel sizes, coordinate system, etc.
+        similar to those used for the :class:`~martini.datacube.DataCube`.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to write. ``".fits"`` will be appended if not already
+            present.
+
+        overwrite : bool, optional
+            Whether to allow overwriting existing files.
+
+        channels : str, deprecated
+            Deprecated, channels and their units now fixed at
+            :class:`~martini.datacube.DataCube` initialization.
+
+        Raises
+        ------
+        ValueError
+            If :class:`~martini.martini.Martini` was initialized without a ``beam``.
+        """
+        if channels is not None:  # pragma: no cover
+            warnings.warn(
+                DeprecationWarning(
+                    "`channels` argument to `write_fits` ignored, channels and their"
+                    " units now fixed at DataCube initialization."
+                )
+            )
+
+        if self.beam is None:
+            raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
+        assert self.beam.kernel is not None
+
+        filename = filename if filename[-5:] == ".fits" else filename + ".fits"
+
+        wcs_header = self._datacube.wcs.to_header()
+
+        beam_kernel_units = self.beam.kernel.unit
+        header = fits.Header()
+        header.append(("SIMPLE", "T"))
+        header.append(("BITPIX", 16))
+        header.append(("NAXIS", 3))
+        header.append(("NAXIS1", self.beam.kernel.shape[0]))
+        header.append(("NAXIS2", self.beam.kernel.shape[1]))
+        header.append(("NAXIS3", 1))
+        header.append(("EXTEND", "T"))
+        header.append(("BSCALE", 1.0))
+        header.append(("BZERO", 0.0))
+        # this is 1/arcsec^2, is this right?
+        header.append(("BUNIT", beam_kernel_units.to_string("fits")))
+        header.append(("CRPIX1", self.beam.kernel.shape[0] // 2 + 1))
+        header.append(("CDELT1", wcs_header["CDELT1"]))
+        header.append(("CRVAL1", wcs_header["CRVAL1"]))
+        header.append(("CTYPE1", wcs_header["CTYPE1"]))
+        header.append(("CUNIT1", wcs_header["CUNIT1"]))
+        header.append(("CRPIX2", self.beam.kernel.shape[1] // 2 + 1))
+        header.append(("CDELT2", wcs_header["CDELT2"]))
+        header.append(("CRVAL2", wcs_header["CRVAL2"]))
+        header.append(("CTYPE2", wcs_header["CTYPE2"]))
+        header.append(("CUNIT2", wcs_header["CUNIT2"]))
+        header.append(("CRPIX3", 1))
+        header.append(("CDELT3", wcs_header["CDELT3"]))
+        header.append(("CRVAL3", wcs_header["CRVAL3"]))
+        header.append(("CTYPE3", wcs_header["CTYPE3"]))
+        header.append(("CUNIT3", wcs_header["CUNIT3"]))
+        header.append(("SPECSYS", wcs_header["SPECSYS"]))
+        header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
+        header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
+        header.append(("BPA", self.beam.bpa.to_value(U.deg)))
+        header.append(("BTYPE", "beam    "))
+        header.append(("EPOCH", 2000))
+        header.append(("OBSERVER", "K. Oman"))
+        # long names break fits format
+        header.append(("OBJECT", "MOCKBEAM"))
+        header.append(("INSTRUME", "MARTINI", martini_version))
+        header.append(("DATAMAX", np.max(self.beam.kernel.to_value(beam_kernel_units))))
+        header.append(("DATAMIN", np.min(self.beam.kernel.to_value(beam_kernel_units))))
+        header.append(("ORIGIN", "astropy v" + astropy_version))
+
+        # flip axes to write
+        hdu = fits.PrimaryHDU(
+            header=header,
+            data=self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis].T,
+        )
+        hdu.writeto(filename, overwrite=True)
+
+        return
+
+    def write_hdf5(
+        self,
+        filename: str,
+        overwrite: bool = True,
+        memmap: bool = False,
+        compact: bool = False,
+        channels: None = None,  # deprecated
+    ) -> "h5py.File | None":
+        """
+        Output the data cube and beam to a HDF5-format file.
+
+        Requires the :mod:`h5py` package.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to write. ``'.hdf5'`` will be appended if not already
+            present.
+
+        overwrite : bool, optional
+            Whether to allow overwriting existing files.
+
+        memmap : bool, optional
+            If ``True``, create a file-like object in memory and return it instead
+            of writing file to disk.
+
+        compact : bool, optional
+            If ``True``, omit pixel coordinate arrays to save disk space. In this
+            case pixel coordinates can still be reconstructed from FITS-style
+            keywords stored in the FluxCube attributes.
+
+        channels : str, deprecated
+            Deprecated, channels and their units now fixed at
+            :class:`~martini.datacube.DataCube` initialization.
+        """
+        if channels is not None:  # pragma: no cover
+            warnings.warn(
+                DeprecationWarning(
+                    "`channels` argument to `write_fits` ignored, channels and their"
+                    " units now fixed at DataCube initialization."
+                )
+            )
+
+        import h5py
+
+        self._datacube.drop_pad()
+
+        filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
+
+        wcs_header = self._datacube.wcs.to_header()
+
+        mode = "w" if overwrite else "x"
+        driver = "core" if memmap else None
+        h5_kwargs = {"backing_store": False} if memmap else {}
+        f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
+        datacube_array_units = self._datacube._array.unit
+        f["FluxCube"] = self._datacube._array.to_value(datacube_array_units).squeeze()
+        c = f["FluxCube"]
+        origin = 0  # index from 0 like numpy, not from 1
+        if not compact:
+            # voxel centre coordinates:
+            xgrid, ygrid, vgrid = np.meshgrid(
+                np.arange(self._datacube._array.shape[0]),
+                np.arange(self._datacube._array.shape[1]),
+                np.arange(self._datacube._array.shape[2]),
+                indexing="ij",
+            )
+            cgrid = (
+                np.vstack(
+                    (
+                        xgrid.flatten(),
+                        ygrid.flatten(),
+                        vgrid.flatten(),
+                        np.zeros(vgrid.shape).flatten(),
+                    )
+                ).T
+                if self._datacube.stokes_axis
+                else np.vstack(
+                    (
+                        xgrid.flatten(),
+                        ygrid.flatten(),
+                        vgrid.flatten(),
+                    )
+                ).T
+            )
+            wgrid = self._datacube.wcs.all_pix2world(cgrid, origin)
+            grid_shape = (
+                self.datacube.n_px_x,
+                self.datacube.n_px_y,
+                self.datacube.n_channels,
+            )
+            ragrid = wgrid[:, 0].reshape(grid_shape)
+            decgrid = wgrid[:, 1].reshape(grid_shape)
+            chgrid = wgrid[:, 2].reshape(grid_shape)
+            f["RA"] = ragrid
+            f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
+            f["Dec"] = decgrid
+            f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
+            f["channel_mids"] = chgrid
+            f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
+            # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
+            xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
+                np.arange(self._datacube._array.shape[0] + 1) - 0.5,
+                np.arange(self._datacube._array.shape[1] + 1) - 0.5,
+                np.arange(self._datacube._array.shape[2] + 1) - 0.5,
+                indexing="ij",
+            )
+            cgrid_vertices = (
+                np.vstack(
+                    (
+                        xgrid_vertices.flatten(),
+                        ygrid_vertices.flatten(),
+                        vgrid_vertices.flatten(),
+                        np.zeros(vgrid_vertices.shape).flatten(),
+                    )
+                ).T
+                if self._datacube.stokes_axis
+                else np.vstack(
+                    (
+                        xgrid_vertices.flatten(),
+                        ygrid_vertices.flatten(),
+                        vgrid_vertices.flatten(),
+                    )
+                ).T
+            )
+            wgrid_vertices = self._datacube.wcs.all_pix2world(cgrid_vertices, origin)
+            vertices_grid_shape = (
+                self.datacube.n_px_x + 1,
+                self.datacube.n_px_y + 1,
+                self.datacube.n_channels + 1,
+            )
+            ragrid_vertices = wgrid_vertices[:, 0].reshape(vertices_grid_shape)
+            decgrid_vertices = wgrid_vertices[:, 1].reshape(vertices_grid_shape)
+            chgrid_vertices = wgrid_vertices[:, 2].reshape(vertices_grid_shape)
+            f["RA_vertices"] = ragrid_vertices
+            f["RA_vertices"].attrs["Unit"] = wcs_header["CUNIT1"]
+            f["Dec_vertices"] = decgrid_vertices
+            f["Dec_vertices"].attrs["Unit"] = wcs_header["CUNIT2"]
+            f["channel_vertices"] = chgrid_vertices
+            f["channel_vertices"].attrs["Unit"] = wcs_header["CUNIT3"]
+            # channels:
+            for dataset_name in (
+                "velocity_channel_mids",
+                "velocity_channel_edges",
+                "frequency_channel_mids",
+                "frequency_channel_edges",
+            ):
+                f[dataset_name] = getattr(self._datacube, dataset_name)
+                f[dataset_name].attrs["Unit"] = str(
+                    getattr(self._datacube, dataset_name).unit
+                )
+        c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
+        c.attrs["FluxCubeUnit"] = str(self._datacube._array.unit)
+        c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+        c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
+        c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+        c.attrs["RAUnit"] = wcs_header["CUNIT1"]
+        c.attrs["RAProjType"] = wcs_header["CTYPE1"]
+        c.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+        c.attrs["Dec0_in_px"] = wcs_header["CRPIX2"] - 1
+        c.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+        c.attrs["DecUnit"] = wcs_header["CUNIT2"]
+        c.attrs["DecProjType"] = wcs_header["CTYPE2"]
+        c.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+        c.attrs["V0_in_px"] = wcs_header["CRPIX3"] - 1
+        c.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+        c.attrs["VUnit"] = wcs_header["CUNIT3"]
+        c.attrs["VProjType"] = wcs_header["CTYPE3"]
+        c.attrs["SpecSys"] = wcs_header["SPECSYS"]
+        if self.beam is not None:
+            c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+            c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+            c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
+        c.attrs["DateCreated"] = str(Time.now())
+        c.attrs["MartiniVersion"] = martini_version
+        c.attrs["AstropyVersion"] = astropy_version
+        if self.beam is not None:
+            if self.beam.kernel is None:
+                raise ValueError(
+                    "Martini.write_hdf5: Called with beam present but beam kernel"
+                    " uninitialized."
+                )
+            beam_kernel_units = self.beam.kernel.unit
+            f["Beam"] = self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis]
+            b = f["Beam"]
+            b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
+            b.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+            b.attrs["RA0_in_px"] = self.beam.kernel.shape[0] // 2
+            b.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+            b.attrs["RAUnit"] = wcs_header["CUNIT1"]
+            b.attrs["RAProjType"] = wcs_header["CTYPE1"]
+            b.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+            b.attrs["Dec0_in_px"] = self.beam.kernel.shape[1] // 2
+            b.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+            b.attrs["DecUnit"] = wcs_header["CUNIT2"]
+            b.attrs["DecProjType"] = wcs_header["CTYPE2"]
+            b.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+            b.attrs["V0_in_px"] = 0
+            b.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+            b.attrs["VUnit"] = wcs_header["CUNIT3"]
+            b.attrs["VProjType"] = wcs_header["CTYPE3"]
+            b.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+            b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+            b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
+            b.attrs["DateCreated"] = str(Time.now())
+            b.attrs["MartiniVersion"] = martini_version
+            b.attrs["AstropyVersion"] = astropy_version
+
+        if memmap:
+            return f
+        else:
+            f.close()
+            return None
+
+
 class GlobalProfile(_BaseMartini):
     """
     Just produce a global spectrum of an HI source.
