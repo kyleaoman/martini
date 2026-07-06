@@ -389,17 +389,19 @@ class SPHSource(object):
         # The LoS depth is assumed equal to the width and height of the datacube at the
         # source distance. They must be equal.
         assert datacube.n_px_x == datacube.n_px_y
+        assert datacube.padx == datacube.pady
         # The *centre* of the first pixel is coordinate origin, trim one pixel from
         # interval (i.e. the half pixel from each side).
         distance_interval = (
             (datacube.n_px_x - 1) * datacube.px_size * self.distance
         ).to(distances.unit, U.dimensionless_angles())
-        self.los_pixcoords = origin + (
-            (distances - self.distance + distance_interval / 2)
+        self.los_pixcoords = (
+            origin
+            + datacube.padx
+            + (distances - self.distance + distance_interval / 2)
             * (datacube.n_px_x - 1)
             / distance_interval
-            * U.pix
-        )
+        ) * U.pix
 
     def apply_mask(self, mask: np.ndarray) -> None:
         """
