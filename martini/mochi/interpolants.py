@@ -1,24 +1,26 @@
-"""
-An interpolant function allows the evaluation of the fields for a given set of particles.
-"""
+"""Interpolant functions to render particle properties onto a grid."""
 
 from scipy.spatial import distance, KDTree
 from sklearn.neighbors import KDTree as lKDTree
-from astropy import units
+from astropy import units as U
 import numpy as np
 from functools import partial
+from typing import Callable
 
 
-def isIterable(obj):
+def is_iterable(obj: object) -> bool:
     """
-    Check if obj is iterable
+    Check if ``obj`` is iterable.
 
-    Parameters:
-    obj:
-            object to check if iterable
-    returns:
-            bool
-            True if obj is iterable, False otherwise
+    Parameters
+    ----------
+    obj : object
+        Object to check for iteration support.
+
+    Returns
+    -------
+    bool
+        ``True`` if ``obj`` is iterable, ``False`` otherwise.
     """
     try:
         iter(obj)
@@ -27,15 +29,23 @@ def isIterable(obj):
         return False
 
 
-def evalKernel(xEval, xParticle, h, kernel):
+def eval_kernel(
+    x_eval: U.Quantity[U.pix],
+    x_particle: U.Quantity[U.pix],
+    h: U.Quantity[U.pix],
+    kernel: Callable[
+        [U.Quantity[U.dimensionless_unscaled]],
+        np.ndarray,
+    ],
+) -> U.Quantity[U.pix**-3]:
     """
-    Helper function to evaluate kernel
+    Evaluate the kernel.
 
     Parameters
     ----------
-    xEval:
+    x_eval:
             positions at which to evaluate kernel
-    xParticle:
+    x_particle:
             positions of particles for which to evaluate kernel
     h:
             particle smoothing lengths
@@ -44,9 +54,11 @@ def evalKernel(xEval, xParticle, h, kernel):
 
     Returns
     -------
-            evaluation of kernel at xEval for particles at positions xParticle and smoothing lengths h
+    ~astropy.units.Quantity
+        Evaluated kernel at ``x_eval`` for particles at positions ``x_particle`` with
+        smoothing lengths ``h``. Has units of ``pixels**-3``.
     """
-    q = distance.cdist(xEval / h, xParticle / h)
+    q = distance.cdist(x_eval / h, x_particle / h)
     return kernel(q) / (h**3)
 
 
@@ -205,12 +217,12 @@ def particleScatter(
 ):
     kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution))
     maskOutOfBound = _getOutOfBoundParticles(X, H, fieldPos)
-    M *= units.dimensionless_unscaled
+    M *= U.dimensionless_unscaled
     N, nDim = X.shape
     if V.ndim != 1:
         V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
     nPos = len(fieldPos)
-    if not isIterable(dVolume):
+    if not is_iterable(dVolume):
         dVolume = np.ones(nPos) * dVolume
     slices, dist = lKDTree(fieldPos.value).query_radius(
         X.value, H.value, return_distance=True
@@ -293,7 +305,7 @@ def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
             interpolated thermal velocity dispersion
     """
 
-    M *= units.dimensionless_unscaled
+    M *= U.dimensionless_unscaled
     N, nDim = X.shape
     if V.ndim != 1:
         V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
@@ -385,12 +397,12 @@ def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
     final T : array atropy quantity
             interpolated thermal velocity dispersion
     """
-    M *= units.dimensionless_unscaled
+    M *= U.dimensionless_unscaled
     N, nDim = X.shape
     if V.ndim != 1:
         V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
     nPos = len(fieldPos)
-    if not isIterable(dVolume):
+    if not is_iterable(dVolume):
         dVolume = np.ones(nPos) * dVolume
     slices = KDTree(fieldPos).query_ball_point(X, H)
     fieldMHI = np.zeros(nPos) * MHI.unit / dVolume.unit
@@ -398,7 +410,7 @@ def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
     fieldV = np.zeros(nPos) * V.unit * M.unit / dVolume.unit
     fieldT = np.zeros(nPos) * V.unit**2 * M.unit / dVolume.unit
     for i in range(N):
-        particleKernel = evalKernel(
+        particleKernel = eval_kernel(
             fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i], kernel
         )[:, 0]
         fieldM[slices[i]] += particleKernel * M[i]
