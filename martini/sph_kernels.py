@@ -73,7 +73,7 @@ class _BaseSPHKernel(object):
     """
 
     __metaclass__ = ABCMeta
-    sm_lengths: U.Quantity[U.arcsec]
+    sm_lengths: U.Quantity[U.pix]
     sm_ranges: np.ndarray
     size_in_fwhm: float | list[float] | None
     _rescale: float | np.ndarray
