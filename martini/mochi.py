@@ -361,6 +361,18 @@ refine_grid_to_particle_scale = partial(
 
 
 class AdaptiveCellGrid:
+    """
+    Manage interpolating fields onto an adaptive grid to create a spectral cube.
+
+    Parameters
+    ----------
+    datacube : ~martini.datacube.DataCube
+        The target data cube object for the spectral cube.
+
+    initial_grid_size : int
+        The initial number of cells along each axis of the adaptive grid.
+    """
+
     initial_cells: np.ndarray
     adaptive_cells: np.ndarray
     pix_range: list[tuple[int]]
@@ -407,6 +419,20 @@ class AdaptiveCellGrid:
         sph_kernel: _BaseSPHKernel,
         min_radius: U.Quantity[U.pix] = 0.005 * U.pix,
     ) -> None:
+        """
+        Set up an array of particle locations in the pixel grid.
+
+        Parameters
+        ----------
+        source : ~martini.sources.sph_source.SPHSource
+            The source module containing the gas particles or cells.
+
+        sph_kernel : _BaseSPHKernel
+            The module specifying the SPH kernel.
+
+        min_radius : ~astropy.units.Quantity
+            Floor to apply to smoothing length values to avoid extremely deep refinement.
+        """
         self.positions = np.column_stack(
             (
                 source.los_pixcoords,
@@ -422,7 +448,20 @@ class AdaptiveCellGrid:
             [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix], float], np.ndarray
         ] = refine_grid_to_particle_scale,
         threshold: float = 0.5,
-    ):
+    ) -> None:
+        """
+        Walk the initial cell grid and refine where required to make an adaptive grid.
+
+        ??
+
+        Parameters
+        ----------
+        refine_algorithm : Callable
+            The method to decide and apply the refinement criterion.
+
+        threshold : float
+            ??
+        """
         self.adaptive_cells = refine_algorithm(
             self.initial_cells,
             self.positions.to_value(U.pix),
@@ -469,7 +508,22 @@ class AdaptiveCellGrid:
         sph_kernel: _BaseSPHKernel,
         interpolant: Callable = interpolants.SPH,  # fill in arg & return types
     ) -> None:
-        print()
+        """
+        Interpolate particle-carried fields onto the grid.
+
+        ??
+
+        Parameters
+        ----------
+        source : ~martini.sources.sph_source.SPHSource
+            The source module with the gas particle or cell properties for interpolation.
+
+        sph_kernel : _BaseSPHKernel
+            The module specifying the SPH kernel.
+
+        interpolant : Callable
+            ??
+        """
         self.field_velocity, self.field_mHI, self.field_temperature = interpolant(
             X=self.positions,
             H=self.radii,
@@ -517,7 +571,7 @@ class AdaptiveCellGrid:
         self,
         datacube: DataCube,
         radiative_transfer_model: Callable = radiative_transfer.adaptiveOpticallyThin,  # fill in arg & return types
-    ):
+    ) -> U.Quantity[U.Msun]:
         """
         "Collapse" the regular cell grid into a spectral cube.
 
@@ -528,6 +582,12 @@ class AdaptiveCellGrid:
         ----------
         radiative_transfer_model : Callable
             ??
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            The spectral cube with units of solar masses (i.e. HI contained in each pixel
+            and channel).
         """
         return (
             radiative_transfer_model(  # eventually store as state instead of returning
@@ -547,14 +607,7 @@ class Mochi(Martini):
     """
     Creates synthetic HI data cubes from simulation data.
 
-    Usual use of martini involves first creating instances of classes from each
-    of the required and optional sub-modules, then creating a
-    :class:`~martini.martini.Martini` with these instances as arguments. The object can
-    then be used to create synthetic observations, usually by calling
-    :meth:`~martini.martini.Martini.insert_source_in_cube`,
-    (optionally) :meth:`~martini.martini.Martini.add_noise`, (optionally)
-    :meth:`~martini.martini.Martini.convolve_beam` and
-    :meth:`~martini.martini.Martini.write_fits` in order.
+    ??
 
     Parameters
     ----------
@@ -609,102 +662,10 @@ class Mochi(Martini):
     martini.noise
     martini.sph_kernels
     martini.spectral_models
-    martini.martini.GlobalProfile
 
     Examples
     --------
-    More detailed examples can be found in the examples directory in the github
-    distribution of the package.
-
-    The following example illustrates basic use of MARTINI, using a (very!)
-    crude model of a gas disk. This example can be run by doing
-    'from martini import demo; demo()'::
-
-        # ------make a toy galaxy----------
-        N = 500
-        phi = np.random.rand(N) * 2 * np.pi
-        r = []
-        for L in np.random.rand(N):
-
-            def f(r):
-                return L - 0.5 * (2 - np.exp(-r) * (np.power(r, 2) + 2 * r + 2))
-
-        r.append(fsolve(f, 1.0)[0])
-        r = np.array(r)
-        # exponential disk
-        r *= 3 / np.sort(r)[N // 2]
-        z = -np.log(np.random.rand(N))
-        # exponential scale height
-        z *= 0.5 / np.sort(z)[N // 2] * np.sign(np.random.rand(N) - 0.5)
-        x = r * np.cos(phi)
-        y = r * np.sin(phi)
-        xyz_g = np.vstack((x, y, z)) * U.kpc
-        # linear rotation curve
-        vphi = 100 * r / 6.0
-        vx = -vphi * np.sin(phi)
-        vy = vphi * np.cos(phi)
-        # small pure random z velocities
-        vz = (np.random.rand(N) * 2.0 - 1.0) * 5
-        vxyz_g = np.vstack((vx, vy, vz)) * U.km * U.s**-1
-        T_g = np.ones(N) * 8e3 * U.K
-        mHI_g = np.ones(N) / N * 5.0e9 * U.Msun
-        # ~mean interparticle spacing smoothing
-        hsm_g = np.ones(N) * 4 / np.sqrt(N) * U.kpc
-        # ---------------------------------
-
-        source = SPHSource(
-            distance=3.0 * U.Mpc,
-            rotation={"L_coords": (60.0 * U.deg, 0.0 * U.deg)},
-            ra=0.0 * U.deg,
-            dec=0.0 * U.deg,
-            h=0.7,
-            T_g=T_g,
-            mHI_g=mHI_g,
-            xyz_g=xyz_g,
-            vxyz_g=vxyz_g,
-            hsm_g=hsm_g,
-        )
-
-        datacube = DataCube(
-            n_px_x=128,
-            n_px_y=128,
-            n_channels=32,
-            px_size=10.0 * U.arcsec,
-            channel_width=10.0 * U.km * U.s**-1,
-            spectral_centre=source.vsys,
-        )
-
-        beam = GaussianBeam(
-            bmaj=30.0 * U.arcsec, bmin=30.0 * U.arcsec, bpa=0.0 * U.deg, truncate=4.0
-        )
-
-        noise = GaussianNoise(rms=3.0e-5 * U.Jy * U.beam**-1)
-
-        spectral_model = GaussianSpectrum(sigma=7 * U.km * U.s**-1)
-
-        sph_kernel = CubicSplineKernel()
-
-        M = Martini(
-            source=source,
-            datacube=datacube,
-            beam=beam,
-            noise=noise,
-            spectral_model=spectral_model,
-            sph_kernel=sph_kernel,
-        )
-
-        M.insert_source_in_cube()
-        M.add_noise()
-        M.convolve_beam()
-        M.write_beam_fits(beamfile)
-        M.write_fits(cubefile)
-        print(f"Wrote demo fits output to {cubefile}, and beam image to {beamfile}.")
-        try:
-            M.write_hdf5(hdf5file)
-        except ModuleNotFoundError:
-            print("h5py package not present, skipping hdf5 output demo.")
-        else:
-            print(f"Wrote demo hdf5 output to {hdf5file}.")
+    ??
     """
 
     def __init__(
