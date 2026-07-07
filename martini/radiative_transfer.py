@@ -9,15 +9,16 @@ from astropy.units import dimensionless_unscaled
 
 
 def calculate_field_spectrum(
-    field_mass, field_velocity, field_temperature, cell_volume, channel_size, n_channels
+    field_mass, field_velocity, field_temperature, cell_volume, datacube
 ):
-    # replace spectrum_range with actual spectral bins from datacube
-    spectrum_range = channel_size * (np.arange(n_channels) - (n_channels - 1) / 2)
     field_temperature[field_mass == 0] = 1 * field_temperature.unit
     numerator = (
-        field_mass / np.sqrt(2 * np.pi * field_temperature) * channel_size * cell_volume
+        field_mass
+        / np.sqrt(2 * np.pi * field_temperature)
+        * datacube.channel_width
+        * cell_volume
     )
-    diff = field_velocity[None, ...] - spectrum_range[:, None]
+    diff = field_velocity[None, ...] - datacube.velocity_channel_mids[:, None]
     field_spectrum = numerator * np.exp(-(diff**2) / (2 * field_temperature[None, ...]))
     return field_spectrum
 
@@ -26,11 +27,9 @@ def opticallyThin(
     field_mHI,
     field_velocity,
     field_temperature,
-    channel_size,
+    datacube,
     volume_element,
     volume_shape,
-    *,
-    n_channels=None,
     **kwargs,
 ):
     """
@@ -55,9 +54,6 @@ def opticallyThin(
     -------
     mock cube
     """
-    spectrum_range = (
-        channel_size * (np.arange(n_channels) - (n_channels - 1) / 2)
-    ).reshape(n_channels, 1, 1, 1)
     field_mHI = field_mHI.reshape(volume_shape)
     field_temperature = field_temperature.reshape(volume_shape)
     field_velocity = field_velocity.reshape(volume_shape)
@@ -65,12 +61,17 @@ def opticallyThin(
     numerator = (
         field_mHI
         / np.sqrt(2 * np.pi * field_temperature)
-        * channel_size
+        * datacube.channel_width
         * volume_element
     )
-    cube = np.zeros((n_channels, volume_shape[1], volume_shape[2])) * numerator.unit
-    spectrum_range = channel_size * (np.arange(n_channels) - (n_channels - 1) / 2)
-    diff = field_velocity[None, ...] - spectrum_range[:, None, None, None]
+    cube = (
+        np.zeros((datacube.n_channels, volume_shape[1], volume_shape[2]))
+        * numerator.unit
+    )
+    # spectrum_range = channel_size * (np.arange(n_channels) - (n_channels - 1) / 2)
+    diff = (
+        field_velocity[None, ...] - datacube.velocity_channel_mids[:, None, None, None]
+    )
     gaussians = np.exp(-(diff**2) / (2 * field_temperature[None, ...]))
     cube = np.sum(numerator[None, ...] * gaussians, axis=1)  # sum over LOS axis
     cube = np.flip(np.moveaxis(cube, 1, 2), axis=2)
@@ -81,7 +82,7 @@ def adaptiveOpticallyThin(
     field_mHI,
     field_velocity,
     field_temperature,
-    channel_size,
+    datacube,
     cell_volume,
     volume_shape,
     cells=None,
@@ -89,7 +90,6 @@ def adaptiveOpticallyThin(
     *,
     index_type=np.uintc,
     default_renderer=opticallyThin,
-    n_channels=None,
     **kwargs,
 ):
     if cells is None:
@@ -102,28 +102,26 @@ def adaptiveOpticallyThin(
             field_mHI,
             field_velocity,
             field_temperature,
-            channel_size,
+            datacube,
             cell_volume,
             volume_shape,
             **kwargs,
         )
-    xyz0 = np.min(cells, axis=0)
-    dx = xyz0[-1]
+    x0 = np.min(cells["x"])
+    y0 = np.min(cells["y"])
+    z0 = np.min(cells["z"])
+    xyz_0 = np.array([x0, y0, z0])
+    xyz_cells = np.column_stack([cells[i] for i in "xyz"])
+    dx = np.min(cells["size"])
     element_volume = dx**3 * cell_unit**3
-    xyz0[-1] = 0
     N = len(cells)
     cell_range = np.arange(N, dtype=index_type)
-    cells_begin = np.round((cells[:, :-1] - xyz0[:-1]) / dx).astype(index_type)
+    cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(index_type)
     cells_end = np.round(
-        (cells[:, :-1] - xyz0[:-1] + cells[:, -1][:, np.newaxis]) / dx
+        (xyz_cells - xyz_0 + cells["size"][:, np.newaxis]) / dx
     ).astype(index_type)
     field_spectra = calculate_field_spectrum(
-        field_mHI,
-        field_velocity,
-        field_temperature,
-        element_volume,
-        channel_size,
-        n_channels,
+        field_mHI, field_velocity, field_temperature, element_volume, datacube
     )
     cube_unit = field_spectra.unit
     field_spectra *= cells_end[:, 0] - cells_begin[:, 0]

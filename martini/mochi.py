@@ -1,12 +1,11 @@
 """
 Create mock observations of HI sources from cosmological hydrodynamical simulations.
 
-Provides :class:`~martini.martini.Martini`, the main class of the package, and a
-simplified :class:`~martini.martini.GlobalProfile` class for use when only a spectrum (no
-spatial information) is desired.
+Provides :class:`~martini.martini.Mochi`, the main class of the package.
 """
 
 import numpy as np
+import cv2
 from astropy import units as U, constants as C
 from martini.martini import Martini
 from martini.datacube import DataCube
@@ -20,16 +19,85 @@ from functools import partial
 from . import interpolants, radiative_transfer
 
 
+CELL_DTYPE = [("x", float), ("y", float), ("z", float), ("size", float)]
+RF = np.sqrt(3) / 2
+
+
+def resize(cube: U.Quantity, target_shape: tuple[int]) -> U.Quantity:
+    """
+    Resize a data cube to the target shape.
+
+    Interpolation is handled with :func:`cv2.resize`.
+
+    Parameters
+    ----------
+    cube : ~astropy.units.Quantity
+        The cube to be resized.
+
+    target_shape : tuple
+        The desired shape as a 3-tuple.
+
+    Returns
+    -------
+    ~astropy.units.Quantity
+        The cube interpolated into the new desired shape using :func:`cv2.resize`.
+    """
+    if np.all(np.array(cube.shape[1:]) == np.array(target_shape)):
+        return cube
+    target_shape = tuple(target_shape)
+    unit = cube.unit
+    unitless_cube = cube.to_value(cube.unit)
+    result = np.zeros((cube.shape[0],) + target_shape)
+    for i in range(cube.shape[0]):
+        result[i] = cv2.resize(
+            unitless_cube[i].astype(float),
+            target_shape[::-1],
+            interpolation=cv2.INTER_AREA,
+        )
+    return result * np.prod(cube.shape[1:]) / np.prod(target_shape) * unit
+
+
 def _refine_grid_bisect(
-    size, x, y, z, mask, in_cell, new_cells, new_cells_over, new_cells_masks
-):
+    cell: np.ndarray,
+    mask: np.ndarray,
+    in_cell: np.ndarray,
+    new_cells: list[tuple[float]],
+    new_cells_over: list[bool],
+    new_cells_masks: list,
+) -> None:
     """
-    Bisect operation for refine grid algorithms
+    Bisect operation for grid refinement algorithms.
+
+    Parameters
+    ----------
+    cell : ~numpy.ndarray
+        Lower left coordinate and size of cell. Coordinate elements can be accessed as
+        ``cell["x"]``, etc., and size as ``cell["size"]``.
+
+    mask : ??
+        ??
+
+    in_cell : ~numpy.ndarray
+        Flag for each particle indicating whether it is in this cell.
+
+    new_cells : list
+        ??
+
+    new_cells_over : list
+        ??
+
+    new_cells_mask : list
+        ??
     """
-    new_size = size / 2.0
+    new_size = cell["size"] / 2.0
     new_cells.extend(
         [
-            (x + dx * new_size, y + dy * new_size, z + dz * new_size, new_size)
+            (
+                cell["x"] + dx * new_size,
+                cell["y"] + dy * new_size,
+                cell["z"] + dz * new_size,
+                new_size,
+            )
             for dx in range(2)
             for dy in range(2)
             for dz in range(2)
@@ -37,43 +105,60 @@ def _refine_grid_bisect(
     )
     new_cells_over.extend([False] * 8)
     new_cells_masks.extend([mask[in_cell]] * 8)
+    return
 
 
-def _pass_complete_cell(cells_lists, content_list):
+def _pass_complete_cell(cells_lists: list, content_list: list) -> None:
+    """
+    Append new cells to a cell list.
+
+    Parameters
+    ----------
+    cell_lists : list
+        ??
+
+    content_list : list
+        ??
+    """
     for i in range(len(cells_lists)):
         cells_lists[i].append(content_list[i])
 
 
 def refine_grid(
-    in_cell_function,
-    bisect_condition,
-    cells,
-    positions,
-    radii,
+    in_cell_function: Callable,  # fill in arg & return types
+    bisect_condition: Callable,  # fill in arg & return types
+    cells: np.ndarray,
+    positions: U.Quantity[U.pix],
+    radii: U.Quantity[U.pix],
     threshold: float,
     stop_iter: int = 8,
-):
+) -> np.ndarray:
     """
-    Starting from a coarse grid, refine until no cell satisfy bisectCondition.
+    Start from a coarse grid, refine until no cells satisfy ``bisect_condition``.
 
     Parameters
     ----------
-    incellFunction: function
-            delimits the particles to consider for the cell
-    bisectCondition: function
-            if returns true, the cell is bisected
-    cells: list
-            list of [x,y,z,h] where x,y,z is the 3D position of the low corner and h is the size of the cell
-    positions: array N x 3
-            array of particle positions
-    radii: array N
-            array of particle radii
+    in_cell_function: Callable
+        Delimits the particles to consider for the cell.
+    bisect_condition: Callable
+        If returns ``True``, the cell is bisected.
+    cells: ~numpy.ndarray
+        Contains entries with the 3D position of the lower corner (accessible as
+        ``cells["x"]``, etc.) and sizes (accessible as ``cells["size"]``) of the initial
+        cells.
+    positions: ~astropy.units.Quantity
+        Array of particle positions with units of pixels.
+    radii: ~astropy.units.Quantity
+        Array of particle smoothing lengths with units of pixels.
     threshold:
-            sensitivity threshold used by bisectCondition.
+        Sensitivity threshold used by ``bisect_condition``.
+
     Returns
     -------
-    newCells:
-            array of cells [x,y,z,h] where x,y,z is the 3D position of the low corner and h is the size of the cell
+    ~numpy.ndarray
+        Contains entries with the 3D position of the lower corner (accessible as
+        ``cells["x"]``, etc.) and sizes (accessible as ``cells["size"]``) of the refined
+        cell grid.
     """
     cells_number = len(cells)
     cells_over = np.zeros(cells_number, dtype=bool)
@@ -85,21 +170,20 @@ def refine_grid(
     iter = 0
     while iter < stop_iter:
         for n in range(cells_number):
-            x, y, z, size = cells[n]
+            cell = cells[n]
             if cells_over[n]:
                 _pass_complete_cell(
                     [new_cells, new_cells_over, new_cells_masks], [cells[n], True, True]
                 )
                 continue
             in_cell = in_cell_function(
-                cells_masks[n], positions, radii, [x, y, z], size, threshold
+                cells_masks[n], positions, radii, cell, threshold
             )
-            if bisect_condition(size, in_cell, threshold, radii[cells_masks[n]]):
+            if bisect_condition(
+                cell["size"], in_cell, threshold, radii[cells_masks[n]]
+            ):
                 _refine_grid_bisect(
-                    size,
-                    x,
-                    y,
-                    z,
+                    cell,
                     cells_masks[n],
                     in_cell,
                     new_cells,
@@ -110,7 +194,7 @@ def refine_grid(
                 _pass_complete_cell(
                     [new_cells, new_cells_over, new_cells_masks], [cells[n], True, True]
                 )
-        cells = new_cells
+        cells = np.array(new_cells, dtype=CELL_DTYPE)
 
         if len(cells) == cells_number or iter == stop_iter:
             break
@@ -121,19 +205,77 @@ def refine_grid(
         new_cells_over = []
         new_cells_masks = []
         iter += 1
-    return np.array(cells)
+    return cells
 
 
 def occupancy_in_cell(
-    mask, particles_pos, particles_radii, cell_pos, cell_size, threshold
-):
+    mask: np.ndarray,
+    particles_pos: U.Quantity[U.pix],
+    particles_radii: U.Quantity[U.pix],
+    cell: np.void,
+    threshold: float,  # is this needed by this or any other occupancy function?
+) -> np.ndarray:
+    """
+    Describe.
+
+    ??
+
+    Parameters
+    ----------
+    mask : ~numpy.ndarray
+        ??
+
+    particles_pos : ~astropy.units.Quantity
+        Particle locations in the cell grid with units of pixels.
+
+    particles_radii : ~astropy.units.Quantity
+        Particle sizes (i.e. smoothing ranges) in units of pixels.
+
+    cell : ~numpy.void
+        The cell to consider. Cells are encoded as the coordinates of the lower corner
+        (accessible as ``cell["x"]``, etc.) and the side length (``cell["size"]``).
+
+    threshold : float
+        ??
+    """
     return (
-        np.sum(np.abs(particles_pos[mask] - cell_pos - cell_size / 2), axis=1)
-        < cell_size * 2
+        np.sum(
+            np.abs(
+                particles_pos[mask]
+                - [cell["x"], cell["y"], cell["z"]]
+                - cell["size"] / 2
+            ),
+            axis=1,
+        )
+        < cell["size"] * 2
     )
 
 
-def is_not_single_occupancy(cell_size, in_cell, threshold, particles_radii):
+def is_not_single_occupancy(
+    cell_size: float,
+    in_cell: np.ndarray,
+    threshold: float,
+    particles_radii: U.Quantity[U.pix],
+) -> bool:
+    """
+    Describe.
+
+    ??
+
+    Parameters
+    ----------
+    cell_size : float
+        ??
+
+    in_cell : ~numpy.ndarray
+        ??
+
+    threshold : float
+        ??
+
+    particles_radii : ~astropy.units.Quantity
+        Particle sizes (i.e. smoothing ranges) in units of pixels.
+    """
     count = np.sum(in_cell)
     return count > threshold
 
@@ -143,22 +285,73 @@ refine_grid_to_occupancy = partial(
 )
 
 
-RF = np.sqrt(3) / 2
-
-
 def intersect_in_cell(
-    mask, particles_pos, particles_radii, cell_pos, cell_size, threshold
-):
+    mask: np.ndarray,
+    particles_pos: U.Quantity[U.pix],
+    particles_radii: U.Quantity[U.pix],
+    cell: np.void,
+    threshold: float,  # is this needed by this or any other occupancy function?
+) -> np.ndarray:
+    """
+    Describe.
+
+    ??
+
+    Parameters
+    ----------
+    mask : ~numpy.ndarray
+        ??
+
+    particles_pos : ~astropy.units.Quantity
+        Particle locations in the cell grid with units of pixels.
+
+    particles_radii : ~astropy.units.Quantity
+        Particle sizes (i.e. smoothing ranges) in units of pixels.
+
+    cell : ~numpy.void
+        The cell to consider. Cells are encoded as the coordinates of the lower corner
+        (accessible as ``cell["x"]``, etc.) and the side length (``cell["size"]``).
+
+    threshold : float
+        ??
+    """
     small_particle = (
-        particles_radii[mask] * threshold < cell_size
+        particles_radii[mask] * threshold < cell["size"]
     )  # No need to consider particles larger than cell
     return (
-        np.linalg.norm(particles_pos[mask] - cell_pos - cell_size / 2, axis=1)
-        < particles_radii[mask] + cell_size * RF
+        np.linalg.norm(
+            particles_pos[mask] - [cell["x"], cell["y"], cell["z"]] - cell["size"] / 2,
+            axis=1,
+        )
+        < particles_radii[mask] + cell["size"] * RF
     ) & small_particle
 
 
-def is_any_particle_included(cell_size, in_cell, threshold, particles_radii):
+def is_any_particle_included(
+    cell_size: float,
+    in_cell: np.ndarray,
+    threshold: float,
+    particles_radii: U.Quantity[U.pix],
+) -> bool:
+    """
+    Describe.
+
+    ??
+
+    Parameters
+    ----------
+    cell_size : float
+        ??
+
+    in_cell : ~numpy.ndarray
+        ??
+
+    threshold : float
+        ??
+
+    particles_radii : ~astropy.units.Quantity
+        Particle sizes (i.e. smoothing ranges) in units of pixels.
+    """
     return np.any(in_cell)
 
 
@@ -167,35 +360,187 @@ refine_grid_to_particle_scale = partial(
 )
 
 
-def get_cell_centres(cells: np.ndarray) -> np.ndarray:
-    return cells[:, :-1] + cells[:, -1][:, np.newaxis] / 2
+class AdaptiveCellGrid:
+    initial_cells: np.ndarray
+    adaptive_cells: np.ndarray
+    pix_range: list[tuple[int]]
+    positions: U.Quantity[U.pix]
+    radii: U.Quantity[U.pix]
+    field_velocity: U.Quantity[U.km / U.s]
+    field_mHI: U.Quantity[U.Msun]
+    field_temperature: U.Quantity[U.K]
+    final_cell_volume: U.Quantity[U.pix]
+    final_grid_shape: tuple[int]
 
+    def __init__(
+        self,
+        datacube: DataCube,
+        initial_grid_size: int = 2,
+    ) -> None:
+        assert datacube.n_px_x == datacube.n_px_y
+        assert datacube.padx == datacube.pady
+        # For now we are restricted to a cube (not cuboid) voxel grid. Means we're padding
+        # the z-direction, should amend this later.
+        self.pix_range = [(0, datacube.n_px_x + 2 * datacube.padx)] * 3
+        size = (
+            self.pix_range[0][1] - self.pix_range[0][0]
+        ) / initial_grid_size  # cubic!
+        self.initial_cells = np.array(
+            [
+                (x, y, z, size)
+                for x in np.linspace(
+                    *self.pix_range[0], initial_grid_size, endpoint=False
+                )
+                for y in np.linspace(
+                    *self.pix_range[1], initial_grid_size, endpoint=False
+                )
+                for z in np.linspace(
+                    *self.pix_range[2], initial_grid_size, endpoint=False
+                )
+            ],
+            dtype=CELL_DTYPE,
+        )
 
-def get_cell_volumes(cells: np.ndarray) -> np.ndarray:
-    # needs revision to be spherical
-    return cells[:, -1] ** 3
+    def init_particle_locations(
+        self,
+        source: SPHSource,
+        sph_kernel: _BaseSPHKernel,
+        min_radius: U.Quantity[U.pix] = 0.005 * U.pix,
+    ) -> None:
+        self.positions = np.column_stack(
+            (
+                source.los_pixcoords,
+                source.pixcoords[0],
+                source.pixcoords[1],
+            )
+        )
+        self.radii = np.clip(sph_kernel.sm_ranges, min_radius, np.inf)
 
+    def eval_grid_refinement(
+        self,
+        refine_algorithm: Callable[
+            [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix], float], np.ndarray
+        ] = refine_grid_to_particle_scale,
+        threshold: float = 0.5,
+    ):
+        self.adaptive_cells = refine_algorithm(
+            self.initial_cells,
+            self.positions.to_value(U.pix),
+            self.radii.to_value(U.pix),
+            threshold=threshold,
+        ).view(dtype=CELL_DTYPE)
+        self.init_cell_centres()
+        self.init_cell_volumes()
 
-def create_regular_array(cells, xyz_range, dtype=np.uintc):
-    """Converts an adaptive set of cells into a regular array"""
-    xyz0 = np.min(cells, axis=0)
-    dx = xyz0[-1]
-    xyz0[-1] = 0
-    grid_shape = [int((myRange[1] - myRange[0]) // dx) for myRange in xyz_range]
-    N = len(cells)
-    cell_range = np.arange(N, dtype=dtype)
-    grid = np.empty(
-        grid_shape, dtype=dtype
-    )  # np.empty(grid_shape, dtype=int) #grid = np.full(grid_shape, np.prod(grid_shape)+10, dtype = int) slower but good for testing
-    cellsBegin = np.round((cells[:, :-1] - xyz0[:-1]) / dx).astype(int)
-    cellsFinish = np.round(
-        (cells[:, :-1] - xyz0[:-1] + cells[:, -1][:, np.newaxis]) / dx
-    ).astype(int)
-    for i in cell_range:
-        x_start, y_start, z_start = cellsBegin[i]
-        x_end, y_end, z_end = cellsFinish[i]
-        grid[x_start:x_end, y_start:y_end, z_start:z_end] = i
-    return grid, dx**3
+    def init_cell_centres(self) -> None:
+        """
+        Initialize an array with the central coordinates of each cell.
+
+        The "raw" cell data is encoded as lower corners and sizes, calculate the centre
+        as offset 0.5x the size from the corner along each axis. The centres are stored
+        with units.
+        """
+        self.cell_centres = (
+            np.column_stack(
+                (
+                    self.adaptive_cells["x"],
+                    self.adaptive_cells["y"],
+                    self.adaptive_cells["z"],
+                )
+            )
+            + self.adaptive_cells["size"][:, np.newaxis] / 2
+        ) * U.pix
+        return
+
+    def init_cell_volumes(self) -> None:
+        """
+        Initialize an array with the volume of each cell.
+
+        The "raw" cell data is encoded as lower corners and sizes, calculate the volume
+        as the cube of the side length.
+        """
+        # needs revision to be spherical
+        self.cell_volumes = (self.adaptive_cells["size"] * U.pix) ** 3
+        return
+
+    def interpolate_fields(
+        self,
+        source: SPHSource,
+        sph_kernel: _BaseSPHKernel,
+        interpolant: Callable = interpolants.SPH,  # fill in arg & return types
+    ) -> None:
+        print()
+        self.field_velocity, self.field_mHI, self.field_temperature = interpolant(
+            X=self.positions,
+            H=self.radii,
+            fieldPos=self.cell_centres,
+            dVolume=self.cell_volumes,
+            kernel=sph_kernel.kernel,
+            V=source.skycoords.radial_velocity,
+            MHI=source.mHI_g,
+            T=source.T_g * C.k_B / C.m_p,  # approx thermal energy?
+            M=source.mHI_g / 0.7,  # mass goes here, crude approx for now (H fraction)
+        )
+
+    def create_regular_array(self, dtype: type = np.uintc) -> None:
+        """
+        Re-grid an adaptive cell grid onto a regular grid.
+
+        Parameters
+        ----------
+        dtype : type
+            Data type for the regular cell grid.
+        """
+        x0 = np.min(self.adaptive_cells["x"])
+        y0 = np.min(self.adaptive_cells["y"])
+        z0 = np.min(self.adaptive_cells["z"])
+        xyz_0 = np.array([x0, y0, z0])
+        xyz_cells = np.column_stack([self.adaptive_cells[i] for i in "xyz"])
+        dx = np.min(self.adaptive_cells["size"])
+        self.final_grid_shape = [
+            int((ax_range[1] - ax_range[0]) // dx) for ax_range in self.pix_range
+        ]
+        N = len(self.adaptive_cells)
+        cell_range = np.arange(N, dtype=dtype)
+        grid = np.empty(self.final_grid_shape, dtype=dtype)
+        cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(int)
+        cells_end = np.round(
+            (xyz_cells - xyz_0 + self.adaptive_cells["size"][:, np.newaxis]) / dx
+        ).astype(int)
+        for i in cell_range:
+            x_start, y_start, z_start = cells_begin[i]
+            x_end, y_end, z_end = cells_end[i]
+            grid[x_start:x_end, y_start:y_end, z_start:z_end] = i
+        self.final_cell_volume = dx**3 * self.cell_volumes.unit
+
+    def eval_radiative_transfer(
+        self,
+        datacube: DataCube,
+        radiative_transfer_model: Callable = radiative_transfer.adaptiveOpticallyThin,  # fill in arg & return types
+    ):
+        """
+        "Collapse" the regular cell grid into a spectral cube.
+
+        Integrates out the third spatial axis while simultaneously creating the spectral
+        axis.
+
+        Parameters
+        ----------
+        radiative_transfer_model : Callable
+            ??
+        """
+        return (
+            radiative_transfer_model(  # eventually store as state instead of returning
+                self.field_mHI,
+                self.field_velocity,
+                self.field_temperature,
+                datacube,
+                self.final_cell_volume,
+                self.final_grid_shape,
+                cells=self.adaptive_cells,
+                cell_unit=U.pix,
+            )
+        )
 
 
 class Mochi(Martini):
@@ -417,89 +762,51 @@ class Mochi(Martini):
         """
         self.source._init_los_pixcoords(self.datacube)
         self.sph_kernel._init_sm_ranges()
-        cube = self.make_adaptive_cube()
-        from radio_beam import Beam
-        from .post_processing import get_Jy_from_mass
+        adaptive_cell_grid = AdaptiveCellGrid(self.datacube)
+        adaptive_cell_grid.init_particle_locations(self.source, self.sph_kernel)
+        adaptive_cell_grid.eval_grid_refinement()
+        adaptive_cell_grid.interpolate_fields(self.source, self.sph_kernel)
+        adaptive_cell_grid.create_regular_array()
+        cube = adaptive_cell_grid.eval_radiative_transfer(self.datacube)
+        cube *= (
+            self.source.distance.to(U.Mpc) ** -2
+        )  # use distances of individual cells instead
+        cube /= self.datacube.channel_width.to(
+            U.km / U.s
+        )  # handle non-constant widths?
 
-        assert self.beam.bmaj == self.beam.bmin
-        jycube = np.moveaxis(
-            get_Jy_from_mass(
-                cube,
-                Beam(self.beam.bmaj),
-                self.datacube.px_size,
-                self.datacube.channel_width,
-                self.source.distance,
-            ),
+        def MHI_to_Jy_inplace(x: U.Quantity[U.Msun]) -> None:
+            """
+            Apply the HI mass to flux density conversion, with no memory overhead.
+
+            The conversion is:
+            M_HI/Msun = 2.36x10^5 * (D/Mpc)^2 * (S_21/Jy km s^-1)
+
+            Parameters
+            ----------
+            x : ~astropy.units.Quantity
+                :class:`~astropy.units.Quantity`, with dimensions of
+                mass / length^2 / velocity.
+            """
+            # duplicated from spectral_models.py, refactor to have one def
+            input_units = U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1
+            np.divide(x, 2.36e5, out=x)
+            x *= U.Jy / input_units
+            return
+
+        MHI_to_Jy_inplace(cube)
+        cube /= U.pix**2
+        target_shape = (
+            self.datacube.n_px_x + 2 * self.datacube.padx,
+            self.datacube.n_px_y + 2 * self.datacube.pady,
+        )
+        cube = resize(cube, target_shape)
+        cube = np.flip(cube, 2)
+        cube = np.moveaxis(
+            cube,
             (0, 1, 2),
-            (2, 0, 1),
+            (2, 1, 0),
         )
-        self.datacube._array += jycube
+        insertion_slice = np.s_[..., 0] if self.datacube.stokes_axis else np.s_[...]
+        self.datacube._array[insertion_slice] += cube
         return
-
-    def make_adaptive_cube(
-        self,
-        interpolant=interpolants.SPH,
-        radiative_transfer_model=radiative_transfer.adaptiveOpticallyThin,
-        initial_grid_size: int = 2,
-        min_radius: U.Quantity[U.pix] = 0.005 * U.pix,
-        threshold: float = 0.5,
-        refine_algorithm: Callable[
-            [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix], float], np.ndarray
-        ] = refine_grid_to_particle_scale,
-    ):
-        assert self.datacube.n_px_x == self.datacube.n_px_y
-        # For now we are restricted to a cube (not cuboid) voxel grid. Means we're padding
-        # the z-direction, should amend this later.
-        # Hard code a starting grid just to get going:
-        initial_grid_size = 2
-        min_radius = 0.005 * U.pix
-        threshold = 0.5
-        pix_range = [(0, self.datacube.n_px_x + 2 * self.datacube.padx)] * 3
-        initial_cells = np.column_stack(
-            [
-                np.linspace(*start_end, initial_grid_size, endpoint=False)
-                for start_end in pix_range
-            ]
-            + [np.ones(initial_grid_size) * self.datacube.n_px_x / initial_grid_size],
-        )
-        positions = np.column_stack(
-            (
-                self.source.los_pixcoords,
-                self.source.pixcoords[0],
-                self.source.pixcoords[1],
-            )
-        )
-        radii = np.clip(self.sph_kernel.sm_ranges, min_radius, np.inf)
-        final_cells = refine_algorithm(
-            initial_cells, positions.to_value(U.pix), radii.to_value(U.pix), threshold
-        )
-        cell_centres = get_cell_centres(final_cells) * U.pix
-        cell_volumes = get_cell_volumes(final_cells) * U.pix
-        field_velocity, field_mHI, field_temperature = interpolant(
-            positions,
-            self.source.skycoords.radial_velocity,
-            radii,
-            self.source.mHI_g,
-            self.source.T_g * C.k_B / self.source.mHI_g,  # approx thermal energy
-            self.source.mHI_g,  # mass goes here, approx for now
-            self.sph_kernel.kernel,
-            cell_centres,
-            cell_volumes,
-        )
-        cube_field_indices, final_cell_volume = create_regular_array(
-            final_cells, pix_range
-        )
-        final_cell_volume *= cell_volumes.unit
-        cube_shape = cube_field_indices.shape
-        cube_field_indices = cube_field_indices.flatten()
-        return radiative_transfer_model(
-            field_mHI,
-            field_velocity,
-            field_temperature,
-            self.datacube.channel_width,
-            final_cell_volume,
-            cube_shape,
-            cells=final_cells,
-            cell_unit=U.pix,
-            n_channels=self.datacube.n_channels,
-        )
