@@ -73,10 +73,10 @@ def optically_thin(
     field_mHI : ~astropy.units.Quantity
         HI masses interpolated onto the grid, with dimensions of mass.
 
-    field_velocity:
+    field_velocity : ~astropy.units.Quantity
         Line of sight velocities interpolated onto the grid, with dimensions of speed.
 
-    field_temperature:
+    field_temperature : ~astropy.units.Quantity
         Temperatures (thermal velocity dispersions) interpolated onto the grid, with
         dimensions of speed squared.
 
@@ -134,24 +134,24 @@ def adaptive_optically_thin(
     """
     Assemble fields into an HI cube using optically thin approximation.
 
-    ??
+    ??.
 
     Parameters
     ----------
     field_mHI : ~astropy.units.Quantity
         HI masses interpolated onto the grid, with dimensions of mass.
 
-    field_velocity:
+    field_velocity : ~astropy.units.Quantity
         Line of sight velocities interpolated onto the grid, with dimensions of speed.
 
-    field_temperature:
+    field_temperature : ~astropy.units.Quantity
         Temperatures (thermal velocity dispersions) interpolated onto the grid, with
         dimensions of speed squared.
 
     datacube : ~martini.datacube.DataCube
         Target datacube object, used to retrieve spectral channels.
 
-    volume_element : ~astropy.units.Quantity
+    cell_volume : ~astropy.units.Quantity
         Volume elements.
 
     volume_shape : tuple

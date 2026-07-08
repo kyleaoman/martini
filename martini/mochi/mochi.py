@@ -75,19 +75,19 @@ def _refine_grid_bisect(
         ``cell["x"]``, etc., and size as ``cell["size"]``.
 
     mask : bool or np.ndarray
-        ??
+        ??.
 
     in_cell : ~numpy.ndarray
         Flag for each particle indicating whether it is in this cell.
 
     new_cells : list
-        ??
+        ??.
 
     new_cells_over : list
-        ??
+        ??.
 
-    new_cells_mask : list
-        ??
+    new_cells_masks : list
+        ??.
     """
     new_size = cell["size"] / 2.0
     new_cells.extend(
@@ -116,11 +116,11 @@ def _pass_complete_cell(cells_lists: list, content_list: list) -> None:
 
     Parameters
     ----------
-    cell_lists : list
-        ??
+    cells_lists : list
+        ??.
 
     content_list : list
-        ??
+        ??.
     """
     for i in range(len(cells_lists)):
         cells_lists[i].append(content_list[i])
@@ -140,20 +140,28 @@ def refine_grid(
 
     Parameters
     ----------
-    in_cell_function: Callable
+    in_cell_function : Callable
         Delimits the particles to consider for the cell.
-    bisect_condition: Callable
+
+    bisect_condition : Callable
         If returns ``True``, the cell is bisected.
-    cells: ~numpy.ndarray
+
+    cells : ~numpy.ndarray
         Contains entries with the 3D position of the lower corner (accessible as
         ``cells["x"]``, etc.) and sizes (accessible as ``cells["size"]``) of the initial
         cells.
-    positions: ~astropy.units.Quantity
+
+    positions : ~astropy.units.Quantity
         Array of particle positions with units of pixels.
-    radii: ~astropy.units.Quantity
+
+    radii : ~astropy.units.Quantity
         Array of particle smoothing lengths with units of pixels.
-    threshold:
+
+    threshold : float
         Sensitivity threshold used by ``bisect_condition``.
+
+    stop_iter : int
+        Maximum recursive splitting depth.
 
     Returns
     -------
@@ -220,12 +228,12 @@ def occupancy_in_cell(
     """
     Describe.
 
-    ??
+    ??.
 
     Parameters
     ----------
     mask : ~numpy.ndarray
-        ??
+        ??.
 
     particles_pos : ~astropy.units.Quantity
         Particle locations in the cell grid with units of pixels.
@@ -238,7 +246,7 @@ def occupancy_in_cell(
         (accessible as ``cell["x"]``, etc.) and the side length (``cell["size"]``).
 
     threshold : float
-        ??
+        ??.
     """
     return (
         np.sum(
@@ -262,18 +270,18 @@ def is_not_single_occupancy(
     """
     Describe.
 
-    ??
+    ??.
 
     Parameters
     ----------
     cell_size : float
-        ??
+        ??.
 
     in_cell : ~numpy.ndarray
-        ??
+        ??.
 
     threshold : float
-        ??
+        ??.
 
     particles_radii : ~astropy.units.Quantity
         Particle sizes (i.e. smoothing ranges) in units of pixels.
@@ -297,12 +305,12 @@ def intersect_in_cell(
     """
     Describe.
 
-    ??
+    ??.
 
     Parameters
     ----------
     mask : ~numpy.ndarray
-        ??
+        ??.
 
     particles_pos : ~astropy.units.Quantity
         Particle locations in the cell grid with units of pixels.
@@ -315,7 +323,7 @@ def intersect_in_cell(
         (accessible as ``cell["x"]``, etc.) and the side length (``cell["size"]``).
 
     threshold : float
-        ??
+        ??.
     """
     small_particle = (
         particles_radii[mask] * threshold < cell["size"]
@@ -338,18 +346,18 @@ def is_any_particle_included(
     """
     Describe.
 
-    ??
+    ??.
 
     Parameters
     ----------
     cell_size : float
-        ??
+        ??.
 
     in_cell : ~numpy.ndarray
-        ??
+        ??.
 
     threshold : float
-        ??
+        ??.
 
     particles_radii : ~astropy.units.Quantity
         Particle sizes (i.e. smoothing ranges) in units of pixels.
@@ -454,7 +462,7 @@ class AdaptiveCellGrid:
         """
         Walk the initial cell grid and refine where required to make an adaptive grid.
 
-        ??
+        ??.
 
         Parameters
         ----------
@@ -462,7 +470,7 @@ class AdaptiveCellGrid:
             The method to decide and apply the refinement criterion.
 
         threshold : float
-            ??
+            ??.
         """
         self.adaptive_cells = refine_algorithm(
             self.initial_cells,
@@ -513,7 +521,7 @@ class AdaptiveCellGrid:
         """
         Interpolate particle-carried fields onto the grid.
 
-        ??
+        ??.
 
         Parameters
         ----------
@@ -524,7 +532,10 @@ class AdaptiveCellGrid:
             The module specifying the SPH kernel.
 
         interpolant : Callable
-            ??
+            Function that interpolates the gas particle (or gas cell) properties onto the
+            grid. E.g. :func:`~martini.mochi.interpolants.sph` or
+            :func:`~martini.mochi.interpolants.mfm` found in the
+            :mod:`~martini.mochi.interpolants` module.
         """
         if source.skycoords is None:
             raise RuntimeError(
@@ -588,8 +599,13 @@ class AdaptiveCellGrid:
 
         Parameters
         ----------
+        datacube : ~martini.datacube.DataCube
+            Target data cube object, used to determine target shape and spectral binning.
+
         radiative_transfer_model : Callable
-            ??
+            Function that evaluates a mock spectral cube (of mass in each pixel-channel
+            cell). E.g. :func:`~martini.mochi.radiative_transfer.adaptive_optically_thin`,
+            can be found in the :mod:`~martini.mochi.radiative_transfer` module.
 
         Returns
         -------

@@ -82,7 +82,7 @@ def sph_loop(
     """
     Use SPH formalism to scatter particles onto the grid.
 
-    ??
+    ??.
 
     Parameters
     ----------
@@ -112,29 +112,29 @@ def sph_loop(
         units. Should have the same implicit units as the ``dist`` argument.
 
     slices : ~numpy.ndarray
-        ??
+        ??.
 
     cell_volumes : ~numpy.ndarray
-        ??
+        ??.
 
     kernel_cache : ~numpy.ndarray
         Kernel amplitude pre-computed on a discrete grid for fast lookup.
 
     n_pos : int
-        ??
+        ??.
 
     velocity_unit : ~astropy.units.Unit
         Units for arguments with dimensions of velocity (or temperature as velocity
         squared).
 
-    mass_unit: ~astropy.units.Unit
+    mass_unit : ~astropy.units.Unit
         Units for arguments with dimensions of mass.
 
-    volume_unit: ~astropy.units.Unit
+    volume_unit : ~astropy.units.Unit
         Units for arguments with dimensions of volume.
 
-    mask_out_of_bound: ~astropy.units.Unit
-        ??
+    mask_out_of_bound : ~astropy.units.Unit
+        ??.
 
     Returns
     -------
@@ -202,7 +202,7 @@ def mfm_loop(
     """
     Use MFM formalism to scatter particles onto the grid.
 
-    ??
+    ??.
 
     Parameters
     ----------
@@ -232,29 +232,32 @@ def mfm_loop(
         units. Should have the same implicit units as the ``dist`` argument.
 
     slices : ~numpy.ndarray
-        ??
+        ??.
 
     cell_volumes : ~numpy.ndarray
-        ??
+        ??.
 
     kernel_cache : ~numpy.ndarray
         Kernel amplitude pre-computed on a discrete grid for fast lookup.
 
     n_pos : int
-        ??
+        ??.
+
+    n_part : int
+        ??.
 
     velocity_unit : ~astropy.units.Unit
         Units for arguments with dimensions of velocity (or temperature as velocity
         squared).
 
-    mass_unit: ~astropy.units.Unit
+    mass_unit : ~astropy.units.Unit
         Units for arguments with dimensions of mass.
 
-    volume_unit: ~astropy.units.Unit
+    volume_unit : ~astropy.units.Unit
         Units for arguments with dimensions of volume.
 
-    mask_out_of_bound: ~astropy.units.Unit
-        ??
+    mask_out_of_bound : ~astropy.units.Unit
+        ??.
 
     Returns
     -------
@@ -388,10 +391,13 @@ def particle_scatter(
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
 
-    ??
+    ??.
 
     Parameters
     ----------
+    main_loop : Callable
+        The function handling the scatter operation, e.g. ``sph_loop`` or ``mfm_loop``.
+
     positions : ~astropy.units.Quantity
         Particle positions with units of pixels.
 
@@ -495,13 +501,13 @@ def _eval_voronoi_field(
         The index of the Voronoi cell enclosing each grid cell.
 
     missed_particle_cell_indices : ~numpy.ndarray or int
-        ??
+        ??.
 
     missed_particle_mask : ~numpy.ndarray
-        ??
+        ??.
 
     field_n_particle : ~numpy.ndarray
-        ??
+        ??.
 
     Returns
     -------
@@ -533,7 +539,7 @@ def voronoi_mesh(
 
     Assumes that ``field_positions`` creates a box.
 
-    ??
+    ??.
 
     Parameters
     ----------
