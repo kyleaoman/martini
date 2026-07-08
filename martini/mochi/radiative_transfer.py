@@ -60,7 +60,7 @@ def optically_thin(
     field_temperature: U.Quantity[U.km**2 / U.s**2],
     datacube: DataCube,
     volume_element: U.Quantity[U.pix**-3],
-    volume_shape: tuple[int],
+    volume_shape: tuple[int, int, int],
     **kwargs,
 ) -> U.Quantity[U.Msun]:
     """
@@ -123,7 +123,7 @@ def adaptive_optically_thin(
     field_temperature: U.Quantity[U.km**2 / U.s**2],
     datacube: DataCube,
     cell_volume: U.Quantity[U.pix**3],
-    volume_shape: tuple[int],
+    volume_shape: tuple[int, int, int],
     cells: np.ndarray | None = None,
     cell_unit: U.Unit = U.dimensionless_unscaled,
     *,
@@ -199,7 +199,7 @@ def adaptive_optically_thin(
     dx = np.min(cells["size"])
     element_volume = dx**3 * cell_unit**3
     N = len(cells)
-    cell_range = np.arange(N, dtype=index_type)
+    cell_range: np.ndarray = np.arange(N, dtype=index_type)
     cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(index_type)
     cells_end = np.round(
         (xyz_cells - xyz_0 + cells["size"][:, np.newaxis]) / dx

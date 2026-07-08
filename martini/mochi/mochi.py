@@ -23,7 +23,7 @@ CELL_DTYPE = [("x", float), ("y", float), ("z", float), ("size", float)]
 RF = np.sqrt(3) / 2
 
 
-def resize(cube: U.Quantity, target_shape: tuple[int]) -> U.Quantity:
+def resize(cube: U.Quantity, target_shape: tuple[int, int]) -> U.Quantity:
     """
     Resize a data cube to the target shape.
 
@@ -44,7 +44,7 @@ def resize(cube: U.Quantity, target_shape: tuple[int]) -> U.Quantity:
     """
     if np.all(np.array(cube.shape[1:]) == np.array(target_shape)):
         return cube
-    target_shape = tuple(target_shape)
+
     unit = cube.unit
     unitless_cube = cube.to_value(cube.unit)
     result = np.zeros((cube.shape[0],) + target_shape)
@@ -59,9 +59,9 @@ def resize(cube: U.Quantity, target_shape: tuple[int]) -> U.Quantity:
 
 def _refine_grid_bisect(
     cell: np.ndarray,
-    mask: np.ndarray,
+    mask: bool | np.ndarray,
     in_cell: np.ndarray,
-    new_cells: list[tuple[float]],
+    new_cells: list[tuple[float, float, float, float]],
     new_cells_over: list[bool],
     new_cells_masks: list,
 ) -> None:
@@ -74,7 +74,7 @@ def _refine_grid_bisect(
         Lower left coordinate and size of cell. Coordinate elements can be accessed as
         ``cell["x"]``, etc., and size as ``cell["size"]``.
 
-    mask : ??
+    mask : bool or np.ndarray
         ??
 
     in_cell : ~numpy.ndarray
@@ -93,10 +93,10 @@ def _refine_grid_bisect(
     new_cells.extend(
         [
             (
-                cell["x"] + dx * new_size,
-                cell["y"] + dy * new_size,
-                cell["z"] + dz * new_size,
-                new_size,
+                float(cell["x"] + dx * new_size),
+                float(cell["y"] + dy * new_size),
+                float(cell["z"] + dz * new_size),
+                float(new_size),
             )
             for dx in range(2)
             for dy in range(2)
@@ -104,6 +104,8 @@ def _refine_grid_bisect(
         ]
     )
     new_cells_over.extend([False] * 8)
+    if isinstance(mask, bool):
+        raise ValueError("Expected a mask array, got a boolean.")
     new_cells_masks.extend([mask[in_cell]] * 8)
     return
 
@@ -161,11 +163,11 @@ def refine_grid(
         cell grid.
     """
     cells_number = len(cells)
-    cells_over = np.zeros(cells_number, dtype=bool)
-    cells_masks = [np.arange(len(radii))] * cells_number
-    new_cells = []
-    new_cells_over = []
-    new_cells_masks = []
+    cells_over = [False] * cells_number
+    cells_masks: list[bool | np.ndarray] = [np.arange(len(radii))] * cells_number
+    new_cells: list[tuple[float, float, float, float]] = []
+    new_cells_over: list[bool] = []
+    new_cells_masks: list[bool | np.ndarray] = []
 
     iter = 0
     while iter < stop_iter:
@@ -332,7 +334,7 @@ def is_any_particle_included(
     in_cell: np.ndarray,
     threshold: float,
     particles_radii: U.Quantity[U.pix],
-) -> bool:
+) -> np.bool:
     """
     Describe.
 
@@ -375,14 +377,14 @@ class AdaptiveCellGrid:
 
     initial_cells: np.ndarray
     adaptive_cells: np.ndarray
-    pix_range: list[tuple[int]]
+    pix_range: list[tuple[int, int]]
     positions: U.Quantity[U.pix]
     radii: U.Quantity[U.pix]
     field_velocity: U.Quantity[U.km / U.s]
     field_mHI: U.Quantity[U.Msun]
     field_temperature: U.Quantity[U.K]
     final_cell_volume: U.Quantity[U.pix]
-    final_grid_shape: tuple[int]
+    final_grid_shape: list[int]
 
     def __init__(
         self,
@@ -466,7 +468,7 @@ class AdaptiveCellGrid:
             self.initial_cells,
             self.positions.to_value(U.pix),
             self.radii.to_value(U.pix),
-            threshold=threshold,
+            threshold,
         ).view(dtype=CELL_DTYPE)
         self.init_cell_centres()
         self.init_cell_volumes()
@@ -524,6 +526,10 @@ class AdaptiveCellGrid:
         interpolant : Callable
             ??
         """
+        if source.skycoords is None:
+            raise RuntimeError(
+                "Initialize source skycoords before interpolating fields."
+            )
         self.field_velocity, self.field_mHI, self.field_temperature = interpolant(
             positions=self.positions,
             smoothing_lengths=self.radii,
@@ -556,8 +562,8 @@ class AdaptiveCellGrid:
             int((ax_range[1] - ax_range[0]) // dx) for ax_range in self.pix_range
         ]
         N = len(self.adaptive_cells)
-        cell_range = np.arange(N, dtype=dtype)
-        grid = np.empty(self.final_grid_shape, dtype=dtype)
+        cell_range: np.ndarray = np.arange(N, dtype=dtype)
+        grid: np.ndarray = np.empty(self.final_grid_shape, dtype=dtype)
         cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(int)
         cells_end = np.round(
             (xyz_cells - xyz_0 + self.adaptive_cells["size"][:, np.newaxis]) / dx

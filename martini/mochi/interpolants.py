@@ -6,27 +6,7 @@ from astropy import units as U
 import numpy as np
 from functools import partial
 from typing import Callable
-
-
-def is_iterable(obj: object) -> bool:
-    """
-    Check if ``obj`` is iterable.
-
-    Parameters
-    ----------
-    obj : object
-        Object to check for iteration support.
-
-    Returns
-    -------
-    bool
-        ``True`` if ``obj`` is iterable, ``False`` otherwise.
-    """
-    try:
-        iter(obj)
-        return True
-    except TypeError:
-        return False
+from collections.abc import Iterable
 
 
 def eval_kernel(
@@ -98,7 +78,7 @@ def sph_loop(
     mass_unit: U.Unit,
     volume_unit: U.Unit,
     mask_out_of_bound: bool,
-) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
     """
     Use SPH formalism to scatter particles onto the grid.
 
@@ -179,6 +159,8 @@ def sph_loop(
         particleKernel = (
             _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
         )
+        if isinstance(mask_out_of_bound, bool):
+            raise ValueError("Expected an array of booleans, got a boolean instead.")
         if not mask_out_of_bound[i]:
             # Since the particle is not out bound, we know the kernel should sum to 1.
             # The kernel not summing to 1 is due to resolution effects.
@@ -216,7 +198,7 @@ def mfm_loop(
     mass_unit: U.Unit,
     volume_unit: U.Unit,
     mask_out_of_bound: bool,
-) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
     """
     Use MFM formalism to scatter particles onto the grid.
 
@@ -314,6 +296,8 @@ def mfm_loop(
         volume = np.sum(
             particle_kernel * (cell_volumes[slices[i]] / total_kernel[slices[i]])
         )
+        if isinstance(mask_out_of_bound, bool):
+            raise ValueError("Expected an array of booleans, got a boolean instead.")
         if mask_out_of_bound[i]:
             volume *= (
                 np.pi
@@ -400,7 +384,7 @@ def particle_scatter(
     d_volume: U.Quantity[U.pix],
     *,
     kernel_cache_resolution: int = 256,
-) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
 
@@ -459,7 +443,7 @@ def particle_scatter(
         # more than one dimension of velocity is given, use radial velocity
         velocities = velocities[:, 0]
     n_pos = len(field_positions)
-    if not is_iterable(d_volume):
+    if not isinstance(d_volume, Iterable):
         d_volume = np.ones(n_pos) * d_volume
     slices, dist = lKDTree(field_positions.value).query_radius(
         positions.value, smoothing_lengths.value, return_distance=True
@@ -490,11 +474,40 @@ mfm = partial(particle_scatter, mfm_loop)
 
 def _eval_voronoi_field(
     particle_quantities: U.Quantity,
-    nearest_particle_indices: np.ndarray,
-    missed_particle_cell_indices: np.ndarray,
+    nearest_particle_indices: np.ndarray | np.int32 | np.int64,
+    missed_particle_cell_indices: np.ndarray | np.int32 | np.int64,
     missed_particle_mask: np.ndarray,
     field_n_particle: np.ndarray,
 ) -> U.Quantity:
+    """
+    Evaluate the field at grid points from the particles nearest to them.
+
+    This is a Voronoi tesselation-based interpolation. The arguments use "particle" but
+    these refer to Voronoi cells, this is to avoid ambiguity with the grid cells that are
+    being interpolated onto.
+
+    Parameters
+    ----------
+    particle_quantities : ~astropy.units.Quantity
+        The values of the field as carried by the Voronoi cells.
+
+    nearest_particle_indices : ~numpy.ndarray or int
+        The index of the Voronoi cell enclosing each grid cell.
+
+    missed_particle_cell_indices : ~numpy.ndarray or int
+        ??
+
+    missed_particle_mask : ~numpy.ndarray
+        ??
+
+    field_n_particle : ~numpy.ndarray
+        ??
+
+    Returns
+    -------
+    ~astropy.units.Quantity
+        Field interpolated onto the cell grid.
+    """
     field_quantity = particle_quantities[nearest_particle_indices]
     field_quantity[missed_particle_cell_indices] += particle_quantities[
         missed_particle_mask
@@ -514,7 +527,7 @@ def voronoi_mesh(
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix],
     **kwargs: int,
-) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
     """
     Compute the interpolated fields using a Voronoi mesh.
 
@@ -632,7 +645,7 @@ def manual_sph(
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix],
     **kwargs: int,
-) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
     """
     Compute the interpolated fields using SPH interpolation.
 
@@ -689,7 +702,7 @@ def manual_sph(
         # more than one dimension of velocity is given, use radial velocity
         velocities = velocities[:, 0]
     n_pos = len(field_positions)
-    if not is_iterable(d_volume):
+    if not isinstance(d_volume, Iterable):
         d_volume = np.ones(n_pos) * d_volume
     slices = KDTree(field_positions).query_ball_point(positions, smoothing_lengths)
     field_masses_HI = np.zeros(n_pos) * masses_HI.unit / d_volume.unit
