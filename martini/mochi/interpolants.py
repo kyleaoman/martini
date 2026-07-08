@@ -83,7 +83,7 @@ def _eval_cache_kernel(q: float, kernel_cache: np.ndarray) -> float:
     return kernel_cache[(np.clip(q, 0, 1) * kernel_cache_resolution).astype(np.uint8)]
 
 
-def sphLoop(
+def sph_loop(
     masses: np.ndarray,
     masses_HI: np.ndarray,
     momenta: np.ndarray,
@@ -119,8 +119,9 @@ def sphLoop(
         specified with the ``mass_unit`` and ``velocity_unit`` argument.
 
     temperatures : ~numpy.ndarray
-        Particle temperatures as an array with implicit units, the units are specified
-        with the ``velocity_unit`` argument (temperature is ``velocity_unit**2``).
+        Particle temperatures (thermal velocity dispersions) as an array with implicit
+        units, the units are specified with the ``velocity_unit`` argument (temperature is
+        ``velocity_unit**2``).
 
     smoothing_lengths : ~numpy.ndarray
         Particle smoothing lengths as an array with implicit units. Should have the same
@@ -164,7 +165,7 @@ def sphLoop(
         The HI mass field evaluated on the cell grid.
 
     U.Quantity[U.km**2 / U.s**2])
-        The temperature field evaluated on the cell grid.
+        The temperature (thermal velocity dispersion) field evaluated on the cell grid.
     """
     field_masses_HI = np.zeros(n_pos)
     field_masses = np.zeros(n_pos)
@@ -199,7 +200,7 @@ def sphLoop(
     return final_velocities, final_masses_HI, final_temperatures
 
 
-def mfmLoop(
+def mfm_loop(
     masses: np.ndarray,
     masses_HI: np.ndarray,
     momenta: np.ndarray,
@@ -236,8 +237,9 @@ def mfmLoop(
         specified with the ``mass_unit`` and ``velocity_unit`` arguments.
 
     temperatures : ~numpy.ndarray
-        Particle temperatures as an array with implicit units, the units are specified
-        with the ``velocity_unit`` argument (temperature is ``velocity_unit**2``).
+        Particle temperatures (thermal velocity dispersions) as an array with implicit
+        units, the units are specified with the ``velocity_unit`` argument (temperature is
+        ``velocity_unit**2``).
 
     smoothing_lengths : ~numpy.ndarray
         Particle smoothing lengths as an array with implicit units. Should have the same
@@ -281,7 +283,7 @@ def mfmLoop(
         The HI mass field evaluated on the cell grid.
 
     U.Quantity[U.km**2 / U.s**2])
-        The temperature field evaluated on the cell grid.
+        The temperature (thermal velocity dispersion) field evaluated on the cell grid.
     """
     field_masses_HI = np.zeros(n_pos)
     field_masses = np.zeros(n_pos)
@@ -385,7 +387,7 @@ def _getOutOfBoundParticles(
     return mask_out_of_bound
 
 
-def particleScatter(
+def particle_scatter(
     main_loop: Callable,  # fill in arg & return types
     positions: U.Quantity[U.pix],
     velocities: U.Quantity[U.km / U.s],
@@ -398,7 +400,6 @@ def particleScatter(
     d_volume: U.Quantity[U.pix],
     *,
     kernel_cache_resolution: int = 256,
-    **kwargs,
 ) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
@@ -407,7 +408,36 @@ def particleScatter(
 
     Parameters
     ----------
-    ??
+    positions : ~astropy.units.Quantity
+        Particle positions with units of pixels.
+
+    velocities : ~astropy.units.Quantity
+        Particle radial velocities with dimensions of speed.
+
+    smoothing_lengths : ~astropy.units.Quantity
+        Particle smoothing lengths with units of pixels.
+
+    masses_HI : ~astropy.units.Quantity
+        Particle HI masses with dimensions of mass.
+
+    temperatures : ~astropy.units.Quantity
+        Particle temperatures (thermal velocity dispersions) with dimensions of speed
+        squared.
+
+    masses : ~astropy.units.Quantity
+        Particle masses with dimensions of mass.
+
+    kernel : Callable
+        Kernel function.
+
+    field_positions : ~numpy.ndarray
+        Positions at which to interpolate fields, implicitly with units of pixels.
+
+    d_volume : ~astropy.units.Quantity
+        Volume element size for ``field_positions`` with units of pixels.
+
+    kernel_cache_resolution : int
+        Number of grid points on which to sample the kernel for fast lookup.
 
     Returns
     -------
@@ -418,7 +448,7 @@ def particleScatter(
         The HI mass field evaluated on the cell grid.
 
     U.Quantity[U.km**2 / U.s**2])
-        The temperature field evaluated on the cell grid.
+        The temperature (thermal velocity dispersion) field evaluated on the cell grid.
     """
     kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution))
     mask_out_of_bound = _getOutOfBoundParticles(
@@ -430,7 +460,7 @@ def particleScatter(
         velocities = velocities[:, 0]
     n_pos = len(field_positions)
     if not is_iterable(d_volume):
-        dVolume = np.ones(n_pos) * d_volume
+        d_volume = np.ones(n_pos) * d_volume
     slices, dist = lKDTree(field_positions.value).query_radius(
         positions.value, smoothing_lengths.value, return_distance=True
     )
@@ -444,7 +474,7 @@ def particleScatter(
         smoothing_lengths.value,
         dist,
         slices,
-        dVolume.value,
+        d_volume.value,
         kernel_cache,
         n_pos,
         velocities.unit,
@@ -454,179 +484,243 @@ def particleScatter(
     )
 
 
-SPH = partial(particleScatter, sphLoop)
-MFM = partial(particleScatter, mfmLoop)
+sph = partial(particle_scatter, sph_loop)
+mfm = partial(particle_scatter, mfm_loop)
 
 
-def _evalVoronoiField(
-    particleQuantities,
-    nearestParticleIndices,
-    missedParticleCellIndices,
-    missedParticleMask,
-    fieldNParticle,
-):
-    fieldQuantity = particleQuantities[nearestParticleIndices]
-    fieldQuantity[missedParticleCellIndices] += particleQuantities[missedParticleMask]
-    fieldQuantity /= fieldNParticle
-    return fieldQuantity
+def _eval_voronoi_field(
+    particle_quantities: U.Quantity,
+    nearest_particle_indices: np.ndarray,
+    missed_particle_cell_indices: np.ndarray,
+    missed_particle_mask: np.ndarray,
+    field_n_particle: np.ndarray,
+) -> U.Quantity:
+    field_quantity = particle_quantities[nearest_particle_indices]
+    field_quantity[missed_particle_cell_indices] += particle_quantities[
+        missed_particle_mask
+    ]
+    field_quantity /= field_n_particle
+    return field_quantity
 
 
-def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
+def voronoi_mesh(
+    positions: U.Quantity[U.pix],
+    velocities: U.Quantity[U.km / U.s],
+    smoothing_lengths: U.Quantity[U.pix],
+    masses_HI: U.Quantity[U.Msun],
+    temperatures: U.Quantity[U.km**2 / U.s**2],
+    masses: U.Quantity[U.Msun],
+    kernel: Callable,  # fill in arg & return types
+    field_positions: U.Quantity[U.pix],
+    d_volume: U.Quantity[U.pix],
+    **kwargs: int,
+) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
     """
-    Compute the interpolated radial velocity, density and temperature fields using voronoi mesh.
-    Assumes that fieldPos creates a box.
+    Compute the interpolated fields using a Voronoi mesh.
+
+    Assumes that ``field_positions`` creates a box.
+
+    ??
 
     Parameters
     ----------
-    X :
-            particle positions
-    V :
-            particle radial velocities
-    H :
-            Unuseed.
-            (particle volume)**(-3)
-            Only used to convert MHI into a particle density.
-            Exact volume is not required if you know the density.
-    MHI :
-            particle HI mass
-    T :
-            particle temperature in V**2 units
-    M :
-            particle mass (unused)
-    kernel :
-            unused
-    fieldPos :
-            positions at which to interpolate fields.
-    dVolume :
-            volume element size for fieldPos
+    positions : ~astropy.units.Quantity
+        Voronoi cell positions with units of pixels.
+
+    velocities : ~astropy.units.Quantity
+        Voronoi cell radial velocities with dimensions of speed.
+
+    smoothing_lengths : ~astropy.units.Quantity
+        Unused.
+
+    masses_HI : ~astropy.units.Quantity
+        Voronoi cell HI masses with dimensions of mass.
+
+    temperatures : ~astropy.units.Quantity
+        Voronoi cell temperatures (thermal velocity dispersions) with dimensions of speed
+        squared.
+
+    masses : ~astropy.units.Quantity
+        Unused.
+
+    kernel : Callable
+        Unused.
+
+    field_positions : ~numpy.ndarray
+        Positions at which to interpolate fields, implicitly with units of pixels.
+
+    d_volume : ~astropy.units.Quantity
+        Volume element size for ``field_positions`` with units of pixels.
 
     Returns
     -------
-    fieldV : array astropy quantity
-            interpolated velocity
-    fieldMHI : array astropy quantity
-            interpolated HI mass
-    fieldT : array atropy quantity
-            interpolated thermal velocity dispersion
-    """
+    ~astropy.units.Quantity
+        Interpolated velocity field with dimensions of speed.
 
-    M *= U.dimensionless_unscaled
-    if V.ndim != 1:
-        V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
-    particleIndices = np.arange(len(X))
-    _, nearestParticleIndices = KDTree(X).query(
-        fieldPos
+    ~astropy.units.Quantity
+        Interpolated HI mass field with dimensions of mass.
+
+    ~astropy.units.Quantity
+        Interpolated thermal velocity dispersion field with dimensions of speed squared.
+    """
+    masses *= U.dimensionless_unscaled
+    if velocities.ndim != 1:
+        # more than one dimension of velocity is given, use radial velocity
+        velocities = velocities[:, 0]
+    particle_indices = np.arange(len(positions))
+    _, nearest_particle_indices = KDTree(positions).query(
+        field_positions
     )  # nearest neighbor assignment of particles to field pos
 
     # construct a mask for inbound particles but not assigned to a cell
-    inboundParticleMask = np.all(X > fieldPos.min(axis=0), axis=1) & np.all(
-        X < fieldPos.max(axis=0), axis=1
+    inbound_particle_mask = np.all(
+        positions > field_positions.min(axis=0), axis=1
+    ) & np.all(
+        positions < field_positions.max(axis=0), axis=1
     )  # assume box shape for field pos
-    usedParticleMask = np.isin(particleIndices, nearestParticleIndices)
-    missedParticleMask = inboundParticleMask & ~usedParticleMask
-    missedParticleIndices = particleIndices[missedParticleMask]
-    _, missedParticleCellIndices = KDTree(fieldPos).query(X[missedParticleMask])
+    used_particle_mask = np.isin(particle_indices, nearest_particle_indices)
+    missed_particle_mask = inbound_particle_mask & ~used_particle_mask
+    missed_particle_indices = particle_indices[missed_particle_mask]
+    _, missed_particle_cell_indices = KDTree(field_positions).query(
+        positions[missed_particle_mask]
+    )
 
-    particleMasks = nearestParticleIndices == particleIndices[:, np.newaxis]
-    particleMasks[missedParticleIndices, missedParticleCellIndices] = True
+    particle_masks = nearest_particle_indices == particle_indices[:, np.newaxis]
+    particle_masks[missed_particle_indices, missed_particle_cell_indices] = True
 
-    fieldNParticle = np.ones(len(fieldPos), dtype=np.uint64)
-    fieldNParticle[missedParticleCellIndices] += 1
+    field_n_particle = np.ones(len(field_positions), dtype=np.uint64)
+    field_n_particle[missed_particle_cell_indices] += 1
 
-    particleVolumes = np.einsum(
-        "ij,j->i", particleMasks, dVolume / fieldNParticle
+    particle_volumes = np.einsum(
+        "ij,j->i", particle_masks, d_volume / field_n_particle
     )  # for shared cells, the volume is divided between the particles
-    density = np.zeros(MHI.shape) * MHI.unit / particleVolumes.unit
-    volumeMask = ~(particleVolumes == 0)
-    density[volumeMask] = MHI[volumeMask] / particleVolumes[volumeMask]
-    fieldV = _evalVoronoiField(
-        V,
-        nearestParticleIndices,
-        missedParticleCellIndices,
-        missedParticleMask,
-        fieldNParticle,
+    densities = np.zeros(masses_HI.shape) * masses_HI.unit / particle_volumes.unit
+    volume_mask = ~(particle_volumes == 0)
+    densities[volume_mask] = masses_HI[volume_mask] / particle_volumes[volume_mask]
+    field_velocities = _eval_voronoi_field(
+        velocities,
+        nearest_particle_indices,
+        missed_particle_cell_indices,
+        missed_particle_mask,
+        field_n_particle,
     )
-    fieldMHI = _evalVoronoiField(
-        density,
-        nearestParticleIndices,
-        missedParticleCellIndices,
-        missedParticleMask,
-        fieldNParticle,
+    field_masses_HI = _eval_voronoi_field(
+        densities,
+        nearest_particle_indices,
+        missed_particle_cell_indices,
+        missed_particle_mask,
+        field_n_particle,
     )
-    fieldT = _evalVoronoiField(
-        T,
-        nearestParticleIndices,
-        missedParticleCellIndices,
-        missedParticleMask,
-        fieldNParticle,
+    field_temperatures = _eval_voronoi_field(
+        temperatures,
+        nearest_particle_indices,
+        missed_particle_cell_indices,
+        missed_particle_mask,
+        field_n_particle,
     )
-    return fieldV, fieldMHI, fieldT
+    return field_velocities, field_masses_HI, field_temperatures
 
 
-def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
+def manual_sph(
+    positions: U.Quantity[U.pix],
+    velocities: U.Quantity[U.km / U.s],
+    smoothing_lengths: U.Quantity[U.pix],
+    masses_HI: U.Quantity[U.Msun],
+    temperatures: U.Quantity[U.km**2 / U.s**2],
+    masses: U.Quantity[U.Msun],
+    kernel: Callable,  # fill in arg & return types
+    field_positions: U.Quantity[U.pix],
+    d_volume: U.Quantity[U.pix],
+    **kwargs: int,
+) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
     """
-    Compute the interpolated radial velocity, density and temperature fields using SPH interpolation evaluated at fieldPos positions
-    Note that different SPH schemes have different definitions for velocity interpolation.
-    This interpolant assumes that the conserved quantities are interpolated.
-    This SPH interpolant serves for testing purposes and writes the equations out explicitely.
+    Compute the interpolated fields using SPH interpolation.
+
+    Different SPH schemes have different definitions for velocity interpolation. This
+    interpolant assumes that the conserved quantities are interpolated. This SPH
+    interpolant serves for testing purposes and writes the equations out explicitely.
     Consequently, it is slow but safe.
 
     Parameters
     ----------
-    X :
-            particle positions
-    V :
-            particle radial velocities
-    H :
-            particle smoothing lengths
-    MHI :
-            particle HI mass
-    T :
-            particle temperature in V**2 units
-    M :
-            particle mass
-    kernel :
-            kernel used in simulation
-    fieldPos :
-            positions at which to interpolate fields.
-    dVolume :
-            volume element size.
+    positions : ~astropy.units.Quantity
+        Particle positions with units of pixels.
+
+    velocities : ~astropy.units.Quantity
+        Particle radial velocities with dimensions of speed.
+
+    smoothing_lengths : ~astropy.units.Quantity
+        Particle smoothing lengths with units of pixels.
+
+    masses_HI : ~astropy.units.Quantity
+        Particle HI masses with dimensions of mass.
+
+    temperatures : ~astropy.units.Quantity
+        Particle temperatures (thermal velocity dispersions) with dimensions of speed
+        squared.
+
+    masses : ~astropy.units.Quantity
+        Particle masses with dimensions of mass.
+
+    kernel : Callable
+        Kernel function.
+
+    field_positions : ~numpy.ndarray
+        Positions at which to interpolate fields, implicitly with units of pixels.
+
+    d_volume : ~astropy.units.Quantity
+        Volume element size for ``field_positions`` with units of pixels.
 
     Returns
     -------
-    finalV : array astropy quantity
-            interpolated velocity
-    fieldMHI : array astropy quantity
-            interpolated HI mass
-    final T : array atropy quantity
-            interpolated thermal velocity dispersion
+    ~astropy.units.Quantity
+        Interpolated velocity field with dimensions of speed.
+
+    ~astropy.units.Quantity
+        Interpolated HI mass field with dimensions of mass.
+
+    ~astropy.units.Quantity
+        Interpolated temperature (thermal velocity dispersion) field with dimensions of
+        speed squared.
     """
-    M *= U.dimensionless_unscaled
-    n_part, n_dim = X.shape
-    if V.ndim != 1:
-        V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
-    n_pos = len(fieldPos)
-    if not is_iterable(dVolume):
-        dVolume = np.ones(n_pos) * dVolume
-    slices = KDTree(fieldPos).query_ball_point(X, H)
-    fieldMHI = np.zeros(n_pos) * MHI.unit / dVolume.unit
-    fieldM = np.zeros(n_pos) * M.unit / dVolume.unit
-    fieldV = np.zeros(n_pos) * V.unit * M.unit / dVolume.unit
-    fieldT = np.zeros(n_pos) * V.unit**2 * M.unit / dVolume.unit
+    masses *= U.dimensionless_unscaled
+    n_part, n_dim = positions.shape
+    if velocities.ndim != 1:
+        # more than one dimension of velocity is given, use radial velocity
+        velocities = velocities[:, 0]
+    n_pos = len(field_positions)
+    if not is_iterable(d_volume):
+        d_volume = np.ones(n_pos) * d_volume
+    slices = KDTree(field_positions).query_ball_point(positions, smoothing_lengths)
+    field_masses_HI = np.zeros(n_pos) * masses_HI.unit / d_volume.unit
+    field_masses = np.zeros(n_pos) * masses.unit / d_volume.unit
+    field_velocities = np.zeros(n_pos) * velocities.unit * masses.unit / d_volume.unit
+    field_temperatures = (
+        np.zeros(n_pos) * velocities.unit**2 * masses.unit / d_volume.unit
+    )
     for i in range(n_part):
-        particleKernel = eval_kernel(
-            fieldPos[slices[i]], X[i].reshape((1, n_dim)), H[i], kernel
+        particle_kernel = eval_kernel(
+            field_positions[slices[i]],
+            positions[i].reshape((1, n_dim)),
+            smoothing_lengths[i],
+            kernel,
         )[:, 0]
-        fieldM[slices[i]] += particleKernel * M[i]
-        fieldMHI[slices[i]] += particleKernel * MHI[i]
-        fieldV[slices[i]] += (
-            particleKernel * V[i] * M[i]
+        field_masses[slices[i]] += particle_kernel * masses[i]
+        field_masses_HI[slices[i]] += particle_kernel * masses_HI[i]
+        field_velocities[slices[i]] += (
+            particle_kernel * velocities[i] * masses[i]
         )  # quantity of movement is conserved
-        fieldT[slices[i]] += particleKernel * T[i] * M[i]  # thermal energy is conserved
+        field_temperatures[slices[i]] += (
+            particle_kernel * temperatures[i] * masses[i]
+        )  # thermal energy is conserved
     del slices
-    kernelSlice = fieldM != 0
-    finalV = np.zeros(n_pos) * V.unit
-    finalT = np.zeros(n_pos) * V.unit**2
-    finalV[kernelSlice] = fieldV[kernelSlice] / fieldM[kernelSlice]
-    finalT[kernelSlice] = fieldT[kernelSlice] / fieldM[kernelSlice]
-    return finalV, fieldMHI, finalT
+    kernel_slice = field_masses != 0
+    final_velocities = np.zeros(n_pos) * velocities.unit
+    final_temperatures = np.zeros(n_pos) * velocities.unit**2
+    final_velocities[kernel_slice] = (
+        field_velocities[kernel_slice] / field_masses[kernel_slice]
+    )
+    final_temperatures[kernel_slice] = (
+        field_temperatures[kernel_slice] / field_masses[kernel_slice]
+    )
+    return final_velocities, field_masses_HI, final_temperatures

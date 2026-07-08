@@ -506,7 +506,7 @@ class AdaptiveCellGrid:
         self,
         source: SPHSource,
         sph_kernel: _BaseSPHKernel,
-        interpolant: Callable = interpolants.SPH,  # fill in arg & return types
+        interpolant: Callable = interpolants.sph,  # fill in arg & return types
     ) -> None:
         """
         Interpolate particle-carried fields onto the grid.
@@ -571,7 +571,8 @@ class AdaptiveCellGrid:
     def eval_radiative_transfer(
         self,
         datacube: DataCube,
-        radiative_transfer_model: Callable = radiative_transfer.adaptiveOpticallyThin,  # fill in arg & return types
+        # fill in arg & return types:
+        radiative_transfer_model: Callable = radiative_transfer.adaptive_optically_thin,
     ) -> U.Quantity[U.Msun]:
         """
         "Collapse" the regular cell grid into a spectral cube.
