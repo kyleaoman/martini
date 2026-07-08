@@ -206,9 +206,9 @@ class Mochi(Martini):
         cube *= (
             self.source.distance.to(U.Mpc) ** -2
         )  # use distances of individual cells instead
-        cube /= self.datacube.channel_width.to(
-            U.km / U.s
-        )  # handle non-constant widths?
+        cube /= np.abs(np.diff(self.datacube.velocity_channel_edges)).to(U.km / U.s)[
+            :, np.newaxis, np.newaxis
+        ]
 
         MHI_to_Jy_inplace(cube)
         cube /= U.pix**2

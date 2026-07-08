@@ -46,11 +46,15 @@ def calculate_field_spectrum(
     numerator = (
         field_mass
         / np.sqrt(2 * np.pi * field_temperature)
-        * datacube.channel_width
+        * np.abs(np.diff(datacube.velocity_channel_edges))[:, np.newaxis]
         * cell_volume
     )
-    diff = field_velocity[None, ...] - datacube.velocity_channel_mids[:, None]
-    field_spectrum = numerator * np.exp(-(diff**2) / (2 * field_temperature[None, ...]))
+    diff = (
+        field_velocity[np.newaxis, ...] - datacube.velocity_channel_mids[:, np.newaxis]
+    )
+    field_spectrum = numerator * np.exp(
+        -(diff**2) / (2 * field_temperature[np.newaxis, ...])
+    )
     return field_spectrum
 
 
@@ -101,7 +105,7 @@ def optically_thin(
     numerator = (
         field_mHI
         / np.sqrt(2 * np.pi * field_temperature)
-        * datacube.channel_width
+        * np.abs(np.diff(datacube.velocity_channel_edges))[:, np.newaxis]
         * volume_element
     )
     cube = (
