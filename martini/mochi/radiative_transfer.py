@@ -3,6 +3,8 @@
 import warnings
 import numpy as np
 from martini.datacube import DataCube
+from martini.spectral_models import _BaseSpectrum
+from astropy.coordinates import SpectralCoord, SkyCoord
 import astropy.units as U
 from typing import Callable
 
@@ -13,6 +15,7 @@ def calculate_field_spectrum(
     field_temperature: U.Quantity[U.km**2 / U.s**2],
     cell_volume: U.Quantity[U.pix**3],
     datacube: DataCube,
+    spectral_model: _BaseSpectrum,
 ) -> U.Quantity[U.Msun]:
     """
     Evaluate the spectrum given the fields interpolated onto the grid.
@@ -37,6 +40,12 @@ def calculate_field_spectrum(
     datacube : ~martini.datacube.DataCube
         Target datacube object, used to retrieve spectral channels.
 
+    spectral_model : _BaseSpectrum
+        Spectral model used to evaluate the spectrum.
+
+    source : ~martini.sources.sph_source.SPHSource
+        Source module, required for coordinate frame.
+
     Returns
     -------
     ~astropy.units.Quantity
@@ -55,6 +64,33 @@ def calculate_field_spectrum(
     field_spectrum = numerator * np.exp(
         -(diff**2) / (2 * field_temperature[np.newaxis, ...])
     )
+    # Some refactoring needed here for better integration with spectral model, or maybe
+    # some changes needed in spectral model code.
+    if all(np.diff(datacube.velocity_channel_edges) > 0):
+        lower_edges_slice: slice = np.s_[:-1]
+        upper_edges_slice: slice = np.s_[1:]
+    elif all(np.diff(datacube.velocity_channel_edges) < 0):
+        lower_edges_slice = np.s_[1:]
+        upper_edges_slice = np.s_[:-1]
+    else:
+        raise ValueError("Channel edges are not monotonic sequence.")
+    new_field_spectrum = (
+        numerator
+        * spectral_model.spectral_function(
+            U.Quantity(
+                datacube.velocity_channel_edges[np.newaxis, lower_edges_slice]
+            ).astype(spectral_model.spec_dtype),
+            U.Quantity(
+                datacube.velocity_channel_edges[np.newaxis, upper_edges_slice]
+            ).astype(spectral_model.spec_dtype),
+            field_velocity[:, np.newaxis].astype(spectral_model.spec_dtype),
+            extra_data={
+                "sigma": np.sqrt(field_temperature)[:, np.newaxis].astype(
+                    spectral_model.spec_dtype
+                )
+            },  # might need some constants?
+        ).T
+    )
     return field_spectrum
 
 
@@ -63,6 +99,7 @@ def optically_thin(
     field_velocity: U.Quantity[U.km / U.s],
     field_temperature: U.Quantity[U.km**2 / U.s**2],
     datacube: DataCube,
+    spectral_model: _BaseSpectrum,
     volume_element: U.Quantity[U.pix**-3],
     volume_shape: tuple[int, int, int],
     **kwargs,
@@ -87,6 +124,9 @@ def optically_thin(
     datacube : ~martini.datacube.DataCube
         Target datacube object, used to retrieve spectral channels.
 
+    spectral_model : _BaseSpectrum
+        The spectral model used to evaluate spectra.
+
     volume_element : ~astropy.units.Quantity
         Volume elements.
 
@@ -104,7 +144,7 @@ def optically_thin(
     field_temperature[field_mHI == 0] = 1 * field_temperature.unit
     numerator = (
         field_mHI
-        / np.sqrt(2 * np.pi * field_temperature)
+        / np.sqrt(2 * np.pi * field_temperature)  # not so sure about this...
         * np.abs(np.diff(datacube.velocity_channel_edges))[:, np.newaxis]
         * volume_element
     )
@@ -126,6 +166,7 @@ def adaptive_optically_thin(
     field_velocity: U.Quantity[U.km / U.s],
     field_temperature: U.Quantity[U.km**2 / U.s**2],
     datacube: DataCube,
+    spectral_model: _BaseSpectrum,
     cell_volume: U.Quantity[U.pix**3],
     volume_shape: tuple[int, int, int],
     cells: np.ndarray | None = None,
@@ -154,6 +195,9 @@ def adaptive_optically_thin(
 
     datacube : ~martini.datacube.DataCube
         Target datacube object, used to retrieve spectral channels.
+
+    spectral_model : _BaseSpectrum
+        The spectral model used to evaluate the spectra.
 
     cell_volume : ~astropy.units.Quantity
         Volume elements.
@@ -191,6 +235,7 @@ def adaptive_optically_thin(
             field_velocity,
             field_temperature,
             datacube,
+            spectral_model,
             cell_volume,
             volume_shape,
             **kwargs,
@@ -209,7 +254,12 @@ def adaptive_optically_thin(
         (xyz_cells - xyz_0 + cells["size"][:, np.newaxis]) / dx
     ).astype(index_type)
     field_spectra = calculate_field_spectrum(
-        field_mHI, field_velocity, field_temperature, element_volume, datacube
+        field_mHI,
+        field_velocity,
+        field_temperature,
+        element_volume,
+        datacube,
+        spectral_model,
     )
     cube_unit = field_spectra.unit
     field_spectra *= cells_end[:, 0] - cells_begin[:, 0]

@@ -9,6 +9,7 @@ from astropy import units as U, constants as C
 from martini.datacube import DataCube
 from martini.sources import SPHSource
 from martini.sph_kernels import _BaseSPHKernel
+from martini.spectral_models import _BaseSpectrum
 from typing import Callable
 from martini.mochi._dtypes import CELL_DTYPE as _CELL_DTYPE
 
@@ -231,6 +232,7 @@ class AdaptiveCellGrid:
     def eval_radiative_transfer(
         self,
         datacube: DataCube,
+        spectral_model: _BaseSpectrum,
         radiative_transfer: Callable,  # fill in arg & return types
     ) -> U.Quantity[U.Msun]:
         """
@@ -243,6 +245,9 @@ class AdaptiveCellGrid:
         ----------
         datacube : ~martini.datacube.DataCube
             Target data cube object, used to determine target shape and spectral binning.
+
+        spectral_model : _BaseSpectrum
+            Spectral model used to evaluate spectra.
 
         radiative_transfer : Callable
             Function that evaluates a mock spectral cube (of mass in each pixel-channel
@@ -260,6 +265,7 @@ class AdaptiveCellGrid:
             self.field_velocity,
             self.field_temperature,
             datacube,
+            spectral_model,
             self.final_cell_volume,
             self.final_grid_shape,
             cells=self.adaptive_cells,

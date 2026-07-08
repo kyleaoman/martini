@@ -201,7 +201,7 @@ class Mochi(Martini):
         )
         adaptive_cell_grid.create_regular_array()
         cube = adaptive_cell_grid.eval_radiative_transfer(
-            self.datacube, self.radiative_transfer
+            self.datacube, self.spectral_model, self.radiative_transfer
         )
         cube *= (
             self.source.distance.to(U.Mpc) ** -2
