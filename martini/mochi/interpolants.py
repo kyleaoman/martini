@@ -193,7 +193,6 @@ def mfm_loop(
     cell_volumes: np.ndarray,
     kernel_cache: np.ndarray,
     n_pos: int,
-    n_part: int,
     velocity_unit: U.Unit,
     mass_unit: U.Unit,
     volume_unit: U.Unit,
@@ -241,9 +240,6 @@ def mfm_loop(
         Kernel amplitude pre-computed on a discrete grid for fast lookup.
 
     n_pos : int
-        ??.
-
-    n_part : int
         ??.
 
     velocity_unit : ~astropy.units.Unit

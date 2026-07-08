@@ -8,6 +8,7 @@ from scipy.special import erf
 from abc import ABCMeta, abstractmethod
 from martini.datacube import DataCube
 from martini.sources import SPHSource
+from martini._unit_conversion import MHI_to_Jy_inplace
 
 
 class _BaseSpectrum(metaclass=ABCMeta):
@@ -123,25 +124,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
         np.divide(
             self.spectra, channel_widths.astype(self.spec_dtype), out=self.spectra
         )
-
-        def MHI_to_Jy_inplace(x: U.Quantity[U.Msun]) -> None:
-            """
-            Apply the HI mass to flux density conversion, with no memory overhead.
-
-            The conversion is:
-            M_HI/Msun = 2.36x10^5 * (D/Mpc)^2 * (S_21/Jy km s^-1)
-
-            Parameters
-            ----------
-            x : ~astropy.units.Quantity
-                :class:`~astropy.units.Quantity`, with dimensions of
-                mass / length^2 / velocity.
-            """
-            input_units = U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1
-            np.divide(x, 2.36e5, out=x)
-            x *= U.Jy / input_units
-            return
-
         MHI_to_Jy_inplace(self.spectra)
 
         return

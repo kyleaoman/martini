@@ -1,44 +1,30 @@
-import matplotlib.pyplot as plt
-import numpy as np
+"""Tests of the mochi sub-module."""
+
 from martini.mochi.mochi import Mochi
-from martini.martini import Martini
 from martini.beams import GaussianBeam
 from martini.spectral_models import GaussianSpectrum
 from martini.sph_kernels import CubicSplineKernel
 import astropy.units as U
-from copy import deepcopy
 from martini.mochi.mochi import AdaptiveCellGrid
+from martini.mochi import interpolants
+from martini.mochi import radiative_transfer
+from martini.mochi import refinement
+import pytest
 
-
-def test_scratch(many_particle_source, dc_zeros):
-    # This will try to run with 4 variants of dc_zeros.
-    # Use dc_zeros1 (stokes + vchannels) for now.
-    martini_dc = deepcopy(dc_zeros)
-    hsm_g = 0.3 * U.kpc
-    mochi = Mochi(
-        source=many_particle_source(
-            hsm_g=hsm_g,
-        ),  # refined cube changes by factors of 2 with this choice
-        datacube=dc_zeros,
-        beam=GaussianBeam(),
-        noise=None,
-        spectral_model=GaussianSpectrum(),
-        sph_kernel=CubicSplineKernel(),
-    )
-    mochi.insert_source_in_cube()
-
-    martini = Martini(
-        source=many_particle_source(hsm_g=hsm_g),
-        datacube=martini_dc,
-        beam=GaussianBeam(),
-        noise=None,
-        spectral_model=GaussianSpectrum(),
-        sph_kernel=CubicSplineKernel(),
-    )
-    martini.insert_source_in_cube()
-
-    plt.imsave("martini.png", np.sum(martini.datacube._array, axis=(2, 3)))
-    plt.imsave("mochi.png", np.sum(mochi.datacube._array, axis=(2, 3)))
+interpolants = (
+    interpolants.sph,
+    interpolants.mfm,
+    interpolants.voronoi_mesh,
+    interpolants.manual_sph,
+)
+rt_methods = (
+    radiative_transfer.optically_thin,
+    radiative_transfer.adaptive_optically_thin,
+)
+refinement_strategies = (
+    refinement.refine_grid_to_particle_scale,
+    refinement.refine_grid_to_occupancy,
+)
 
 
 class TestAdaptiveCellGridUtils:
@@ -116,10 +102,19 @@ class TestAdaptiveCellGrid:
 
 
 class TestMochi:
-    def test_insert_source_in_cube(self, many_particle_source, dc_zeros):
-        # should test different threshold and refine_algorithm values
+    @pytest.mark.parametrize("interpolant", interpolants)
+    @pytest.mark.parametrize("radiative_transfer_method", rt_methods)
+    @pytest.mark.parametrize("refinement_strategy", refinement_strategies)
+    def test_insert_source_in_cube(
+        self,
+        many_particle_source,
+        dc_zeros,
+        interpolant,
+        radiative_transfer_method,
+        refinement_strategy,
+    ):
         datacube = dc_zeros
-        source = many_particle_source()
+        source = many_particle_source(hsm_g=0.5 * U.kpc)
         beam = GaussianBeam()
         spectral_model = GaussianSpectrum()
         sph_kernel = CubicSplineKernel()
@@ -130,5 +125,13 @@ class TestMochi:
             noise=None,
             spectral_model=spectral_model,
             sph_kernel=sph_kernel,
+            interpolant=interpolant,
+            radiative_transfer=radiative_transfer_method,
+            refinement_strategy=refinement_strategy,
         )
+        if radiative_transfer_method is radiative_transfer.optically_thin:
+            # So far only adaptive cube is implemented, non-adaptive RT is not compatible:
+            with pytest.raises(ValueError, match="cannot reshape array"):
+                m.insert_source_in_cube()
+            return
         m.insert_source_in_cube()
