@@ -525,15 +525,16 @@ class AdaptiveCellGrid:
             ??
         """
         self.field_velocity, self.field_mHI, self.field_temperature = interpolant(
-            X=self.positions,
-            H=self.radii,
-            fieldPos=self.cell_centres,
-            dVolume=self.cell_volumes,
+            positions=self.positions,
+            smoothing_lengths=self.radii,
+            field_positions=self.cell_centres,
+            d_volume=self.cell_volumes,
             kernel=sph_kernel.kernel,
-            V=source.skycoords.radial_velocity,
-            MHI=source.mHI_g,
-            T=source.T_g * C.k_B / C.m_p,  # approx thermal energy?
-            M=source.mHI_g / 0.7,  # mass goes here, crude approx for now (H fraction)
+            velocities=source.skycoords.radial_velocity,
+            masses_HI=source.mHI_g,
+            temperatures=source.T_g * C.k_B / C.m_p,  # approx thermal energy?
+            masses=source.mHI_g
+            / 0.7,  # mass goes here, crude approx for now (H fraction)
         )
 
     def create_regular_array(self, dtype: type = np.uintc) -> None:

@@ -43,209 +43,414 @@ def eval_kernel(
 
     Parameters
     ----------
-    x_eval:
-            positions at which to evaluate kernel
-    x_particle:
-            positions of particles for which to evaluate kernel
-    h:
-            particle smoothing lengths
-    kernel:
-            kernel function
+    x_eval : ~astropy.units.Quantity
+        Positions at which to evaluate kernel, with units of pixels.
+    x_particle : ~astropy.units.Quantity
+        Positions of particles for which to evaluate kernel, with units of pixels.
+    h : ~astropy.units.Quantity
+        Particle smoothing lengths, with units of pixels.
+    kernel : Callable
+        Kernel function accepting a dimensionless array argument and returning an array.
 
     Returns
     -------
     ~astropy.units.Quantity
         Evaluated kernel at ``x_eval`` for particles at positions ``x_particle`` with
-        smoothing lengths ``h``. Has units of ``pixels**-3``.
+        smoothing lengths ``h``. Expected units of ``pixels**-3``.
     """
     q = distance.cdist(x_eval / h, x_particle / h)
     return kernel(q) / (h**3)
 
 
-def _evalCacheKernel(q, kernelCache, kernelCacheResolution):
-    return kernelCache[(np.clip(q, 0, 1) * kernelCacheResolution).astype(np.uint8)]
+def _eval_cache_kernel(q: float, kernel_cache: np.ndarray) -> float:
+    """
+    Get the value of the kernel function on a pre-computed discrete grid.
+
+    Parameters
+    ----------
+    q : float
+        Evaluation location where ``1`` is the radius of compact support.
+
+    kernel_cache : np.ndarray
+        The kernel evaluated on a discrete grid.
+
+    Returns
+    -------
+    float
+        The approximate kernel amplitude at location ``q``.
+    """
+    kernel_cache_resolution = len(kernel_cache)
+    return kernel_cache[(np.clip(q, 0, 1) * kernel_cache_resolution).astype(np.uint8)]
 
 
 def sphLoop(
-    M,
-    MHI,
-    P,
-    T,
-    H,
-    dist,
-    slices,
-    cellVolumes,
-    kernelCache,
-    kernelCacheResolution,
-    nPos,
-    N,
-    velocityUnit,
-    massUnit,
-    volumeUnit,
-    maskOutOfBound,
-):
-    fieldMHI = np.zeros(nPos)
-    fieldM = np.zeros(nPos)
-    fieldV = np.zeros(nPos)
-    fieldT = np.zeros(nPos)
-    H3 = H**3
-    for i in range(N):
+    masses: np.ndarray,
+    masses_HI: np.ndarray,
+    momenta: np.ndarray,
+    temperatures: np.ndarray,
+    smoothing_lengths: np.ndarray,
+    dist: np.ndarray,
+    slices: np.ndarray,
+    cell_volumes: np.ndarray,
+    kernel_cache: np.ndarray,
+    n_pos: int,
+    velocity_unit: U.Unit,
+    mass_unit: U.Unit,
+    volume_unit: U.Unit,
+    mask_out_of_bound: bool,
+) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+    """
+    Use SPH formalism to scatter particles onto the grid.
+
+    ??
+
+    Parameters
+    ----------
+    masses : ~numpy.ndarray
+        Particle masses as an array with implicit units, the units are specified with the
+        ``mass_unit`` argument.
+
+    masses_HI : ~numpy.ndarray
+        Particle HI masses as an array with implicit units, the units are specified with
+        the ``mass_unit`` argument.
+
+    momenta : ~numpy.ndarray
+        Particle line-of-sight momenta as an array with implicit units, the units are
+        specified with the ``mass_unit`` and ``velocity_unit`` argument.
+
+    temperatures : ~numpy.ndarray
+        Particle temperatures as an array with implicit units, the units are specified
+        with the ``velocity_unit`` argument (temperature is ``velocity_unit**2``).
+
+    smoothing_lengths : ~numpy.ndarray
+        Particle smoothing lengths as an array with implicit units. Should have the same
+        implicit units as the ``dist`` argument.
+
+    dist : ~numpy.ndarray
+        Distances of particles from kernel evaluation points as an array with implicit
+        units. Should have the same implicit units as the ``dist`` argument.
+
+    slices : ~numpy.ndarray
+        ??
+
+    cell_volumes : ~numpy.ndarray
+        ??
+
+    kernel_cache : ~numpy.ndarray
+        Kernel amplitude pre-computed on a discrete grid for fast lookup.
+
+    n_pos : int
+        ??
+
+    velocity_unit : ~astropy.units.Unit
+        Units for arguments with dimensions of velocity (or temperature as velocity
+        squared).
+
+    mass_unit: ~astropy.units.Unit
+        Units for arguments with dimensions of mass.
+
+    volume_unit: ~astropy.units.Unit
+        Units for arguments with dimensions of volume.
+
+    mask_out_of_bound: ~astropy.units.Unit
+        ??
+
+    Returns
+    -------
+    U.Quantity[U.km / U.s]
+        The velocity field evaluated on the cell grid.
+
+    U.Quantity[U.Msun]
+        The HI mass field evaluated on the cell grid.
+
+    U.Quantity[U.km**2 / U.s**2])
+        The temperature field evaluated on the cell grid.
+    """
+    field_masses_HI = np.zeros(n_pos)
+    field_masses = np.zeros(n_pos)
+    field_momenta = np.zeros(n_pos)
+    field_temperatures = np.zeros(n_pos)
+    h3 = smoothing_lengths**3
+    n_part = len(smoothing_lengths)
+    for i in range(n_part):
         if len(slices[i]) == 0:
             continue
         particleKernel = (
-            _evalCacheKernel(dist[i] / H[i], kernelCache, kernelCacheResolution) / H3[i]
+            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
         )
-        if not maskOutOfBound[
-            i
-        ]:  # Since the particle is not out bound, we know the kernel should sum to 1. The kernel not summing to 1 is due to resolution effects.
-            particleKernel /= np.sum(particleKernel * cellVolumes[slices[i]])
-        fieldM[slices[i]] += particleKernel * M[i]
-        fieldMHI[slices[i]] += particleKernel * MHI[i]
-        fieldV[slices[i]] += particleKernel * P[i]
-        fieldT[slices[i]] += particleKernel * T[i]
-    kernelSlice = fieldM != 0
-    finalV = np.zeros(nPos) * velocityUnit
-    finalT = np.zeros(nPos) * velocityUnit**2
-    finalMHI = fieldMHI * massUnit / volumeUnit
-    finalV[kernelSlice] = fieldV[kernelSlice] * velocityUnit / fieldM[kernelSlice]
-    finalT[kernelSlice] = fieldT[kernelSlice] * velocityUnit**2 / fieldM[kernelSlice]
-    return finalV, finalMHI, finalT
+        if not mask_out_of_bound[i]:
+            # Since the particle is not out bound, we know the kernel should sum to 1.
+            # The kernel not summing to 1 is due to resolution effects.
+            particleKernel /= np.sum(particleKernel * cell_volumes[slices[i]])
+        field_masses[slices[i]] += particleKernel * masses[i]
+        field_masses_HI[slices[i]] += particleKernel * masses_HI[i]
+        field_momenta[slices[i]] += particleKernel * momenta[i]
+        field_temperatures[slices[i]] += particleKernel * temperatures[i]
+    kernelSlice = field_masses != 0
+    final_velocities = np.zeros(n_pos) * velocity_unit
+    final_temperatures = np.zeros(n_pos) * velocity_unit**2
+    final_masses_HI = field_masses_HI * mass_unit / volume_unit
+    final_velocities[kernelSlice] = (
+        field_momenta[kernelSlice] * velocity_unit / field_masses[kernelSlice]
+    )
+    final_temperatures[kernelSlice] = (
+        field_temperatures[kernelSlice] * velocity_unit**2 / field_masses[kernelSlice]
+    )
+    return final_velocities, final_masses_HI, final_temperatures
 
 
 def mfmLoop(
-    M,
-    MHI,
-    P,
-    T,
-    H,
-    dist,
-    slices,
-    cellVolumes,
-    kernelCache,
-    kernelCacheResolution,
-    nPos,
-    N,
-    velocityUnit,
-    massUnit,
-    volumeUnit,
-    maskOutOfBound,
-):
-    fieldMHI = np.zeros(nPos)
-    fieldM = np.zeros(nPos)
-    fieldV = np.zeros(nPos)
-    fieldT = np.zeros(nPos)
-    H3 = H**3
-    totalKernel = np.zeros(nPos)
-    for i in range(N):
+    masses: np.ndarray,
+    masses_HI: np.ndarray,
+    momenta: np.ndarray,
+    temperatures: np.ndarray,
+    smoothing_lengths: np.ndarray,
+    dist: np.ndarray,
+    slices: np.ndarray,
+    cell_volumes: np.ndarray,
+    kernel_cache: np.ndarray,
+    n_pos: int,
+    n_part: int,
+    velocity_unit: U.Unit,
+    mass_unit: U.Unit,
+    volume_unit: U.Unit,
+    mask_out_of_bound: bool,
+) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+    """
+    Use MFM formalism to scatter particles onto the grid.
+
+    ??
+
+    Parameters
+    ----------
+    masses : ~numpy.ndarray
+        Particle masses as an array with implicit units, the units are specified with the
+        ``mass_unit`` argument.
+
+    masses_HI : ~numpy.ndarray
+        Particle HI masses as an array with implicit units, the units are specified with
+        the ``mass_unit`` argument.
+
+    momenta : ~numpy.ndarray
+        Particle line-of-sight momenta as an array with implicit units, the units are
+        specified with the ``mass_unit`` and ``velocity_unit`` arguments.
+
+    temperatures : ~numpy.ndarray
+        Particle temperatures as an array with implicit units, the units are specified
+        with the ``velocity_unit`` argument (temperature is ``velocity_unit**2``).
+
+    smoothing_lengths : ~numpy.ndarray
+        Particle smoothing lengths as an array with implicit units. Should have the same
+        implicit units as the ``dist`` argument.
+
+    dist : ~numpy.ndarray
+        Distances of particles from kernel evaluation points as an array with implicit
+        units. Should have the same implicit units as the ``dist`` argument.
+
+    slices : ~numpy.ndarray
+        ??
+
+    cell_volumes : ~numpy.ndarray
+        ??
+
+    kernel_cache : ~numpy.ndarray
+        Kernel amplitude pre-computed on a discrete grid for fast lookup.
+
+    n_pos : int
+        ??
+
+    velocity_unit : ~astropy.units.Unit
+        Units for arguments with dimensions of velocity (or temperature as velocity
+        squared).
+
+    mass_unit: ~astropy.units.Unit
+        Units for arguments with dimensions of mass.
+
+    volume_unit: ~astropy.units.Unit
+        Units for arguments with dimensions of volume.
+
+    mask_out_of_bound: ~astropy.units.Unit
+        ??
+
+    Returns
+    -------
+    U.Quantity[U.km / U.s]
+        The velocity field evaluated on the cell grid.
+
+    U.Quantity[U.Msun]
+        The HI mass field evaluated on the cell grid.
+
+    U.Quantity[U.km**2 / U.s**2])
+        The temperature field evaluated on the cell grid.
+    """
+    field_masses_HI = np.zeros(n_pos)
+    field_masses = np.zeros(n_pos)
+    field_momenta = np.zeros(n_pos)
+    field_temperatures = np.zeros(n_pos)
+    h3 = smoothing_lengths**3
+    n_part = len(smoothing_lengths)
+    total_kernel = np.zeros(n_pos)
+    for i in range(n_part):
         if len(slices[i]) == 0:
             continue
-        particleKernel = (
-            _evalCacheKernel(dist[i] / H[i], kernelCache, kernelCacheResolution) / H3[i]
+        particle_kernel = (
+            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
         )
-        totalKernel[slices[i]] += particleKernel
-        slices[i] = slices[i][particleKernel != 0]
-        dist[i] = dist[i][particleKernel != 0]
-    fieldMHI = np.zeros(nPos)
-    fieldM = np.zeros(nPos)
-    fieldV = np.zeros(nPos)
-    fieldT = np.zeros(nPos)
-    for i in range(N):
+        total_kernel[slices[i]] += particle_kernel
+        slices[i] = slices[i][particle_kernel != 0]
+        dist[i] = dist[i][particle_kernel != 0]
+    field_masses_HI = np.zeros(n_pos)
+    field_masses = np.zeros(n_pos)
+    field_momenta = np.zeros(n_pos)
+    field_temperatures = np.zeros(n_pos)
+    for i in range(n_part):
         if len(slices[i]) == 0:
             continue
-        particleKernel = (
-            _evalCacheKernel(dist[i] / H[i], kernelCache, kernelCacheResolution) / H3[i]
+        particle_kernel = (
+            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
         )
         volume = np.sum(
-            particleKernel * (cellVolumes[slices[i]] / totalKernel[slices[i]])
+            particle_kernel * (cell_volumes[slices[i]] / total_kernel[slices[i]])
         )
-        if maskOutOfBound[i]:
+        if mask_out_of_bound[i]:
             volume *= (
-                np.pi * 4 / 3 * H[i] ** 3 / np.sum(cellVolumes[slices[i]])
+                np.pi
+                * 4
+                / 3
+                * smoothing_lengths[i] ** 3
+                / np.sum(cell_volumes[slices[i]])
             )  # for out of bounds particles, the volume is scaled up
-        fieldMHI[slices[i]] += particleKernel * MHI[i] / volume
-        fieldM[slices[i]] += particleKernel * M[i] / volume
-        fieldV[slices[i]] += particleKernel * P[i] / volume
-        fieldT[slices[i]] += particleKernel * T[i] / volume
-    kernelSlice = totalKernel != 0
-    finalV = np.zeros(nPos) * velocityUnit
-    finalT = np.zeros(nPos) * velocityUnit**2
-    finalMHI = np.zeros(nPos) * massUnit / volumeUnit
-    finalM = np.zeros(nPos)
-    finalMHI[kernelSlice] = (
-        fieldMHI[kernelSlice] * massUnit / volumeUnit / totalKernel[kernelSlice]
+        field_masses_HI[slices[i]] += particle_kernel * masses_HI[i] / volume
+        field_masses[slices[i]] += particle_kernel * masses[i] / volume
+        field_momenta[slices[i]] += particle_kernel * momenta[i] / volume
+        field_temperatures[slices[i]] += particle_kernel * temperatures[i] / volume
+    kernel_slice = total_kernel != 0
+    final_velocities = np.zeros(n_pos) * velocity_unit
+    final_temperatures = np.zeros(n_pos) * velocity_unit**2
+    final_masses_HI = np.zeros(n_pos) * mass_unit / volume_unit
+    final_masses = np.zeros(n_pos)
+    final_masses_HI[kernel_slice] = (
+        field_masses_HI[kernel_slice]
+        * mass_unit
+        / volume_unit
+        / total_kernel[kernel_slice]
     )
-    finalM[kernelSlice] = fieldM[kernelSlice] / totalKernel[kernelSlice]
-    finalV[kernelSlice] = (
-        fieldV[kernelSlice]
-        * velocityUnit
-        / totalKernel[kernelSlice]
-        / finalM[kernelSlice]
+    final_masses[kernel_slice] = field_masses[kernel_slice] / total_kernel[kernel_slice]
+    final_velocities[kernel_slice] = (
+        field_momenta[kernel_slice]
+        * velocity_unit
+        / total_kernel[kernel_slice]
+        / final_masses[kernel_slice]
     )
-    finalT[kernelSlice] = (
-        fieldT[kernelSlice]
-        * velocityUnit**2
-        / totalKernel[kernelSlice]
-        / finalM[kernelSlice]
+    final_temperatures[kernel_slice] = (
+        field_temperatures[kernel_slice]
+        * velocity_unit**2
+        / total_kernel[kernel_slice]
+        / final_masses[kernel_slice]
     )
-    return finalV, finalMHI, finalT
+    return final_velocities, final_masses_HI, final_temperatures
 
 
-def _getOutOfBoundParticles(particlePos, particleRadius, fieldPos):
-    lowBound = np.min(fieldPos, axis=0)
-    topBound = np.max(fieldPos, axis=0)
-    maskOutOfBound = ((particlePos + particleRadius[:, np.newaxis]) > topBound) | (
-        (particlePos - particleRadius[:, np.newaxis]) < lowBound
-    )
-    maskOutOfBound = np.any(maskOutOfBound, axis=1)
-    return maskOutOfBound
+def _getOutOfBoundParticles(
+    particle_positions: np.ndarray,
+    particle_radii: np.ndarray,
+    field_positions: np.ndarray,
+) -> np.ndarray:
+    """
+    Find particles that fall outside of the region where fields are being evaluated.
+
+    Parameters
+    ----------
+    particle_positions : ~numpy.ndarray
+        Array of particle positions.
+
+    particle_radii : ~numpy.ndarray
+        Array of particle sizes (radii of compact support).
+
+    field_positions : ~numpy.ndarray
+        Array of locations where the fields are being evaluated.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        Array containing booleans, ``True`` for particles that are outside the region.
+    """
+    # Martini has a pre-emptive particle masking function. Move this functionality there?
+    lowBound = np.min(field_positions, axis=0)
+    topBound = np.max(field_positions, axis=0)
+    mask_out_of_bound = (
+        (particle_positions + particle_radii[:, np.newaxis]) > topBound
+    ) | ((particle_positions - particle_radii[:, np.newaxis]) < lowBound)
+    mask_out_of_bound = np.any(mask_out_of_bound, axis=1)
+    return mask_out_of_bound
 
 
 def particleScatter(
-    mainLoop,
-    X,
-    V,
-    H,
-    MHI,
-    T,
-    M,
-    kernel,
-    fieldPos,
-    dVolume,
+    main_loop: Callable,  # fill in arg & return types
+    positions: U.Quantity[U.pix],
+    velocities: U.Quantity[U.km / U.s],
+    smoothing_lengths: U.Quantity[U.pix],
+    masses_HI: U.Quantity[U.Msun],
+    temperatures: U.Quantity[U.km**2 / U.s**2],
+    masses: U.Quantity[U.Msun],
+    kernel: Callable,  # fill in arg & return types
+    field_positions: U.Quantity[U.pix],
+    d_volume: U.Quantity[U.pix],
     *,
-    kernelCacheResolution=256,
+    kernel_cache_resolution: int = 256,
     **kwargs,
-):
-    kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution))
-    maskOutOfBound = _getOutOfBoundParticles(X, H, fieldPos)
-    M *= U.dimensionless_unscaled
-    N, nDim = X.shape
-    if V.ndim != 1:
-        V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
-    nPos = len(fieldPos)
-    if not is_iterable(dVolume):
-        dVolume = np.ones(nPos) * dVolume
-    slices, dist = lKDTree(fieldPos.value).query_radius(
-        X.value, H.value, return_distance=True
+) -> (U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]):
+    """
+    Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
+
+    ??
+
+    Parameters
+    ----------
+    ??
+
+    Returns
+    -------
+    U.Quantity[U.km / U.s]
+        The velocity field evaluated on the cell grid.
+
+    U.Quantity[U.Msun]
+        The HI mass field evaluated on the cell grid.
+
+    U.Quantity[U.km**2 / U.s**2])
+        The temperature field evaluated on the cell grid.
+    """
+    kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution))
+    mask_out_of_bound = _getOutOfBoundParticles(
+        positions, smoothing_lengths, field_positions
     )
-    P = V.value * M.value
-    thermal = T.to_value(V.unit**2) * M.value
-    return mainLoop(
-        M.value,
-        MHI.value,
-        P,
+    masses *= U.dimensionless_unscaled
+    if velocities.ndim != 1:
+        # more than one dimension of velocity is given, use radial velocity
+        velocities = velocities[:, 0]
+    n_pos = len(field_positions)
+    if not is_iterable(d_volume):
+        dVolume = np.ones(n_pos) * d_volume
+    slices, dist = lKDTree(field_positions.value).query_radius(
+        positions.value, smoothing_lengths.value, return_distance=True
+    )
+    momenta = velocities.value * masses.value
+    thermal = temperatures.to_value(velocities.unit**2) * masses.value
+    return main_loop(
+        masses.value,
+        masses_HI.value,
+        momenta,
         thermal,
-        H.value,
+        smoothing_lengths.value,
         dist,
         slices,
         dVolume.value,
-        kernelCache,
-        kernelCacheResolution,
-        nPos,
-        N,
-        V.unit,
-        MHI.unit,
-        H.unit**3,
-        maskOutOfBound,
+        kernel_cache,
+        n_pos,
+        velocities.unit,
+        masses_HI.unit,
+        smoothing_lengths.unit**3,
+        mask_out_of_bound,
     )
 
 
@@ -306,7 +511,6 @@ def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
     """
 
     M *= U.dimensionless_unscaled
-    N, nDim = X.shape
     if V.ndim != 1:
         V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
     particleIndices = np.arange(len(X))
@@ -398,20 +602,20 @@ def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
             interpolated thermal velocity dispersion
     """
     M *= U.dimensionless_unscaled
-    N, nDim = X.shape
+    n_part, n_dim = X.shape
     if V.ndim != 1:
         V = V[:, 0]  # more than one dimension of velocity is given, use radial velocity
-    nPos = len(fieldPos)
+    n_pos = len(fieldPos)
     if not is_iterable(dVolume):
-        dVolume = np.ones(nPos) * dVolume
+        dVolume = np.ones(n_pos) * dVolume
     slices = KDTree(fieldPos).query_ball_point(X, H)
-    fieldMHI = np.zeros(nPos) * MHI.unit / dVolume.unit
-    fieldM = np.zeros(nPos) * M.unit / dVolume.unit
-    fieldV = np.zeros(nPos) * V.unit * M.unit / dVolume.unit
-    fieldT = np.zeros(nPos) * V.unit**2 * M.unit / dVolume.unit
-    for i in range(N):
+    fieldMHI = np.zeros(n_pos) * MHI.unit / dVolume.unit
+    fieldM = np.zeros(n_pos) * M.unit / dVolume.unit
+    fieldV = np.zeros(n_pos) * V.unit * M.unit / dVolume.unit
+    fieldT = np.zeros(n_pos) * V.unit**2 * M.unit / dVolume.unit
+    for i in range(n_part):
         particleKernel = eval_kernel(
-            fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i], kernel
+            fieldPos[slices[i]], X[i].reshape((1, n_dim)), H[i], kernel
         )[:, 0]
         fieldM[slices[i]] += particleKernel * M[i]
         fieldMHI[slices[i]] += particleKernel * MHI[i]
@@ -421,8 +625,8 @@ def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
         fieldT[slices[i]] += particleKernel * T[i] * M[i]  # thermal energy is conserved
     del slices
     kernelSlice = fieldM != 0
-    finalV = np.zeros(nPos) * V.unit
-    finalT = np.zeros(nPos) * V.unit**2
+    finalV = np.zeros(n_pos) * V.unit
+    finalT = np.zeros(n_pos) * V.unit**2
     finalV[kernelSlice] = fieldV[kernelSlice] / fieldM[kernelSlice]
     finalT[kernelSlice] = fieldT[kernelSlice] / fieldM[kernelSlice]
     return finalV, fieldMHI, finalT
