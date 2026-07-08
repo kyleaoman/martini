@@ -4,7 +4,6 @@ import warnings
 import numpy as np
 from martini.datacube import DataCube
 from martini.spectral_models import _BaseSpectrum
-from astropy.coordinates import SpectralCoord, SkyCoord
 import astropy.units as U
 from typing import Callable
 
@@ -52,20 +51,21 @@ def calculate_field_spectrum(
         The evaluated mass spectrum.
     """
     field_temperature[field_mass == 0] = 1 * field_temperature.unit
-    numerator = (
-        field_mass
-        / np.sqrt(2 * np.pi * field_temperature)
-        * np.abs(np.diff(datacube.velocity_channel_edges))[:, np.newaxis]
-        * cell_volume
-    )
-    diff = (
-        field_velocity[np.newaxis, ...] - datacube.velocity_channel_mids[:, np.newaxis]
-    )
-    field_spectrum = numerator * np.exp(
-        -(diff**2) / (2 * field_temperature[np.newaxis, ...])
-    )
+    numerator = field_mass * cell_volume
     # Some refactoring needed here for better integration with spectral model, or maybe
     # some changes needed in spectral model code.
+    # To consider:
+    #  - "extra_data" is just explicitly given, but we can save even touching the
+    #    temperatures at all in the DiracDeltaSpectrum case.
+    #  - The edge slice logic is repeated from the spectral_models.py code, maybe move
+    #    that to helpers on the datacube object.
+    #  - Casting to Quantity is not ideal, could use SpectralCoord for the interpolated
+    #    velocity field (or can it at least be a view?).
+    #  - This can presumably be parallelized like in the pre-calculated spectra.
+    #    The spectral_model._BaseSpectrum assumes that we're dealing with particles stored
+    #    in a SPHSource, but the calculation is basically the same when using cells here.
+    #    Could add an abstraction layer so that we can work with any source of velocity
+    #    information.
     if all(np.diff(datacube.velocity_channel_edges) > 0):
         lower_edges_slice: slice = np.s_[:-1]
         upper_edges_slice: slice = np.s_[1:]
@@ -74,24 +74,21 @@ def calculate_field_spectrum(
         upper_edges_slice = np.s_[:-1]
     else:
         raise ValueError("Channel edges are not monotonic sequence.")
-    new_field_spectrum = (
-        numerator
-        * spectral_model.spectral_function(
-            U.Quantity(
-                datacube.velocity_channel_edges[np.newaxis, lower_edges_slice]
-            ).astype(spectral_model.spec_dtype),
-            U.Quantity(
-                datacube.velocity_channel_edges[np.newaxis, upper_edges_slice]
-            ).astype(spectral_model.spec_dtype),
-            field_velocity[:, np.newaxis].astype(spectral_model.spec_dtype),
-            extra_data={
-                "sigma": np.sqrt(field_temperature)[:, np.newaxis].astype(
-                    spectral_model.spec_dtype
-                )
-            },  # might need some constants?
-        ).T
+    field_spectrum = spectral_model.spectral_function(
+        U.Quantity(
+            datacube.velocity_channel_edges[lower_edges_slice, np.newaxis]
+        ).astype(spectral_model.spec_dtype),
+        U.Quantity(
+            datacube.velocity_channel_edges[upper_edges_slice, np.newaxis]
+        ).astype(spectral_model.spec_dtype),
+        field_velocity[np.newaxis].astype(spectral_model.spec_dtype),
+        extra_data={
+            "sigma": np.sqrt(field_temperature)[np.newaxis].astype(
+                spectral_model.spec_dtype
+            )
+        },
     )
-    return field_spectrum
+    return numerator * field_spectrum
 
 
 def optically_thin(

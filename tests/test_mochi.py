@@ -2,7 +2,7 @@
 
 from martini.mochi.mochi import Mochi
 from martini.beams import GaussianBeam
-from martini.spectral_models import GaussianSpectrum
+from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from martini.sph_kernels import CubicSplineKernel
 import astropy.units as U
 from martini.mochi.mochi import AdaptiveCellGrid
@@ -25,6 +25,7 @@ refinement_strategies = (
     refinement.refine_grid_to_particle_scale,
     refinement.refine_grid_to_occupancy,
 )
+spectral_models = (GaussianSpectrum, DiracDeltaSpectrum)
 
 
 class TestAdaptiveCellGridUtils:
@@ -102,9 +103,11 @@ class TestAdaptiveCellGrid:
 
 
 class TestMochi:
+    # Testing *all* combinations here is overkill, simplify later.
     @pytest.mark.parametrize("interpolant", interpolants)
     @pytest.mark.parametrize("radiative_transfer_method", rt_methods)
     @pytest.mark.parametrize("refinement_strategy", refinement_strategies)
+    @pytest.mark.parametrize("spectral_model", spectral_models)
     def test_insert_source_in_cube(
         self,
         many_particle_source,
@@ -112,11 +115,12 @@ class TestMochi:
         interpolant,
         radiative_transfer_method,
         refinement_strategy,
+        spectral_model,
     ):
         datacube = dc_zeros
         source = many_particle_source(hsm_g=0.5 * U.kpc)
         beam = GaussianBeam()
-        spectral_model = GaussianSpectrum()
+        spectral_model = spectral_model()
         sph_kernel = CubicSplineKernel()
         m = Mochi(
             source=source,
