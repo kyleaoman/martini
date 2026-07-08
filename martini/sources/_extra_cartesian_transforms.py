@@ -44,7 +44,7 @@ def _apply_affine_transform(
     coords : ~astropy.units.Quantity
         The coordinate array to be transformed.
 
-    transform : ~numpy.ndarray
+    affine_transform : ~numpy.ndarray
         The 4x4 affine transformation matrix.
 
     transform_units : ~astropy.units.UnitBase

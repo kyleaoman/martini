@@ -625,9 +625,9 @@ class SPHSource(object):
 
         See Also
         --------
-        ~martini.sources.sph_source.SPHSource.save_current_rotation
-        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
-        ~martini.sources.sph_source.SPHSource.load_current_affine_transformations
+        martini.sources.sph_source.SPHSource.save_current_rotation
+        martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        martini.sources.sph_source.SPHSource.load_current_affine_transformations
         """
         # The rotation part of the _coordinate_affine_transform and the
         # _velocity_affine_transform are identical, just pick one.
@@ -653,8 +653,8 @@ class SPHSource(object):
 
         See Also
         --------
-        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
-        ~martini.sources.sph_source.SPHSource.load_affine_transformations
+        martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        martini.sources.sph_source.SPHSource.load_affine_transformations
         """
         np.savetxt(fname, self._coordinate_affine_transform[:3, :3])
         return
@@ -693,7 +693,7 @@ class SPHSource(object):
 
         See Also
         --------
-        ~martini.sources.sph_source.SPHSource.load_affine_transformations
+        martini.sources.sph_source.SPHSource.load_affine_transformations
         """
         np.save(
             fname,
@@ -735,8 +735,8 @@ class SPHSource(object):
         This is the format saved by
         :meth:`~martini.sources.sph_source.SPHSource.save_current_affine_transformations`.
 
-        Paramters
-        ---------
+        Parameters
+        ----------
         fname : str
             File from which to load affine transformation matrices (in ``*.npy`` format).
 
@@ -748,7 +748,7 @@ class SPHSource(object):
 
         See Also
         --------
-        ~martini.sources.sph_source.SPHSource.save_current_affine_transformations
+        martini.sources.sph_source.SPHSource.save_current_affine_transformations
         """
         coordinate_affine_transform, velocity_affine_transform = np.load(fname)
         if not np.allclose(
