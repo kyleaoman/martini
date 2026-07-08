@@ -58,7 +58,7 @@ class Mochi(Martini):
     """
     Creates synthetic HI data cubes from simulation data.
 
-    ??
+    ??.
 
     Parameters
     ----------
@@ -112,6 +112,11 @@ class Mochi(Martini):
         Function that evaluates a mock spectral cube (of mass in each pixel-channel
         cell). E.g. :func:`~martini.mochi.radiative_transfer.adaptive_optically_thin`,
         can be found in the :mod:`~martini.mochi.radiative_transfer` module.
+
+    refinement_strategy : Callable
+        Function that decides and applies the grid refinement criterion. E.g.
+        :func:`~martini.mochi.refinement.refine_grid_to_particle_scale`, can be found in
+        the :mod:`~martini.mochi.refinement` module.
 
     quiet : bool, optional
         If ``True``, suppress output to stdout.

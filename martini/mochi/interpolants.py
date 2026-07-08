@@ -78,7 +78,7 @@ def sph_loop(
     mass_unit: U.Unit,
     volume_unit: U.Unit,
     mask_out_of_bound: bool,
-) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
+) -> dict[str, U.Quantity]:
     """
     Use SPH formalism to scatter particles onto the grid.
 
@@ -138,14 +138,8 @@ def sph_loop(
 
     Returns
     -------
-    U.Quantity[U.km / U.s]
-        The velocity field evaluated on the cell grid.
-
-    U.Quantity[U.Msun]
-        The HI mass field evaluated on the cell grid.
-
-    U.Quantity[U.km**2 / U.s**2])
-        The temperature (thermal velocity dispersion) field evaluated on the cell grid.
+    dict
+        Contains the interpolated fields.
     """
     field_masses_HI = np.zeros(n_pos)
     field_masses = np.zeros(n_pos)
@@ -179,7 +173,11 @@ def sph_loop(
     final_temperatures[kernelSlice] = (
         field_temperatures[kernelSlice] * velocity_unit**2 / field_masses[kernelSlice]
     )
-    return final_velocities, final_masses_HI, final_temperatures
+    return {
+        "velocities": final_velocities,
+        "masses_HI": final_masses_HI,
+        "temperatures": final_temperatures,
+    }
 
 
 def mfm_loop(
@@ -197,7 +195,7 @@ def mfm_loop(
     mass_unit: U.Unit,
     volume_unit: U.Unit,
     mask_out_of_bound: bool,
-) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
+) -> dict[str, U.Quantity]:
     """
     Use MFM formalism to scatter particles onto the grid.
 
@@ -257,14 +255,8 @@ def mfm_loop(
 
     Returns
     -------
-    U.Quantity[U.km / U.s]
-        The velocity field evaluated on the cell grid.
-
-    U.Quantity[U.Msun]
-        The HI mass field evaluated on the cell grid.
-
-    U.Quantity[U.km**2 / U.s**2])
-        The temperature (thermal velocity dispersion) field evaluated on the cell grid.
+    dict
+        Contains the interpolated fields.
     """
     field_masses_HI = np.zeros(n_pos)
     field_masses = np.zeros(n_pos)
@@ -333,7 +325,11 @@ def mfm_loop(
         / total_kernel[kernel_slice]
         / final_masses[kernel_slice]
     )
-    return final_velocities, final_masses_HI, final_temperatures
+    return {
+        "velocities": final_velocities,
+        "masses_HI": final_masses_HI,
+        "temperatures": final_temperatures,
+    }
 
 
 def _getOutOfBoundParticles(
@@ -383,7 +379,7 @@ def particle_scatter(
     d_volume: U.Quantity[U.pix],
     *,
     kernel_cache_resolution: int = 256,
-) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
+) -> dict[str, U.Quantity]:
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
 
@@ -427,14 +423,8 @@ def particle_scatter(
 
     Returns
     -------
-    U.Quantity[U.km / U.s]
-        The velocity field evaluated on the cell grid.
-
-    U.Quantity[U.Msun]
-        The HI mass field evaluated on the cell grid.
-
-    U.Quantity[U.km**2 / U.s**2])
-        The temperature (thermal velocity dispersion) field evaluated on the cell grid.
+    dict
+        Contains the interpolated fields.
     """
     kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution))
     mask_out_of_bound = _getOutOfBoundParticles(
@@ -529,7 +519,7 @@ def voronoi_mesh(
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix],
     **kwargs: int,
-) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
+) -> dict[str, U.Quantity]:
     """
     Compute the interpolated fields using a Voronoi mesh.
 
@@ -569,14 +559,8 @@ def voronoi_mesh(
 
     Returns
     -------
-    ~astropy.units.Quantity
-        Interpolated velocity field with dimensions of speed.
-
-    ~astropy.units.Quantity
-        Interpolated HI mass field with dimensions of mass.
-
-    ~astropy.units.Quantity
-        Interpolated thermal velocity dispersion field with dimensions of speed squared.
+    dict
+        Contains the interpolated fields.
     """
     masses *= U.dimensionless_unscaled
     if velocities.ndim != 1:
@@ -633,7 +617,11 @@ def voronoi_mesh(
         missed_particle_mask,
         field_n_particle,
     )
-    return field_velocities, field_masses_HI, field_temperatures
+    return {
+        "velocities": field_velocities,
+        "masses_HI": field_masses_HI,
+        "temperatures": field_temperatures,
+    }
 
 
 def manual_sph(
@@ -647,7 +635,7 @@ def manual_sph(
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix],
     **kwargs: int,
-) -> tuple[U.Quantity[U.km / U.s], U.Quantity[U.Msun], U.Quantity[U.km**2 / U.s**2]]:
+) -> dict[str, U.Quantity]:
     """
     Compute the interpolated fields using SPH interpolation.
 
@@ -688,15 +676,8 @@ def manual_sph(
 
     Returns
     -------
-    ~astropy.units.Quantity
-        Interpolated velocity field with dimensions of speed.
-
-    ~astropy.units.Quantity
-        Interpolated HI mass field with dimensions of mass.
-
-    ~astropy.units.Quantity
-        Interpolated temperature (thermal velocity dispersion) field with dimensions of
-        speed squared.
+    dict
+        Contains the interpolated fields.
     """
     masses *= U.dimensionless_unscaled
     n_part, n_dim = positions.shape
@@ -738,4 +719,8 @@ def manual_sph(
     final_temperatures[kernel_slice] = (
         field_temperatures[kernel_slice] / field_masses[kernel_slice]
     )
-    return final_velocities, field_masses_HI, final_temperatures
+    return {
+        "velocities": final_velocities,
+        "masses_HI": field_masses_HI,
+        "temperatures": final_temperatures,
+    }

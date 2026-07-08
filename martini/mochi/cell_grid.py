@@ -32,9 +32,7 @@ class AdaptiveCellGrid:
     pix_range: list[tuple[int, int]]
     positions: U.Quantity[U.pix]
     radii: U.Quantity[U.pix]
-    field_velocity: U.Quantity[U.km / U.s]
-    field_mHI: U.Quantity[U.Msun]
-    field_temperature: U.Quantity[U.K]
+    interpolated_fields: dict[str, U.Quantity]
     final_cell_volume: U.Quantity[U.pix]
     final_grid_shape: list[int]
 
@@ -110,7 +108,7 @@ class AdaptiveCellGrid:
 
         Parameters
         ----------
-        refine_algorithm : Callable
+        refinement_strategy : Callable
             The method to decide and apply the refinement criterion.
 
         threshold : float
@@ -185,7 +183,7 @@ class AdaptiveCellGrid:
             raise RuntimeError(
                 "Initialize source skycoords before interpolating fields."
             )
-        self.field_velocity, self.field_mHI, self.field_temperature = interpolant(
+        self.interpolated_fields = interpolant(
             positions=self.positions,
             smoothing_lengths=self.radii,
             field_positions=self.cell_centres,
@@ -261,13 +259,7 @@ class AdaptiveCellGrid:
             and channel).
         """
         return radiative_transfer(  # eventually store as state instead of returning?
-            self.field_mHI,
-            self.field_velocity,
-            self.field_temperature,
+            self,
             datacube,
             spectral_model,
-            self.final_cell_volume,
-            self.final_grid_shape,
-            cells=self.adaptive_cells,
-            cell_unit=U.pix,
         )

@@ -4,17 +4,16 @@ import warnings
 import numpy as np
 from martini.datacube import DataCube
 from martini.spectral_models import _BaseSpectrum
+from martini.mochi.cell_grid import AdaptiveCellGrid
 import astropy.units as U
 from typing import Callable
 
 
 def calculate_field_spectrum(
-    field_mass: U.Quantity[U.Msun],
-    field_velocity: U.Quantity[U.km / U.s],
-    field_temperature: U.Quantity[U.km**2 / U.s**2],
-    cell_volume: U.Quantity[U.pix**3],
+    adaptive_cell_grid: AdaptiveCellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
+    cell_volume: U.Quantity[U.pix**3],
 ) -> U.Quantity[U.Msun]:
     """
     Evaluate the spectrum given the fields interpolated onto the grid.
@@ -23,18 +22,8 @@ def calculate_field_spectrum(
 
     Parameters
     ----------
-    field_mass : ~astropy.units.Quantity
-        Mass interpolated onto the grid with dimensions of mass.
-
-    field_velocity : ~astropy.units.Quantity
-        Line of sight velocity interpolated onto the grid with dimensions of speed.
-
-    field_temperature : ~astropy.units.Quantity
-        Temperature (thermal velocity dispersion) interpolated onto the grid with
-        dimensions of speed squared.
-
-    cell_volume : ~astropy.units.Quantity
-        Volume of a grid cell with units of pixels cubed.
+    adaptive_cell_grid : ~martini.mochi.cell_grid.AdaptiveCellGrid
+        The cell grid with interpolated fields available.
 
     datacube : ~martini.datacube.DataCube
         Target datacube object, used to retrieve spectral channels.
@@ -42,16 +31,19 @@ def calculate_field_spectrum(
     spectral_model : _BaseSpectrum
         Spectral model used to evaluate the spectrum.
 
-    source : ~martini.sources.sph_source.SPHSource
-        Source module, required for coordinate frame.
+    cell_volume : ~astropy.units.Quantity
+        Volume of a grid cell with units of pixels cubed.
 
     Returns
     -------
     ~astropy.units.Quantity
         The evaluated mass spectrum.
     """
-    field_temperature[field_mass == 0] = 1 * field_temperature.unit
-    numerator = field_mass * cell_volume
+    field_temperatures = adaptive_cell_grid.interpolated_fields["temperatures"]
+    field_masses = adaptive_cell_grid.interpolated_fields["masses_HI"]
+    field_velocities = adaptive_cell_grid.interpolated_fields["velocities"]
+    field_temperatures[field_masses == 0] = 1 * field_temperatures.unit
+    numerator = field_masses * cell_volume
     # Some refactoring needed here for better integration with spectral model, or maybe
     # some changes needed in spectral model code.
     # To consider:
@@ -81,9 +73,9 @@ def calculate_field_spectrum(
         U.Quantity(
             datacube.velocity_channel_edges[upper_edges_slice, np.newaxis]
         ).astype(spectral_model.spec_dtype),
-        field_velocity[np.newaxis].astype(spectral_model.spec_dtype),
+        field_velocities[np.newaxis].astype(spectral_model.spec_dtype),
         extra_data={
-            "sigma": np.sqrt(field_temperature)[np.newaxis].astype(
+            "sigma": np.sqrt(field_temperatures)[np.newaxis].astype(
                 spectral_model.spec_dtype
             )
         },
@@ -92,31 +84,20 @@ def calculate_field_spectrum(
 
 
 def optically_thin(
-    field_mHI: U.Quantity[U.Msun],
-    field_velocity: U.Quantity[U.km / U.s],
-    field_temperature: U.Quantity[U.km**2 / U.s**2],
+    cell_grid: AdaptiveCellGrid,  # should actually be CellGrid when implemented
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
-    volume_element: U.Quantity[U.pix**-3],
-    volume_shape: tuple[int, int, int],
     **kwargs,
 ) -> U.Quantity[U.Msun]:
     """
     Assemble fields into an HI cube using optically thin approximation.
 
-    ??
+    ??.
 
     Parameters
     ----------
-    field_mHI : ~astropy.units.Quantity
-        HI masses interpolated onto the grid, with dimensions of mass.
-
-    field_velocity : ~astropy.units.Quantity
-        Line of sight velocities interpolated onto the grid, with dimensions of speed.
-
-    field_temperature : ~astropy.units.Quantity
-        Temperatures (thermal velocity dispersions) interpolated onto the grid, with
-        dimensions of speed squared.
+    cell_grid : AdaptiveCellGrid
+        The cell grid with interpolated fields available.
 
     datacube : ~martini.datacube.DataCube
         Target datacube object, used to retrieve spectral channels.
@@ -124,29 +105,35 @@ def optically_thin(
     spectral_model : _BaseSpectrum
         The spectral model used to evaluate spectra.
 
-    volume_element : ~astropy.units.Quantity
-        Volume elements.
-
-    volume_shape : tuple
-        Spatial shape of ``field_mHI``, ``field_velocity``, ``field_temperature``.
-
     Returns
     -------
     ~astropy.units.Quantity
         The mock spectral cube.
     """
-    field_mHI = field_mHI.reshape(volume_shape)
-    field_temperature = field_temperature.reshape(volume_shape)
-    field_velocity = field_velocity.reshape(volume_shape)
+    field_mHI = cell_grid.interpolated_fields["masses_HI"].reshape(
+        cell_grid.final_grid_shape
+    )
+    field_temperature = cell_grid.interpolated_fields["temperatures"].reshape(
+        cell_grid.final_grid_shape
+    )
+    field_velocity = cell_grid.interpolated_fields["velocities"].reshape(
+        cell_grid.final_grid_shape
+    )
     field_temperature[field_mHI == 0] = 1 * field_temperature.unit
     numerator = (
         field_mHI
         / np.sqrt(2 * np.pi * field_temperature)  # not so sure about this...
         * np.abs(np.diff(datacube.velocity_channel_edges))[:, np.newaxis]
-        * volume_element
+        * cell_grid.final_cell_volume
     )
     cube = (
-        np.zeros((datacube.n_channels, volume_shape[1], volume_shape[2]))
+        np.zeros(
+            (
+                datacube.n_channels,
+                cell_grid.final_grid_shape[1],
+                cell_grid.final_grid_shape[2],
+            )
+        )
         * numerator.unit
     )
     diff = (
@@ -159,15 +146,9 @@ def optically_thin(
 
 
 def adaptive_optically_thin(
-    field_mHI: U.Quantity[U.Msun],
-    field_velocity: U.Quantity[U.km / U.s],
-    field_temperature: U.Quantity[U.km**2 / U.s**2],
+    adaptive_cell_grid: AdaptiveCellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
-    cell_volume: U.Quantity[U.pix**3],
-    volume_shape: tuple[int, int, int],
-    cells: np.ndarray | None = None,
-    cell_unit: U.Unit = U.dimensionless_unscaled,
     *,
     index_type: type = np.uintc,
     default_renderer: Callable = optically_thin,  # fill in arg & return types
@@ -180,34 +161,14 @@ def adaptive_optically_thin(
 
     Parameters
     ----------
-    field_mHI : ~astropy.units.Quantity
-        HI masses interpolated onto the grid, with dimensions of mass.
-
-    field_velocity : ~astropy.units.Quantity
-        Line of sight velocities interpolated onto the grid, with dimensions of speed.
-
-    field_temperature : ~astropy.units.Quantity
-        Temperatures (thermal velocity dispersions) interpolated onto the grid, with
-        dimensions of speed squared.
+    adaptive_cell_grid : ~martini.mochi.cell_grid.AdaptiveCellGrid
+        The cell grid with interpolated fields available.
 
     datacube : ~martini.datacube.DataCube
         Target datacube object, used to retrieve spectral channels.
 
     spectral_model : _BaseSpectrum
         The spectral model used to evaluate the spectra.
-
-    cell_volume : ~astropy.units.Quantity
-        Volume elements.
-
-    volume_shape : tuple
-        Spatial shape of ``field_mHI``, ``field_velocity``, ``field_temperature``.
-
-    cells : ~numpy.ndarray, optional
-        The cells. Cells are encoded as the coordinates of the lower corner (accessible as
-        ``cell["x"]``, etc.) and the side length (``cell["size"]``).
-
-    cell_unit : ~astropy.units.Unit, optional
-        The units for the cell dimensions (normally pixels).
 
     index_type : type, optional
         The data type used to store cell indices.
@@ -221,47 +182,48 @@ def adaptive_optically_thin(
     ~astropy.units.Quantity
         The mock spectral cube.
     """
-    if cells is None:
+    if not hasattr(adaptive_cell_grid, "adaptive_cells"):
         warnings.warn(
-            "Expected argument `cells`, will attempt defaulting to "
-            f"{default_renderer.__name__} instead.",
+            f"Expected adaptive cells, trying {default_renderer.__name__} instead.",
             UserWarning,
         )
         return default_renderer(
-            field_mHI,
-            field_velocity,
-            field_temperature,
+            adaptive_cell_grid,
             datacube,
             spectral_model,
-            cell_volume,
-            volume_shape,
             **kwargs,
         )
-    x0 = np.min(cells["x"])
-    y0 = np.min(cells["y"])
-    z0 = np.min(cells["z"])
+    x0 = np.min(adaptive_cell_grid.adaptive_cells["x"])
+    y0 = np.min(adaptive_cell_grid.adaptive_cells["y"])
+    z0 = np.min(adaptive_cell_grid.adaptive_cells["z"])
     xyz_0 = np.array([x0, y0, z0])
-    xyz_cells = np.column_stack([cells[i] for i in "xyz"])
-    dx = np.min(cells["size"])
+    xyz_cells = np.column_stack([adaptive_cell_grid.adaptive_cells[i] for i in "xyz"])
+    dx = np.min(adaptive_cell_grid.adaptive_cells["size"])
+    cell_unit = adaptive_cell_grid.final_cell_volume.unit ** (1 / 3)
     element_volume = dx**3 * cell_unit**3
-    N = len(cells)
+    N = len(adaptive_cell_grid.adaptive_cells)
     cell_range: np.ndarray = np.arange(N, dtype=index_type)
     cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(index_type)
     cells_end = np.round(
-        (xyz_cells - xyz_0 + cells["size"][:, np.newaxis]) / dx
+        (xyz_cells - xyz_0 + adaptive_cell_grid.adaptive_cells["size"][:, np.newaxis])
+        / dx
     ).astype(index_type)
     field_spectra = calculate_field_spectrum(
-        field_mHI,
-        field_velocity,
-        field_temperature,
-        element_volume,
+        adaptive_cell_grid,
         datacube,
         spectral_model,
+        element_volume,
     )
     cube_unit = field_spectra.unit
     field_spectra *= cells_end[:, 0] - cells_begin[:, 0]
     field_spectra = field_spectra[:, :, None, None].value
-    cube = np.zeros((field_spectra.shape[0], volume_shape[1], volume_shape[2]))
+    cube = np.zeros(
+        (
+            field_spectra.shape[0],
+            adaptive_cell_grid.final_grid_shape[1],
+            adaptive_cell_grid.final_grid_shape[2],
+        )
+    )
     for i in cell_range:
         x_start, y_start, z_start = cells_begin[i]
         x_end, y_end, z_end = cells_end[i]
