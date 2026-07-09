@@ -7,7 +7,6 @@ from martini.sph_kernels import CubicSplineKernel
 import astropy.units as U
 from martini.mochi.mochi import AdaptiveCellGrid
 from martini.mochi import interpolants
-from martini.mochi import radiative_transfer
 from martini.mochi import refinement
 import pytest
 
@@ -16,10 +15,6 @@ interpolants = (
     interpolants.mfm,
     interpolants.voronoi_mesh,
     interpolants.manual_sph,
-)
-rt_methods = (
-    radiative_transfer.optically_thin,
-    radiative_transfer.adaptive_optically_thin,
 )
 refinement_strategies = (
     refinement.refine_grid_to_half_particle_scale,
@@ -105,7 +100,6 @@ class TestAdaptiveCellGrid:
 class TestMochi:
     # Testing *all* combinations here is overkill, simplify later.
     @pytest.mark.parametrize("interpolant", interpolants)
-    @pytest.mark.parametrize("radiative_transfer_method", rt_methods)
     @pytest.mark.parametrize("refinement_strategy", refinement_strategies)
     @pytest.mark.parametrize("spectral_model", spectral_models)
     def test_insert_source_in_cube(
@@ -113,7 +107,6 @@ class TestMochi:
         many_particle_source,
         dc_zeros,
         interpolant,
-        radiative_transfer_method,
         refinement_strategy,
         spectral_model,
     ):
@@ -130,12 +123,6 @@ class TestMochi:
             spectral_model=spectral_model,
             sph_kernel=sph_kernel,
             interpolant=interpolant,
-            radiative_transfer=radiative_transfer_method,
             refinement_strategy=refinement_strategy,
         )
-        if radiative_transfer_method is radiative_transfer.optically_thin:
-            # So far only adaptive cube is implemented, non-adaptive RT is not compatible:
-            with pytest.raises(ValueError, match="cannot reshape array"):
-                m.insert_source_in_cube()
-            return
         m.insert_source_in_cube()

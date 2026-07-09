@@ -17,6 +17,7 @@ from martini.noise import _BaseNoise
 from typing import Callable
 from martini.mochi.cell_grid import AdaptiveCellGrid
 from martini.mochi.refinement import refine_grid_to_half_particle_scale
+from martini.mochi.radiative_transfer import optically_thin, adaptive_optically_thin
 from martini._unit_conversion import MHI_to_Jy_inplace
 
 
@@ -108,15 +109,21 @@ class Mochi(Martini):
         :func:`~martini.mochi.interpolants.mfm` found in the
         :mod:`~martini.mochi.interpolants` module.
 
-    radiative_transfer : Callable
+    radiative_transfer : Callable, optional
         Function that evaluates a mock spectral cube (of mass in each pixel-channel
         cell). E.g. :func:`~martini.mochi.radiative_transfer.adaptive_optically_thin`,
-        can be found in the :mod:`~martini.mochi.radiative_transfer` module.
+        can be found in the :mod:`~martini.mochi.radiative_transfer` module. If omitted,
+        the optically thin method (adaptive or non-adaptive as appropriate) is adopted.
 
-    refinement_strategy : Callable
+    refinement_strategy : Callable, optional
         Function that decides and applies the grid refinement criterion. E.g.
-        :func:`~martini.mochi.refinement.refine_grid_to_half_particle_scale`, can be found in
+        :func:`~martini.mochi.refinement.refine_grid_to_half_particle_scale`, found in
         the :mod:`~martini.mochi.refinement` module.
+
+    adaptive_grid : bool, optional
+        If ``True`` (the default) the gas particle (or gas cell) properties are
+        interpolated onto an adaptive-resolution grid. Otherwise a fixed-resolution grid
+        is used.
 
     quiet : bool, optional
         If ``True``, suppress output to stdout.
@@ -145,10 +152,11 @@ class Mochi(Martini):
         sph_kernel: _BaseSPHKernel,
         spectral_model: _BaseSpectrum,
         interpolant: Callable,  # fill in arg & return types
-        radiative_transfer: Callable,  # fill in arg & return types
+        radiative_transfer: Callable | None = None,  # fill in arg & return types
         refinement_strategy: Callable[
-            [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix], float], np.ndarray
+            [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix]], np.ndarray
         ] = refine_grid_to_half_particle_scale,
+        adaptive_grid: bool = True,
         quiet: bool = False,
     ) -> None:
         super().__init__(
@@ -161,8 +169,15 @@ class Mochi(Martini):
             quiet=quiet,
         )
         self.interpolant = interpolant
-        self.radiative_transfer = radiative_transfer
+        if radiative_transfer is None:
+            self.radiative_transfer = (
+                adaptive_optically_thin if adaptive_grid else optically_thin
+            )
+        else:
+            self.radiative_transfer = radiative_transfer
         self.refinement_strategy = refinement_strategy
+        self.adaptive_grid = adaptive_grid
+
         return
 
     def insert_source_in_cube(
@@ -198,14 +213,15 @@ class Mochi(Martini):
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
         self.source._init_los_pixcoords(self.datacube)
         self.sph_kernel._init_sm_ranges()
-        adaptive_cell_grid = AdaptiveCellGrid(self.datacube)
-        adaptive_cell_grid.init_particle_locations(self.source, self.sph_kernel)
-        adaptive_cell_grid.eval_grid_refinement(self.refinement_strategy)
-        adaptive_cell_grid.interpolate_fields(
-            self.source, self.sph_kernel, self.interpolant
-        )
-        adaptive_cell_grid.create_regular_array()
-        cube = adaptive_cell_grid.eval_radiative_transfer(
+        if self.adaptive_grid:
+            cell_grid = AdaptiveCellGrid(self.datacube)
+        cell_grid.init_particle_locations(self.source, self.sph_kernel)
+        if self.adaptive_grid:
+            cell_grid.eval_grid_refinement(self.refinement_strategy)
+        cell_grid.interpolate_fields(self.source, self.sph_kernel, self.interpolant)
+        if self.adaptive_grid:
+            cell_grid.create_regular_array()
+        cube = cell_grid.eval_radiative_transfer(
             self.datacube, self.spectral_model, self.radiative_transfer
         )
         cube *= (

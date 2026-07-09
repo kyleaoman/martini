@@ -4,13 +4,13 @@ import warnings
 import numpy as np
 from martini.datacube import DataCube
 from martini.spectral_models import _BaseSpectrum
-from martini.mochi.cell_grid import AdaptiveCellGrid
+from martini.mochi.cell_grid import CellGrid, AdaptiveCellGrid
 import astropy.units as U
 from typing import Callable
 
 
 def calculate_field_spectrum(
-    adaptive_cell_grid: AdaptiveCellGrid,
+    cell_grid: CellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
     cell_volume: U.Quantity[U.pix**3],
@@ -22,7 +22,7 @@ def calculate_field_spectrum(
 
     Parameters
     ----------
-    adaptive_cell_grid : ~martini.mochi.cell_grid.AdaptiveCellGrid
+    cell_grid : ~martini.mochi.cell_grid.CellGrid
         The cell grid with interpolated fields available.
 
     datacube : ~martini.datacube.DataCube
@@ -39,9 +39,9 @@ def calculate_field_spectrum(
     ~astropy.units.Quantity
         The evaluated mass spectrum.
     """
-    field_temperatures = adaptive_cell_grid.interpolated_fields["temperatures"]
-    field_masses = adaptive_cell_grid.interpolated_fields["masses_HI"]
-    field_velocities = adaptive_cell_grid.interpolated_fields["velocities"]
+    field_temperatures = cell_grid.interpolated_fields["temperatures"]
+    field_masses = cell_grid.interpolated_fields["masses_HI"]
+    field_velocities = cell_grid.interpolated_fields["velocities"]
     field_temperatures[field_masses == 0] = 1 * field_temperatures.unit
     numerator = field_masses * cell_volume
     # Some refactoring needed here for better integration with spectral model, or maybe
@@ -84,7 +84,7 @@ def calculate_field_spectrum(
 
 
 def optically_thin(
-    cell_grid: AdaptiveCellGrid,  # should actually be CellGrid when implemented
+    cell_grid: CellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
     **kwargs,
@@ -96,7 +96,7 @@ def optically_thin(
 
     Parameters
     ----------
-    cell_grid : AdaptiveCellGrid
+    cell_grid : CellGrid
         The cell grid with interpolated fields available.
 
     datacube : ~martini.datacube.DataCube
@@ -110,14 +110,14 @@ def optically_thin(
     ~astropy.units.Quantity
         The mock spectral cube.
     """
-    field_mHI = cell_grid.interpolated_fields["masses_HI"].reshape(
-        cell_grid.final_grid_shape
-    )
+    # This can be refactored to partially merge with adaptive_optically_thin.
+    # It should also use calculate_field_spectrum (i.e. the spectral_model integration)
+    field_mHI = cell_grid.interpolated_fields["masses_HI"].reshape(cell_grid.grid_shape)
     field_temperature = cell_grid.interpolated_fields["temperatures"].reshape(
-        cell_grid.final_grid_shape
+        cell_grid.grid_shape
     )
     field_velocity = cell_grid.interpolated_fields["velocities"].reshape(
-        cell_grid.final_grid_shape
+        cell_grid.grid_shape
     )
     field_temperature[field_mHI == 0] = 1 * field_temperature.unit
     numerator = (
@@ -130,8 +130,8 @@ def optically_thin(
         np.zeros(
             (
                 datacube.n_channels,
-                cell_grid.final_grid_shape[1],
-                cell_grid.final_grid_shape[2],
+                cell_grid.grid_shape[1],
+                cell_grid.grid_shape[2],
             )
         )
         * numerator.unit
@@ -199,7 +199,7 @@ def adaptive_optically_thin(
     xyz_0 = np.array([x0, y0, z0])
     xyz_cells = np.column_stack([adaptive_cell_grid.adaptive_cells[i] for i in "xyz"])
     dx = np.min(adaptive_cell_grid.adaptive_cells["size"])
-    cell_unit = adaptive_cell_grid.final_cell_volume.unit ** (1 / 3)
+    cell_unit = adaptive_cell_grid.cell_volumes.unit ** (1 / 3)
     element_volume = dx**3 * cell_unit**3
     N = len(adaptive_cell_grid.adaptive_cells)
     cell_range: np.ndarray = np.arange(N, dtype=index_type)
@@ -220,8 +220,8 @@ def adaptive_optically_thin(
     cube = np.zeros(
         (
             field_spectra.shape[0],
-            adaptive_cell_grid.final_grid_shape[1],
-            adaptive_cell_grid.final_grid_shape[2],
+            adaptive_cell_grid.grid_shape[1],
+            adaptive_cell_grid.grid_shape[2],
         )
     )
     for i in cell_range:
