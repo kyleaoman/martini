@@ -9,9 +9,6 @@ from martini.mochi._dtypes import CELL_DTYPE as _CELL_DTYPE
 _RF = np.sqrt(3) / 2
 
 
-# should everything but the two composed functions at the bottom be private?
-
-
 def _refine_grid_bisect(
     cell: np.ndarray,
     mask: bool | np.ndarray,
@@ -205,10 +202,7 @@ def _occupancy_in_cell(
     )
 
 
-def _has_more_than(
-    count: int,
-    in_cell: np.ndarray
-) -> bool:
+def _has_more_than(count: int, in_cell: np.ndarray) -> bool:
     """
     Describe.
 
@@ -266,6 +260,7 @@ def _intersect_in_cell(
         < particles_radii[mask] + cell["size"] * _RF
     ) & small_particle
 
+
 def refine_grid_to_single_occupancy(
     cells: np.ndarray,
     positions: U.Quantity[U.pix],
@@ -273,7 +268,7 @@ def refine_grid_to_single_occupancy(
     stop_iter: int = 8,
 ) -> np.ndarray:
     """
-    Start from a coarse grid, refine until no cells only contain a single particle.
+    From a coarse grid, refine until no cells only contain a single particle.
 
     Parameters
     ----------
@@ -304,7 +299,7 @@ def refine_grid_to_single_occupancy(
         cells,
         positions,
         radii,
-        stop_iter
+        stop_iter,
     )
 
 
@@ -315,7 +310,7 @@ def refine_grid_to_half_particle_scale(
     stop_iter: int = 8,
 ) -> np.ndarray:
     """
-    Start from a coarse grid, refine until all cells are smaller than the half radius of intersecting particles.
+    Refine until cells are smaller than the half radius of intersecting particles.
 
     Parameters
     ----------
@@ -346,5 +341,5 @@ def refine_grid_to_half_particle_scale(
         cells,
         positions,
         radii,
-        stop_iter
+        stop_iter,
     )

@@ -140,7 +140,12 @@ class _BaseMartini:
             self._datacube.add_pad(self.beam.needs_pad())
 
         self.source._init_skycoords()
-        self.source._init_pixcoords(self._datacube)  # after datacube is padded
+        self.source._init_pixcoords(
+            self._datacube,
+            los_distance_pixcoords=getattr(
+                self, "_REQUIRES_LOS_DISTANCE_PIXCOORDS", False
+            ),
+        )  # after datacube is padded
 
         self.sph_kernel._init_sm_lengths(source=self.source, datacube=self._datacube)
         self.sph_kernel._init_sm_ranges()

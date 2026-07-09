@@ -164,7 +164,7 @@ class SPHSource(object):
     sky_coordinates: ICRS
     coordinate_frame: "BaseRADecFrame"
     pixcoords: U.Quantity[U.pix]
-    los_pixcoords: U.Quantity[U.pix]
+    los_distance_pixcoords: U.Quantity[U.pix]
     input_mass: U.Quantity[U.Msun]
     skycoords: SkyCoord | None
     spectralcoords: SpectralCoord | None
@@ -261,7 +261,7 @@ class SPHSource(object):
         self.skycoords = None
         self.spectralcoords = None
         self.pixcoords = None
-        self.los_pixcoords = None
+        self.los_distance_pixcoords = None
         return
 
     def _init_skycoords(self, _reset: bool = True) -> None:
@@ -327,7 +327,9 @@ class SPHSource(object):
             self.rotate(Rotation.from_euler("y", self.dec.to_value(U.rad)))
         return
 
-    def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
+    def _init_pixcoords(
+        self, datacube: DataCube, origin: int = 0, los_distance_pixcoords: bool = False
+    ) -> None:
         """
         Initialize pixel coordinates of the particles.
 
@@ -338,6 +340,11 @@ class SPHSource(object):
 
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
+
+        los_distance_pixcoords : bool
+            If ``True`` particle locations along the line-of-sight distance axis are
+            evaluated using the same pixel scale as for RA and Dec and stored as
+            ``self.los_distance_pixcoords``.
         """
         assert self.skycoords is not None, (
             "Initialize source.skycoords before calling _init_pixcoords."
@@ -361,6 +368,25 @@ class SPHSource(object):
             )
             * U.pix
         )
+        if los_distance_pixcoords:
+            distances = skycoords_df_frame.distance
+            # The LoS depth is assumed equal to the width and height of the datacube at
+            # the source distance. They must be equal. This should be refactored later.
+            assert datacube.n_px_x == datacube.n_px_y
+            assert datacube.padx == datacube.pady
+            # The *centre* of the first pixel is coordinate origin, trim one pixel from
+            # interval (i.e. the half pixel from each side).
+            distance_interval = (
+                (datacube.n_px_x - 1) * datacube.px_size * self.distance
+            ).to(distances.unit, U.dimensionless_angles())
+            self.los_distance_pixcoords = (
+                origin
+                + datacube.padx
+                + (distances - self.distance + distance_interval / 2)
+                * (datacube.n_px_x - 1)
+                / distance_interval
+            ) * U.pix
+
         return
 
     def _init_los_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
