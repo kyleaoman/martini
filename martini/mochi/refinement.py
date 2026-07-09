@@ -87,7 +87,6 @@ def _refine_grid(
     cells: np.ndarray,
     positions: U.Quantity[U.pix],
     radii: U.Quantity[U.pix],
-    threshold: float,
     stop_iter: int = 8,
 ) -> np.ndarray:
     """
@@ -111,9 +110,6 @@ def _refine_grid(
 
     radii : ~astropy.units.Quantity
         Array of particle smoothing lengths with units of pixels.
-
-    threshold : float
-        Sensitivity threshold used by ``bisect_condition``.
 
     stop_iter : int
         Maximum recursive splitting depth.
@@ -141,12 +137,8 @@ def _refine_grid(
                     [new_cells, new_cells_over, new_cells_masks], [cells[n], True, True]
                 )
                 continue
-            in_cell = in_cell_function(
-                cells_masks[n], positions, radii, cell, threshold
-            )
-            if bisect_condition(
-                cell["size"], in_cell, threshold, radii[cells_masks[n]]
-            ):
+            in_cell = in_cell_function(cells_masks[n], positions, radii, cell)
+            if bisect_condition(in_cell):
                 _refine_grid_bisect(
                     cell,
                     cells_masks[n],
@@ -178,7 +170,6 @@ def _occupancy_in_cell(
     particles_pos: U.Quantity[U.pix],
     particles_radii: U.Quantity[U.pix],
     cell: np.void,
-    threshold: float,  # is this needed by this or any other occupancy function?
 ) -> np.ndarray:
     """
     Describe.
@@ -200,8 +191,6 @@ def _occupancy_in_cell(
         The cell to consider. Cells are encoded as the coordinates of the lower corner
         (accessible as ``cell["x"]``, etc.) and the side length (``cell["size"]``).
 
-    threshold : float
-        ??.
     """
     return (
         np.sum(
@@ -216,11 +205,9 @@ def _occupancy_in_cell(
     )
 
 
-def _is_not_single_occupancy(
-    cell_size: float,
-    in_cell: np.ndarray,
-    threshold: float,
-    particles_radii: U.Quantity[U.pix],
+def _has_more_than(
+    count: int,
+    in_cell: np.ndarray
 ) -> bool:
     """
     Describe.
@@ -229,28 +216,21 @@ def _is_not_single_occupancy(
 
     Parameters
     ----------
-    cell_size : float
+    count : int
         ??.
 
     in_cell : ~numpy.ndarray
         ??.
-
-    threshold : float
-        ??.
-
-    particles_radii : ~astropy.units.Quantity
-        Particle sizes (i.e. smoothing ranges) in units of pixels.
     """
-    count = np.sum(in_cell)
-    return count > threshold
+    return count < np.count_nonzero(in_cell)
 
 
 def _intersect_in_cell(
+    threshold: float,
     mask: np.ndarray,
     particles_pos: U.Quantity[U.pix],
     particles_radii: U.Quantity[U.pix],
     cell: np.void,
-    threshold: float,  # is this needed by this or any other occupancy function?
 ) -> np.ndarray:
     """
     Describe.
@@ -259,6 +239,9 @@ def _intersect_in_cell(
 
     Parameters
     ----------
+    threshold : float
+        ??.
+
     mask : ~numpy.ndarray
         ??.
 
@@ -271,9 +254,6 @@ def _intersect_in_cell(
     cell : ~numpy.void
         The cell to consider. Cells are encoded as the coordinates of the lower corner
         (accessible as ``cell["x"]``, etc.) and the side length (``cell["size"]``).
-
-    threshold : float
-        ??.
     """
     small_particle = (
         particles_radii[mask] * threshold < cell["size"]
@@ -286,38 +266,85 @@ def _intersect_in_cell(
         < particles_radii[mask] + cell["size"] * _RF
     ) & small_particle
 
-
-def _is_any_particle_included(
-    cell_size: float,
-    in_cell: np.ndarray,
-    threshold: float,
-    particles_radii: U.Quantity[U.pix],
-) -> np.bool:
+def refine_grid_to_single_occupancy(
+    cells: np.ndarray,
+    positions: U.Quantity[U.pix],
+    radii: U.Quantity[U.pix],
+    stop_iter: int = 8,
+) -> np.ndarray:
     """
-    Describe.
-
-    ??.
+    Start from a coarse grid, refine until no cells only contain a single particle.
 
     Parameters
     ----------
-    cell_size : float
-        ??.
+    cells : ~numpy.ndarray
+        Contains entries with the 3D position of the lower corner (accessible as
+        ``cells["x"]``, etc.) and sizes (accessible as ``cells["size"]``) of the initial
+        cells.
 
-    in_cell : ~numpy.ndarray
-        ??.
+    positions : ~astropy.units.Quantity
+        Array of particle positions with units of pixels.
 
-    threshold : float
-        ??.
+    radii : ~astropy.units.Quantity
+        Array of particle smoothing lengths with units of pixels.
 
-    particles_radii : ~astropy.units.Quantity
-        Particle sizes (i.e. smoothing ranges) in units of pixels.
+    stop_iter : int
+        Maximum recursive splitting depth.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        Contains entries with the 3D position of the lower corner (accessible as
+        ``cells["x"]``, etc.) and sizes (accessible as ``cells["size"]``) of the refined
+        cell grid.
     """
-    return np.any(in_cell)
+    return _refine_grid(
+        _occupancy_in_cell,
+        partial(_has_more_than, 2),
+        cells,
+        positions,
+        radii,
+        stop_iter
+    )
 
 
-refine_grid_to_occupancy = partial(
-    _refine_grid, _occupancy_in_cell, _is_not_single_occupancy
-)
-refine_grid_to_particle_scale = partial(
-    _refine_grid, _intersect_in_cell, _is_any_particle_included
-)
+def refine_grid_to_half_particle_scale(
+    cells: np.ndarray,
+    positions: U.Quantity[U.pix],
+    radii: U.Quantity[U.pix],
+    stop_iter: int = 8,
+) -> np.ndarray:
+    """
+    Start from a coarse grid, refine until all cells are smaller than the half radius of intersecting particles.
+
+    Parameters
+    ----------
+    cells : ~numpy.ndarray
+        Contains entries with the 3D position of the lower corner (accessible as
+        ``cells["x"]``, etc.) and sizes (accessible as ``cells["size"]``) of the initial
+        cells.
+
+    positions : ~astropy.units.Quantity
+        Array of particle positions with units of pixels.
+
+    radii : ~astropy.units.Quantity
+        Array of particle smoothing lengths with units of pixels.
+
+    stop_iter : int
+        Maximum recursive splitting depth.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        Contains entries with the 3D position of the lower corner (accessible as
+        ``cells["x"]``, etc.) and sizes (accessible as ``cells["size"]``) of the refined
+        cell grid.
+    """
+    return _refine_grid(
+        partial(_intersect_in_cell, 0.5),
+        partial(_has_more_than, 2),
+        cells,
+        positions,
+        radii,
+        stop_iter
+    )

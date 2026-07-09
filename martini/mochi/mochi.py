@@ -16,7 +16,7 @@ from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
 from typing import Callable
 from martini.mochi.cell_grid import AdaptiveCellGrid
-from martini.mochi.refinement import refine_grid_to_particle_scale
+from martini.mochi.refinement import refine_grid_to_half_particle_scale
 from martini._unit_conversion import MHI_to_Jy_inplace
 
 
@@ -115,7 +115,7 @@ class Mochi(Martini):
 
     refinement_strategy : Callable
         Function that decides and applies the grid refinement criterion. E.g.
-        :func:`~martini.mochi.refinement.refine_grid_to_particle_scale`, can be found in
+        :func:`~martini.mochi.refinement.refine_grid_to_half_particle_scale`, can be found in
         the :mod:`~martini.mochi.refinement` module.
 
     quiet : bool, optional
@@ -148,7 +148,7 @@ class Mochi(Martini):
         radiative_transfer: Callable,  # fill in arg & return types
         refinement_strategy: Callable[
             [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix], float], np.ndarray
-        ] = refine_grid_to_particle_scale,
+        ] = refine_grid_to_half_particle_scale,
         quiet: bool = False,
     ) -> None:
         super().__init__(

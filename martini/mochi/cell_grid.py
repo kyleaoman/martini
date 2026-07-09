@@ -98,8 +98,7 @@ class AdaptiveCellGrid:
         self,
         refinement_strategy: Callable[
             [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix], float], np.ndarray
-        ],
-        threshold: float = 0.5,
+        ]
     ) -> None:
         """
         Walk the initial cell grid and refine where required to make an adaptive grid.
@@ -118,7 +117,6 @@ class AdaptiveCellGrid:
             self.initial_cells,
             self.positions.to_value(U.pix),
             self.radii.to_value(U.pix),
-            threshold,
         ).view(dtype=_CELL_DTYPE)
         self.init_cell_centres()
         self.init_cell_volumes()

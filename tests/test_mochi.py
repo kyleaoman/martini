@@ -22,8 +22,8 @@ rt_methods = (
     radiative_transfer.adaptive_optically_thin,
 )
 refinement_strategies = (
-    refinement.refine_grid_to_particle_scale,
-    refinement.refine_grid_to_occupancy,
+    refinement.refine_grid_to_half_particle_scale,
+    refinement.refine_grid_to_single_occupancy,
 )
 spectral_models = (GaussianSpectrum, DiracDeltaSpectrum)
 
