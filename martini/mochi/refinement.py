@@ -9,9 +9,6 @@ from martini.mochi._dtypes import CELL_DTYPE as _CELL_DTYPE
 _RF = np.sqrt(3) / 2
 
 
-# should everything but the two composed functions at the bottom be private?
-
-
 def _refine_grid_bisect(
     cell: np.ndarray,
     mask: bool | np.ndarray,
