@@ -110,37 +110,14 @@ def optically_thin(
     ~astropy.units.Quantity
         The mock spectral cube.
     """
-    # This can be refactored to partially merge with adaptive_optically_thin.
-    # It should also use calculate_field_spectrum (i.e. the spectral_model integration)
-    field_mHI = cell_grid.interpolated_fields["masses_HI"].reshape(cell_grid.grid_shape)
-    field_temperature = cell_grid.interpolated_fields["temperatures"].reshape(
-        cell_grid.grid_shape
-    )
-    field_velocity = cell_grid.interpolated_fields["velocities"].reshape(
-        cell_grid.grid_shape
-    )
-    field_temperature[field_mHI == 0] = 1 * field_temperature.unit
-    numerator = (
-        field_mHI
-        / np.sqrt(2 * np.pi * field_temperature)  # not so sure about this...
-        * np.abs(np.diff(datacube.velocity_channel_edges))[:, np.newaxis]
-        * cell_grid.cell_volumes
-    )
-    cube = (
-        np.zeros(
-            (
-                datacube.n_channels,
-                cell_grid.grid_shape[1],
-                cell_grid.grid_shape[2],
-            )
-        )
-        * numerator.unit
-    )
-    diff = (
-        field_velocity[None, ...] - datacube.velocity_channel_mids[:, None, None, None]
-    )
-    gaussians = np.exp(-(diff**2) / (2 * field_temperature[None, ...]))
-    cube = np.sum(numerator[None, ...] * gaussians, axis=1)  # sum over LOS axis
+    # This might be refactored to merge with adaptive_optically_thin?
+    element_volume = (cell_grid.cells["size"][0] * U.pix) ** 3  # use individual volumes
+    cube = calculate_field_spectrum(
+        cell_grid,
+        datacube,
+        spectral_model,
+        element_volume,
+    ).reshape(cell_grid.grid_shape)
     cube = np.flip(np.moveaxis(cube, 1, 2), axis=2)
     return cube
 

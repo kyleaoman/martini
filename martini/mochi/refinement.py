@@ -187,7 +187,6 @@ def _occupancy_in_cell(
     cell : ~numpy.void
         The cell to consider. Cells are encoded as the coordinates of the lower corner
         (accessible as ``cell["x"]``, etc.) and the side length (``cell["size"]``).
-
     """
     return (
         np.sum(

@@ -302,7 +302,6 @@ class AdaptiveCellGrid(CellGrid):
         ----------
         refinement_strategy : Callable
             The method to decide and apply the refinement criterion.
-
         """
         self.adaptive_cells = refinement_strategy(
             self.initial_cells,
