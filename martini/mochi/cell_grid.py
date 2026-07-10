@@ -87,31 +87,6 @@ class CellGrid:
         )
         self.radii = np.clip(sph_kernel.sm_ranges, min_radius, np.inf)
 
-    def eval_grid_refinement(
-        self,
-        refinement_strategy: Callable[
-            [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix]], np.ndarray
-        ],
-    ) -> None:
-        """
-        Walk the initial cell grid and refine where required to make an adaptive grid.
-
-        ??.
-
-        Parameters
-        ----------
-        refinement_strategy : Callable
-            The method to decide and apply the refinement criterion.
-
-        """
-        self.adaptive_cells = refinement_strategy(
-            self.initial_cells,
-            self.positions.to_value(U.pix),
-            self.radii.to_value(U.pix),
-        ).view(dtype=_CELL_DTYPE)
-        self.init_cell_centres()
-        self.init_cell_volumes()
-
     def init_cell_centres(self, prefix: str = "") -> None:
         """
         Initialize an array with the central coordinates of each cell.
