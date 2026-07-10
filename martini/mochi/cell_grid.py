@@ -220,10 +220,7 @@ class CellGrid:
             velocities=source.skycoords.radial_velocity,
             masses_HI=source.mHI_g,
             temperatures=source.T_g * C.k_B / C.m_p,  # approx thermal energy?
-            masses=source.mHI_g,
-            # / 0.7,  # mass goes here, crude approx for now (H fraction)
-            # changing by multiplicative factor won't do anything
-            # its just like if you changed the units
+            masses=source.mHI_g,  # mass goes here, crude approx for now
         )
 
     def eval_radiative_transfer(
