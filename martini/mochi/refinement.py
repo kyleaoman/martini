@@ -202,7 +202,7 @@ def _occupancy_in_cell(
     )
 
 
-def _has_more_than(count: int, in_cell: np.ndarray) -> bool:
+def _has_more_than(count: int, in_cell: np.ndarray) -> np.bool:
     """
     Describe.
 
@@ -214,6 +214,11 @@ def _has_more_than(count: int, in_cell: np.ndarray) -> bool:
         ??.
 
     in_cell : ~numpy.ndarray
+        ??.
+
+    Returns
+    -------
+    ~numpy.bool
         ??.
     """
     return count < np.count_nonzero(in_cell)
