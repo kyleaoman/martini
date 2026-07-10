@@ -124,7 +124,7 @@ def optically_thin(
         field_mHI
         / np.sqrt(2 * np.pi * field_temperature)  # not so sure about this...
         * np.abs(np.diff(datacube.velocity_channel_edges))[:, np.newaxis]
-        * cell_grid.final_cell_volume
+        * cell_grid.cell_volumes
     )
     cube = (
         np.zeros(
