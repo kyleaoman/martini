@@ -102,6 +102,7 @@ class TestMochi:
     @pytest.mark.parametrize("interpolant", interpolants)
     @pytest.mark.parametrize("refinement_strategy", refinement_strategies)
     @pytest.mark.parametrize("spectral_model", spectral_models)
+    @pytest.mark.parametrize("adaptive_grid", [True, False])
     def test_insert_source_in_cube(
         self,
         many_particle_source,
@@ -109,6 +110,7 @@ class TestMochi:
         interpolant,
         refinement_strategy,
         spectral_model,
+        adaptive_grid,
     ):
         datacube = dc_zeros
         source = many_particle_source(hsm_g=0.5 * U.kpc)
@@ -123,6 +125,7 @@ class TestMochi:
             spectral_model=spectral_model,
             sph_kernel=sph_kernel,
             interpolant=interpolant,
+            adaptive_grid=adaptive_grid,
             refinement_strategy=refinement_strategy,
         )
         m.insert_source_in_cube()

@@ -24,7 +24,8 @@ class CellGrid:
         The target data cube object for the spectral cube.
 
     grid_size : int
-        The number of cells along each axis of the grid.
+        The number of cells along each axis of the grid. If ``None``, it is determined
+        from the ``datacube`` dimensions.
     """
 
     cells: np.ndarray
@@ -39,10 +40,12 @@ class CellGrid:
     def __init__(
         self,
         datacube: DataCube,
-        grid_size: int,
+        grid_size: int | None = None,
     ) -> None:
         assert datacube.n_px_x == datacube.n_px_y
         assert datacube.padx == datacube.pady
+        if grid_size is None:
+            grid_size = datacube.n_px_x  # cubic!
         # For now we are restricted to a cube (not cuboid) voxel grid. Means we're padding
         # the z-direction, should amend this later.
         self.pix_range = [(0, datacube.n_px_x + 2 * datacube.padx)] * 3
@@ -56,6 +59,9 @@ class CellGrid:
             ],
             dtype=_CELL_DTYPE,
         )
+        self.init_cell_centres()
+        self.init_cell_volumes()
+        self.grid_shape = [grid_size] * 3  # cubic!
 
     def init_particle_locations(
         self,

@@ -1,12 +1,10 @@
 """Base Mochi only includes optically thin models, but can be extended."""
 
-import warnings
 import numpy as np
 from martini.datacube import DataCube
 from martini.spectral_models import _BaseSpectrum
-from martini.mochi.cell_grid import CellGrid, AdaptiveCellGrid
+from martini.mochi.cell_grid import CellGrid
 import astropy.units as U
-from typing import Callable
 
 
 def calculate_field_spectrum(
@@ -87,49 +85,7 @@ def optically_thin(
     cell_grid: CellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
-    **kwargs,
-) -> U.Quantity[U.Msun]:
-    """
-    Assemble fields into an HI cube using optically thin approximation.
-
-    ??.
-
-    Parameters
-    ----------
-    cell_grid : CellGrid
-        The cell grid with interpolated fields available.
-
-    datacube : ~martini.datacube.DataCube
-        Target datacube object, used to retrieve spectral channels.
-
-    spectral_model : _BaseSpectrum
-        The spectral model used to evaluate spectra.
-
-    Returns
-    -------
-    ~astropy.units.Quantity
-        The mock spectral cube.
-    """
-    # This might be refactored to merge with adaptive_optically_thin?
-    element_volume = (cell_grid.cells["size"][0] * U.pix) ** 3  # use individual volumes
-    cube = calculate_field_spectrum(
-        cell_grid,
-        datacube,
-        spectral_model,
-        element_volume,
-    ).reshape(cell_grid.grid_shape)
-    cube = np.flip(np.moveaxis(cube, 1, 2), axis=2)
-    return cube
-
-
-def adaptive_optically_thin(
-    adaptive_cell_grid: AdaptiveCellGrid,
-    datacube: DataCube,
-    spectral_model: _BaseSpectrum,
-    *,
     index_type: type = np.uintc,
-    default_renderer: Callable = optically_thin,  # fill in arg & return types
-    **kwargs,
 ) -> U.Quantity[U.Msun]:
     """
     Assemble fields into an HI cube using optically thin approximation.
@@ -138,7 +94,7 @@ def adaptive_optically_thin(
 
     Parameters
     ----------
-    adaptive_cell_grid : ~martini.mochi.cell_grid.AdaptiveCellGrid
+    cell_grid : ~martini.mochi.cell_grid.CellGrid
         The cell grid with interpolated fields available.
 
     datacube : ~martini.datacube.DataCube
@@ -150,59 +106,52 @@ def adaptive_optically_thin(
     index_type : type, optional
         The data type used to store cell indices.
 
-    default_renderer : Callable, optional
-        The renderer to fall back to if this one cannot be used (usually because ``cells``
-        was not provided).
-
     Returns
     -------
     ~astropy.units.Quantity
         The mock spectral cube.
     """
-    if not hasattr(adaptive_cell_grid, "adaptive_cells"):
-        warnings.warn(
-            f"Expected adaptive cells, trying {default_renderer.__name__} instead.",
-            UserWarning,
-        )
-        return default_renderer(
-            adaptive_cell_grid,
-            datacube,
-            spectral_model,
-            **kwargs,
-        )
-    x0 = np.min(adaptive_cell_grid.adaptive_cells["x"])
-    y0 = np.min(adaptive_cell_grid.adaptive_cells["y"])
-    z0 = np.min(adaptive_cell_grid.adaptive_cells["z"])
-    xyz_0 = np.array([x0, y0, z0])
-    xyz_cells = np.column_stack([adaptive_cell_grid.adaptive_cells[i] for i in "xyz"])
-    dx = np.min(adaptive_cell_grid.adaptive_cells["size"])
-    cell_unit = adaptive_cell_grid.cell_volumes.unit ** (1 / 3)
-    element_volume = dx**3 * cell_unit**3
-    N = len(adaptive_cell_grid.adaptive_cells)
-    cell_range: np.ndarray = np.arange(N, dtype=index_type)
-    cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(index_type)
-    cells_end = np.round(
-        (xyz_cells - xyz_0 + adaptive_cell_grid.adaptive_cells["size"][:, np.newaxis])
-        / dx
-    ).astype(index_type)
+    # both of these should use individual cell volumes:
+    if hasattr(cell_grid, "adaptive_cells"):
+        dx = np.min(cell_grid.adaptive_cells["size"])
+    else:
+        dx = cell_grid.cells["size"][0]
+    element_volume = (dx * U.pix) ** 3
+    if hasattr(cell_grid, "adaptive_cells"):
+        x0 = np.min(cell_grid.adaptive_cells["x"])
+        y0 = np.min(cell_grid.adaptive_cells["y"])
+        z0 = np.min(cell_grid.adaptive_cells["z"])
+        xyz_0 = np.array([x0, y0, z0])
+        xyz_cells = np.column_stack([cell_grid.adaptive_cells[i] for i in "xyz"])
+        N = len(cell_grid.adaptive_cells)
+        cell_range: np.ndarray = np.arange(N, dtype=index_type)
+        cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(index_type)
+        cells_end = np.round(
+            (xyz_cells - xyz_0 + cell_grid.adaptive_cells["size"][:, np.newaxis]) / dx
+        ).astype(index_type)
     field_spectra = calculate_field_spectrum(
-        adaptive_cell_grid,
+        cell_grid,
         datacube,
         spectral_model,
         element_volume,
     )
-    cube_unit = field_spectra.unit
-    field_spectra *= cells_end[:, 0] - cells_begin[:, 0]
-    field_spectra = field_spectra[:, :, None, None].value
-    cube = np.zeros(
-        (
-            field_spectra.shape[0],
-            adaptive_cell_grid.grid_shape[1],
-            adaptive_cell_grid.grid_shape[2],
+    if hasattr(cell_grid, "adaptive_cells"):
+        cube_unit = field_spectra.unit
+        field_spectra *= cells_end[:, 0] - cells_begin[:, 0]
+        field_spectra = field_spectra[:, :, None, None].value
+        cube = np.zeros(
+            (
+                field_spectra.shape[0],
+                cell_grid.grid_shape[1],
+                cell_grid.grid_shape[2],
+            )
         )
-    )
-    for i in cell_range:
-        x_start, y_start, z_start = cells_begin[i]
-        x_end, y_end, z_end = cells_end[i]
-        cube[:, y_start:y_end, z_start:z_end] += field_spectra[:, i]
-    return np.flip(np.moveaxis(cube, 1, 2), axis=2) * cube_unit
+        for i in cell_range:
+            x_start, y_start, z_start = cells_begin[i]
+            x_end, y_end, z_end = cells_end[i]
+            cube[:, y_start:y_end, z_start:z_end] += field_spectra[:, i]
+        cube *= cube_unit
+    else:
+        # haven't checked that this is the correct (LoS) axis to sum over:
+        cube = field_spectra.reshape(cell_grid.grid_shape + [-1]).sum(axis=0)
+    return np.flip(np.moveaxis(cube, 1, 2), axis=2)

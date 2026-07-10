@@ -15,9 +15,9 @@ from martini.sph_kernels import _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
 from typing import Callable
-from martini.mochi.cell_grid import AdaptiveCellGrid
+from martini.mochi.cell_grid import CellGrid, AdaptiveCellGrid
 from martini.mochi.refinement import refine_grid_to_half_particle_scale
-from martini.mochi.radiative_transfer import optically_thin, adaptive_optically_thin
+from martini.mochi.radiative_transfer import optically_thin
 from martini._unit_conversion import MHI_to_Jy_inplace
 
 
@@ -111,14 +111,15 @@ class Mochi(Martini):
 
     radiative_transfer : Callable, optional
         Function that evaluates a mock spectral cube (of mass in each pixel-channel
-        cell). E.g. :func:`~martini.mochi.radiative_transfer.adaptive_optically_thin`,
+        cell). E.g. :func:`~martini.mochi.radiative_transfer.optically_thin`,
         can be found in the :mod:`~martini.mochi.radiative_transfer` module. If omitted,
-        the optically thin method (adaptive or non-adaptive as appropriate) is adopted.
+        the optically thin method is adopted.
 
     refinement_strategy : Callable, optional
         Function that decides and applies the grid refinement criterion. E.g.
         :func:`~martini.mochi.refinement.refine_grid_to_half_particle_scale`, found in
-        the :mod:`~martini.mochi.refinement` module.
+        the :mod:`~martini.mochi.refinement` module. Ignored if ``adaptive_grid`` is
+        ``False``.
 
     adaptive_grid : bool, optional
         If ``True`` (the default) the gas particle (or gas cell) properties are
@@ -154,7 +155,9 @@ class Mochi(Martini):
         sph_kernel: _BaseSPHKernel,
         spectral_model: _BaseSpectrum,
         interpolant: Callable,  # fill in arg & return types
-        radiative_transfer: Callable | None = None,  # fill in arg & return types
+        radiative_transfer: Callable[
+            [CellGrid, DataCube, _BaseSpectrum, type], U.Quantity[U.Msun]
+        ] = optically_thin,
         refinement_strategy: Callable[
             [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix]], np.ndarray
         ] = refine_grid_to_half_particle_scale,
@@ -171,12 +174,7 @@ class Mochi(Martini):
             quiet=quiet,
         )
         self.interpolant = interpolant
-        if radiative_transfer is None:
-            self.radiative_transfer = (
-                adaptive_optically_thin if adaptive_grid else optically_thin
-            )
-        else:
-            self.radiative_transfer = radiative_transfer
+        self.radiative_transfer = radiative_transfer
         self.refinement_strategy = refinement_strategy
         self.adaptive_grid = adaptive_grid
 
@@ -214,16 +212,22 @@ class Mochi(Martini):
         """
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
         self.sph_kernel._init_sm_ranges()
-        if self.adaptive_grid:
-            cell_grid = AdaptiveCellGrid(self.datacube)
+        cell_grid = (
+            AdaptiveCellGrid(self.datacube)  # do any options need exposing?
+            if self.adaptive_grid
+            else CellGrid(self.datacube)
+        )
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
-        if self.adaptive_grid:
+        if hasattr(cell_grid, "eval_grid_refinement"):
             cell_grid.eval_grid_refinement(self.refinement_strategy)
         cell_grid.interpolate_fields(self.source, self.sph_kernel, self.interpolant)
-        if self.adaptive_grid:
+        if hasattr(cell_grid, "create_regular_array"):
             cell_grid.create_regular_array()
         cube = cell_grid.eval_radiative_transfer(
-            self.datacube, self.spectral_model, self.radiative_transfer
+            # haven't exposed the index datatype option
+            self.datacube,
+            self.spectral_model,
+            self.radiative_transfer,
         )
         cube *= (
             self.source.distance.to(U.Mpc) ** -2
@@ -238,6 +242,11 @@ class Mochi(Martini):
             self.datacube.n_px_x + 2 * self.datacube.padx,
             self.datacube.n_px_y + 2 * self.datacube.pady,
         )
+        # If resize could be avoided that would:
+        #  - remove a dependency
+        #  - remove an interpolation operation that seems a bit dubious (?)
+        #  - reduce memory footprint: we could inject the cube straight into the
+        #    datacube object above
         cube = _resize_cube(cube, target_shape)
         cube = np.flip(cube, 2)
         cube = np.moveaxis(
