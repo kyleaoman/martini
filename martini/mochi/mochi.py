@@ -223,37 +223,35 @@ class Mochi(Martini):
         cell_grid.interpolate_fields(self.source, self.sph_kernel, self.interpolant)
         if hasattr(cell_grid, "create_regular_array"):
             cell_grid.create_regular_array()
-        cube = cell_grid.eval_radiative_transfer(
+        self.datacube._array = cell_grid.eval_radiative_transfer(
             # haven't exposed the index datatype option
             self.datacube,
             self.spectral_model,
             self.radiative_transfer,
         )
-        cube *= (
+        # can the unit conversion be merged with martini?
+        self.datacube._array *= (
             self.source.distance.to(U.Mpc) ** -2
         )  # use distances of individual cells instead
-        cube /= np.abs(np.diff(self.datacube.velocity_channel_edges)).to(U.km / U.s)[
-            :, np.newaxis, np.newaxis
-        ]
+        self.datacube._array /= np.abs(
+            np.diff(self.datacube.velocity_channel_edges)
+        ).to(U.km / U.s)[:, np.newaxis, np.newaxis]
 
-        MHI_to_Jy_inplace(cube)
-        cube /= U.pix**2
+        MHI_to_Jy_inplace(self.datacube._array)
+        self.datacube._array /= U.pix**2
         target_shape = (
+            # should this be y then x? there's a flip below.
             self.datacube.n_px_x + 2 * self.datacube.padx,
             self.datacube.n_px_y + 2 * self.datacube.pady,
         )
         # If resize could be avoided that would:
         #  - remove a dependency
         #  - remove an interpolation operation that seems a bit dubious (?)
-        #  - reduce memory footprint: we could inject the cube straight into the
-        #    datacube object above
-        cube = _resize_cube(cube, target_shape)
-        cube = np.flip(cube, 2)
-        cube = np.moveaxis(
-            cube,
+        self.datacube._array = _resize_cube(self.datacube._array, target_shape)
+        self.datacube._array = np.flip(self.datacube._array, 2)
+        self.datacube._array = np.moveaxis(
+            self.datacube._array,
             (0, 1, 2),
             (2, 1, 0),
         )
-        insertion_slice = np.s_[..., 0] if self.datacube.stokes_axis else np.s_[...]
-        self.datacube._array[insertion_slice] += cube
         return

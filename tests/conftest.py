@@ -590,7 +590,8 @@ def dc_random(request: FixtureRequest) -> Generator[DataCube, None, None]:
         stokes_axis=stokes_axis,
         px_size=15.0 * U.arcsec,
     )
-
+    dc._allocate_cube()
+    assert dc._array is not None
     dc._array[...] = (
         np.random.rand(dc._array.size).reshape(dc._array.shape) * dc._array.unit
     )
@@ -635,6 +636,7 @@ def dc_wcs(request: FixtureRequest) -> Generator[DataCube, None, None]:
             dc = DataCube.from_wcs(hdr_wcs)
     else:
         dc = DataCube.from_wcs(hdr_wcs)
+    dc._allocate_cube()
     yield dc
 
 
@@ -680,6 +682,7 @@ def dc_zeros(request: FixtureRequest) -> Generator[DataCube, None, None]:
         stokes_axis=stokes_axis,
         px_size=15.0 * U.arcsec,
     )
+    dc._allocate_cube()
 
     yield dc
 
@@ -702,7 +705,7 @@ def adaptive_kernel_test_datacube() -> Generator[DataCube, None, None]:
         spectral_centre=3 * 70 * U.km / U.s,
         channel_width=4.0 * U.km / U.s,
     )
-
+    dc._allocate_cube()
     yield dc
 
 
