@@ -12,19 +12,22 @@ def find_grid_intersections(
     cell_sizes: np.ndarray | None = None,
     many_intersections_threshold: int = 100,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
+    r"""
     Search for coordinates that reach grid locations within variable search radii.
 
     This implementation is valid in any number of dimensions and can handle both
     cell grids where all cells have the same size, or non-uniform grids. Grid cells must,
-    however, be cubic. The algorithm chosen is fast with the caveat that it can produce a
-    relatively small number of false-positive matches (usually near a cell corner where
-    the radius does not quite reach the centre). In the context of kernel-based imaging,
-    this implies a few extra kernel evaluations, but those evaluations will be zero so
-    the final result is unaffected. Search coordinates with large radii that could overlap
-    with very many cells (defined by a threshold) are handled separately with a slower
-    method to avoid excessive memory usage. If most search areas cover most of the grid
-    this function is not optimal.
+    however, be cubic. Search coordinates with large radii that could overlap with very
+    many cells (defined by a threshold) are handled separately with a slower method to
+    avoid excessive memory usage. If most search areas cover most of the grid this
+    function is not optimal.
+
+    Note that a search coordinate with a small radius can slip "between" cell centres if
+    the sphere does not enclose any cell centres. For uniform grids this can be mitigated
+    by flooring the search radius at :math:`\sqrt{n_\mathrm{dim}}/2`. Some adjustment will
+    be needed for these particles as they are intended to evaluate the Dirac-delta kernel
+    but with this floor they can hit multiple grid cells, which will deposit their mass
+    more than once. For non-uniform grids no strategy has been identified, yet.
 
     Parameters
     ----------
@@ -70,6 +73,10 @@ def find_grid_intersections(
     cell_indices : ~numpy.ndarray
         The unique cell indices (index into ``cell_centres``). Each entry in this array
         corresponds to a range in ``strides``.
+
+    distances : ~numpy.ndarray
+        The Euclidian distance between the search coordinate and cell centre for each
+        match.
     """
     n_cells, n_dim = cell_centres.shape
 

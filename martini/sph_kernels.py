@@ -1206,7 +1206,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
 class _AdaptiveKernel(_BaseSPHKernel):
     """
-    Allows use of multiple kernels to adapt to sph kernel-to-pixel size ratio.
+    Allow use of multiple kernels to adapt to sph kernel-to-pixel size ratio.
 
     Other provided kernels generally use approximations which break down if
     the ratio of the pixel size and the sph smoothing length are above or below
