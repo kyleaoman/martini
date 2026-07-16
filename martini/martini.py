@@ -16,7 +16,6 @@ from astropy.io import fits
 from astropy.time import Time
 from astropy.coordinates import Angle
 from astropy import __version__ as astropy_version
-from itertools import product
 from .__version__ import __version__ as martini_version
 from warnings import warn
 from martini.beams import _BaseBeam
@@ -25,6 +24,7 @@ from martini.sources import SPHSource
 from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
+from martini._grid_search import find_grid_intersections
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -241,7 +241,9 @@ class _BaseMartini:
         return
 
     def _evaluate_pixel_spectrum(
-        self, ij_px: tuple[int, int]
+        self,
+        ij_px: tuple[int, int],
+        particle_indices: np.ndarray,
     ) -> U.Quantity[U.Jy / U.arcsec**2]:
         """
         Add up contributions of particles to the spectrum in a pixel.
@@ -261,6 +263,10 @@ class _BaseMartini:
             A 2-tuple containing integers specifying the indices (i, j) of pixels in the
             grid where the spectrum should be calculated.
 
+        particle_indices : ~numpy.ndarray
+            An array of pre-computed indices that serves as a mask into the particle array
+            to select the particles that contribute to this pixel.
+
         Returns
         -------
         ~astropy.units.Quantity
@@ -269,14 +275,11 @@ class _BaseMartini:
             spectral axis of the datacube.
         """
         ij = np.array(ij_px)[..., np.newaxis] * U.pix
-        mask = (
-            np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
-        ).all(axis=0)
         weights = self.sph_kernel._px_weight(
-            self.source.pixcoords[:2, mask] - ij, mask=mask
+            self.source.pixcoords[:2, particle_indices] - ij, mask=particle_indices
         )
         assert self.spectral_model.spectra is not None
-        tmp = self.spectral_model.spectra[mask]
+        tmp = self.spectral_model.spectra[particle_indices]
         np.multiply(tmp, weights[:, np.newaxis], out=tmp)
         insertion_values = np.sum(tmp, axis=-2)
         del tmp
@@ -324,10 +327,20 @@ class _BaseMartini:
 
         self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
-        ij_pxs = list(
-            product(
-                np.arange(self._datacube._array.shape[0]),
-                np.arange(self._datacube._array.shape[1]),
+        ij_pxs = np.mgrid[
+            : self._datacube._array.shape[0], : self._datacube._array.shape[1]
+        ].T.reshape(-1, 2)
+        # Distances unused for now, probably actually want the offsets rather than
+        # Euclidian distances, since that's what kernels expect (req'd for DD kernel):
+        particle_indices, pixel_slices, pixel_indices, distances = (
+            find_grid_intersections(
+                ij_pxs,
+                self.source.pixcoords[:2].to_value(U.pix).T,
+                np.clip(
+                    self.sph_kernel.sm_ranges.to_value(U.pix),
+                    np.sqrt(2) / 2,
+                    np.inf,
+                ),
             )
         )
 
@@ -337,8 +350,17 @@ class _BaseMartini:
         if ncpu == 1:
             self._datacube._array += U.Quantity(
                 [
-                    self._evaluate_pixel_spectrum(ij_px)
-                    for ij_px in tqdm(ij_pxs, disable=not progressbar)
+                    self._evaluate_pixel_spectrum(
+                        ij_pxs[i],
+                        particle_indices[
+                            pixel_slices[pixel_indices == i][0, 0] : pixel_slices[
+                                pixel_indices == i
+                            ][0, 1]
+                        ],
+                    )
+                    if np.isin(i, pixel_indices)  # this is ugly, refactor!
+                    else np.zeros(self._datacube._array.shape[2]) * U.Jy / U.pix**2
+                    for i in tqdm(range(len(ij_pxs)), disable=not progressbar)
                 ]
             ).reshape(self._datacube._array.shape)
         else:

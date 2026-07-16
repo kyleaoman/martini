@@ -66,7 +66,7 @@ class TestGridSearch:
         cell_hits, strides, cell_indices, distances = find_grid_intersections(
             cell_centres,
             coords,
-            np.where(radii < 0.5 * np.sqrt(2), 0.5 * np.sqrt(2), radii),  # floored
+            np.clip(radii, 0.5 * np.sqrt(2), np.inf),  # floored
             non_uniform=non_uniform,
             cell_sizes=np.ones(len(cell_centres)),
         )

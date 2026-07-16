@@ -3,6 +3,10 @@
 import numpy as np
 from collections import namedtuple
 
+_grid_ret_tuple = namedtuple(
+    "_grid_ret_tuple", ["intersections", "strides", "cell_indices", "distances"]
+)
+
 
 def find_grid_intersections(
     cell_centres: np.ndarray,
@@ -11,7 +15,7 @@ def find_grid_intersections(
     non_uniform: bool = False,
     cell_sizes: np.ndarray | None = None,
     many_intersections_threshold: int = 100,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> _grid_ret_tuple:
     r"""
     Search for coordinates that reach grid locations within variable search radii.
 
@@ -236,10 +240,7 @@ def find_grid_intersections(
     )
     strides = np.column_stack((split_indices, split_indices + counts))
 
-    ret_tuple = namedtuple(
-        "ret_tuple", ["intersections", "strides", "cell_indices", "distances"]
-    )
-    return ret_tuple(
+    return _grid_ret_tuple(
         intersections=intersections,
         strides=strides,
         cell_indices=cell_indices,

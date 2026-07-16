@@ -74,7 +74,7 @@ class _BaseSPHKernel(object):
 
     __metaclass__ = ABCMeta
     sm_lengths: U.Quantity[U.pix]
-    sm_ranges: np.ndarray
+    sm_ranges: U.Quantity[U.pix]
     size_in_fwhm: float | list[float] | None
     _rescale: float | np.ndarray
 
@@ -257,7 +257,7 @@ class _BaseSPHKernel(object):
     def _init_sm_ranges(self) -> None:
         """Determine maximum number of pixels reached by kernel."""
         # store as float: use case for np.inf in GlobalProfile:
-        self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm)
+        self.sm_ranges = self.sm_lengths * self.size_in_fwhm
 
         return
 
