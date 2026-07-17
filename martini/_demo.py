@@ -31,6 +31,7 @@ def demo_source(N: int = 500) -> SPHSource:
     ~martini.source.sph_source.SPHSource
         An initialized MARTINI source module containing a toy model of a galaxy.
     """
+    np.random.seed(0)
     phi = np.random.rand(N) * 2 * np.pi
     r = np.empty(N, dtype=float)
     for i, L in enumerate(np.random.rand(N)):
