@@ -331,9 +331,15 @@ class _BaseMartini:
 
         self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
-        ij_pxs = np.mgrid[
-            : self._datacube._array.shape[1], : self._datacube._array.shape[0]
-        ].T.reshape(-1, 2)
+        ij_pxs = np.flip(
+            np.mgrid[
+                : self._datacube._array.shape[1], : self._datacube._array.shape[0]
+            ].T.reshape(-1, 2),
+            1,
+        )
+        from datetime import datetime
+
+        t0 = datetime.now()
         gs = find_grid_intersections(
             ij_pxs,
             self.source.pixcoords[:2].to_value(U.pix).T,
@@ -343,27 +349,41 @@ class _BaseMartini:
                 np.inf,
             ),
         )
+        print("GRID SEARCH", datetime.now() - t0)
+        t0 = datetime.now()
+        weights = self.sph_kernel._px_weight(
+            gs.distances.T * U.pix, mask=gs.intersections
+        )
+        print("WEIGHTS", datetime.now() - t0)
 
         # figure out which progressbar style to use
         from tqdm.autonotebook import tqdm
 
         if ncpu == 1:
-            self._datacube._array += U.Quantity(
-                [
-                    self._evaluate_pixel_spectrum(
-                        ij_pxs[i],
-                        gs.intersections[
-                            slice(*gs.strides[gs.cell_indices == i].squeeze())
-                        ],
-                        gs.distances[
-                            slice(*gs.strides[gs.cell_indices == i].squeeze())
-                        ].T,
+            px_buffer = [None] * np.prod(self._datacube._array.shape[:2])
+            for cell_index, stride in tqdm(
+                zip(gs.cell_indices, gs.strides, strict=True),
+                disable=not progressbar,
+                total=gs.cell_indices.size,
+            ):
+                tmp = self.spectral_model.spectra[gs.intersections[slice(*stride)]]
+                np.multiply(tmp, weights[slice(*stride), np.newaxis], out=tmp)
+                px_buffer[cell_index] = np.sum(tmp, axis=-2)
+                # px_buffer[cell_index] = np.sum(
+                #     self.spectral_model.spectra[gs.intersections[slice(*stride)]]
+                #     * weights[slice(*stride), np.newaxis],
+                #     axis=-2,
+                # )
+            for i in range(len(px_buffer)):
+                if px_buffer[i] is None:
+                    px_buffer[i] = U.Quantity(
+                        np.zeros(self._datacube._array.shape[2]),
+                        U.Jy / U.pix**2,
+                        copy=False,
                     )
-                    if np.isin(i, gs.cell_indices)  # this is ugly, refactor!
-                    else np.zeros(self._datacube._array.shape[2]) * U.Jy / U.pix**2
-                    for i in tqdm(range(len(ij_pxs)), disable=not progressbar)
-                ]
-            ).reshape(self._datacube._array.shape)
+            self._datacube._array += U.Quantity(px_buffer).reshape(
+                self._datacube._array.shape
+            )
         else:
             from multiprocess.pool import ThreadPool
 

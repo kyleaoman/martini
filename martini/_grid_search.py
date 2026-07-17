@@ -76,17 +76,17 @@ def find_grid_intersections(
         match to many cells and therefore appear multiple times. Results are grouped by
         the cell indices.
 
-    strides : ~numpy.ndarray
-        Each row can be used as a range to select rows from ``intersections`` that share
-        a common cell index.
+    distances : ~numpy.ndarray
+        The Euclidian distance between the search coordinate and cell centre for each
+        match.
 
     cell_indices : ~numpy.ndarray
         The unique cell indices (index into ``cell_centres``). Each entry in this array
         corresponds to a range in ``strides``.
 
-    distances : ~numpy.ndarray
-        The Euclidian distance between the search coordinate and cell centre for each
-        match.
+    strides : ~numpy.ndarray
+        Each row can be used as a range to select rows from ``intersections`` that share
+        a common cell index.
     """
     n_cells, n_dim = cell_centres.shape
 
@@ -305,13 +305,13 @@ def find_grid_intersections_kdtree(
         The Euclidian distance between the search coordinate and cell centre for each
         match.
 
-    strides : ~numpy.ndarray
-        Each row can be used as a range to select rows from ``intersections`` that share
-        a common cell index.
-
     cell_indices : ~numpy.ndarray
         The unique cell indices (index into ``cell_centres``). Each entry in this array
         corresponds to a range in ``strides``.
+
+    strides : ~numpy.ndarray
+        Each row can be used as a range to select rows from ``intersections`` that share
+        a common cell index.
     """
     grid_tree = KDTree(cell_centres, compact_nodes=True, balanced_tree=True)
     candidate_lists = grid_tree.query_ball_point(x=coords, r=radii, p=2.0, workers=ncpu)
