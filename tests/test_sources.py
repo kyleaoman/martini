@@ -378,6 +378,45 @@ class TestSPHSource:
             atol=1e-4 * U.pix,
         )
 
+    def test_init_los_pixcoords(self):
+        """Check pseudo-pixel coordinates obtained from distance offsets along the LoS."""
+        # set distance so that 1kpc = 1arcsec
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        # line up particles at 1kpc intervals along the LoS centred on the source distance
+        source = SPHSource(
+            distance=distance,
+            T_g=np.ones(5) * 1e4 * U.K,
+            mHI_g=np.ones(5) * 1e4 * U.Msun,
+            xyz_g=U.Quantity(
+                np.vstack(
+                    (
+                        np.linspace(-2, 2, 5),
+                        np.zeros(5),
+                        np.zeros(5),
+                    )
+                ).T,
+                U.kpc,
+            ),
+            vxyz_g=np.zeros((5, 3)) * U.km / U.s,
+            hsm_g=np.ones(5) * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=5,
+            n_px_y=5,
+            n_channels=5,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+        )
+        expected_coords = np.arange(5) * U.pix
+        source._init_skycoords()
+        source._init_pixcoords(datacube)
+        source._init_los_pixcoords(datacube)
+        assert U.allclose(
+            source.los_pixcoords,
+            expected_coords,
+            atol=1e-4 * U.pix,
+        )
+
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     def test_sky_location(self, ra, dec):

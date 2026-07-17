@@ -142,7 +142,7 @@ class DataCube(object):
         U.Quantity[U.Jy * U.pix**-2]
         | U.Quantity[U.Jy * U.arcsec**-2]
         | U.Quantity[U.Jy * U.beam**-1]
-    )
+    ) | None
     _wcs: WCS | None
     n_px_x: int
     n_px_y: int
@@ -180,10 +180,7 @@ class DataCube(object):
         self.stokes_axis = stokes_axis
         self.coordinate_frame = coordinate_frame
         self.specsys = _validate_specsys(specsys)
-        datacube_unit = U.Jy * U.pix**-2
-        self._array = np.zeros((n_px_x, n_px_y, n_channels)) * datacube_unit
-        if self.stokes_axis:
-            self._array = self._array[..., np.newaxis]
+        self._array = None
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels
         self.px_size = px_size
         self.arcsec2_to_pix = (
@@ -211,6 +208,40 @@ class DataCube(object):
         self._channel_edges = None
         self._channel_mids = None
         self._wcs = None
+
+        return
+
+    @property
+    def datacube_shape(self) -> list[int]:
+        """
+        The datacube shape including any active padding.
+
+        Returns
+        -------
+        list
+            The current shape of the datacube array, including any padding.
+        """
+        shape = [
+            self.n_px_x + 2 * self.padx,
+            self.n_px_y + 2 * self.pady,
+            self.n_channels,
+        ]
+        if self.stokes_axis:
+            shape += [1]
+        return shape
+
+    def _allocate_cube(self, datacube_unit: U.Unit = U.Jy * U.pix**-2) -> None:
+        """
+        Create the datacube array.
+
+        Parameters
+        ----------
+        datacube_unit : ~astropy.units.Unit, optional
+            The units for the datacube array.
+        """
+        self._array = U.Quantity(
+            np.zeros(self.datacube_shape), datacube_unit, copy=False
+        )
 
         return
 
@@ -630,6 +661,8 @@ class DataCube(object):
         iter
             The iterator over the spatial 'slices' of the cube.
         """
+        if self._array is None:
+            raise RuntimeError("DataCube's array is not yet allocated.")
         if self.stokes_axis:
             return iter(
                 self._array.squeeze(self._stokes_index).transpose(
@@ -653,17 +686,20 @@ class DataCube(object):
         iter
             The iterator over the spectra making up the cube.
         """
+        if self._array is None:
+            raise RuntimeError("DataCube's array is not yet allocated.")
+        spectra_shape = (np.prod(self.datacube_shape[:2]), self.datacube_shape[2])
         if self.stokes_axis:
             return iter(
                 self._array.squeeze(self._stokes_index)
                 .transpose((self.wcs.wcs.lng, self.wcs.wcs.lat, self.wcs.wcs.spec))
-                .reshape(self.n_px_x * self.n_px_y, self.n_channels)
+                .reshape(spectra_shape)
             )
         else:
             return iter(
                 self._array.transpose(
                     (self.wcs.wcs.lng, self.wcs.wcs.lat, self.wcs.wcs.spec)
-                ).reshape(self.n_px_x * self.n_px_y, self.n_channels)
+                ).reshape(spectra_shape)
             )
 
     def add_pad(self, pad: tuple[int, int]) -> None:
@@ -687,24 +723,18 @@ class DataCube(object):
         """
         if self.padx > 0 or self.pady > 0:
             raise RuntimeError("Tried to add padding to already padded datacube array.")
-        tmp = self._array
-        shape: tuple = (
-            self.n_px_x + pad[0] * 2,
-            self.n_px_y + pad[1] * 2,
-            self.n_channels,
-        )
-        if self.stokes_axis:
-            shape = shape + (1,)
-        self._array = np.zeros(shape)
-        self._array = self._array * tmp.unit
-        xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else slice(None, None, None)
-        yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else slice(None, None, None)
-        self._array[xregion, yregion, ...] = tmp
+        self.padx, self.pady = pad  # before accessing datacube_shape in this function
+        if self._array is not None:
+            tmp = self._array
+            self._array = np.zeros(self.datacube_shape)
+            self._array = self._array * tmp.unit
+            xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else slice(None, None, None)
+            yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else slice(None, None, None)
+            self._array[xregion, yregion, ...] = tmp
         extend_crpix = [pad[0], pad[1], 0]
         if self.stokes_axis:
             extend_crpix.append(0)
         self.wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
-        self.padx, self.pady = pad
         return
 
     def drop_pad(self) -> None:
@@ -720,7 +750,10 @@ class DataCube(object):
         """
         if (self.padx == 0) and (self.pady == 0):
             return
-        self._array = self._array[self.padx : -self.padx, self.pady : -self.pady, ...]
+        if self._array is not None:
+            self._array = self._array[
+                self.padx : -self.padx, self.pady : -self.pady, ...
+            ]
         retract_crpix = [self.padx, self.pady, 0]
         if self.stokes_axis:
             retract_crpix.append(0)
@@ -755,7 +788,7 @@ class DataCube(object):
         copy._freq_channel_mode = self._freq_channel_mode
         copy._channel_edges = self._channel_edges
         copy._channel_mids = self._channel_mids
-        copy._array = self._array.copy()
+        copy._array = self._array.copy() if self._array is not None else None
         return copy
 
     def save_state(self, filename: str, overwrite: bool = False) -> None:
@@ -784,8 +817,10 @@ class DataCube(object):
 
         mode = "w" if overwrite else "w-"
         with h5py.File(filename, mode=mode) as f:
-            array_unit = self._array.unit
-            f["_array"] = self._array.to_value(array_unit)
+            array_unit = getattr(self._array, "unit", None)
+            f["_array"] = (
+                self._array.to_value(array_unit) if self._array is not None else None
+            )
             f["_array"].attrs["datacube_unit"] = str(array_unit)
             f["_array"].attrs["n_px_x"] = self.n_px_x
             f["_array"].attrs["n_px_y"] = self.n_px_y
@@ -883,7 +918,7 @@ class DataCube(object):
         str
             Text representation of the :attr:`~martini.datacube.DataCube._array` contents.
         """
-        return self._array.__repr__()
+        return self._array.__repr__() if self._array is not None else ""
 
 
 class _GlobalProfileDataCube(DataCube):

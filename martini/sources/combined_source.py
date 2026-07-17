@@ -153,6 +153,7 @@ class CombinedSource(SPHSource):
     _skycoords: SkyCoord | None
     _spectralcoords: SpectralCoord | None
     _pixcoords: U.Quantity[U.pix] | None
+    _los_distance_pixcoords: U.Quantity[U.pix] | None
 
     def __init__(self, sources: list[SPHSource]) -> None:
         self._distance = None
@@ -166,6 +167,7 @@ class CombinedSource(SPHSource):
         self._skycoords = None
         self._spectralcoords = None
         self._pixcoords = None
+        self._los_distance_pixcoords = None
         for source in sources:
             if not isinstance(source, SPHSource):
                 raise ValueError(
@@ -204,7 +206,9 @@ class CombinedSource(SPHSource):
         for source in self.sources:
             source._init_skycoords(_reset=_reset)
 
-    def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
+    def _init_pixcoords(
+        self, datacube: DataCube, origin: int = 0, los_distance_pixcoords: bool = False
+    ) -> None:
         """
         Initialize pixel coordinates of the particles.
 
@@ -217,9 +221,18 @@ class CombinedSource(SPHSource):
 
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
+
+        los_distance_pixcoords : bool
+            If ``True`` particle locations along the line-of-sight distance axis are
+            evaluated using the same pixel scale as for RA and Dec and stored as
+            ``self.los_distance_pixcoords``.
         """
         for source in self.sources:
-            source._init_pixcoords(datacube=datacube, origin=origin)
+            source._init_pixcoords(
+                datacube=datacube,
+                origin=origin,
+                los_distance_pixcoords=los_distance_pixcoords,
+            )
 
     @property
     def distance(self) -> U.Quantity[U.Mpc]:
@@ -645,6 +658,23 @@ class CombinedSource(SPHSource):
             self._pixcoords = np.hstack([source.pixcoords for source in self.sources])
         return self._pixcoords
 
+    @property
+    def los_distance_pixcoords(self) -> U.Quantity[U.pix]:
+        """
+        Get the combined pixel-scale distance offsets from all of the combined sources.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels. LoS distance
+            offsets from source distance in pixel units.
+        """
+        if self._los_distance_pixcoords is None:
+            self._los_distance_pixcoords = np.concatenate(
+                [np.atleast_1d(source.pixcoords) for source in self.sources]
+            )
+        return self._los_distance_pixcoords
+
     def apply_mask(self, mask: np.ndarray) -> None:
         """
         Remove particles from source arrays according to a mask.
@@ -674,6 +704,8 @@ class CombinedSource(SPHSource):
             self._spectralcoords = self._spectralcoords[mask]
         if self._pixcoords is not None:
             self._pixcoords = self._pixcoords[:, mask]
+        if self._los_distance_pixcoords is not None:
+            self._los_distance_pixcoords = self._los_distance_pixcoords[mask]
 
     def rotate(
         self,

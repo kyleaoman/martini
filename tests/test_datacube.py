@@ -84,6 +84,7 @@ class TestDataCube:
             px_size=15 * U.arcsec,
             channel_width=4 * U.km / U.s,
         )
+        datacube._allocate_cube()
         expected_shape = (10, 11, 12, 1) if datacube.stokes_axis else (10, 11, 12)
         assert datacube._array.shape == expected_shape
 

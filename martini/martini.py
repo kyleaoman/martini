@@ -140,7 +140,12 @@ class _BaseMartini:
             self._datacube.add_pad(self.beam.needs_pad())
 
         self.source._init_skycoords()
-        self.source._init_pixcoords(self._datacube)  # after datacube is padded
+        self.source._init_pixcoords(
+            self._datacube,
+            los_distance_pixcoords=getattr(
+                self, "_REQUIRES_LOS_DISTANCE_PIXCOORDS", False
+            ),
+        )  # after datacube is padded
 
         self.sph_kernel._init_sm_lengths(source=self.source, datacube=self._datacube)
         self.sph_kernel._init_sm_ranges()
@@ -318,6 +323,10 @@ class _BaseMartini:
         """
         if self.spectral_model.spectra is None:
             self.init_spectra()
+
+        if self._datacube._array is None:
+            self._datacube._allocate_cube(datacube_unit=U.Jy * U.pix**-2)
+        assert self._datacube._array is not None
 
         if progressbar is None:
             progressbar = not self.quiet
@@ -865,6 +874,10 @@ class Martini(_BaseMartini):
         if self.beam is None:
             warn("Skipping beam convolution, no beam object provided to Martini.")
             return
+        if self._datacube._array is None:
+            raise ValueError(
+                "Martini.convolve_beam: Called with unallocated datacube array."
+            )
 
         minimum_padding = self.beam.needs_pad()
         if (self._datacube.padx < minimum_padding[0]) or (
@@ -912,6 +925,10 @@ class Martini(_BaseMartini):
                 " noise level) provided to Martini."
             )
             return
+        if self._datacube._array is None:
+            raise ValueError(
+                "Martini.write_fits: Called with unallocated datacube array."
+            )
 
         # this unit conversion means noise can be added before or after source insertion:
         noise_cube = (
@@ -973,6 +990,10 @@ class Martini(_BaseMartini):
                     "`channels` argument to `write_fits` ignored, channels and their"
                     " units now fixed at DataCube initialization."
                 )
+            )
+        if self._datacube._array is None:
+            raise ValueError(
+                "Martini.write_fits: Called with unallocated datacube array."
             )
         self._datacube.drop_pad()
 
@@ -1095,6 +1116,7 @@ class Martini(_BaseMartini):
         if self.beam is None:
             raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
         assert self.beam.kernel is not None
+        assert self._datacube._array is not None
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"
 
@@ -1193,6 +1215,10 @@ class Martini(_BaseMartini):
                     " units now fixed at DataCube initialization."
                 )
             )
+        if self._datacube._array is None:
+            raise ValueError(
+                "Martini.write_fits: Called with unallocated datacube array."
+            )
 
         import h5py
 
@@ -1213,9 +1239,9 @@ class Martini(_BaseMartini):
         if not compact:
             # voxel centre coordinates:
             xgrid, ygrid, vgrid = np.meshgrid(
-                np.arange(self._datacube._array.shape[0]),
-                np.arange(self._datacube._array.shape[1]),
-                np.arange(self._datacube._array.shape[2]),
+                np.arange(self._datacube.datacube_shape[0]),
+                np.arange(self._datacube.datacube_shape[1]),
+                np.arange(self._datacube.datacube_shape[2]),
                 indexing="ij",
             )
             cgrid = (
@@ -1237,11 +1263,7 @@ class Martini(_BaseMartini):
                 ).T
             )
             wgrid = self._datacube.wcs.all_pix2world(cgrid, origin)
-            grid_shape = (
-                self.datacube.n_px_x,
-                self.datacube.n_px_y,
-                self.datacube.n_channels,
-            )
+            grid_shape = self._datacube.datacube_shape[:3]
             ragrid = wgrid[:, 0].reshape(grid_shape)
             decgrid = wgrid[:, 1].reshape(grid_shape)
             chgrid = wgrid[:, 2].reshape(grid_shape)
@@ -1253,9 +1275,9 @@ class Martini(_BaseMartini):
             f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
             # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
             xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
-                np.arange(self._datacube._array.shape[0] + 1) - 0.5,
-                np.arange(self._datacube._array.shape[1] + 1) - 0.5,
-                np.arange(self._datacube._array.shape[2] + 1) - 0.5,
+                np.arange(self._datacube.datacube_shape[0] + 1) - 0.5,
+                np.arange(self._datacube.datacube_shape[1] + 1) - 0.5,
+                np.arange(self._datacube.datacube_shape[2] + 1) - 0.5,
                 indexing="ij",
             )
             cgrid_vertices = (
@@ -1277,11 +1299,9 @@ class Martini(_BaseMartini):
                 ).T
             )
             wgrid_vertices = self._datacube.wcs.all_pix2world(cgrid_vertices, origin)
-            vertices_grid_shape = (
-                self.datacube.n_px_x + 1,
-                self.datacube.n_px_y + 1,
-                self.datacube.n_channels + 1,
-            )
+            vertices_grid_shape = [
+                shape_i + 1 for shape_i in self._datacube.datacube_shape[:3]
+            ]
             ragrid_vertices = wgrid_vertices[:, 0].reshape(vertices_grid_shape)
             decgrid_vertices = wgrid_vertices[:, 1].reshape(vertices_grid_shape)
             chgrid_vertices = wgrid_vertices[:, 2].reshape(vertices_grid_shape)
@@ -1303,7 +1323,7 @@ class Martini(_BaseMartini):
                     getattr(self._datacube, dataset_name).unit
                 )
         c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
-        c.attrs["FluxCubeUnit"] = str(self._datacube._array.unit)
+        c.attrs["FluxCubeUnit"] = str(getattr(self._datacube._array, "unit", None))
         c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
         c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
         c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
@@ -1565,6 +1585,7 @@ class GlobalProfile(_BaseMartini):
         super()._insert_source_in_cube(
             skip_validation=True, progressbar=False, ncpu=1, quiet=True
         )
+        assert self._datacube._array is not None
         # The datacube in Jy/arcsec^2 is a bit misleading because the source is
         # (presumably) completely unresolved so extrapolating its surface brightness
         # across the entire pixel is incorrect. Correctly integrate out spatial
