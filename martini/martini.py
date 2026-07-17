@@ -243,11 +243,8 @@ class _BaseMartini:
         return
 
     def _evaluate_pixel_spectrum(
-        self,
-        ij_px: tuple[int, int],
-        particle_indices: np.ndarray,
-        distances: np.ndarray,
-    ) -> U.Quantity[U.Jy / U.arcsec**2]:
+        self, stride: np.ndarray
+    ) -> U.Quantity[U.Jy / U.pix**2]:
         """
         Add up contributions of particles to the spectrum in a pixel.
 
@@ -262,32 +259,21 @@ class _BaseMartini:
 
         Parameters
         ----------
-        ij_px : tuple
-            A 2-tuple containing integers specifying the indices (i, j) of pixels in the
-            grid where the spectrum should be calculated.
-
-        particle_indices : ~numpy.ndarray
-            An array of pre-computed indices that serves as a mask into the particle array
-            to select the particles that contribute to this pixel.
-
-        distances : ~numpy.ndarray
-            A two-column array containing the offsets (vectors) from the particles to this
+        stride : ~np.ndarray
+            Slice to process from the weights array, corresponds to particles for one
             pixel.
 
         Returns
         -------
         ~astropy.units.Quantity
-            :class:`~astropy.units.Quantity` with dimensions of Jy per sq. arcsec.
+            :class:`~astropy.units.Quantity` with dimensions of Jy per sq. pixel.
             A 1D array containing the spectrum, whose length must match the length of the
             spectral axis of the datacube.
         """
-        weights = self.sph_kernel._px_weight(distances * U.pix, mask=particle_indices)
         assert self.spectral_model.spectra is not None
-        tmp = self.spectral_model.spectra[particle_indices]
-        np.multiply(tmp, weights[:, np.newaxis], out=tmp)
-        insertion_values = np.sum(tmp, axis=-2)
-        del tmp
-        return insertion_values
+        tmp = self.spectral_model.spectra[self.gs.intersections[slice(*stride)]]
+        np.multiply(tmp, self.weights[slice(*stride), np.newaxis], out=tmp)
+        return np.sum(tmp, axis=-2)
 
     def _insert_source_in_cube(
         self,
@@ -340,7 +326,7 @@ class _BaseMartini:
         from datetime import datetime
 
         t0 = datetime.now()
-        gs = find_grid_intersections(
+        self.gs = find_grid_intersections(
             ij_pxs,
             self.source.pixcoords[:2].to_value(U.pix).T,
             np.clip(
@@ -352,40 +338,22 @@ class _BaseMartini:
         )
         print("GRID SEARCH", datetime.now() - t0)
         t0 = datetime.now()
-        weights = self.sph_kernel._px_weight(
-            gs.distances.T * U.pix, mask=gs.intersections
+        self.weights = self.sph_kernel._px_weight(
+            self.gs.distances.T * U.pix, mask=self.gs.intersections
         )
         print("WEIGHTS", datetime.now() - t0)
 
         # figure out which progressbar style to use
         from tqdm.autonotebook import tqdm
 
-        assert self.spectral_model.spectra is not None
+        px_buffer = [None] * np.prod(self._datacube._array.shape[:2])
         if ncpu == 1:
-            px_buffer = [None] * np.prod(self._datacube._array.shape[:2])
             for cell_index, stride in tqdm(
-                zip(gs.cell_indices, gs.strides, strict=True),
+                zip(self.gs.cell_indices, self.gs.strides, strict=True),
                 disable=not progressbar,
-                total=gs.cell_indices.size,
+                total=self.gs.cell_indices.size,
             ):
-                tmp = self.spectral_model.spectra[gs.intersections[slice(*stride)]]
-                np.multiply(tmp, weights[slice(*stride), np.newaxis], out=tmp)
-                px_buffer[cell_index] = np.sum(tmp, axis=-2)
-                # px_buffer[cell_index] = np.sum(
-                #     self.spectral_model.spectra[gs.intersections[slice(*stride)]]
-                #     * weights[slice(*stride), np.newaxis],
-                #     axis=-2,
-                # )
-            for i in range(len(px_buffer)):
-                if px_buffer[i] is None:
-                    px_buffer[i] = U.Quantity(
-                        np.zeros(self._datacube._array.shape[2]),
-                        U.Jy / U.pix**2,
-                        copy=False,
-                    )
-            self._datacube._array += U.Quantity(px_buffer).reshape(
-                self._datacube._array.shape
-            )
+                px_buffer[cell_index] = self._evaluate_pixel_spectrum(stride)
         else:
             from multiprocess.pool import ThreadPool
 
@@ -393,19 +361,31 @@ class _BaseMartini:
 
             total = len(ij_pxs)
             with ThreadPool(processes=ncpu) as pool:
-                self._datacube._array += U.Quantity(
-                    list(
-                        tqdm(
-                            pool.imap(
-                                self._evaluate_pixel_spectrum,
-                                ij_pxs,
-                            ),
-                            total=total,
-                            disable=not progressbar,
-                        )
+                insertion_spectra = list(
+                    tqdm(
+                        pool.imap(
+                            self._evaluate_pixel_spectrum,
+                            self.gs.strides,
+                        ),
+                        total=total,
+                        disable=not progressbar,
                     )
-                ).reshape(self._datacube._array.shape)
-
+                )
+            print(insertion_spectra)
+            for cell_index, insertion_spectrum in zip(
+                self.gs.cell_indices, insertion_spectra, strict=True
+            ):
+                px_buffer[cell_index] = insertion_spectrum
+        for i in range(len(px_buffer)):
+            if px_buffer[i] is None:
+                px_buffer[i] = U.Quantity(
+                    np.zeros(self._datacube._array.shape[2]),
+                    U.Jy / U.pix**2,
+                    copy=False,
+                )
+        self._datacube._array += U.Quantity(px_buffer).reshape(
+            self._datacube._array.shape
+        )
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )
