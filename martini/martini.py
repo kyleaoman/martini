@@ -348,6 +348,7 @@ class _BaseMartini:
                 np.sqrt(2) / 2,
                 np.inf,
             ),
+            ncpu=ncpu,
         )
         print("GRID SEARCH", datetime.now() - t0)
         t0 = datetime.now()
@@ -359,6 +360,7 @@ class _BaseMartini:
         # figure out which progressbar style to use
         from tqdm.autonotebook import tqdm
 
+        assert self.spectral_model.spectra is not None
         if ncpu == 1:
             px_buffer = [None] * np.prod(self._datacube._array.shape[:2])
             for cell_index, stride in tqdm(
