@@ -9,6 +9,7 @@ spatial information) is desired.
 import warnings
 import subprocess
 import os
+from datetime import datetime
 from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
@@ -160,10 +161,14 @@ class _BaseMartini:
         not called explicitly before this.
         """
         if not self.quiet:
+            spectra_start_time = datetime.now()
             print("Initializing spectra...")
         self.spectral_model.init_spectra(self.source, self._datacube)
         if not self.quiet:
-            print("Spectra initialized.")
+            print(
+                f"Spectra initialized, took {datetime.now() - spectra_start_time} on "
+                f"{self.spectral_model.ncpu} cores."
+            )
 
         return
 
@@ -309,6 +314,8 @@ class _BaseMartini:
             If ``True``, suppress output to stdout. If specified, takes precedence over
             quiet parameter of class.
         """
+        if not self.quiet:
+            insert_source_start_time = datetime.now()
         if self.spectral_model.spectra is None:
             self.init_spectra()
 
@@ -323,9 +330,9 @@ class _BaseMartini:
             ].T.reshape(-1, 2),
             1,
         )
-        from datetime import datetime
-
-        t0 = datetime.now()
+        if not self.quiet:
+            print("Indexing particle-pixel overlaps...")
+            grid_search_start_time = datetime.now()
         self.gs = find_grid_intersections(
             ij_pxs,
             self.source.pixcoords[:2].to_value(U.pix).T,
@@ -336,16 +343,28 @@ class _BaseMartini:
             ),
             ncpu=ncpu,
         )
-        print("GRID SEARCH", datetime.now() - t0)
-        t0 = datetime.now()
+        if not self.quiet:
+            print(
+                "Indexed particle-pixel overlaps, took "
+                f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
+            )
+        if not self.quiet:
+            print("Evaluating kernel weights...")
+            weights_start_time = datetime.now()
         self.weights = self.sph_kernel._px_weight(
             self.gs.distances.T * U.pix, mask=self.gs.intersections
         )
-        print("WEIGHTS", datetime.now() - t0)
+        if not self.quiet:
+            print(
+                f"Evaluated kernel weights, took {datetime.now() - weights_start_time}."
+            )
 
         # figure out which progressbar style to use
         from tqdm.autonotebook import tqdm
 
+        if not self.quiet:
+            print("Reducing pixel spectra...")
+            px_spectra_start_time = datetime.now()
         px_buffer = [None] * np.prod(self._datacube._array.shape[:2])
         if ncpu == 1:
             for cell_index, stride in tqdm(
@@ -371,11 +390,15 @@ class _BaseMartini:
                         disable=not progressbar,
                     )
                 )
-            print(insertion_spectra)
             for cell_index, insertion_spectrum in zip(
                 self.gs.cell_indices, insertion_spectra, strict=True
             ):
                 px_buffer[cell_index] = insertion_spectrum
+        if not self.quiet:
+            print(
+                f"Reduced pixel spectra, took {datetime.now() - px_spectra_start_time} "
+                f"on {ncpu} cores."
+            )
         for i in range(len(px_buffer)):
             if px_buffer[i] is None:
                 px_buffer[i] = U.Quantity(
@@ -417,7 +440,7 @@ class _BaseMartini:
         )
         if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
             print(
-                "Source inserted.",
+                f"Source inserted, took {datetime.now() - insert_source_start_time}.",
                 f"  Flux density in cube: {inserted_flux_density:.2e}",
                 f"  Mass in cube (assuming distance {self.source.distance:.2f} and a"
                 f" spatially resolved source):"
