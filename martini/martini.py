@@ -47,6 +47,50 @@ else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
+try:
+    import numba
+except ImportError:
+    NUMBA_AVAILABLE = False
+else:
+    NUMBA_AVAILABLE = True
+
+
+if NUMBA_AVAILABLE:
+
+    @numba.njit(parallel=True)
+    def _weighted_sum_and_insert_in_cube(
+        cube_array: np.ndarray,
+        spectra: np.ndarray,
+        weights: np.ndarray,
+        flat_cube_indices: np.ndarray,
+        strides: np.ndarray,
+        intersections: np.ndarray,
+    ) -> None:
+        """..."""
+        dec_dim = cube_array.shape[1]
+        spec_dim = cube_array.shape[2]
+        for i in numba.prange(len(flat_cube_indices)):
+            flat_index = flat_cube_indices[i]
+            ra_index = flat_index // dec_dim
+            dec_index = flat_index % dec_dim
+            for j in range(strides[i, 0], strides[i, 1]):
+                for k in range(spec_dim):
+                    cube_array[ra_index, dec_index, k] += (
+                        weights[j] * spectra[intersections[j], k]
+                    )
+
+else:
+
+    def parallel_inplace_add_from_flat(
+        target_array: np.ndarray, flat_indices: np.ndarray, new_rows: np.ndarray
+    ) -> None:
+        """..."""
+        y_dim = target_array.shape[1]
+        z_indices = flat_indices // y_dim
+        y_indices = flat_indices % y_dim
+        target_array[z_indices, y_indices, :] += new_rows
+
+
 class _BaseMartini:
     """
     Common methods for the core Martini class and related classes.
@@ -247,39 +291,6 @@ class _BaseMartini:
             )
         return
 
-    def _evaluate_pixel_spectrum(
-        self, stride: np.ndarray
-    ) -> U.Quantity[U.Jy / U.pix**2]:
-        """
-        Add up contributions of particles to the spectrum in a pixel.
-
-        This is the main operation in the core loop of MARTINI. It is embarrassingly
-        parallel. To support parallel excecution we accept storing up to a copy of the
-        entire (future) datacube in one-pixel pieces. This avoids the need for concurrent
-        access to the datacube by parallel processes, which would in the simplest case
-        duplicate a copy of the datacube array per parallel process! In realistic use
-        cases the memory overhead from the equivalent of a second datacube array should be
-        minimal - memory-limited applications should be limited by the memory consumed by
-        particle data, which is not duplicated in parallel execution.
-
-        Parameters
-        ----------
-        stride : ~np.ndarray
-            Slice to process from the weights array, corresponds to particles for one
-            pixel.
-
-        Returns
-        -------
-        ~astropy.units.Quantity
-            :class:`~astropy.units.Quantity` with dimensions of Jy per sq. pixel.
-            A 1D array containing the spectrum, whose length must match the length of the
-            spectral axis of the datacube.
-        """
-        assert self.spectral_model.spectra is not None
-        tmp = self.spectral_model.spectra[self.gs.intersections[slice(*stride)]]
-        np.multiply(tmp, self.weights[slice(*stride), np.newaxis], out=tmp)
-        return np.sum(tmp, axis=-2)
-
     def _insert_source_in_cube(
         self,
         skip_validation: bool = False,
@@ -333,7 +344,7 @@ class _BaseMartini:
         if not self.quiet:
             print("Indexing particle-pixel overlaps...")
             grid_search_start_time = datetime.now()
-        self.gs = find_grid_intersections(
+        gs = find_grid_intersections(
             ij_pxs,
             self.source.pixcoords[:2].to_value(U.pix).T,
             np.clip(
@@ -351,94 +362,68 @@ class _BaseMartini:
         if not self.quiet:
             print("Evaluating kernel weights...")
             weights_start_time = datetime.now()
-        self.weights = self.sph_kernel._px_weight(
-            self.gs.distances.T * U.pix, mask=self.gs.intersections
+        weights = self.sph_kernel._px_weight(
+            gs.distances.T * U.pix, mask=gs.intersections
         )
         if not self.quiet:
             print(
                 f"Evaluated kernel weights, took {datetime.now() - weights_start_time}."
             )
 
-        # figure out which progressbar style to use
-        from tqdm.autonotebook import tqdm
-
         if not self.quiet:
-            print("Reducing pixel spectra...")
+            print("Reducing pixel spectra into cube...")
             px_spectra_start_time = datetime.now()
-        px_buffer = [None] * np.prod(self._datacube._array.shape[:2])
-        if ncpu == 1:
-            for cell_index, stride in tqdm(
-                zip(self.gs.cell_indices, self.gs.strides, strict=True),
-                disable=not progressbar,
-                total=self.gs.cell_indices.size,
-            ):
-                px_buffer[cell_index] = self._evaluate_pixel_spectrum(stride)
-        else:
-            from multiprocess.pool import ThreadPool
-
-            # not multiprocessing, need serialization from dill not pickle
-
-            total = len(ij_pxs)
-            with ThreadPool(processes=ncpu) as pool:
-                insertion_spectra = list(
-                    tqdm(
-                        pool.imap(
-                            self._evaluate_pixel_spectrum,
-                            self.gs.strides,
-                        ),
-                        total=total,
-                        disable=not progressbar,
-                    )
-                )
-            for cell_index, insertion_spectrum in zip(
-                self.gs.cell_indices, insertion_spectra, strict=True
-            ):
-                px_buffer[cell_index] = insertion_spectrum
+        assert self.spectral_model.spectra is not None
+        assert self._datacube._array.unit == self.spectral_model.spectra.unit / U.pix**2
+        prev_threadcount = numba.get_num_threads()
+        numba.set_num_threads(ncpu)
+        # need to handle possible Stokes axis in getting view:
+        _weighted_sum_and_insert_in_cube(
+            self._datacube._array.value,
+            self.spectral_model.spectra.value,
+            weights,
+            gs.cell_indices,
+            gs.strides,
+            gs.intersections,
+        )
+        numba.set_num_threads(prev_threadcount)
         if not self.quiet:
             print(
-                f"Reduced pixel spectra, took {datetime.now() - px_spectra_start_time} "
-                f"on {ncpu} cores."
+                f"Reduced pixel spectra into cube, took "
+                f"{datetime.now() - px_spectra_start_time} on {ncpu} cores."
             )
-        for i in range(len(px_buffer)):
-            if px_buffer[i] is None:
-                px_buffer[i] = U.Quantity(
-                    np.zeros(self._datacube._array.shape[2]),
-                    U.Jy / U.pix**2,
-                    copy=False,
-                )
-        self._datacube._array += U.Quantity(px_buffer).reshape(
-            self._datacube._array.shape
-        )
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )
-        pad_mask = (
-            np.s_[
-                self._datacube.padx : -self._datacube.padx,
-                self._datacube.pady : -self._datacube.pady,
-                ...,
-            ]
-            if self._datacube.padx > 0 and self._datacube.pady > 0
-            else np.s_[...]
-        )
-        inserted_flux_density = np.sum(
-            self._datacube._array[pad_mask] * self._datacube.px_size**2
-        ).to(U.Jy)
-        inserted_mass = (
-            2.36e5
-            * U.Msun
-            * self.source.distance.to_value(U.Mpc) ** 2
-            * np.sum(
-                (self._datacube._array[pad_mask] * self._datacube.px_size**2)
-                .sum((0, 1))
-                .squeeze()
-                .to_value(U.Jy)
-                * np.abs(
-                    np.diff(self._datacube.velocity_channel_edges.to_value(U.km / U.s))
+        if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
+            pad_mask = (
+                np.s_[
+                    self._datacube.padx : -self._datacube.padx,
+                    self._datacube.pady : -self._datacube.pady,
+                    ...,
+                ]
+                if self._datacube.padx > 0 and self._datacube.pady > 0
+                else np.s_[...]
+            )
+            inserted_flux_density = np.sum(
+                self._datacube._array[pad_mask] * self._datacube.px_size**2
+            ).to(U.Jy)
+            inserted_mass = (
+                2.36e5
+                * U.Msun
+                * self.source.distance.to_value(U.Mpc) ** 2
+                * np.sum(
+                    (self._datacube._array[pad_mask] * self._datacube.px_size**2)
+                    .sum((0, 1))
+                    .squeeze()
+                    .to_value(U.Jy)
+                    * np.abs(
+                        np.diff(
+                            self._datacube.velocity_channel_edges.to_value(U.km / U.s)
+                        )
+                    )
                 )
             )
-        )
-        if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
             print(
                 f"Source inserted, took {datetime.now() - insert_source_start_time}.",
                 f"  Flux density in cube: {inserted_flux_density:.2e}",

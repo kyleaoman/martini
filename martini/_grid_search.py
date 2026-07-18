@@ -313,8 +313,15 @@ def find_grid_intersections_kdtree(
         Each row can be used as a range to select rows from ``intersections`` that share
         a common cell index.
     """
+    from datetime import datetime
+
+    t0 = datetime.now()
     grid_tree = KDTree(cell_centres, compact_nodes=True, balanced_tree=True)
+    print(f"TREE BUILD {datetime.now() - t0}")
+    t0 = datetime.now()
     candidate_lists = grid_tree.query_ball_point(x=coords, r=radii, p=2.0, workers=ncpu)
+    print(f"TREE QUERY {datetime.now() - t0}")
+    t0 = datetime.now()
     data_counts = np.array([len(lst) for lst in candidate_lists], dtype=np.int64)
     total_intersections = np.sum(data_counts)
 
@@ -339,7 +346,7 @@ def find_grid_intersections_kdtree(
         flat_cell_indices[sort_idx], return_index=True, return_counts=True
     )
     strides = np.column_stack((split_indices, split_indices + counts))
-
+    print(f"TREE OTHER {datetime.now() - t0}")
     return FindGridIntersectionsResult(
         intersections=intersections,
         distances=sorted_distances,
