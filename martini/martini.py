@@ -9,6 +9,7 @@ spatial information) is desired.
 import warnings
 import subprocess
 import os
+from tqdm.auto import tqdm
 from datetime import datetime
 from scipy.signal import fftconvolve
 import numpy as np
@@ -46,7 +47,6 @@ except (subprocess.CalledProcessError, FileNotFoundError):  # pragma: no cover
 else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
-
 try:
     import numba
 except ImportError:
@@ -54,11 +54,17 @@ except ImportError:
 else:
     NUMBA_AVAILABLE = True
 
+if not NUMBA_AVAILABLE:
+    warnings.warn(
+        "'numba' is unavailable, 'martini' will run very slowly. Installing 'numba' is "
+        "recommended.",
+        RuntimeWarning,
+    )
 
 if NUMBA_AVAILABLE:
 
     @numba.njit(parallel=True)
-    def _weighted_sum_and_insert_in_cube(
+    def _weighted_sum_and_insert_in_cube_numba(
         cube_array: np.ndarray,
         spectra: np.ndarray,
         weights: np.ndarray,
@@ -66,7 +72,6 @@ if NUMBA_AVAILABLE:
         strides: np.ndarray,
         intersections: np.ndarray,
     ) -> None:
-        """..."""
         dec_dim = cube_array.shape[1]
         spec_dim = cube_array.shape[2]
         for i in numba.prange(len(flat_cube_indices)):
@@ -79,16 +84,58 @@ if NUMBA_AVAILABLE:
                         weights[j] * spectra[intersections[j], k]
                     )
 
-else:
 
-    def parallel_inplace_add_from_flat(
-        target_array: np.ndarray, flat_indices: np.ndarray, new_rows: np.ndarray
-    ) -> None:
-        """..."""
-        y_dim = target_array.shape[1]
-        z_indices = flat_indices // y_dim
-        y_indices = flat_indices % y_dim
-        target_array[z_indices, y_indices, :] += new_rows
+def _weighted_sum_and_insert_in_cube(
+    cube_array: np.ndarray,
+    spectra: np.ndarray,
+    weights: np.ndarray,
+    flat_cube_indices: np.ndarray,
+    strides: np.ndarray,
+    intersections: np.ndarray,
+    ncpu: int = 1,
+    progressbar: bool = False,
+    NUMBA_AVAILABLE: bool = NUMBA_AVAILABLE,  # intended for switching off in tests
+) -> None:
+    """
+    Unified entrypoint for cube array insertion.
+
+    Executes compiled Numba iteration if available, cleanly managing thread counts.
+    Gracefully drops back to a memory-safe NumPy thread pool or serial iteration
+    if libraries are missing.
+    """
+    dec_dim = cube_array.shape[1]
+    total_elements = len(flat_cube_indices)
+
+    if NUMBA_AVAILABLE:
+        orig_threads = numba.get_num_threads()
+        try:
+            numba.set_num_threads(ncpu)
+            _weighted_sum_and_insert_in_cube_numba(
+                cube_array, spectra, weights, flat_cube_indices, strides, intersections
+            )
+        finally:
+            numba.set_num_threads(orig_threads)
+        return
+
+    if ncpu != 1:
+        warnings.warn("Parallelization not available without 'numba'.", RuntimeWarning)
+        ncpu = 1
+
+    for i in tqdm(range(total_elements), disable=not progressbar):
+        start_j, end_j = strides[i, 0], strides[i, 1]
+        if start_j >= end_j:
+            continue
+
+        flat_index = flat_cube_indices[i]
+        ra_index = flat_index // dec_dim
+        dec_index = flat_index % dec_dim
+
+        j_slice = slice(start_j, end_j)
+        w_sub = weights[j_slice, np.newaxis]
+        spec_sub = spectra[intersections[j_slice], :]
+
+        cube_array[ra_index, dec_index, :] += np.sum(w_sub * spec_sub, axis=0)
+    return
 
 
 class _BaseMartini:
@@ -161,6 +208,7 @@ class _BaseMartini:
     sph_kernel: _BaseSPHKernel
     spectral_model: _BaseSpectrum
     quiet: bool
+    _allow_numba: bool = True  # intended for switching off in tests
 
     def __init__(
         self,
@@ -330,9 +378,18 @@ class _BaseMartini:
         if self.spectral_model.spectra is None:
             self.init_spectra()
 
-        if progressbar is None:
+        if progressbar and NUMBA_AVAILABLE:
+            warnings.warn(
+                "'numba'-accelerated 'martini' does not support progress bar (but it "
+                "will be pretty fast anyway!).",
+                RuntimeWarning,
+            )
+        if NUMBA_AVAILABLE:
+            progressbar = False
+        elif progressbar is None:
             progressbar = not self.quiet
 
+        progressbar = True
         self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
         ij_pxs = np.flip(
@@ -374,19 +431,27 @@ class _BaseMartini:
             print("Reducing pixel spectra into cube...")
             px_spectra_start_time = datetime.now()
         assert self.spectral_model.spectra is not None
-        assert self._datacube._array.unit == self.spectral_model.spectra.unit / U.pix**2
-        prev_threadcount = numba.get_num_threads()
-        numba.set_num_threads(ncpu)
-        # need to handle possible Stokes axis in getting view:
+        assert (
+            self._datacube._array.unit
+            == self.spectral_model.spectra.unit * weights.unit
+        )
+        cube_view = (
+            self._datacube._array[:, :, :, 0].value
+            if self._datacube.stokes_axis
+            else self._datacube._array.value
+        )
         _weighted_sum_and_insert_in_cube(
-            self._datacube._array.value,
+            cube_view,
             self.spectral_model.spectra.value,
-            weights,
+            weights.value,
             gs.cell_indices,
             gs.strides,
             gs.intersections,
+            ncpu=ncpu,
+            progressbar=progressbar,
+            NUMBA_AVAILABLE=NUMBA_AVAILABLE
+            and self._allow_numba,  # intended for switching off in tests
         )
-        numba.set_num_threads(prev_threadcount)
         if not self.quiet:
             print(
                 f"Reduced pixel spectra into cube, took "
