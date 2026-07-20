@@ -70,6 +70,49 @@ if NUMBA_AVAILABLE:
         strides: np.ndarray,
         intersections: np.ndarray,
     ) -> None:
+        """
+        Optimally evaluate weighted combination of spectra and write to datacube array.
+
+        This :mod:`numba` accelerated implementation is much faster than other
+        implementations tested (e.g. vectorized, parallel with :mod:`multiprocess`, etc.).
+        Since it writes directly into an output array, it is only thread safe if no two
+        threads can ever write to the same output index. :mod:`martini` is structured
+        as a loop over pixels where each pixel is visited one or zero times, so this
+        condition is satisfied.
+
+        As required by :mod:`numba`, the arguments are raw arrays. Unit checking is
+        therefore the responsibility of the calling function.
+
+        Parameters
+        ----------
+        cube_array : ~numpy.ndarray
+            The output data cube, as a raw array (can be a view of
+            :class:`~astropy.units.Quantity`).
+
+        spectra : ~numpy.ndarray
+            The array of spectra, one row per particle, as a raw array (can be a view of
+            :class:`~astropy.units.Quantity`).
+
+        weights : ~numpy.ndarray
+            The 1D array of weights, one per particle-pixel match, grouped by pixel, as
+            a raw array (can be a view of :class:`~astropy.units.Quantity`).
+
+        flat_cube_indices : ~numpy.ndarray
+            The 1D array of pixel indices, one per pixel, in the same order as the pixel-
+            groups in the ``weights``. These are unpacked into array locations similar
+            to `~numpy.unravel_index`.
+
+        strides : ~numpy.ndarray
+            The 2D array of strides (start and end locations) that select the ``weights``
+            and ``intersections`` for each pixel. Each row defines a stride and has length
+            2.
+
+        intersections : ~numpy.ndarray
+            The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
+            serves as an index into the ``spectra`` array, the corresponding pixel is
+            identified by the ``flat_cube_indices``. Groups within this array
+            corresponding to individual pixels are selected using a row from ``strides``.
+        """
         dec_dim = cube_array.shape[1]
         spec_dim = cube_array.shape[2]
         for i in numba.prange(len(flat_cube_indices)):
@@ -95,11 +138,62 @@ def _weighted_sum_and_insert_in_cube(
     NUMBA_AVAILABLE: bool = NUMBA_AVAILABLE,  # intended for switching off in tests
 ) -> None:
     """
-    Unified entrypoint for cube array insertion.
+    Evaluate weighted combination of spectra and write to datacube array.
 
-    Executes compiled Numba iteration if available, cleanly managing thread counts.
-    Gracefully drops back to a memory-safe NumPy thread pool or serial iteration
-    if libraries are missing.
+    Given the pre-computed particle spectra, the kernel weights for their contributions to
+    each pixel the information needed to map each weighted spectrum to the pixels where it
+    contributes, this function sums up the contributions and fills the target datacube
+    array. Normally this should use a :mod:`numba` accelerated implementation but a
+    serial fallback is also provided in case :mod:`numba` is not installed. Since the
+    :mod:`numba` implementation is the default and that must deal with raw arrays (not
+    :class:`~astropy.units.Quantity` arrays), this function expects bare arrays; the
+    calling function is responsible for checking units.
+
+    Parameters
+    ----------
+    cube_array : ~numpy.ndarray
+        The output data cube, as a raw array (can be a view of
+        :class:`~astropy.units.Quantity`).
+
+    spectra : ~numpy.ndarray
+        The array of spectra, one row per particle, as a raw array (can be a view of
+        :class:`~astropy.units.Quantity`).
+
+    weights : ~numpy.ndarray
+        The 1D array of weights, one per particle-pixel match, grouped by pixel, as
+        a raw array (can be a view of :class:`~astropy.units.Quantity`).
+
+    flat_cube_indices : ~numpy.ndarray
+        The 1D array of pixel indices, one per pixel, in the same order as the pixel-
+        groups in the ``weights``. These are unpacked into array locations similar
+        to `~numpy.unravel_index`.
+
+    strides : ~numpy.ndarray
+        The 2D array of strides (start and end locations) that select the ``weights``
+        and ``intersections`` for each pixel. Each row defines a stride and has length
+        2.
+
+    intersections : ~numpy.ndarray
+        The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
+        serves as an index into the ``spectra`` array, the corresponding pixel is
+        identified by the ``flat_cube_indices``. Groups within this array
+        corresponding to individual pixels are selected using a row from ``strides``.
+
+    ncpu : int
+        The number of threads to use in the :mod:`numba` accelerated implementation. Can
+        be set to `-1` to use all available. Default is ``1`` to avoid accidentally taking
+        over shared systems.
+
+    progressbar : bool
+        Switch on a progress bar. The :mod:`numba` implementation is not compatible and
+        will produce a warning, but is fast enough that even large cubes normally only
+        take a few seconds. Without :mod:`numba` mode a progress bar can be reassuring
+        while waiting for a result.
+
+    NUMBA_AVAILABLE : bool
+        Provides a mechanism to forcibly switch off :mod:`numba`. Since this is a private
+        function exposiing it here is not problematic. Only intended for use in the test
+        suite.
     """
     dec_dim = cube_array.shape[1]
     total_elements = len(flat_cube_indices)
@@ -350,26 +444,27 @@ class _BaseMartini:
         Parameters
         ----------
         skip_validation : bool, optional
-            SPH kernel interpolation onto the DataCube is approximated for
-            increased speed. For some combinations of pixel size, distance
-            and SPH smoothing length, the approximation may break down. The
+            SPH kernel interpolation onto the :class:`martini.datacube.DataCube` is
+            approximated for increased speed. For some combinations of pixel size,
+            distance and SPH smoothing length, the approximation may break down. The
             kernel class will check whether this will occur and raise a
-            RuntimeError if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter True.
+            ``RuntimeError`` if so. This validation can be skipped (at the cost
+            of accuracy!) by setting this parameter ``True``.
 
         progressbar : bool, optional
-            A progress bar is shown by default. If martini was initialised with
-            `quiet` set to `True`, progress bars are switched off unless explicitly
-            turned on.
+            A progress bar is shown by default if supported (usually not supported when
+            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
+            initialised with ``quiet`` set to ``True``, progress bars are switched off
+            unless explicitly turned on.
 
         ncpu : int
-            Number of processes to use in main source insertion loop. Using more than
-            one cpu requires the `multiprocess` module (n.b. not the same as
-            `multiprocessing`).
+            Number of threads to use in main source insertion loop. Using more than one
+            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
+            threads as available cores.
 
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
-            quiet parameter of class.
+            ``quiet`` parameter of class.
         """
         if not self.quiet:
             insert_source_start_time = datetime.now()
@@ -940,15 +1035,15 @@ class Martini(_BaseMartini):
             of accuracy!) by setting this parameter ``True``.
 
         progressbar : bool, optional
-            A progress bar is shown by default. Progress bars work, with perhaps
-            some visual glitches, in parallel. If :class:`~martini.martini.Martini` was
+            A progress bar is shown by default if supported (usually not supported when
+            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
             initialised with ``quiet`` set to ``True``, progress bars are switched off
             unless explicitly turned on.
 
         ncpu : int
-            Number of processes to use in main source insertion loop. Using more than
-            one cpu requires the :mod:`multiprocess` module (n.b. not the same as
-            ``multiprocessing``).
+            Number of threads to use in main source insertion loop. Using more than one
+            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
+            threads as available cores.
         """
         super()._insert_source_in_cube(
             skip_validation=skip_validation, progressbar=progressbar, ncpu=ncpu
