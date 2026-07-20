@@ -1,9 +1,7 @@
 """Tests of the optimized grid search methods."""
 
 import numpy as np
-from martini._grid_search import (
-    find_grid_intersections_kdtree as find_grid_intersections,
-)
+from martini._grid_search import find_grid_intersections
 
 
 class TestGridSearch:
