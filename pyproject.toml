@@ -29,7 +29,7 @@ dependencies = [
 "Documentation" = "https://martini.readthedocs.io/en/latest"
 
 [project.optional-dependencies]
-parallel = ["multiprocess"]
+parallel = ["multiprocess", "numba"]
 hdf5_output = ["h5py"]
 plotting = ["matplotlib"]
 optional = ["astromartini[parallel,h5py,matplotlib]"]
