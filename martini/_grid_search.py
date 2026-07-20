@@ -1,5 +1,6 @@
 """Provide tools to search for particles touching grid cell points."""
 
+import itertools
 import numpy as np
 from scipy.spatial import KDTree
 from typing import NamedTuple
@@ -321,7 +322,6 @@ def find_grid_intersections_kdtree(
     t0 = datetime.now()
     candidate_lists = grid_tree.query_ball_point(x=coords, r=radii, p=2.0, workers=ncpu)
     print(f"TREE QUERY {datetime.now() - t0}")
-    t0 = datetime.now()
     data_counts = np.array([len(lst) for lst in candidate_lists], dtype=np.int64)
     total_intersections = np.sum(data_counts)
 
@@ -334,9 +334,10 @@ def find_grid_intersections_kdtree(
         )
 
     flat_data_indices = np.repeat(np.arange(len(coords)), data_counts)
-    flat_cell_indices = np.concatenate(
-        [lst for lst in candidate_lists if len(lst) > 0]
-    ).astype(np.int32)
+    t0 = datetime.now()
+    flat_cell_indices = np.fromiter(
+        itertools.chain.from_iterable(candidate_lists), dtype=np.int32
+    )
     distances = coords[flat_data_indices] - cell_centres[flat_cell_indices]  # vectors
 
     sort_idx = np.argsort(flat_cell_indices)
@@ -346,7 +347,6 @@ def find_grid_intersections_kdtree(
         flat_cell_indices[sort_idx], return_index=True, return_counts=True
     )
     strides = np.column_stack((split_indices, split_indices + counts))
-    print(f"TREE OTHER {datetime.now() - t0}")
     return FindGridIntersectionsResult(
         intersections=intersections,
         distances=sorted_distances,
