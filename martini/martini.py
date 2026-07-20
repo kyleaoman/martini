@@ -26,9 +26,7 @@ from martini.sources import SPHSource
 from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
-from martini._grid_search import (
-    find_grid_intersections_kdtree as find_grid_intersections,
-)
+from martini._grid_search import find_grid_intersections
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
