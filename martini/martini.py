@@ -26,7 +26,7 @@ from martini.sources import SPHSource
 from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
-from martini._grid_search import find_grid_intersections
+from martini._grid_search import build_tree, find_grid_intersections
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -491,65 +491,83 @@ class _BaseMartini:
             ].T.reshape(-1, 2),
             1,
         )
-        if not self.quiet:
-            print("Indexing particle-pixel overlaps...")
-            grid_search_start_time = datetime.now()
-        gs = find_grid_intersections(
-            ij_pxs,
-            self.source.pixcoords[:2].to_value(U.pix).T,
-            np.clip(
-                self.sph_kernel.sm_ranges.to_value(U.pix),
-                np.sqrt(2) / 2,
-                np.inf,
-            ),
-            ncpu=ncpu,
-        )
-        if not self.quiet:
-            print(
-                "Indexed particle-pixel overlaps, took "
-                f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
-            )
-        if not self.quiet:
-            print("Evaluating kernel weights...")
-            weights_start_time = datetime.now()
-        weights = self.sph_kernel._px_weight(
-            gs.distances.T * U.pix, mask=gs.intersections
-        )
-        if not self.quiet:
-            print(
-                f"Evaluated kernel weights, took {datetime.now() - weights_start_time}."
-            )
-
-        if not self.quiet:
-            print("Reducing pixel spectra into cube...")
-            px_spectra_start_time = datetime.now()
-        assert self.spectral_model.spectra is not None
-        assert (
-            self._datacube._array.unit
-            == self.spectral_model.spectra.unit * weights.unit
-        )
         cube_view = (
             self._datacube._array[:, :, :, 0].value
             if self._datacube.stokes_axis
             else self._datacube._array.value
         )
-        _weighted_sum_and_insert_in_cube(
-            cube_view,
-            self.spectral_model.spectra.value,
-            weights.value,
-            gs.cell_indices,
-            gs.strides,
-            gs.intersections,
-            ncpu=ncpu,
-            progressbar=progressbar,
-            NUMBA_AVAILABLE=NUMBA_AVAILABLE
-            and self._allow_numba,  # intended for switching off in tests
-        )
         if not self.quiet:
-            print(
-                f"Reduced pixel spectra into cube, took "
-                f"{datetime.now() - px_spectra_start_time} on {ncpu} cores."
+            print("Building pixel grid KDTree...")
+            tree_build_start_time = datetime.now()
+        tree = build_tree(ij_pxs)
+        if not self.quiet:
+            print(f"Built KDTree, took {datetime.now() - tree_build_start_time}.")
+        segments = []
+        n = 0
+        while n < self.source.npart:
+            segments.append(np.s_[n : n + 200])
+            n += 200
+        for i, segment in enumerate(segments, 1):
+            if not self.quiet:
+                print(
+                    f"Indexing particle-pixel overlaps (particle group {i} of "
+                    f"{len(segments)})..."
+                )
+                grid_search_start_time = datetime.now()
+            pixcoords = self.source.pixcoords[:2, segment].to_value(U.pix).T
+            sm_ranges = np.clip(
+                self.sph_kernel.sm_ranges.to_value(U.pix),
+                np.sqrt(2) / 2,
+                np.inf,
+            )[segment]
+            gs = find_grid_intersections(
+                tree,
+                ij_pxs,
+                pixcoords,
+                sm_ranges,
+                ncpu=ncpu,
             )
+            if not self.quiet:
+                print(
+                    "Indexed particle-pixel overlaps, took "
+                    f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
+                )
+            if not self.quiet:
+                print("Evaluating kernel weights...")
+                weights_start_time = datetime.now()
+            weights = self.sph_kernel._px_weight(
+                gs.distances.T * U.pix, mask=gs.intersections
+            )
+            if not self.quiet:
+                print(
+                    f"Evaluated kernel weights, took {datetime.now() - weights_start_time}."
+                )
+
+            if not self.quiet:
+                print("Reducing pixel spectra into cube...")
+                px_spectra_start_time = datetime.now()
+            assert self.spectral_model.spectra is not None
+            assert (
+                self._datacube._array.unit
+                == self.spectral_model.spectra.unit * weights.unit
+            )
+            _weighted_sum_and_insert_in_cube(
+                cube_view,
+                self.spectral_model.spectra.value,
+                weights.value,
+                gs.cell_indices,
+                gs.strides,
+                gs.intersections,
+                ncpu=ncpu,
+                progressbar=progressbar,
+                NUMBA_AVAILABLE=NUMBA_AVAILABLE
+                and self._allow_numba,  # intended for switching off in tests
+            )
+            if not self.quiet:
+                print(
+                    f"Reduced pixel spectra into cube, took "
+                    f"{datetime.now() - px_spectra_start_time} on {ncpu} cores."
+                )
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )

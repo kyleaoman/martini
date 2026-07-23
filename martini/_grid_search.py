@@ -36,8 +36,26 @@ class FindGridIntersectionsResult(NamedTuple):
     strides: np.ndarray
 
 
+def build_tree(cell_centres: np.ndarray) -> KDTree:
+    """
+    Build a KDTree from the cell centres.
+
+    Parameters
+    ----------
+    cell_centres : ~numpy.ndarray
+        Coordinates of cell centres, with one column per dimension. In :mod:`martini` this
+        means the integer pixel coordinates (``(0 * U.pix, 0 * U.pix)`` is the centre of
+        the first pixel).
+    """
+    return KDTree(cell_centres, compact_nodes=True, balanced_tree=True)
+
+
 def find_grid_intersections(
-    cell_centres: np.ndarray, coords: np.ndarray, radii: np.ndarray, ncpu: int = 1
+    grid_tree: KDTree,
+    cell_centres: np.ndarray,
+    coords: np.ndarray,
+    radii: np.ndarray,
+    ncpu: int = 1,
 ) -> FindGridIntersectionsResult:
     r"""
     Search for coordinates that reach grid locations within variable search radii.
@@ -60,6 +78,9 @@ def find_grid_intersections(
 
     Parameters
     ----------
+    grid_tree : ~scipy.spatial.KDTree
+        A :class:`~scipy.spatial.KDTree` built from the pixel indices.
+
     cell_centres : ~numpy.ndarray
         Coordinates of cell centres, with one column per dimension. In :mod:`martini` this
         means the integer pixel coordinates (``(0 * U.pix, 0 * U.pix)`` is the centre of
@@ -97,7 +118,6 @@ def find_grid_intersections(
         Each row can be used as a range to select rows from ``intersections`` that share
         a common cell index.
     """
-    grid_tree = KDTree(cell_centres, compact_nodes=True, balanced_tree=True)
     candidate_lists = grid_tree.query_ball_point(x=coords, r=radii, p=2.0, workers=ncpu)
     data_counts = np.array([len(lst) for lst in candidate_lists], dtype=np.int64)
     total_intersections = np.sum(data_counts)
