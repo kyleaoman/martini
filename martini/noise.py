@@ -149,7 +149,12 @@ class GaussianNoise(_BaseNoise):
         # Approximation turns out to be low by ~ 10%, correct for this:
         rms = self.target_rms * 2.19568 * np.sqrt(np.pi * sig_maj * sig_min)
         rms_unit = rms.unit
-        return (
-            self.rng.normal(scale=rms.to_value(rms_unit), size=datacube._array.shape)
-            * rms_unit
+        return U.Quantity(
+            datacube.cube_dtype(rms.to_value(rms_unit))
+            * self.rng.standard_normal(
+                size=datacube._array.shape,
+                dtype=datacube.cube_dtype,
+            ),
+            rms_unit,
+            copy=False,
         )

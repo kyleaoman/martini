@@ -7,6 +7,11 @@ from astropy import wcs
 from astropy import units as U
 from martini import DataCube
 from martini.datacube import HIfreq
+from martini.beams import GaussianBeam
+from martini import Martini
+from martini.sph_kernels import CubicSplineKernel
+from martini.noise import GaussianNoise
+from martini.spectral_models import GaussianSpectrum
 
 
 def check_wcs_match(wcs1, wcs2):
@@ -368,6 +373,40 @@ class TestDataCube:
                 0 * U.m / U.s,
                 atol=1e-5 * U.m / U.s,
             )
+
+    @pytest.mark.parametrize("cube_dtype", (np.float64, np.float32))
+    @pytest.mark.parametrize("spec_dtype", (np.float64, np.float32))
+    def test_cube_dtype(self, single_particle_source, cube_dtype, spec_dtype):
+        """Check that the requested cube data type is respected."""
+        dc = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=3 * 70 * U.km / U.s,
+            cube_dtype=cube_dtype,
+        )
+        assert dc._array.dtype == cube_dtype
+        source = single_particle_source(hsm_g=3 * U.kpc)
+        beam = GaussianBeam(bmaj=45 * U.arcsec, bmin=45 * U.arcsec)
+        spectral_model = GaussianSpectrum(sigma="thermal", spec_dtype=spec_dtype)
+        sph_kernel = CubicSplineKernel()
+        noise = GaussianNoise(1 * U.Jy / U.beam)
+        m = Martini(
+            source=source,
+            datacube=dc,
+            beam=beam,
+            noise=noise,
+            spectral_model=spectral_model,
+            sph_kernel=sph_kernel,
+        )
+        m.insert_source_in_cube()
+        assert dc._array.dtype == cube_dtype
+        m.add_noise()
+        assert dc._array.dtype == cube_dtype
+        m.convolve_beam()
+        assert dc._array.dtype == cube_dtype
 
 
 class TestDataCubeFromWCS:
