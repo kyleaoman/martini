@@ -56,6 +56,7 @@ def find_grid_intersections(
     coords: np.ndarray,
     radii: np.ndarray,
     ncpu: int = 1,
+    dist_dtype: type = np.float64,
 ) -> FindGridIntersectionsResult:
     r"""
     Search for coordinates that reach grid locations within variable search radii.
@@ -98,6 +99,9 @@ def find_grid_intersections(
     ncpu : int
         Number of cores to use for KDTree query.
 
+    dist_dtype : type, optional
+        Data type for returned distances array, can be used to manage memory usage.
+
     Returns
     -------
     intersections : ~numpy.ndarray
@@ -134,7 +138,10 @@ def find_grid_intersections(
     flat_cell_indices = np.fromiter(
         itertools.chain.from_iterable(candidate_lists), dtype=np.int32
     )
-    distances = coords[flat_data_indices] - cell_centres[flat_cell_indices]  # vectors
+    distances = (
+        coords.astype(np.float32)[flat_data_indices]
+        - cell_centres.astype(np.float32)[flat_cell_indices]
+    )  # vectors
 
     sort_idx = np.argsort(flat_cell_indices)
     intersections = flat_data_indices[sort_idx]

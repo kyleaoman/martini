@@ -109,13 +109,15 @@ class _BaseSPHKernel(object):
         """
         if mask is not Ellipsis:
             rescale = (
-                self._rescale[mask]
+                self._rescale.astype(dij.dtype)[mask]
                 if not isinstance(self._rescale, float)
-                else self._rescale
+                else np.array(self._rescale, dtype=dij.dtype)
             )
-            rescaled_h = self.sm_lengths[mask] * rescale
+            rescaled_h = self.sm_lengths.astype(dij.dtype)[mask] * rescale
         else:
-            rescaled_h = self.sm_lengths * self._rescale
+            rescaled_h = self.sm_lengths.astype(dij.dtype) * np.array(
+                self._rescale, dtype=dij.dtype
+            )
         return self._kernel_integral(dij, rescaled_h, mask=mask)
 
     def _confirm_validation(
@@ -428,7 +430,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
         dr2 = np.power(dij, 2).sum(axis=0)
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R2 = dr2 / (h * h)
         retval[R2 == 0] = 2.0 / 3.0
         use = np.logical_and(R2 < 1, R2 != 0)
@@ -674,7 +676,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
             )
 
         dr2 = np.power(dij, 2).sum(axis=0)
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R = np.sqrt(dr2) / h
         use = np.logical_and(R < 1, R != 0)
         norm = 1365 / 64 / np.pi
@@ -820,7 +822,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         """
         dij *= 2  # changes interval from [0, 2) to [0, 1)
         dr2 = np.power(dij, 2).sum(axis=0)
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R2 = dr2 / (h * h)
         retval[R2 == 0] = 11.0 / 16.0 + 0.25 * 0.25
         case1 = np.logical_and(R2 > 0, R2 <= 1)
@@ -1021,19 +1023,25 @@ class _GaussianKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Kernel integral over the pixel area.
         """
-        sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
+        sig = np.array(
+            1 / (2 * np.sqrt(2 * np.log(2))), dtype=dij.dtype
+        )  # s.t. FWHM = 1
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
         with np.errstate(invalid="ignore"):
-            zmax = np.sqrt(np.power(self.truncate, 2) - np.power(dr / h / sig, 2))
-        zmax = np.where(self.truncate > dr / h / sig, zmax, 0)
-        x0 = (dij[0] - 0.5 * U.pix) / h / np.sqrt(2) / sig
-        x1 = (dij[0] + 0.5 * U.pix) / h / np.sqrt(2) / sig
-        y0 = (dij[1] - 0.5 * U.pix) / h / np.sqrt(2) / sig
-        y1 = (dij[1] + 0.5 * U.pix) / h / np.sqrt(2) / sig
-
-        retval = (
-            0.25 * erf(zmax / np.sqrt(2)) * (erf(x1) - erf(x0)) * (erf(y1) - erf(y0))
+            zmax = np.sqrt(
+                np.power(self.truncate, 2).astype(dij.dtype) - np.power(dr / h / sig, 2)
+            )
+        zmax = np.where(
+            self.truncate > dr / h / sig, zmax, np.array(0, dtype=dij.dtype)
         )
+        half_px = U.Quantity(np.array(0.5, dtype=dij.dtype), U.pix, copy=False)
+        sqrt2 = np.sqrt(np.array(2, dtype=dij.dtype))
+        x0 = (dij[0] - half_px) / h / sqrt2 / sig
+        x1 = (dij[0] + half_px) / h / sqrt2 / sig
+        y0 = (dij[1] - half_px) / h / sqrt2 / sig
+        y1 = (dij[1] + half_px) / h / sqrt2 / sig
+
+        retval = 0.25 * erf(zmax / sqrt2) * (erf(x1) - erf(x0)) * (erf(y1) - erf(y0))
 
         # explicit truncation not required as only pixels inside
         # truncation radius should be passed, next line useful for
@@ -1162,7 +1170,13 @@ class DiracDeltaKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Kernel integral over the pixel area.
         """
-        return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
+        return U.Quantity(
+            np.where(
+                (np.abs(dij) < 0.5 * U.pix).all(axis=0), dij.dtype(1), dij.dtype(0)
+            ),
+            U.pix**-2,
+            copy=False,
+        )
 
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
@@ -1355,7 +1369,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
-        retval = np.zeros(h.shape) * h.unit**-2
+        retval = U.Quantity(np.zeros(h.shape, dtype=dij.dtype), h.unit**-2, copy=False)
         for ik in np.unique(self.kernel_indices[mask]):
             K = self.kernels[0] if ik == -1 else self.kernels[ik]
             kmask = self.kernel_indices[mask] == ik
@@ -1514,7 +1528,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R = (dr / h).to_value(U.dimensionless_unscaled)
 
         def IA(

@@ -526,6 +526,7 @@ class _BaseMartini:
                 pixcoords,
                 sm_ranges,
                 ncpu=ncpu,
+                dist_dtype=self.spectral_model.spec_dtype,
             )
             if not self.quiet:
                 print(
@@ -536,11 +537,12 @@ class _BaseMartini:
                 print("Evaluating kernel weights...")
                 weights_start_time = datetime.now()
             weights = self.sph_kernel._px_weight(
-                gs.distances.T * U.pix, mask=gs.intersections
+                U.Quantity(gs.distances.T, U.pix, copy=False), mask=gs.intersections
             )
             if not self.quiet:
                 print(
-                    f"Evaluated kernel weights, took {datetime.now() - weights_start_time}."
+                    "Evaluated kernel weights, took "
+                    f"{datetime.now() - weights_start_time}."
                 )
 
             if not self.quiet:
