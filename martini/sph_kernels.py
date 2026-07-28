@@ -1172,7 +1172,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         """
         return U.Quantity(
             np.where(
-                (np.abs(dij) < 0.5 * U.pix).all(axis=0), dij.dtype(1), dij.dtype(0)
+                (np.abs(dij) < 0.5 * U.pix).all(axis=0),
+                np.array(1, dtype=dij.dtype),
+                np.array(0, dij.dtype),
             ),
             U.pix**-2,
             copy=False,

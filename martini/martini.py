@@ -502,11 +502,52 @@ class _BaseMartini:
         tree = build_tree(ij_pxs)
         if not self.quiet:
             print(f"Built KDTree, took {datetime.now() - tree_build_start_time}.")
+        # Could just clip in the sm_range evaluation directly (?):
+        clipped_sm_ranges = np.clip(
+            self.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
+        )
+        estimated_px_hits = np.pi * clipped_sm_ranges**2
+        # Estimate memory for main allocations.
+        # - The datacube itself (product of shape times size of an element).
+        # - The spectra (product of shape times size of an element).
+        # - Particle arrays:
+        #   - T_g               (N, 1)
+        #   - mHI_g             (N, 1)
+        #   - hsm_g             (N, 1)
+        #   - coordinates_g     (N, 6)
+        #   - skycoords         (N, 6)
+        #   - spectralcoords    (N, 1)
+        #   - pixcoords         (N, 3)
+        #   Total 19 * N * 64B
+        baseline_mem_estimate = (
+            np.sum(
+                (
+                    np.prod(self._datacube._array.shape)
+                    * self._datacube.cube_dtype(0).itemsize,
+                    np.prod(self.spectral_model.spectra.shape)
+                    * self.spectral_model.spec_dtype(0).itemsize,
+                    19 * self.source.npart * 64,
+                )
+            )
+            / 1024**3
+        )
+        # Estimate memory for tree query. At peak:
+        # - 64B per list (once for each entry in estimated_px_hits).
+        # - 8B (pointer) + 28B (integer) = 36B for each estimated_px_hits.
+        # - Internally C++ vectors are used for storage which over-allocate when resized
+        #   in steps of a factor of 2. In practice seems like a factor of 1.5 allows for
+        #   this.
+        # When finished:
+        # - 4B ints to store each px_hit
+        # - 2*4B floats to store distances
+        tree_peak_mem_estimate = 1.5 * (64 + 36 * estimated_px_hits) / 1024**3  # GB
+        tree_completed_mem_estimate = (4 + 8) * estimated_px_hits
         segments = []
         n = 0
+        segment_size = 200000
         while n < self.source.npart:
-            segments.append(np.s_[n : n + 200])
-            n += 200
+            segments.append(np.s_[n : n + segment_size])
+            n += segment_size
         for i, segment in enumerate(segments, 1):
             if not self.quiet:
                 print(
@@ -516,10 +557,10 @@ class _BaseMartini:
                 grid_search_start_time = datetime.now()
             pixcoords = self.source.pixcoords[:2, segment].to_value(U.pix).T
             sm_ranges = np.clip(
-                self.sph_kernel.sm_ranges.to_value(U.pix),
+                clipped_sm_ranges[segment],
                 np.sqrt(2) / 2,
                 np.inf,
-            )[segment]
+            )
             gs = find_grid_intersections(
                 tree,
                 ij_pxs,
