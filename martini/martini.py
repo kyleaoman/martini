@@ -615,11 +615,7 @@ class _BaseMartini:
                 )
                 grid_search_start_time = datetime.now()
             pixcoords = self.source.pixcoords[:2, segment].to_value(U.pix).T
-            sm_ranges = np.clip(
-                clipped_sm_ranges[segment],
-                np.sqrt(2) / 2,
-                np.inf,
-            )
+            sm_ranges = clipped_sm_ranges[segment]
             gs = find_grid_intersections(
                 tree,
                 ij_pxs,
@@ -636,8 +632,10 @@ class _BaseMartini:
             if not self.quiet:
                 print("Evaluating kernel weights...")
                 weights_start_time = datetime.now()
+            segment_start = 0 if segment.start is None else segment.start
             weights = self.sph_kernel._px_weight(
-                U.Quantity(gs.distances.T, U.pix, copy=False), mask=gs.intersections
+                U.Quantity(gs.distances.T, U.pix, copy=False),
+                mask=segment_start + gs.intersections,  # ??
             )
             if not self.quiet:
                 print(
@@ -655,7 +653,7 @@ class _BaseMartini:
             )
             _weighted_sum_and_insert_in_cube(
                 cube_view,
-                self.spectral_model.spectra.value,
+                self.spectral_model.spectra[segment].value,
                 weights.value,
                 gs.cell_indices,
                 gs.strides,
