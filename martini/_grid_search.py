@@ -2,7 +2,7 @@
 
 import itertools
 import numpy as np
-from scipy.spatial import KDTree
+from scipy.spatial import cKDTree as KDTree
 from typing import NamedTuple
 
 
@@ -122,7 +122,9 @@ def find_grid_intersections(
         Each row can be used as a range to select rows from ``intersections`` that share
         a common cell index.
     """
-    candidate_lists = grid_tree.query_ball_point(x=coords, r=radii, p=2.0, workers=ncpu)
+    candidate_lists = grid_tree.query_ball_point(
+        x=coords, r=radii, p=2.0, workers=ncpu, return_sorted=False
+    )
     data_counts = np.array([len(lst) for lst in candidate_lists], dtype=np.int64)
     total_intersections = np.sum(data_counts)
 
@@ -134,22 +136,27 @@ def find_grid_intersections(
             strides=np.empty((0, 2)),
         )
 
-    flat_data_indices = np.repeat(np.arange(len(coords)), data_counts)
     flat_cell_indices = np.fromiter(
         itertools.chain.from_iterable(candidate_lists), dtype=np.int32
     )
-    distances = (
-        coords.astype(np.float32)[flat_data_indices]
-        - cell_centres.astype(np.float32)[flat_cell_indices]
-    )  # vectors
-
+    del candidate_lists
+    flat_data_indices = np.repeat(np.arange(len(coords), dtype=np.int32), data_counts)
+    del data_counts
     sort_idx = np.argsort(flat_cell_indices)
-    intersections = flat_data_indices[sort_idx]
-    sorted_distances = distances[sort_idx]
+    sorted_cell_indices = flat_cell_indices[sort_idx]
+    del flat_cell_indices
     cell_indices, split_indices, counts = np.unique(
-        flat_cell_indices[sort_idx], return_index=True, return_counts=True
+        sorted_cell_indices, return_index=True, return_counts=True
     )
     strides = np.column_stack((split_indices, split_indices + counts))
+    del split_indices, counts
+    intersections = flat_data_indices[sort_idx]
+    sorted_distances = (
+        coords.astype(dist_dtype, copy=False)[intersections]
+        - cell_centres.astype(dist_dtype, copy=False)[sorted_cell_indices]
+    )  # vectors
+    del flat_data_indices, sort_idx
+
     return FindGridIntersectionsResult(
         intersections=intersections,
         distances=sorted_distances,
