@@ -151,7 +151,7 @@ def find_grid_intersections(
     strides = np.column_stack((split_indices, split_indices + counts))
     del split_indices, counts
     intersections = flat_data_indices[sort_idx]
-    sorted_distances = (
+    sorted_distances: np.ndarray = (
         coords.astype(dist_dtype, copy=False)[intersections]
         - cell_centres.astype(dist_dtype, copy=False)[sorted_cell_indices]
     )  # vectors

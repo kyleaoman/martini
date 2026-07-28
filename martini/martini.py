@@ -6,7 +6,6 @@ simplified :class:`~martini.martini.GlobalProfile` class for use when only a spe
 spatial information) is desired.
 """
 
-import warnings
 import subprocess
 import os
 from tqdm.auto import tqdm
@@ -53,7 +52,7 @@ else:
     NUMBA_AVAILABLE = True
 
 if not NUMBA_AVAILABLE:
-    warnings.warn(
+    warn(
         "'numba' is unavailable, 'martini' will run very slowly. Installing 'numba' is "
         "recommended.",
         RuntimeWarning,
@@ -210,7 +209,7 @@ def _weighted_sum_and_insert_in_cube(
         return
 
     if ncpu != 1:
-        warnings.warn("Parallelization not available without 'numba'.", RuntimeWarning)
+        warn("Parallelization not available without 'numba'.", RuntimeWarning)
         ncpu = 1
 
     for i in tqdm(range(total_elements), disable=not progressbar):
@@ -436,6 +435,7 @@ class _BaseMartini:
         skip_validation: bool = False,
         progressbar: bool | None = None,
         ncpu: int = 1,
+        mem_lim_GB: float = 4.0,
         quiet: bool | None = None,
     ) -> None:
         """
@@ -462,6 +462,14 @@ class _BaseMartini:
             thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
             threads as available cores.
 
+        mem_lim_GB : float
+            The peak memory usage can get very large if many particle kernels touch many
+            pixels in the cube. The particles can be processed in batches to mitigate
+            this, but this slows down the code. The memory limit set here (in GB) will
+            trigger batching if estimated memory usage is expected to exceed it. This is
+            a "soft" limit since some allocation outside of direct control (e.g. internal
+            in :mod:`scipy`) cannot be exactly predicted.
+
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
             ``quiet`` parameter of class.
@@ -472,7 +480,7 @@ class _BaseMartini:
             self.init_spectra()
 
         if progressbar and NUMBA_AVAILABLE:
-            warnings.warn(
+            warn(
                 "'numba'-accelerated 'martini' does not support progress bar (but it "
                 "will be pretty fast anyway!).",
                 RuntimeWarning,
@@ -519,18 +527,14 @@ class _BaseMartini:
         #   - spectralcoords    (N, 1)
         #   - pixcoords         (N, 3)
         #   Total 19 * N * 64B
+        assert self.spectral_model.spectra is not None
         baseline_mem_estimate = (
-            np.sum(
-                (
-                    np.prod(self._datacube._array.shape)
-                    * self._datacube.cube_dtype(0).itemsize,
-                    np.prod(self.spectral_model.spectra.shape)
-                    * self.spectral_model.spec_dtype(0).itemsize,
-                    19 * self.source.npart * 64,
-                )
-            )
-            / 1024**3
-        )
+            np.prod(self._datacube._array.shape) * self._datacube.cube_dtype(0).itemsize
+            + np.prod(self.spectral_model.spectra.shape)
+            * self.spectral_model.spec_dtype(0).itemsize
+            + 19 * self.source.npart * 64
+        ) / 1024**3
+
         # Estimate memory for tree query. At peak:
         # - 64B per list (once for each entry in estimated_px_hits).
         # - 8B (pointer) + 28B (integer) = 36B for each estimated_px_hits.
@@ -541,13 +545,68 @@ class _BaseMartini:
         # - 4B ints to store each px_hit
         # - 2*4B floats to store distances
         tree_peak_mem_estimate = 1.5 * (64 + 36 * estimated_px_hits) / 1024**3  # GB
-        tree_completed_mem_estimate = (4 + 8) * estimated_px_hits
-        segments = []
-        n = 0
-        segment_size = 200000
-        while n < self.source.npart:
-            segments.append(np.s_[n : n + segment_size])
-            n += segment_size
+        tree_completed_mem_estimate = (4 + 8) * estimated_px_hits / 1024**3  # GB
+        # Estimate memory for weights evaluation:
+        # - Memory use comes mostly in chunks of 4B * estimated_px_hits.
+        # - How many such chunks are allocated depends on the kernel function, but is
+        #   not wildly different. The WendlandC2 kernel uses ~17 for instance, but is
+        #   among the most efficient. Allow for 24 chunks.
+        # - The kernel functions could be individually optimized to perform more
+        #   operations in-place in the future.
+        weights_mem_estimate = 24 * 4 * estimated_px_hits / 1024**3  # GB
+        tree_dominates = np.sum(tree_peak_mem_estimate) > np.sum(
+            weights_mem_estimate
+        ) + np.sum(tree_completed_mem_estimate)  # only dominates if <~2 hits/particle
+        single_batch_peak_mem_estimate = (
+            np.max(
+                (
+                    np.sum(tree_peak_mem_estimate),
+                    np.sum(weights_mem_estimate) + np.sum(tree_completed_mem_estimate),
+                )
+            )
+            + baseline_mem_estimate
+        )
+        if single_batch_peak_mem_estimate > mem_lim_GB:
+            warn(
+                f"Requested memory limit ({mem_lim_GB}GB) is insufficient to process all "
+                "particles at once. Processing in batches instead, this will take longer."
+                " Increase `mem_lim_GB` when calling `insert_source_in_cube` if "
+                "possible.",
+                RuntimeWarning,
+            )
+            if baseline_mem_estimate > mem_lim_GB:
+                raise RuntimeError(
+                    f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
+                    f"baseline memory requirement of {baseline_mem_estimate}GB. Increase "
+                    f"`mem_lim_GB` when calling `insert_source_in_cube`."
+                )
+            segment_mem_allowance = mem_lim_GB - baseline_mem_estimate
+            segments = []
+            mem_estimate = (
+                tree_peak_mem_estimate
+                if tree_dominates
+                else tree_completed_mem_estimate + weights_mem_estimate
+            )
+            if np.any(mem_estimate > segment_mem_allowance):
+                raise RuntimeError(
+                    f"Requested memory limit ({mem_lim_GB}GB) minus the estimated "
+                    f"baseline memory ({baseline_mem_estimate}GB, e.g. to store particle"
+                    " data) leaves insufficient memory for `insert_source_in_cube`, even"
+                    " when particles are processed in batches. Increase "
+                    "`mem_lim_GB` when calling `insert_source_in_cube`."
+                )
+            if len(mem_estimate) > 0:
+                segment_start = 0
+                while segment_start < len(mem_estimate):
+                    cumsum = np.cumsum(mem_estimate[segment_start:])
+                    segment_length = np.searchsorted(
+                        cumsum, segment_mem_allowance, side="right"
+                    )
+                    segment_end = segment_start + segment_length
+                    segments.append(slice(segment_start, segment_end))
+                    segment_start = segment_end
+        else:
+            segments = [slice(None)]
         for i, segment in enumerate(segments, 1):
             if not self.quiet:
                 print(
@@ -1081,6 +1140,7 @@ class Martini(_BaseMartini):
         skip_validation: bool = False,
         progressbar: bool | None = None,
         ncpu: int = 1,
+        mem_lim_GB: float = 4.0,
     ) -> None:
         """
         Populate the DataCube with flux from the particles in the source.
@@ -1105,9 +1165,20 @@ class Martini(_BaseMartini):
             Number of threads to use in main source insertion loop. Using more than one
             thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
             threads as available cores.
+
+        mem_lim_GB : float
+            The peak memory usage can get very large if many particle kernels touch many
+            pixels in the cube. The particles can be processed in batches to mitigate
+            this, but this slows down the code. The memory limit set here (in GB) will
+            trigger batching if estimated memory usage is expected to exceed it. This is
+            a "soft" limit since some allocation outside of direct control (e.g. internal
+            in :mod:`scipy`) cannot be exactly predicted.
         """
         super()._insert_source_in_cube(
-            skip_validation=skip_validation, progressbar=progressbar, ncpu=ncpu
+            skip_validation=skip_validation,
+            progressbar=progressbar,
+            ncpu=ncpu,
+            mem_lim_GB=mem_lim_GB,
         )
 
         return
@@ -1220,7 +1291,7 @@ class Martini(_BaseMartini):
             by fits. Default to not do data type conversion.
         """
         if channels is not None:  # pragma: no cover
-            warnings.warn(
+            warn(
                 DeprecationWarning(
                     "`channels` argument to `write_fits` ignored, channels and their"
                     " units now fixed at DataCube initialization."
@@ -1279,9 +1350,7 @@ class Martini(_BaseMartini):
         header.append(("ORIGIN", "astropy v" + astropy_version))
         # long names break fits format, don't let the user set this
         if len(obj_name) > 16:
-            warnings.warn(
-                "obj_name longer than 16 characters, truncating", RuntimeWarning
-            )
+            warn("obj_name longer than 16 characters, truncating", RuntimeWarning)
             obj_name = obj_name[:16]
         header.append(("OBJECT", obj_name))
         if self.beam is not None:
@@ -1337,7 +1406,7 @@ class Martini(_BaseMartini):
             If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
         if channels is not None:  # pragma: no cover
-            warnings.warn(
+            warn(
                 DeprecationWarning(
                     "`channels` argument to `write_fits` ignored, channels and their"
                     " units now fixed at DataCube initialization."
@@ -1439,7 +1508,7 @@ class Martini(_BaseMartini):
             :class:`~martini.datacube.DataCube` initialization.
         """
         if channels is not None:  # pragma: no cover
-            warnings.warn(
+            warn(
                 DeprecationWarning(
                     "`channels` argument to `write_fits` ignored, channels and their"
                     " units now fixed at DataCube initialization."
@@ -1769,7 +1838,7 @@ class GlobalProfile(_BaseMartini):
         channels: None = None,  # deprecated
     ) -> None:
         if channels is not None:  # pragma: no cover
-            warnings.warn(
+            warn(
                 DeprecationWarning(
                     "The `channels` argument to `GlobalProfile.__init__` is deprecated"
                     " and has been ignored. If `channel_width` has velocity units"
