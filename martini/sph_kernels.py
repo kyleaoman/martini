@@ -85,7 +85,7 @@ class _BaseSPHKernel(object):
     @U.quantity_input
     def _px_weight(
         self, dij: U.Quantity[U.pix], mask: np.ndarray | EllipsisType = ...
-    ) -> U.Quantity[U.pix**2]:
+    ) -> U.Quantity[U.pix**-2]:
         """
         Calculate kernel integral using scaled smoothing lengths.
 
