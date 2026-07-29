@@ -72,3 +72,21 @@ class TestGridSearch:
         )
         cell_hits = gs.intersections
         assert np.unique(cell_hits).size == n
+
+    def test_empty_input_safe(self):
+        """Check that we get empty results for empty input."""
+        n_px = 128
+        i_grid, j_grid = np.meshgrid(np.arange(n_px), np.arange(n_px))
+        cell_centres = np.array((i_grid.flatten(), j_grid.flatten())).T
+        coords = np.empty((0, 2))
+        radii = np.empty((0,))
+        gs = find_grid_intersections(
+            build_tree(cell_centres),
+            cell_centres,
+            coords,
+            radii,
+        )
+        assert gs.intersections.shape == (0,)
+        assert gs.distances.shape == (0,)
+        assert gs.cell_indices.shape == (0,)
+        assert gs.strides.shape == (0, 2)
