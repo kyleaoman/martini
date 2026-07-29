@@ -26,6 +26,7 @@ from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
 from martini._grid_search import build_tree, find_grid_intersections
+from martini._util import NUMBA_AVAILABLE, numba_threads
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -44,21 +45,9 @@ except (subprocess.CalledProcessError, FileNotFoundError):  # pragma: no cover
 else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
-try:
-    import numba
-except ImportError:
-    NUMBA_AVAILABLE = False
-else:
-    NUMBA_AVAILABLE = True
-
-if not NUMBA_AVAILABLE:
-    warn(
-        "'numba' is unavailable, 'martini' will run very slowly. Installing 'numba' is "
-        "recommended.",
-        RuntimeWarning,
-    )
 
 if NUMBA_AVAILABLE:
+    import numba
 
     @numba.njit(parallel=True)
     def _weighted_sum_and_insert_in_cube_numba(
@@ -114,7 +103,7 @@ if NUMBA_AVAILABLE:
         """
         dec_dim = cube_array.shape[1]
         spec_dim = cube_array.shape[2]
-        for i in numba.prange(len(flat_cube_indices)):
+        for i in numba.prange(len(flat_cube_indices)):  # type: ignore[attr-defined]
             flat_index = flat_cube_indices[i]
             ra_index = flat_index // dec_dim
             dec_index = flat_index % dec_dim
@@ -191,7 +180,7 @@ def _weighted_sum_and_insert_in_cube(
 
     NUMBA_AVAILABLE : bool
         Provides a mechanism to forcibly switch off :mod:`numba`. Since this is a private
-        function exposiing it here is not problematic. Only intended for use in the test
+        function exposing it here is not problematic. Only intended for use in the test
         suite.
 
     Returns
@@ -203,14 +192,10 @@ def _weighted_sum_and_insert_in_cube(
     total_elements = len(flat_cube_indices)
 
     if NUMBA_AVAILABLE:
-        orig_threads = numba.get_num_threads()
-        try:
-            numba.set_num_threads(ncpu)
+        with numba_threads(ncpu):
             _weighted_sum_and_insert_in_cube_numba(
                 cube_array, spectra, weights, flat_cube_indices, strides, intersections
             )
-        finally:
-            numba.set_num_threads(orig_threads)
         return ncpu
 
     if ncpu != 1:

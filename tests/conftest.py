@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
 
 
+np.random.seed(0)
+
+
 def sps_sourcegen(
     T_g: U.Quantity[U.K] = np.ones(1) * 1.0e4 * U.K,
     mHI_g: U.Quantity[U.Msun] = np.ones(1) * 1.0e4 * U.Msun,
@@ -566,6 +569,7 @@ def dc_random(request: FixtureRequest) -> Generator[DataCube, None, None]:
     ~martini.datacube.DataCube
         The :class:`~martini.datacube.DataCube` instance.
     """
+    np.random.seed(0)
     stokes_axis, freq_channels = request.param
     spectral_centre = 3 * 70 * U.km / U.s
     channel_width = 4 * U.km / U.s
@@ -716,6 +720,7 @@ def s() -> Generator[SPHSource, None, None]:
     ~martini.sources.sph_source.SPHSource
         The :class:`~martini.sources.sph_source.SPHSource` instance.
     """
+    np.random.seed(0)
     n_g = 1000
     phi = np.random.rand(n_g, 1) * 2 * np.pi
     R = np.random.rand(n_g, 1)
@@ -912,6 +917,7 @@ def combined_source() -> Generator[CombinedSource, None, None]:
     ~martini.sources.combined_source.CombinedSource
         The :class:`~martini.sources.combined_source.CombinedSource` instance.
     """
+    np.random.seed(0)
     n = 100
     r = np.random.rand(n) * 5 * U.kpc
     t = np.random.rand(n) * 2 * np.pi * U.rad
