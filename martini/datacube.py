@@ -1,6 +1,6 @@
 """Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from types import EllipsisType
 from collections.abc import Callable, Iterator
 import numpy as np
@@ -137,7 +137,7 @@ class DataCube(object):
         Callable[[U.Quantity[U.Jy * U.pix**-2]], U.Quantity[U.Jy * U.arcsec**-2]],
         Callable[[U.Quantity[U.Jy * U.arcsec**-2]], U.Quantity[U.Jy * U.pix**-2]],
     ]
-    channel_width: U.Quantity[U.km / U.s]
+    channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz]
     spectral_centre: U.Quantity[U.km / U.s]
     ra: U.Quantity[U.deg]
     dec: U.Quantity[U.deg]
@@ -160,6 +160,7 @@ class DataCube(object):
     _channel_edges: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
     _channel_mids: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -167,12 +168,15 @@ class DataCube(object):
         n_px_y: int,
         n_channels: int,
         px_size: U.Quantity[U.arcsec],
-        channel_width: U.Quantity[U.km * U.s**-1],
-        spectral_centre: U.Quantity[U.km * U.s**-1] = 0.0 * U.km * U.s**-1,
+        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
+        spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0.0
+        * U.km
+        * U.s**-1,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         stokes_axis: bool = False,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoids treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
         specsys: str = "icrs",
         cube_dtype: type = np.float64,
         velocity_centre: None = None,  # deprecated
@@ -204,12 +208,8 @@ class DataCube(object):
             lambda x: x / self.cube_dtype(self.px_size.to_value(U.arcsec)) ** 2,
             lambda x: x * self.cube_dtype(self.px_size.to_value(U.arcsec)) ** 2,
         )
-        if U.get_physical_type(channel_width) == "frequency":
-            self._freq_channel_mode = True
-        elif U.get_physical_type(channel_width) == "velocity":
-            self._freq_channel_mode = False
-        else:
-            raise ValueError("Channel width must have frequency or velocity units.")
+        # dimensions guaranteed to be frequency or velocity by decorator above:
+        self._freq_channel_mode = U.get_physical_type(channel_width) == "frequency"
         self.channel_width = np.abs(channel_width)
         self.spectral_centre = SpectralCoord(
             spectral_centre,
@@ -409,6 +409,7 @@ class DataCube(object):
         return datacube
 
     @property
+    @U.quantity_input
     def units(
         self,
     ) -> (
@@ -498,7 +499,8 @@ class DataCube(object):
         return self._wcs
 
     @property
-    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
+    @U.quantity_input
+    def channel_mids(self) -> U.Quantity:
         """
         The centres of the channels from the coordinate system.
 
@@ -523,7 +525,8 @@ class DataCube(object):
         return self._channel_mids
 
     @property
-    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
+    @U.quantity_input
+    def channel_edges(self) -> U.Quantity:
         """
         The edges of the channels from the coordinate system.
 
@@ -548,6 +551,7 @@ class DataCube(object):
         return self._channel_edges
 
     @property
+    @U.quantity_input
     def velocity_channel_mids(self) -> U.Quantity[U.m / U.s]:
         """
         The centres of the channels from the coordinate system in velocity units.
@@ -561,6 +565,7 @@ class DataCube(object):
         return self.channel_mids.to(U.m / U.s)
 
     @property
+    @U.quantity_input
     def velocity_channel_edges(self) -> U.Quantity[U.m / U.s]:
         """
         The edges of the channels from the coordinate system in velocity units.
@@ -574,6 +579,7 @@ class DataCube(object):
         return self.channel_edges.to(U.m / U.s)
 
     @property
+    @U.quantity_input
     def frequency_channel_mids(self) -> U.Quantity[U.Hz]:
         """
         The centres of the channels from the coordinate system in frequency units.
@@ -587,6 +593,7 @@ class DataCube(object):
         return self.channel_mids.to(U.Hz)
 
     @property
+    @U.quantity_input
     def frequency_channel_edges(self) -> U.Quantity[U.Hz]:
         """
         The edges of the channels from the coordinate system in frequency units.
@@ -619,6 +626,7 @@ class DataCube(object):
         return None  # not found
 
     @property
+    @U.quantity_input
     def channel_maps(self) -> Iterator[U.Quantity]:
         """
         An iterator over the channel maps.
@@ -633,6 +641,7 @@ class DataCube(object):
         return self.spatial_slices
 
     @property
+    @U.quantity_input
     def spatial_slices(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spatial 'slices' of the cube.
@@ -656,6 +665,7 @@ class DataCube(object):
             )
 
     @property
+    @U.quantity_input
     def spectra(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spectra (one in each spatial pixel).
@@ -987,6 +997,7 @@ class _GlobalProfileDataCube(DataCube):
         Deprecated, use spectral centre instead.
     """
 
+    @U.quantity_input
     def __init__(
         self,
         *,

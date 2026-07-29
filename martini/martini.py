@@ -1806,6 +1806,7 @@ class GlobalProfile(_BaseMartini):
         M.insert_source_in_spectrum()
     """
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -1897,6 +1898,7 @@ class GlobalProfile(_BaseMartini):
             )
 
     @property
+    @U.quantity_input
     def spectrum(self) -> U.Quantity[U.Jy]:
         """
         The spectrum of the source with spatial information integrated out.
@@ -1915,7 +1917,8 @@ class GlobalProfile(_BaseMartini):
         return self._spectrum
 
     @property
-    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
+    @U.quantity_input
+    def channel_edges(self) -> U.Quantity:
         """
         The edges of the channels for the spectrum.
 
@@ -1937,7 +1940,8 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
-    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
+    @U.quantity_input
+    def channel_mids(self) -> U.Quantity:
         """
         The centres of the channels for the spectrum.
 
@@ -1959,6 +1963,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
+    @U.quantity_input
     def frequency_channel_edges(self) -> U.Quantity[U.Hz]:
         """
         The edges of the frequency channels for the spectrum.
@@ -1978,6 +1983,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
+    @U.quantity_input
     def frequency_channel_mids(self) -> U.Quantity[U.Hz]:
         """
         The centres of the frequency channels for the spectrum.
@@ -1997,6 +2003,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
+    @U.quantity_input
     def velocity_channel_edges(self) -> U.Quantity[U.km / U.s]:
         """
         The edges of the channels for the spectrum in velocity units.
@@ -2016,6 +2023,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
+    @U.quantity_input
     def velocity_channel_mids(self) -> U.Quantity[U.km / U.s]:
         """
         The centres of the channels for the spectrum.
@@ -2035,7 +2043,8 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
-    def channel_width(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
+    @U.quantity_input
+    def channel_width(self) -> U.Quantity:
         """
         The width of the channels for the spectrum.
 

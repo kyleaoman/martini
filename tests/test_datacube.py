@@ -57,17 +57,6 @@ def test_deprecation_warnings():
 class TestDataCube:
     """Test the functionality of the main data cube class."""
 
-    def test_invalid_channel_units(self):
-        """Check that we get an error if the channel_width doesn't have valid units."""
-        with pytest.raises(ValueError, match="Channel width must have"):
-            DataCube(
-                n_px_x=16,
-                n_px_y=16,
-                n_channels=16,
-                px_size=15 * U.arcsec,
-                channel_width=1 * U.K,
-            )
-
     def test_invalid_specsys(self):
         """Check that we get an error for an invalid specsys."""
         with pytest.raises(ValueError, match="Supported specsys values are"):

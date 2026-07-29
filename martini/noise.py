@@ -38,6 +38,7 @@ class _BaseNoise(object):
         return
 
     @abstractmethod
+    @U.quantity_input
     def generate(
         self, datacube: DataCube, beam: _BaseBeam
     ) -> U.Quantity[U.Jy * U.arcsec**-2]:
@@ -96,6 +97,7 @@ class GaussianNoise(_BaseNoise):
 
     rms: U.Quantity[U.Jy * U.beam**-1]
 
+    @U.quantity_input
     def __init__(
         self,
         rms: U.Quantity[U.Jy * U.beam**-1] = 1.0 * U.Jy * U.beam**-1,
@@ -107,6 +109,7 @@ class GaussianNoise(_BaseNoise):
 
         return
 
+    @U.quantity_input
     def generate(
         self, datacube: DataCube, beam: _BaseBeam
     ) -> U.Quantity[U.Jy * U.arcsec**-2]:

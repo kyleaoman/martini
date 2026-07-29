@@ -4,6 +4,7 @@ from typing import NamedTuple
 from astropy import units as U
 
 
+@U.quantity_input
 class L_coords(NamedTuple):
     """
     Provide an unambiguous way to specify a source orientation based on angular momentum.

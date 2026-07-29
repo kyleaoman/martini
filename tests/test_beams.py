@@ -79,3 +79,10 @@ class TestGaussianBeam:
         b = GaussianBeam(bmaj=bmaj, bmin=bmin, bpa=0 * U.deg, truncate=truncate)
         b.init_kernel(d)
         assert U.isclose(np.sum(b.kernel), 1.0 * U.dimensionless_unscaled)
+
+    def test_Gaussian_bmin_implicit(self):
+        """Check that not providing bmin defaults to circular beam."""
+        bmaj = 10 * U.arcsec
+        bmin = None
+        b = GaussianBeam(bmaj=bmaj, bmin=bmin)
+        assert b.bmin == b.bmaj
