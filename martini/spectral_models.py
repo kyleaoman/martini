@@ -60,6 +60,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
     spectra: U.Quantity[U.Jy] | None
     ncpu: int
     spec_dtype: type
+    _allow_numba: bool = True  # intended for switching off in tests
 
     def __init__(self, ncpu: int | None = None, spec_dtype: type = np.float64) -> None:
         self.ncpu = ncpu if ncpu is not None else 1
@@ -425,7 +426,13 @@ class GaussianSpectrum(_BaseSpectrum):
         assert extra_data is not None
         sigma = extra_data["sigma"]
 
-        if NUMBA_AVAILABLE and a.ndim == 2 and b.ndim == 2 and vmids.ndim == 2:
+        if (
+            NUMBA_AVAILABLE
+            and self._allow_numba
+            and a.ndim == 2
+            and b.ndim == 2
+            and vmids.ndim == 2
+        ):
             a_val = np.asarray(a.to_value(U.km / U.s))
             b_val = np.asarray(b.to_value(U.km / U.s))
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))
@@ -637,7 +644,13 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         ~astropy.units.Quantity
             The evaluated spectral model (dimensionless).
         """
-        if NUMBA_AVAILABLE and a.ndim == 2 and b.ndim == 2 and vmids.ndim == 2:
+        if (
+            NUMBA_AVAILABLE
+            and self._allow_numba
+            and a.ndim == 2
+            and b.ndim == 2
+            and vmids.ndim == 2
+        ):
             a_val = np.asarray(a.to_value(U.km / U.s))
             b_val = np.asarray(b.to_value(U.km / U.s))
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))

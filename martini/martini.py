@@ -114,111 +114,6 @@ if NUMBA_AVAILABLE:
                     )
 
 
-def _weighted_sum_and_insert_in_cube(
-    cube_array: np.ndarray,
-    spectra: np.ndarray,
-    weights: np.ndarray,
-    flat_cube_indices: np.ndarray,
-    strides: np.ndarray,
-    intersections: np.ndarray,
-    ncpu: int = 1,
-    progressbar: bool = False,
-    NUMBA_AVAILABLE: bool = NUMBA_AVAILABLE,  # intended for switching off in tests
-) -> int:
-    """
-    Evaluate weighted combination of spectra and write to datacube array.
-
-    Given the pre-computed particle spectra, the kernel weights for their contributions to
-    each pixel the information needed to map each weighted spectrum to the pixels where it
-    contributes, this function sums up the contributions and fills the target datacube
-    array. Normally this should use a :mod:`numba` accelerated implementation but a
-    serial fallback is also provided in case :mod:`numba` is not installed. Since the
-    :mod:`numba` implementation is the default and that must deal with raw arrays (not
-    :class:`~astropy.units.Quantity` arrays), this function expects bare arrays; the
-    calling function is responsible for checking units.
-
-    Parameters
-    ----------
-    cube_array : ~numpy.ndarray
-        The output data cube, as a raw array (can be a view of
-        :class:`~astropy.units.Quantity`).
-
-    spectra : ~numpy.ndarray
-        The array of spectra, one row per particle, as a raw array (can be a view of
-        :class:`~astropy.units.Quantity`).
-
-    weights : ~numpy.ndarray
-        The 1D array of weights, one per particle-pixel match, grouped by pixel, as
-        a raw array (can be a view of :class:`~astropy.units.Quantity`).
-
-    flat_cube_indices : ~numpy.ndarray
-        The 1D array of pixel indices, one per pixel, in the same order as the pixel-
-        groups in the ``weights``. These are unpacked into array locations similar
-        to `~numpy.unravel_index`.
-
-    strides : ~numpy.ndarray
-        The 2D array of strides (start and end locations) that select the ``weights``
-        and ``intersections`` for each pixel. Each row defines a stride and has length
-        2.
-
-    intersections : ~numpy.ndarray
-        The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
-        serves as an index into the ``spectra`` array, the corresponding pixel is
-        identified by the ``flat_cube_indices``. Groups within this array
-        corresponding to individual pixels are selected using a row from ``strides``.
-
-    ncpu : int
-        The number of threads to use in the :mod:`numba` accelerated implementation. Can
-        be set to `-1` to use all available. Default is ``1`` to avoid accidentally taking
-        over shared systems.
-
-    progressbar : bool
-        Switch on a progress bar. The :mod:`numba` implementation is not compatible and
-        will produce a warning, but is fast enough that even large cubes normally only
-        take a few seconds. Without :mod:`numba` mode a progress bar can be reassuring
-        while waiting for a result.
-
-    NUMBA_AVAILABLE : bool
-        Provides a mechanism to forcibly switch off :mod:`numba`. Since this is a private
-        function exposing it here is not problematic. Only intended for use in the test
-        suite.
-
-    Returns
-    -------
-    int
-        The number of cores actually used.
-    """
-    dec_dim = cube_array.shape[1]
-    total_elements = len(flat_cube_indices)
-
-    if NUMBA_AVAILABLE:
-        with numba_threads(ncpu):
-            _weighted_sum_and_insert_in_cube_numba(
-                cube_array, spectra, weights, flat_cube_indices, strides, intersections
-            )
-        return ncpu
-
-    if ncpu != 1:
-        warn("Parallelization not available without 'numba'.", RuntimeWarning)
-        ncpu = 1
-
-    for i in tqdm(range(total_elements), disable=not progressbar):
-        start_j, end_j = strides[i, 0], strides[i, 1]
-        if start_j >= end_j:
-            continue
-
-        flat_index = flat_cube_indices[i]
-        ra_index = flat_index // dec_dim
-        dec_index = flat_index % dec_dim
-
-        j_slice = slice(start_j, end_j)
-        w_sub = weights[j_slice, np.newaxis]
-        spec_sub = spectra[intersections[j_slice], :]
-
-        cube_array[ra_index, dec_index, :] += np.sum(w_sub * spec_sub, axis=0)
-    return ncpu
-
-
 class _BaseMartini:
     """
     Common methods for the core Martini class and related classes.
@@ -420,6 +315,111 @@ class _BaseMartini:
             )
         return
 
+    def _weighted_sum_and_insert_in_cube(
+        self,
+        spectra: np.ndarray,
+        weights: np.ndarray,
+        flat_cube_indices: np.ndarray,
+        strides: np.ndarray,
+        intersections: np.ndarray,
+        ncpu: int = 1,
+        progressbar: bool = False,
+    ) -> int:
+        """
+        Evaluate weighted combination of spectra and write to datacube array.
+
+        Given the pre-computed particle spectra, the kernel weights for their
+        contributions to each pixel the information needed to map each weighted spectrum
+        to the pixels where it contributes, this function sums up the contributions and
+        fills the target datacube array. Normally this should use a :mod:`numba`
+        accelerated implementation but a serial fallback is also provided in case
+        :mod:`numba` is not installed. Since the :mod:`numba` implementation is the
+        default and that must deal with raw arrays (not :class:`~astropy.units.Quantity`
+        arrays), this function expects bare arrays; the calling function is responsible
+        for checking units.
+
+        Parameters
+        ----------
+        spectra : ~numpy.ndarray
+            The array of spectra, one row per particle, as a raw array (can be a view of
+            :class:`~astropy.units.Quantity`).
+
+        weights : ~numpy.ndarray
+            The 1D array of weights, one per particle-pixel match, grouped by pixel, as
+            a raw array (can be a view of :class:`~astropy.units.Quantity`).
+
+        flat_cube_indices : ~numpy.ndarray
+            The 1D array of pixel indices, one per pixel, in the same order as the pixel-
+            groups in the ``weights``. These are unpacked into array locations similar
+            to `~numpy.unravel_index`.
+
+        strides : ~numpy.ndarray
+            The 2D array of strides (start and end locations) that select the ``weights``
+            and ``intersections`` for each pixel. Each row defines a stride and has length
+            2.
+
+        intersections : ~numpy.ndarray
+            The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
+            serves as an index into the ``spectra`` array, the corresponding pixel is
+            identified by the ``flat_cube_indices``. Groups within this array
+            corresponding to individual pixels are selected using a row from ``strides``.
+
+        ncpu : int
+            Number of threads to use in main source insertion loop. Using more than one
+            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
+            threads as available cores.
+
+        progressbar : bool, optional
+            A progress bar is shown by default if supported (usually not supported when
+            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
+            initialised with ``quiet`` set to ``True``, progress bars are switched off
+            unless explicitly turned on.
+
+        Returns
+        -------
+        int
+            The number of cores actually used.
+        """
+        cube_view = (
+            self._datacube._array[:, :, :, 0].value
+            if self._datacube.stokes_axis
+            else self._datacube._array.value
+        )
+        dec_dim = cube_view.shape[1]
+        total_elements = len(flat_cube_indices)
+
+        if NUMBA_AVAILABLE:
+            with numba_threads(ncpu):
+                _weighted_sum_and_insert_in_cube_numba(
+                    cube_view,
+                    spectra,
+                    weights,
+                    flat_cube_indices,
+                    strides,
+                    intersections,
+                )
+            return ncpu
+
+        if ncpu != 1:
+            warn("Parallelization not available without 'numba'.", RuntimeWarning)
+            ncpu = 1
+
+        for i in tqdm(range(total_elements), disable=not progressbar):
+            start_j, end_j = strides[i, 0], strides[i, 1]
+            if start_j >= end_j:
+                continue
+
+            flat_index = flat_cube_indices[i]
+            ra_index = flat_index // dec_dim
+            dec_index = flat_index % dec_dim
+
+            j_slice = slice(start_j, end_j)
+            w_sub = weights[j_slice, np.newaxis]
+            spec_sub = spectra[intersections[j_slice], :]
+
+            cube_view[ra_index, dec_index, :] += np.sum(w_sub * spec_sub, axis=0)
+        return ncpu
+
     def _insert_source_in_cube(
         self,
         skip_validation: bool = False,
@@ -480,7 +480,6 @@ class _BaseMartini:
         elif progressbar is None:
             progressbar = not self.quiet
 
-        progressbar = True
         self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
 
         ij_pxs = np.flip(
@@ -489,11 +488,6 @@ class _BaseMartini:
                 : float(self._datacube.current_shape[0]),
             ].T.reshape(-1, 2),
             1,
-        )
-        cube_view = (
-            self._datacube._array[:, :, :, 0].value
-            if self._datacube.stokes_axis
-            else self._datacube._array.value
         )
         if not self.quiet:
             print("Building pixel grid KDTree...")
@@ -646,8 +640,7 @@ class _BaseMartini:
                 self._datacube.current_units
                 == self.spectral_model.spectra.unit * weights.unit
             )
-            insert_used_ncpu = _weighted_sum_and_insert_in_cube(
-                cube_view,
+            insert_used_ncpu = self._weighted_sum_and_insert_in_cube(
                 self.spectral_model.spectra[segment].value,
                 weights.value,
                 gs.cell_indices,
@@ -655,8 +648,6 @@ class _BaseMartini:
                 gs.intersections,
                 ncpu=ncpu,
                 progressbar=progressbar,
-                NUMBA_AVAILABLE=NUMBA_AVAILABLE
-                and self._allow_numba,  # intended for switching off in tests
             )
             if not self.quiet:
                 print(
