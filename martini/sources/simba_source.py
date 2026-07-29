@@ -6,7 +6,7 @@ Facilitates working with Simba simulations as input.
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from ..L_coords import L_coords
@@ -98,6 +98,7 @@ class SimbaSource(SPHSource):
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
     """
 
+    @U.quantity_input
     def __init__(
         self,
         snapPath: str,
@@ -110,10 +111,11 @@ class SimbaSource(SPHSource):
         distance: U.Quantity[U.Mpc] = 3.0 * U.Mpc,
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoid trating string as units
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
     ) -> None:
         if snapPath is None:
             raise ValueError("Provide snapPath argument to SimbaSource.")

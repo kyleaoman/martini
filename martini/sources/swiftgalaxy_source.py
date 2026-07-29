@@ -5,7 +5,7 @@ Facilitates working with SWIFT simulations as input.
 """
 
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from .sph_source import SPHSource
 from ..L_coords import L_coords
 from astropy import units as U
@@ -79,19 +79,23 @@ class SWIFTGalaxySource(SPHSource):
         the particle HI masses here.
     """
 
+    @U.quantity_input
     def __init__(
         self,
-        galaxy: "SWIFTGalaxy",
+        # Union avoids treating string as units:
+        galaxy: Union["SWIFTGalaxy", None],
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoids treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
         _mHI_g: "cosmo_array" = None,
     ) -> None:
+        assert galaxy is not None
         h = galaxy.metadata.cosmology.h
         mHI_g = (
             galaxy.gas.atomic_hydrogen_masses.to_astropy() if _mHI_g is None else _mHI_g

@@ -112,7 +112,7 @@ class GaussianNoise(_BaseNoise):
     @U.quantity_input
     def generate(
         self, datacube: DataCube, beam: _BaseBeam
-    ) -> U.Quantity[U.Jy * U.arcsec**-2]:
+    ) -> U.Quantity[U.Jy / U.beam]:
         """
         Create a cube containing Gaussian noise.
 

@@ -6,7 +6,7 @@ Facilitates working with EAGLE simulations as input.
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from .sph_source import SPHSource
 from ..sph_kernels import _WendlandC2Kernel, find_fwhm
 from ..L_coords import L_coords
@@ -113,6 +113,7 @@ class EAGLESource(SPHSource):
         If True, the SQL query submitted to the EAGLE database is printed.
     """
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -126,10 +127,11 @@ class EAGLESource(SPHSource):
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoids treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
         print_query: bool = False,
     ) -> None:
         # optional dependencies for this source class

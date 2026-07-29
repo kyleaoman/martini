@@ -10,6 +10,7 @@ import numpy as np
 import astropy.units as U
 
 
+@U.quantity_input
 def L_align(
     xyz: U.Quantity[U.kpc],
     vxyz: U.Quantity[U.km / U.s],
