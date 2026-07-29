@@ -1,7 +1,7 @@
 """Tests of the optimized grid search methods."""
 
 import numpy as np
-from martini._grid_search import find_grid_intersections
+from martini._grid_search import find_grid_intersections, build_tree
 
 
 class TestGridSearch:
@@ -29,6 +29,7 @@ class TestGridSearch:
         bf_distances = np.array(bf_distances).squeeze()
         # Evaluate through optimized routine:
         gs = find_grid_intersections(
+            build_tree(cell_centres),
             cell_centres,
             coords,
             radii,
@@ -56,6 +57,15 @@ class TestGridSearch:
         coords = np.column_stack((np.random.rand(n), np.random.rand(n))) * n_px - 0.5
         radii = np.random.rand(n) * 4.75 + 0.25  # some particles small enough to "miss"
         gs = find_grid_intersections(
+            build_tree(cell_centres),
+            cell_centres,
+            coords,
+            radii,  # not floored
+        )
+        cell_hits = gs.intersections
+        assert np.unique(cell_hits).size < n
+        gs = find_grid_intersections(
+            build_tree(cell_centres),
             cell_centres,
             coords,
             np.clip(radii, 0.5 * np.sqrt(2), np.inf),  # floored

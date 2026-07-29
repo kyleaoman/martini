@@ -658,7 +658,10 @@ class TestPreview:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         source = request.getfixturevalue(source_fixture)
         # with default arguments
@@ -680,7 +683,10 @@ class TestPreview:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         source = request.getfixturevalue(source_fixture)
         testfile = f"preview.{ext}"

@@ -535,7 +535,10 @@ class TestMartini:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         # with default arguments
         plt.close(m_init.preview())
@@ -555,7 +558,10 @@ class TestMartini:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         m_init._datacube.px_size = 20 * U.deg / m_init._datacube.n_px_x
         assert m_init._datacube.px_size * m_init._datacube.n_px_x > 10 * U.deg
@@ -572,7 +578,10 @@ class TestMartini:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         m_init._datacube.dec = dec
         assert np.abs(m_init._datacube.dec) - 90 * U.deg < 5 * U.deg
@@ -997,7 +1006,10 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         # with default arguments
         plt.close(gp.preview())
@@ -1033,7 +1045,10 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         # with default arguments
         plt.close(gp.plot_spectrum())

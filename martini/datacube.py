@@ -1,6 +1,7 @@
 """Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
 from typing import TYPE_CHECKING
+from types import EllipsisType
 from collections.abc import Callable, Iterator
 import numpy as np
 import astropy.units as U
@@ -677,6 +678,42 @@ class DataCube(object):
                 ).reshape(self.n_px_x * self.n_px_y, self.n_channels)
             )
 
+    @property
+    def current_shape(self) -> tuple[int, ...]:
+        """
+        Get the current shape of the datacube, including any pad if applicable.
+
+        Returns
+        -------
+        tuple
+            The shape of the current data cube array.
+        """
+        return self._array.shape
+
+    @property
+    def current_n_px(self) -> int:
+        """
+        Get the current pixel count, including any pixels added in padding, if applicable.
+
+        Returns
+        -------
+        int
+            The current pixel count.
+        """
+        return (self.n_px_x + self.padx * 2) * (self.n_px_y + self.pady * 2)
+
+    @property
+    def current_units(self) -> U.Unit:
+        """
+        Get the current units of the data cube.
+
+        Returns
+        -------
+        ~astropy.units.Unit
+            The current units of the data cube array.
+        """
+        return self._array.unit
+
     def add_pad(self, pad: tuple[int, int]) -> None:
         """
         Resize the cube to add a padding region in the spatial direction.
@@ -717,6 +754,22 @@ class DataCube(object):
         self.padx, self.pady = pad
         return
 
+    @property
+    def pad_mask(self) -> tuple[slice, slice, EllipsisType]:
+        """
+        Get the mask needed to remove the pad region.
+
+        Returns
+        -------
+        tuple
+            The mask that can be used to drop the pad region from the data cube.
+        """
+        return np.s_[
+            self.padx : -self.padx if self.padx else -1,
+            self.pady : -self.pady if self.pady else -1,
+            ...,
+        ]
+
     def drop_pad(self) -> None:
         """
         Remove the padding added using :meth:`~martini.datacube.DataCube.add_pad`.
@@ -730,7 +783,7 @@ class DataCube(object):
         """
         if (self.padx == 0) and (self.pady == 0):
             return
-        self._array = self._array[self.padx : -self.padx, self.pady : -self.pady, ...]
+        self._array = self._array[self.pad_mask]
         retract_crpix = [self.padx, self.pady, 0]
         if self.stokes_axis:
             retract_crpix.append(0)

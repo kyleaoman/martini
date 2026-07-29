@@ -495,7 +495,7 @@ class _BaseMartini:
 
         ij_pxs = np.flip(
             np.mgrid[
-                : self._datacube._array.shape[1], : self._datacube._array.shape[0]
+                : self._datacube.current_shape[1], : self._datacube.current_shape[0]
             ].T.reshape(-1, 2),
             1,
         )
@@ -510,11 +510,12 @@ class _BaseMartini:
         tree = build_tree(ij_pxs)
         if not self.quiet:
             print(f"Built KDTree, took {datetime.now() - tree_build_start_time}.")
-        # Could just clip in the sm_range evaluation directly (?):
         clipped_sm_ranges = np.clip(
             self.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
         )
-        estimated_px_hits = np.pi * clipped_sm_ranges**2
+        estimated_px_hits = np.clip(
+            np.pi * clipped_sm_ranges**2, 0, self._datacube.current_n_px
+        )
         # Estimate memory for main allocations.
         # - The datacube itself (product of shape times size of an element).
         # - The spectra (product of shape times size of an element).
@@ -529,9 +530,10 @@ class _BaseMartini:
         #   Total 19 * N * 64B
         assert self.spectral_model.spectra is not None
         baseline_mem_estimate = (
-            np.prod(self._datacube._array.shape) * self._datacube.cube_dtype(0).itemsize
+            np.prod(self._datacube.current_shape)
+            * np.dtype(self._datacube.cube_dtype).itemsize
             + np.prod(self.spectral_model.spectra.shape)
-            * self.spectral_model.spec_dtype(0).itemsize
+            * np.dtype(self.spectral_model.spec_dtype).itemsize
             + 19 * self.source.npart * 64
         ) / 1024**3
 
@@ -648,7 +650,7 @@ class _BaseMartini:
                 px_spectra_start_time = datetime.now()
             assert self.spectral_model.spectra is not None
             assert (
-                self._datacube._array.unit
+                self._datacube.current_units
                 == self.spectral_model.spectra.unit * weights.unit
             )
             _weighted_sum_and_insert_in_cube(
@@ -672,24 +674,19 @@ class _BaseMartini:
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )
         if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
-            pad_mask = (
-                np.s_[
-                    self._datacube.padx : -self._datacube.padx,
-                    self._datacube.pady : -self._datacube.pady,
-                    ...,
-                ]
-                if self._datacube.padx > 0 and self._datacube.pady > 0
-                else np.s_[...]
-            )
             inserted_flux_density = np.sum(
-                self._datacube._array[pad_mask] * self._datacube.px_size**2
+                self._datacube._array[self._datacube.pad_mask]
+                * self._datacube.px_size**2
             ).to(U.Jy)
             inserted_mass = (
                 2.36e5
                 * U.Msun
                 * self.source.distance.to_value(U.Mpc) ** 2
                 * np.sum(
-                    (self._datacube._array[pad_mask] * self._datacube.px_size**2)
+                    (
+                        self._datacube._array[self._datacube.pad_mask]
+                        * self._datacube.px_size**2
+                    )
                     .sum((0, 1))
                     .squeeze()
                     .to_value(U.Jy)
@@ -1197,7 +1194,7 @@ class Martini(_BaseMartini):
                 " by martini with a smaller beam?)"
             )
 
-        unit = self._datacube._array.unit
+        unit = self._datacube.current_units
         assert self.beam.kernel is not None  # placate mypy
         for spatial_slice in self._datacube.spatial_slices:
             # use a view [...] to force in-place modification
@@ -1242,11 +1239,11 @@ class Martini(_BaseMartini):
                 equivalencies=U.beam_angular_area(self.beam.area),
             )
             .to(
-                self._datacube._array.unit,
+                self._datacube.current_units,
                 equivalencies=[self._datacube.arcsec2_to_pix],
             )
         )
-        self._datacube._array = self._datacube._array + noise_cube
+        self._datacube._array += noise_cube
         if not self.quiet:
             print(
                 "Noise added.",
@@ -1338,7 +1335,7 @@ class Martini(_BaseMartini):
         header.append(("INSTRUME", "MARTINI", martini_version))
         header.append(("BSCALE", 1.0))
         header.append(("BZERO", 0.0))
-        datacube_array_units = self._datacube._array.unit
+        datacube_array_units = self._datacube.current_units
         header.append(
             ("DATAMAX", np.max(self._datacube._array.to_value(datacube_array_units)))
         )
@@ -1525,16 +1522,16 @@ class Martini(_BaseMartini):
         driver = "core" if memmap else None
         h5_kwargs = {"backing_store": False} if memmap else {}
         f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
-        datacube_array_units = self._datacube._array.unit
+        datacube_array_units = self._datacube.current_units
         f["FluxCube"] = self._datacube._array.to_value(datacube_array_units).squeeze()
         c = f["FluxCube"]
         origin = 0  # index from 0 like numpy, not from 1
         if not compact:
             # voxel centre coordinates:
             xgrid, ygrid, vgrid = np.meshgrid(
-                np.arange(self._datacube._array.shape[0]),
-                np.arange(self._datacube._array.shape[1]),
-                np.arange(self._datacube._array.shape[2]),
+                np.arange(self._datacube.current_shape[0]),
+                np.arange(self._datacube.current_shape[1]),
+                np.arange(self._datacube.current_shape[2]),
                 indexing="ij",
             )
             cgrid = (
@@ -1572,9 +1569,9 @@ class Martini(_BaseMartini):
             f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
             # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
             xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
-                np.arange(self._datacube._array.shape[0] + 1) - 0.5,
-                np.arange(self._datacube._array.shape[1] + 1) - 0.5,
-                np.arange(self._datacube._array.shape[2] + 1) - 0.5,
+                np.arange(self._datacube.current_shape[0] + 1) - 0.5,
+                np.arange(self._datacube.current_shape[1] + 1) - 0.5,
+                np.arange(self._datacube.current_shape[2] + 1) - 0.5,
                 indexing="ij",
             )
             cgrid_vertices = (
@@ -1622,7 +1619,7 @@ class Martini(_BaseMartini):
                     getattr(self._datacube, dataset_name).unit
                 )
         c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
-        c.attrs["FluxCubeUnit"] = str(self._datacube._array.unit)
+        c.attrs["FluxCubeUnit"] = str(self._datacube.current_units)
         c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
         c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
         c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
