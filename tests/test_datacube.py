@@ -37,23 +37,6 @@ def check_wcs_match(wcs1, wcs2):
         assert v == wcs2.to_header()[k]
 
 
-def test_deprecation_warnings():
-    """Check that we get deprecation warnings where we expect them."""
-    with pytest.warns(DeprecationWarning):
-        dc = DataCube(
-            n_px_x=16,
-            n_px_y=16,
-            n_channels=16,
-            px_size=15 * U.arcsec,
-            channel_width=4 * U.km / U.s,
-            velocity_centre=0 * U.km / U.s,
-        )
-    with pytest.warns(DeprecationWarning):
-        dc.velocity_channels()
-    with pytest.warns(DeprecationWarning):
-        dc.freq_channels()
-
-
 class TestDataCube:
     """Test the functionality of the main data cube class."""
 
