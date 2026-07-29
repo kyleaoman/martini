@@ -57,10 +57,10 @@ Parallelization
 
 The spectra of all input particles are computed by default when
 :meth:`~martini.martini.Martini.insert_source_in_cube` is called, before the main particle
-insertion loop. After the main source insertion loop, calculation of the spectra is often
-the most computationally expensive step, although typically this is only noticeable for
-very large numbers of particles. If initializing the spectra is found to be slow, it may
-be significantly faster to calculate the spectra in parallel. Parallel execution is
+insertion loop. After the main source insertion operation, calculation of the spectra is
+often the most computationally expensive step, although typically this is only noticeable
+for very large numbers of particles. If initializing the spectra is found to be slow, it
+may be significantly faster to calculate the spectra in parallel. Parallel execution is
 specified when the spectral model module is initialized, for example:
 
 .. code-block:: python
@@ -82,9 +82,3 @@ are stored with :class:`~numpy.float64`. This can be changed, for example:
 .. code-block:: python
 
     spectral_model = GaussianSpectrum(spec_dtype=np.float32)
-
-This array is often the most memory-intensive component of MARTINI (although the data cube
-array can also dominate if there are less particles than there are pixels), and the memory
-cost can remain high even with low precision. There are plans to offer more options to
-manage memory usage in future version of MARTINI; requests can be submitted in the
-existing github issue, or new issues created, if this is hindering use of the code.
