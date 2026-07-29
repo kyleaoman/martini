@@ -135,7 +135,7 @@ def _weighted_sum_and_insert_in_cube(
     ncpu: int = 1,
     progressbar: bool = False,
     NUMBA_AVAILABLE: bool = NUMBA_AVAILABLE,  # intended for switching off in tests
-) -> None:
+) -> int:
     """
     Evaluate weighted combination of spectra and write to datacube array.
 
@@ -193,6 +193,11 @@ def _weighted_sum_and_insert_in_cube(
         Provides a mechanism to forcibly switch off :mod:`numba`. Since this is a private
         function exposiing it here is not problematic. Only intended for use in the test
         suite.
+
+    Returns
+    -------
+    int
+        The number of cores actually used.
     """
     dec_dim = cube_array.shape[1]
     total_elements = len(flat_cube_indices)
@@ -206,7 +211,7 @@ def _weighted_sum_and_insert_in_cube(
             )
         finally:
             numba.set_num_threads(orig_threads)
-        return
+        return ncpu
 
     if ncpu != 1:
         warn("Parallelization not available without 'numba'.", RuntimeWarning)
@@ -226,7 +231,7 @@ def _weighted_sum_and_insert_in_cube(
         spec_sub = spectra[intersections[j_slice], :]
 
         cube_array[ra_index, dec_index, :] += np.sum(w_sub * spec_sub, axis=0)
-    return
+    return ncpu
 
 
 class _BaseMartini:
@@ -495,7 +500,8 @@ class _BaseMartini:
 
         ij_pxs = np.flip(
             np.mgrid[
-                : self._datacube.current_shape[1], : self._datacube.current_shape[0]
+                : float(self._datacube.current_shape[1]),
+                : float(self._datacube.current_shape[0]),
             ].T.reshape(-1, 2),
             1,
         )
@@ -571,9 +577,10 @@ class _BaseMartini:
         if single_batch_peak_mem_estimate > mem_lim_GB:
             warn(
                 f"Requested memory limit ({mem_lim_GB}GB) is insufficient to process all "
-                "particles at once. Processing in batches instead, this will take longer."
-                " Increase `mem_lim_GB` when calling `insert_source_in_cube` if "
-                "possible.",
+                "particles at once (estimated memory required: "
+                f"{single_batch_peak_mem_estimate:.1f}GB). Processing in batches instead,"
+                " this could take longer. Increase `mem_lim_GB` when calling "
+                "`insert_source_in_cube` if possible.",
                 RuntimeWarning,
             )
             if baseline_mem_estimate > mem_lim_GB:
@@ -607,14 +614,15 @@ class _BaseMartini:
                     segment_end = segment_start + segment_length
                     segments.append(slice(segment_start, segment_end))
                     segment_start = segment_end
+            log_prefix = "  "
         else:
             segments = [slice(None)]
+            log_prefix = ""
         for i, segment in enumerate(segments, 1):
             if not self.quiet:
-                print(
-                    f"Indexing particle-pixel overlaps (particle group {i} of "
-                    f"{len(segments)})..."
-                )
+                if len(segments) > 1:
+                    print(f"Processing particle group {i} of {len(segments)}...")
+                print(f"{log_prefix}Indexing particle-pixel overlaps...")
                 grid_search_start_time = datetime.now()
             pixcoords = self.source.pixcoords[:2, segment].to_value(U.pix).T
             sm_ranges = clipped_sm_ranges[segment]
@@ -628,11 +636,11 @@ class _BaseMartini:
             )
             if not self.quiet:
                 print(
-                    "Indexed particle-pixel overlaps, took "
+                    f"{log_prefix}Indexed particle-pixel overlaps, took "
                     f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
                 )
             if not self.quiet:
-                print("Evaluating kernel weights...")
+                print(f"{log_prefix}Evaluating kernel weights...")
                 weights_start_time = datetime.now()
             segment_start = 0 if segment.start is None else segment.start
             weights = self.sph_kernel._px_weight(
@@ -641,19 +649,19 @@ class _BaseMartini:
             )
             if not self.quiet:
                 print(
-                    "Evaluated kernel weights, took "
+                    f"{log_prefix}Evaluated kernel weights, took "
                     f"{datetime.now() - weights_start_time}."
                 )
 
             if not self.quiet:
-                print("Reducing pixel spectra into cube...")
+                print(f"{log_prefix}Reducing pixel spectra into cube...")
                 px_spectra_start_time = datetime.now()
             assert self.spectral_model.spectra is not None
             assert (
                 self._datacube.current_units
                 == self.spectral_model.spectra.unit * weights.unit
             )
-            _weighted_sum_and_insert_in_cube(
+            insert_used_ncpu = _weighted_sum_and_insert_in_cube(
                 cube_view,
                 self.spectral_model.spectra[segment].value,
                 weights.value,
@@ -667,8 +675,9 @@ class _BaseMartini:
             )
             if not self.quiet:
                 print(
-                    f"Reduced pixel spectra into cube, took "
-                    f"{datetime.now() - px_spectra_start_time} on {ncpu} cores."
+                    f"{log_prefix}Reduced pixel spectra into cube, took "
+                    f"{datetime.now() - px_spectra_start_time} on {insert_used_ncpu} "
+                    "cores."
                 )
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]

@@ -2,7 +2,7 @@
 
 import itertools
 import numpy as np
-from scipy.spatial import cKDTree as KDTree
+from scipy.spatial import KDTree
 from typing import NamedTuple
 
 
@@ -47,7 +47,7 @@ def build_tree(cell_centres: np.ndarray) -> KDTree:
         means the integer pixel coordinates (``(0 * U.pix, 0 * U.pix)`` is the centre of
         the first pixel).
     """
-    return KDTree(cell_centres, compact_nodes=True, balanced_tree=True)
+    return KDTree(cell_centres, leafsize=16, compact_nodes=True, balanced_tree=True)
 
 
 def find_grid_intersections(
