@@ -367,7 +367,8 @@ class _BaseMartini:
         ncpu : int
             Number of threads to use in main source insertion loop. Using more than one
             thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
-            threads as available cores.
+            threads as available cores. Currently speedup from multiple cores is limited,
+            see full documentation for details.
 
         progressbar : bool, optional
             A progress bar is shown by default if supported (usually not supported when
@@ -450,7 +451,8 @@ class _BaseMartini:
         ncpu : int
             Number of threads to use in main source insertion loop. Using more than one
             thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
-            threads as available cores.
+            threads as available cores. Currently speedup from multiple cores is limited,
+            see full documentation for details.
 
         mem_lim_GB : float
             The peak memory usage can get very large if many particle kernels touch many
@@ -624,7 +626,7 @@ class _BaseMartini:
             segment_start = 0 if segment.start is None else segment.start
             weights = self.sph_kernel._px_weight(
                 U.Quantity(gs.distances.T, U.pix, copy=False),
-                mask=segment_start + gs.intersections,  # ??
+                mask=segment_start + gs.intersections,
             )
             if not self.quiet:
                 print(
@@ -1144,7 +1146,8 @@ class Martini(_BaseMartini):
         ncpu : int
             Number of threads to use in main source insertion loop. Using more than one
             thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
-            threads as available cores.
+            threads as available cores. Currently speedup from multiple cores is limited,
+            see full documentation for details.
 
         mem_lim_GB : float
             The peak memory usage can get very large if many particle kernels touch many
@@ -1182,7 +1185,7 @@ class Martini(_BaseMartini):
         unit = self._datacube.current_units
         assert self.beam.kernel is not None  # placate mypy
         for spatial_slice in self._datacube.spatial_slices:
-            # use a view [...] to force in-place modification
+            # use a view to force in-place modification
             spatial_slice[...] = (
                 fftconvolve(spatial_slice, self.beam.kernel, mode="same") * unit
             )
@@ -1244,7 +1247,6 @@ class Martini(_BaseMartini):
         filename: str,
         overwrite: bool = True,
         obj_name: str = "MOCK",
-        channels: None = None,  # deprecated
         dtype: str | np.dtype | None = None,
     ) -> None:
         """
@@ -1262,21 +1264,10 @@ class Martini(_BaseMartini):
         obj_name : str
             Name to write in the ``OBJECT`` FITS header field (max 16 characters).
 
-        channels : str, deprecated
-            Deprecated, channels and their units now fixed at
-            :class:`~martini.datacube.DataCube` initialization.
-
         dtype : str or dtype
             Typecode or data-type to which the array is cast. Should be supported
             by fits. Default to not do data type conversion.
         """
-        if channels is not None:  # pragma: no cover
-            warn(
-                DeprecationWarning(
-                    "`channels` argument to `write_fits` ignored, channels and their"
-                    " units now fixed at DataCube initialization."
-                )
-            )
         self._datacube.drop_pad()
 
         filename = str(filename)
@@ -1359,7 +1350,6 @@ class Martini(_BaseMartini):
         self,
         filename: str,
         overwrite: bool = True,
-        channels: None = None,  # deprecated
     ) -> None:
         """
         Output the beam to a FITS-format file.
@@ -1376,23 +1366,11 @@ class Martini(_BaseMartini):
         overwrite : bool, optional
             Whether to allow overwriting existing files.
 
-        channels : str, deprecated
-            Deprecated, channels and their units now fixed at
-            :class:`~martini.datacube.DataCube` initialization.
-
         Raises
         ------
         ValueError
             If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
-        if channels is not None:  # pragma: no cover
-            warn(
-                DeprecationWarning(
-                    "`channels` argument to `write_fits` ignored, channels and their"
-                    " units now fixed at DataCube initialization."
-                )
-            )
-
         if self.beam is None:
             raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
         assert self.beam.kernel is not None
@@ -1458,7 +1436,6 @@ class Martini(_BaseMartini):
         overwrite: bool = True,
         memmap: bool = False,
         compact: bool = False,
-        channels: None = None,  # deprecated
     ) -> "h5py.File | None":
         """
         Output the data cube and beam to a HDF5-format file.
@@ -1482,19 +1459,7 @@ class Martini(_BaseMartini):
             If ``True``, omit pixel coordinate arrays to save disk space. In this
             case pixel coordinates can still be reconstructed from FITS-style
             keywords stored in the FluxCube attributes.
-
-        channels : str, deprecated
-            Deprecated, channels and their units now fixed at
-            :class:`~martini.datacube.DataCube` initialization.
         """
-        if channels is not None:  # pragma: no cover
-            warn(
-                DeprecationWarning(
-                    "`channels` argument to `write_fits` ignored, channels and their"
-                    " units now fixed at DataCube initialization."
-                )
-            )
-
         import h5py
 
         self._datacube.drop_pad()
@@ -1728,10 +1693,6 @@ class GlobalProfile(_BaseMartini):
     quiet : bool, optional
         If ``True``, suppress output to stdout.
 
-    channels : str, deprecated
-        Deprecated, channels and their units now fixed at
-        :class:`~martini.datacube.DataCube` initialization.
-
     See Also
     --------
     martini.sources.sph_source.SPHSource
@@ -1816,17 +1777,7 @@ class GlobalProfile(_BaseMartini):
         channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
         spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0 * U.km * U.s**-1,
         quiet: bool = False,
-        channels: None = None,  # deprecated
     ) -> None:
-        if channels is not None:  # pragma: no cover
-            warn(
-                DeprecationWarning(
-                    "The `channels` argument to `GlobalProfile.__init__` is deprecated"
-                    " and has been ignored. If `channel_width` has velocity units"
-                    " channels are evenly spaced in velocity, and if it has frequency"
-                    " units they are evenly spaced in frequency."
-                )
-            )
         super().__init__(
             source=source,
             datacube=_GlobalProfileDataCube(

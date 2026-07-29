@@ -95,7 +95,7 @@ class GaussianNoise(_BaseNoise):
         Seed for random number generator.
     """
 
-    rms: U.Quantity[U.Jy * U.beam**-1]
+    target_rms: U.Quantity[U.Jy * U.beam**-1]
 
     @U.quantity_input
     def __init__(

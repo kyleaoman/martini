@@ -44,8 +44,10 @@ class _BaseSpectrum(metaclass=ABCMeta):
     Parameters
     ----------
     ncpu : int, optional
-        Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided.
+        Number of threads to use for evaluation of particle spectra. Defaults to ``1`` if
+        not provided. In most cases :mod:`numba` acceleration is already so fast on one
+        thread that no speedup is obtained with more threads (likely bottleneck on memory
+        access).
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -81,12 +83,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
         the particle velocities of the :class:`~martini.sources.sph_source.SPHSource` (or
         derived class) instance provided.
 
-        If the instance of this class was initialized with ``ncpu > 1`` then a
-        process pool is created to distribute subsets of the calculation in
-        parallel. To minimize overhead form serializing large amounts of
-        data in :mod:`multiprocess` communications, each parallel process inherits the
-        entire line-of-sight velocity array (cheap because of copy-on-write
-        behaviour), then masks its copy to the subset to operate on.
+        If the instance of this class was initialized with ``ncpu > 1`` and :mod:`numba`
+        is installed then the calculation is multi-threaded (but this usually doesn't
+        speed it up much, likely because the bottleneck is memory access).
 
         Parameters
         ----------
@@ -362,8 +361,8 @@ class GaussianSpectrum(_BaseSpectrum):
         :math:`m_p` is the particle mass.
 
     ncpu : int, optional
-        Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided.
+        Number of threads to use for evaluation of particle spectra. Defaults to ``1`` if
+        not provided.
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -598,8 +597,10 @@ class DiracDeltaSpectrum(_BaseSpectrum):
     Parameters
     ----------
     ncpu : int, optional
-        Number of cpus to use for evaluation of particle spectra. Defaults to ``1`` if not
-        provided.
+        Number of threads to use for evaluation of particle spectra. Defaults to ``1`` if
+        not provided. In most cases :mod:`numba` acceleration is already so fast on one
+        thread that no speedup is obtained with more threads (likely bottleneck on memory
+        access).
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage

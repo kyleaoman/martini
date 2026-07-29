@@ -111,9 +111,6 @@ class DataCube(object):
         Data type of the array storing the data cube, can be used to manage memory usage
         by adjusting precision.
 
-    velocity_centre : ~astropy.units.Quantity, deprecated
-        Deprecated, use spectral centre instead.
-
     See Also
     --------
     martini.datacube.DataCube.load_state
@@ -179,15 +176,7 @@ class DataCube(object):
         coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
         specsys: str = "icrs",
         cube_dtype: type = np.float64,
-        velocity_centre: None = None,  # deprecated
     ) -> None:
-        if velocity_centre is not None:  # pragma: no cover
-            warnings.warn(
-                DeprecationWarning(
-                    "velocity_centre is deprecated, use spectral_centre instead."
-                )
-            )
-            spectral_centre = velocity_centre
         self.stokes_axis = stokes_axis
         self.coordinate_frame = coordinate_frame
         self.specsys = _validate_specsys(specsys)
@@ -225,28 +214,6 @@ class DataCube(object):
         self._wcs = None
 
         return
-
-    def velocity_channels(self) -> None:
-        """Issue a warning then do nothing (deprecated)."""
-        warnings.warn(
-            DeprecationWarning(
-                "Changing the channel mode is deprecated. You can access channels in"
-                " deisred units with `DataCube.frequency_channel_edges`,"
-                " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
-                " and `DataCube.velocity_channel_mids`."
-            )
-        )  # pragma: no cover
-
-    def freq_channels(self) -> None:
-        """Issue a warning then do nothing (deprecated)."""
-        warnings.warn(
-            DeprecationWarning(
-                "Changing the channel mode is deprecated. You can access channels in"
-                " deisred units with `DataCube.frequency_channel_edges`,"
-                " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
-                " and `DataCube.velocity_channel_mids`."
-            )
-        )  # pragma: no cover
 
     @classmethod
     def from_wcs(cls, input_wcs: WCS, specsys: str | None = None) -> Self:
@@ -992,9 +959,6 @@ class _GlobalProfileDataCube(DataCube):
     cube_dtype : type, optional
         Data type of the array storing the data cube, can be used to manage memory usage
         by adjusting precision.
-
-    velocity_centre : ~astropy.units.Quantity, deprecated
-        Deprecated, use spectral centre instead.
     """
 
     @U.quantity_input
@@ -1006,7 +970,6 @@ class _GlobalProfileDataCube(DataCube):
         spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
         specsys: str = "icrs",
         cube_dtype: type = np.float64,
-        velocity_centre: None = None,  # deprecated
     ) -> None:
         super().__init__(
             n_px_x=1,
@@ -1020,7 +983,6 @@ class _GlobalProfileDataCube(DataCube):
             stokes_axis=False,
             coordinate_frame=ICRS(),
             specsys=specsys,
-            velocity_centre=velocity_centre,
             cube_dtype=cube_dtype,
         )
 
