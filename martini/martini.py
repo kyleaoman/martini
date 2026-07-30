@@ -428,6 +428,7 @@ class _BaseMartini:
         ncpu: int = 1,
         mem_lim_GB: float = 4.0,
         quiet: bool | None = None,
+        _no_summary: bool = False,
     ) -> None:
         """
         Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
@@ -465,8 +466,13 @@ class _BaseMartini:
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
             ``quiet`` parameter of class.
+
+        _no_summary : bool
+            If ``True`` the final summary message is suppressed (e.g. so that a subclass
+            can replace it).
         """
-        if not self.quiet:
+        quiet = self.quiet if quiet is None else quiet
+        if not quiet:
             insert_source_start_time = datetime.now()
         if self.spectral_model.spectra is None:
             self.init_spectra()
@@ -480,9 +486,9 @@ class _BaseMartini:
         if NUMBA_AVAILABLE:
             progressbar = False
         elif progressbar is None:
-            progressbar = not self.quiet
+            progressbar = not quiet
 
-        self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
+        self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=quiet)
 
         ij_pxs = np.flip(
             np.mgrid[
@@ -491,11 +497,11 @@ class _BaseMartini:
             ].T.reshape(-1, 2),
             1,
         )
-        if not self.quiet:
+        if not quiet:
             print("Building pixel grid KDTree...")
             tree_build_start_time = datetime.now()
         tree = build_tree(ij_pxs)
-        if not self.quiet:
+        if not quiet:
             print(f"Built KDTree, took {datetime.now() - tree_build_start_time}.")
         clipped_sm_ranges = np.clip(
             self.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
@@ -600,7 +606,7 @@ class _BaseMartini:
             segments = [slice(None)]
             log_prefix = ""
         for i, segment in enumerate(segments, 1):
-            if not self.quiet:
+            if not quiet:
                 if len(segments) > 1:
                     print(f"Processing particle group {i} of {len(segments)}...")
                 print(f"{log_prefix}Indexing particle-pixel overlaps...")
@@ -615,12 +621,12 @@ class _BaseMartini:
                 ncpu=ncpu,
                 dist_dtype=self.spectral_model.spec_dtype,
             )
-            if not self.quiet:
+            if not quiet:
                 print(
                     f"{log_prefix}Indexed particle-pixel overlaps, took "
                     f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
                 )
-            if not self.quiet:
+            if not quiet:
                 print(f"{log_prefix}Evaluating kernel weights...")
                 weights_start_time = datetime.now()
             segment_start = 0 if segment.start is None else segment.start
@@ -628,13 +634,13 @@ class _BaseMartini:
                 U.Quantity(gs.distances.T, U.pix, copy=False),
                 mask=segment_start + gs.intersections,
             )
-            if not self.quiet:
+            if not quiet:
                 print(
                     f"{log_prefix}Evaluated kernel weights, took "
                     f"{datetime.now() - weights_start_time}."
                 )
 
-            if not self.quiet:
+            if not quiet:
                 print(f"{log_prefix}Reducing pixel spectra into cube...")
                 px_spectra_start_time = datetime.now()
             assert self.spectral_model.spectra is not None
@@ -651,7 +657,7 @@ class _BaseMartini:
                 ncpu=ncpu,
                 progressbar=progressbar,
             )
-            if not self.quiet:
+            if not quiet:
                 print(
                     f"{log_prefix}Reduced pixel spectra into cube, took "
                     f"{datetime.now() - px_spectra_start_time} on {insert_used_ncpu} "
@@ -660,7 +666,7 @@ class _BaseMartini:
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )
-        if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
+        if not quiet and not _no_summary:
             inserted_flux_density = np.sum(
                 self._datacube._array[self._datacube.pad_mask]
                 * self._datacube.px_size**2
@@ -1801,7 +1807,9 @@ class GlobalProfile(_BaseMartini):
 
         return
 
-    def insert_source_in_spectrum(self) -> None:
+    def insert_source_in_spectrum(
+        self, mem_lim_GB: float = 4.0, quiet: bool = False
+    ) -> None:
         """
         Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
 
@@ -1810,13 +1818,31 @@ class GlobalProfile(_BaseMartini):
         regardless of  position on the sky. The line-of-sight vector still depends on
         the particle positions, so the direction to the individual particles is still
         taken into account.
+
+        Parameters
+        ----------
+        mem_lim_GB : float
+            The peak memory usage can get very large if many particle kernels touch many
+            pixels in the cube. The particles can be processed in batches to mitigate
+            this, but this slows down the code. The memory limit set here (in GB) will
+            trigger batching if estimated memory usage is expected to exceed it. This is
+            a "soft" limit since some allocation outside of direct control (e.g. internal
+            in :mod:`scipy`) cannot be exactly predicted.
+
+        quiet : bool, optional
+            If ``True``, suppress output to stdout. If specified, takes precedence over
+            ``quiet`` parameter of class.
         """
         # skip_validation=True: all particles can contribute their kernel to the pixel;
         # ncpu=1 since we have 1 pixel and source insertion is parallel over pixels;
         # no progressbar since there's only 1 pixel of progress;
-        # quiet=True because messages assume a resolved source, replace with new ones
         super()._insert_source_in_cube(
-            skip_validation=True, progressbar=False, ncpu=1, quiet=True
+            skip_validation=True,
+            progressbar=False,
+            ncpu=1,
+            mem_lim_GB=mem_lim_GB,
+            quiet=quiet,
+            _no_summary=True,
         )
         # The datacube in Jy/arcsec^2 is a bit misleading because the source is
         # (presumably) completely unresolved so extrapolating its surface brightness
