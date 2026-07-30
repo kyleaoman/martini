@@ -98,7 +98,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
             Evaluate spectra only for a subset of particles, enables processing particles
             in batches.
         """
-        channel_edges = datacube.velocity_channel_edges[mask]
+        channel_edges = datacube.velocity_channel_edges
         channel_widths = np.abs(np.diff(channel_edges.to(U.km * U.s**-1)))
         assert source.skycoords is not None
         vmids = source.skycoords.radial_velocity[mask]
