@@ -102,7 +102,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
         channel_widths = np.abs(np.diff(channel_edges.to(U.km * U.s**-1)))
         assert source.skycoords is not None
         vmids = source.skycoords.radial_velocity[mask]
-        A = source.mHI_g[mask] * np.power(source.skycoords.distance.to(U.Mpc), -2)
+        A = source.mHI_g[mask] * np.power(source.skycoords.distance[mask].to(U.Mpc), -2)
         extra_data = self.get_spectral_function_extra_data(source, datacube, mask=mask)
         if all(np.diff(channel_edges) > 0):
             lower_edges_slice: slice = np.s_[:-1]

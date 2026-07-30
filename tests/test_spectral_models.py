@@ -13,7 +13,7 @@ class TestGaussianSpectrum:
     """Test functionality of the Gaussian spectrum module."""
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
-    def test_init_spectra(self, sigma, single_particle_source):
+    def test_eval_spectra(self, sigma, single_particle_source):
         """Check that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
@@ -26,11 +26,11 @@ class TestGaussianSpectrum:
             channel_width=4 * U.km / U.s,
             spectral_centre=source.vsys,
         )
-        spectral_model.init_spectra(source, datacube)
+        spectra = spectral_model._eval_spectra(source, datacube)
         expected_flux = (
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
-        flux = spectral_model.spectra[0].sum() * datacube.channel_width
+        flux = spectra[0].sum() * datacube.channel_width
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width_constant(self, single_particle_source):
@@ -98,7 +98,7 @@ class TestGaussianSpectrum:
 class TestDiracDeltaSpectrum:
     """Test functionality of the Dirac-delta spectrum module."""
 
-    def test_init_spectra(self, single_particle_source):
+    def test_eval_spectra(self, single_particle_source):
         """Check that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
@@ -111,11 +111,11 @@ class TestDiracDeltaSpectrum:
             channel_width=4 * U.km / U.s,
             spectral_centre=source.vsys,
         )
-        spectral_model.init_spectra(source, datacube)
+        spectra = spectral_model._eval_spectra(source, datacube)
         expected_flux = (
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
-        flux = spectral_model.spectra[0].sum() * datacube.channel_width
+        flux = spectra[0].sum() * datacube.channel_width
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width(self, single_particle_source):
@@ -175,20 +175,19 @@ def test_spectrum_precision(SpectralModel, dtype, single_particle_source):
         px_size=15.0 * U.arcsec,
         channel_width=4.0 * U.km / U.s,
     )
-    spectral_model.init_spectra(source, datacube)
-    assert spectral_model.spectra.dtype == dtype
+    spectra = spectral_model._eval_spectra(source, datacube)
+    assert spectra.dtype == dtype
 
 
 @pytest.mark.parametrize("SpectralModel", spectral_models)
 def test_parallel_spectra(SpectralModel, cross_source):
     """Check that spectra calculated in serial and parallel are consistent."""
-    pytest.importorskip(
-        "multiprocess", reason="multiprocess (optional dependency) not available."
-    )
+    pytest.importorskip("numba", reason="numba (optional dependency) not available.")
     source = cross_source()
     source._init_skycoords()
     spectral_model_serial = SpectralModel()
-    spectral_model_parallel = SpectralModel(ncpu=2)
+    spectral_model_serial._allow_numba = False
+    spectral_model_parallel = SpectralModel()
     datacube = DataCube(
         n_px_x=256,
         n_px_y=256,
@@ -196,6 +195,6 @@ def test_parallel_spectra(SpectralModel, cross_source):
         px_size=15.0 * U.arcsec,
         channel_width=4.0 * U.km / U.s,
     )
-    spectral_model_serial.init_spectra(source, datacube)
-    spectral_model_parallel.init_spectra(source, datacube)
-    assert U.allclose(spectral_model_serial.spectra, spectral_model_parallel.spectra)
+    serial_spectra = spectral_model_serial._eval_spectra(source, datacube, ncpu=1)
+    parallel_spectra = spectral_model_parallel._eval_spectra(source, datacube, ncpu=2)
+    assert U.allclose(serial_spectra, parallel_spectra)

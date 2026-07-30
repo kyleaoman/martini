@@ -520,16 +520,6 @@ class TestMartini:
         m.reset()
         assert m.datacube._array.shape == expected_shape
 
-    def test_explicit_init_spectra(self, m_init):
-        """
-        Check that we can explicitly initialize the spectra.
-
-        Usually it happens later when ``insert_source_in_cube`` is called.
-        """
-        assert m_init.spectral_model.spectra is None
-        m_init.init_spectra()
-        assert m_init.spectral_model.spectra is not None
-
     def test_preview(self, m_init):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
@@ -836,9 +826,7 @@ class TestParallel:
 
         Should give the same result as running in serial.
         """
-        pytest.importorskip(
-            "multiprocess", reason="multiprocess (optional dependency) not available"
-        )
+        pytest.importorskip("numba", reason="numba (optional dependency) not available")
 
         m = Martini(
             source=many_particle_source(),
@@ -848,7 +836,7 @@ class TestParallel:
             sph_kernel=_GaussianKernel(),
             spectral_model=GaussianSpectrum(),
         )
-
+        m._allow_numba = False
         m.insert_source_in_cube(ncpu=1, progressbar=False)
         expected_result = m.datacube._array
 
