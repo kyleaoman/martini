@@ -1,14 +1,6 @@
 SPH kernels
 ===========
 
-.. warning::
-
-   There are significant changes to this module in ``v2.0.3``. Consider upgrading your
-   installation, or refer to documentation for the specific version that you are using.
-   This page was also added in ``v2.0.3`` and does not exist in earlier versions of the
-   documentation. The best references for earlier versions are the notebooks in the
-   ``examples/`` directory on github.
-
 In smoothed-particle hydrodynamics (SPH) simulations, gas particles are not point-like but
 are instead smoothed around there position according to a kernel function. The
 hydrodynamic properties of the gas are then defined at every point in space. For instance,

@@ -50,35 +50,19 @@ pass it to the main :class:`~martini.martini.Martini` class, for example:
     spectral_model = GaussianSpectrum(sigma="thermal")
     M = Martini(spectral_model=spectral_model, ...)
 
-.. _spec-parallel:
-
-Parallelization
-+++++++++++++++
-
-The spectra of all input particles are computed by default when
-:meth:`~martini.martini.Martini.insert_source_in_cube` is called, before the main particle
-insertion loop. After the main source insertion operation, calculation of the spectra is
-often the most computationally expensive step, although typically this is only noticeable
-for very large numbers of particles. If initializing the spectra is found to be slow, it
-may be significantly faster to calculate the spectra in parallel. Parallel execution is
-specified when the spectral model module is initialized, for example:
-
-.. code-block:: python
-
-    spectral_model = GaussianSpectrum(ncpu=4)
-
-There is also a parallel mode for :meth:`~martini.martini.Martini.insert_source_in_cube`.
-Optimization of the two parts of the calculation should be considered separately.
-
-Memory usage and data type of spectra (advanced usage)
-++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Memory management
++++++++++++++++++
 
 The spectra are stored in a 2-dimensional array whose size is the product of the number of
 particles in the source and the number of channels in the data cube. For large numbers of
 particles (or channels) this consumes a lot of memory. The data type of this array can be
 controlled to help mitigate this, if less precision is acceptable. By default the spectra
-are stored with :class:`~numpy.float64`. This can be changed, for example:
+are stored at double precision (``np.float64``). This can be changed, for example:
 
 .. code-block:: python
 
     spectral_model = GaussianSpectrum(spec_dtype=np.float32)
+
+See also the ``cube_dtype`` option in :class:`~martini.datacube.DataCube`. :mod:`martini`
+will split the particles into smaller batches for processing to avoid excessive memory
+usage.

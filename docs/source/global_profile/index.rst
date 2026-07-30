@@ -76,10 +76,11 @@ can be explicitly forced with:
 
 .. code-block:: python
 
-    gp.insert_source_in_spectrum()
+    gp.insert_source_in_spectrum(mem_lim_GB=4.0)
 
-but this is not usually necessary. In addition to the spectrum itself, the centres and
-edges of the channels are available as:
+this is useful if you want to set the memory limit to something other than the default
+4GB. In addition to the spectrum itself, the centres and edges of the channels are
+available as:
 
 .. code-block:: python
 
@@ -101,10 +102,11 @@ dimensions with:
 Parallelization
 +++++++++++++++
 
-The core loop in the source insertion function is a loop over pixels. Since
-parallelization is implemented for this loop, and for a
-:class:`~martini.martini.GlobalProfile` there is a single pixel, parallelization is not
-available in this mode.
+Paralleliztion (``ncpu>1``) is not available in this mode. The source insertion function
+is a loop over pixels. Since in :class:`~martini.martini.GlobalProfile` there is only a
+single pixel, multithreading will not be beneficial for this task. The
+:class:`~scipy.spatial.KDTree` lookup is also trivial in this mode so does not benefit
+either.
 
 Quick plot of the spectrum
 --------------------------

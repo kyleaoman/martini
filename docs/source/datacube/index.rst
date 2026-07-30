@@ -120,6 +120,23 @@ the particle data in the source initialization):
         stokes_axis=False,
     )
 
+Memory management
++++++++++++++++++
+
+You can set the precision of the data cube array (see also ``spec_dtype`` in
+:mod:`~martini.spectral_models`), for example:
+
+.. code-block:: python
+
+    datacube = DataCube(..., cube_dtype=np.float32)
+
+The default is double-precision (``np.float64``). Setting single-precision
+(``np.float32``) instead will reduce the memory footprint of the data cube array by a
+factor of ``2``. Consider adjusting this if single-precision is sufficient and memory
+is tight. A 1024 pixel by 1024 pixel by 1024 channel data cube at double precision
+occupies 8 GB of memory, this scales linearly with the product
+``n_px_x * n_px_y * n_channels``.
+
 Coordinate frames and standard of rest
 ++++++++++++++++++++++++++++++++++++++
 
