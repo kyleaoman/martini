@@ -2,7 +2,6 @@
 
 from types import EllipsisType
 from typing import Type
-from warnings import warn
 import numpy as np
 from scipy.special import erf
 import astropy.units as U
@@ -43,12 +42,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     Parameters
     ----------
-    ncpu : int, optional
-        Number of threads to use for evaluation of particle spectra. Defaults to ``1`` if
-        not provided. In most cases :mod:`numba` acceleration is already so fast on one
-        thread that no speedup is obtained with more threads (likely bottleneck on memory
-        access).
-
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
@@ -59,23 +52,23 @@ class _BaseSpectrum(metaclass=ABCMeta):
     martini.spectral_models.DiracDeltaSpectrum
     """
 
-    spectra: U.Quantity[U.Jy] | None
-    ncpu: int
     spec_dtype: type
     _allow_numba: bool = True  # intended for switching off in tests
 
-    def __init__(self, ncpu: int | None = None, spec_dtype: type = np.float64) -> None:
-        self.ncpu = ncpu if ncpu is not None else 1
-        if not NUMBA_AVAILABLE and self.ncpu > 1:
-            warn("Parallelization not available without 'numba'.", RuntimeWarning)
-            self.ncpu = 1
-        self.spectra = None
+    def __init__(self, spec_dtype: type = np.float64) -> None:
         self.spec_dtype = spec_dtype
         return
 
-    def init_spectra(self, source: SPHSource, datacube: DataCube) -> None:
+    @U.quantity_input
+    def _eval_spectra(
+        self,
+        source: SPHSource,
+        datacube: DataCube,
+        ncpu: int = 1,
+        mask: slice = slice(None),
+    ) -> U.Quantity[U.Jy]:
         """
-        Pre-compute the spectrum of each particle.
+        Evaluate the spectra of each particle, optionally a masked subset.
 
         The spectral model defined in
         :meth:`~martini.spectral_models._BaseSpectrum.spectral_function` is evaluated
@@ -83,9 +76,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
         the particle velocities of the :class:`~martini.sources.sph_source.SPHSource` (or
         derived class) instance provided.
 
-        If the instance of this class was initialized with ``ncpu > 1`` and :mod:`numba`
-        is installed then the calculation is multi-threaded (but this usually doesn't
-        speed it up much, likely because the bottleneck is memory access).
+        If ``ncpu > 1`` and :mod:`numba` is installed then the calculation is
+        multi-threaded (but this usually doesn't speed it up much, likely because the
+        bottleneck is memory access).
 
         Parameters
         ----------
@@ -95,22 +88,41 @@ class _BaseSpectrum(metaclass=ABCMeta):
         datacube : ~martini.datacube.DataCube
             :class:`~martini.datacube.DataCube` object defining the observational
             parameters, including spectral channels.
-        """
-        self.channel_edges = datacube.velocity_channel_edges
-        channel_widths = np.abs(np.diff(self.channel_edges.to(U.km * U.s**-1)))
-        assert source.skycoords is not None
-        self.vmids = source.skycoords.radial_velocity
-        A = source.mHI_g * np.power(source.skycoords.distance.to(U.Mpc), -2)
 
-        self.spectra = self.evaluate_spectra(source, datacube)
-        # ensure that self.spectra array is modified in place, keep memory usage minimal:
-        self.spectra <<= U.dimensionless_unscaled
-        np.multiply(
-            A.astype(self.spec_dtype)[..., np.newaxis], self.spectra, out=self.spectra
+        ncpu : int
+            Number of threads to use for evaluation of spectra. Can be set to ``-1`` to
+            use as many threads as available cores. Currently speedup for multiple cores
+            is limited, see full documentation for details.
+
+        mask : slice
+            Evaluate spectra only for a subset of particles, enables processing particles
+            in batches.
+        """
+        channel_edges = datacube.velocity_channel_edges[mask]
+        channel_widths = np.abs(np.diff(channel_edges.to(U.km * U.s**-1)))
+        assert source.skycoords is not None
+        vmids = source.skycoords.radial_velocity[mask]
+        A = source.mHI_g[mask] * np.power(source.skycoords.distance.to(U.Mpc), -2)
+        extra_data = self.get_spectral_function_extra_data(source, datacube, mask=mask)
+        if all(np.diff(channel_edges) > 0):
+            lower_edges_slice: slice = np.s_[:-1]
+            upper_edges_slice: slice = np.s_[1:]
+        elif all(np.diff(channel_edges) < 0):
+            lower_edges_slice = np.s_[1:]
+            upper_edges_slice = np.s_[:-1]
+        else:
+            raise ValueError("Channel edges are not monotonic sequence.")
+        spectra = self.spectral_function(
+            channel_edges[np.newaxis, lower_edges_slice].astype(self.spec_dtype),
+            channel_edges[np.newaxis, upper_edges_slice].astype(self.spec_dtype),
+            vmids[:, np.newaxis].astype(self.spec_dtype),
+            extra_data=extra_data,
+            ncpu=ncpu,
         )
-        np.divide(
-            self.spectra, channel_widths.astype(self.spec_dtype), out=self.spectra
-        )
+        # ensure that spectra array is modified in place, keep memory usage minimal:
+        spectra <<= U.dimensionless_unscaled
+        np.multiply(A.astype(self.spec_dtype)[..., np.newaxis], spectra, out=spectra)
+        np.divide(spectra, channel_widths.astype(self.spec_dtype), out=spectra)
 
         @U.quantity_input
         def MHI_to_Jy_inplace(x: U.Quantity[U.Msun / U.Mpc**2 / (U.km / U.s)]) -> None:
@@ -131,63 +143,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
             x *= U.Jy / input_units
             return
 
-        MHI_to_Jy_inplace(self.spectra)
+        MHI_to_Jy_inplace(spectra)
 
-        return
-
-    @U.quantity_input
-    def evaluate_spectra(
-        self,
-        source: SPHSource,
-        datacube: DataCube,
-        mask: slice | EllipsisType = np.s_[...],
-    ) -> U.Quantity[U.dimensionless_unscaled]:
-        """
-        Evaluate the spectra.
-
-        Separated into this function so that it can be called by a parallel
-        process pool.
-
-        Parameters
-        ----------
-        source : ~martini.sources.sph_source.SPHSource
-            Source object containing arrays of particle properties.
-
-        datacube : ~martini.datacube.DataCube
-            :class:`~martini.datacube.DataCube` object defining the observational
-            parameters, including spectral channels.
-
-        mask : slice, optional
-            Slice defining the subset of particles to operate on.
-
-        Returns
-        -------
-        ~astropy.units.Quantity
-            The evaluated dimensionless spectra.
-        """
-        vmids = self.vmids[mask]
-        extra_data = self.get_spectral_function_extra_data(source, datacube, mask=mask)
-        if all(np.diff(self.channel_edges) > 0):
-            lower_edges_slice: slice = np.s_[:-1]
-            upper_edges_slice: slice = np.s_[1:]
-        elif all(np.diff(self.channel_edges) < 0):
-            lower_edges_slice = np.s_[1:]
-            upper_edges_slice = np.s_[:-1]
-        else:
-            raise ValueError("Channel edges are not monotonic sequence.")
-        return (
-            self.spectral_function(
-                self.channel_edges[np.newaxis, lower_edges_slice].astype(
-                    self.spec_dtype
-                ),
-                self.channel_edges[np.newaxis, upper_edges_slice].astype(
-                    self.spec_dtype
-                ),
-                vmids[:, np.newaxis].astype(self.spec_dtype),
-                extra_data=extra_data,
-            )
-            << U.dimensionless_unscaled
-        )
+        return spectra
 
     @abstractmethod
     @U.quantity_input
@@ -211,6 +169,7 @@ class _BaseSpectrum(metaclass=ABCMeta):
         b: U.Quantity[U.km / U.s],
         vmids: U.Quantity[U.km / U.s],
         extra_data: dict | None = None,
+        ncpu: int = 1,
     ) -> U.dimensionless_unscaled:
         """
         Abstract method; implementation of the spectral model.
@@ -235,6 +194,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
         extra_data : dict, optional
             ``dict`` containing arrays of extra data for the spectral function
             evaluation.
+
+        ncpu : int
+            Number of threads to use in evaluation.
 
         See Also
         --------
@@ -360,10 +322,6 @@ class GaussianSpectrum(_BaseSpectrum):
         :math:`k_B` is Boltzmann's constant, :math:`T` is the particle temperature and
         :math:`m_p` is the particle mass.
 
-    ncpu : int, optional
-        Number of threads to use for evaluation of particle spectra. Defaults to ``1`` if
-        not provided.
-
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
@@ -377,11 +335,10 @@ class GaussianSpectrum(_BaseSpectrum):
     def __init__(
         self,
         sigma: str | U.Quantity[U.km / U.s] = 7.0 * U.km * U.s**-1,
-        ncpu: int | None = None,
         spec_dtype: type = np.float64,
     ) -> None:
         self.sigma_mode = sigma
-        super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
+        super().__init__(spec_dtype=spec_dtype)
 
         return
 
@@ -392,6 +349,7 @@ class GaussianSpectrum(_BaseSpectrum):
         b: U.Quantity[U.km / U.s],
         vmids: U.Quantity[U.km / U.s],
         extra_data: dict[str, U.Quantity] | None = None,
+        ncpu: int = 1,
     ) -> U.dimensionless_unscaled:
         """
         Evaluate a Gaussian integral in a channel.
@@ -417,6 +375,9 @@ class GaussianSpectrum(_BaseSpectrum):
             ``dict`` containing arrays of extra data for the spectral function
             evaluation.
 
+        ncpu : int
+            Number of threads to use in evaluation.
+
         Returns
         -------
         ~astropy.units.Quantity
@@ -437,7 +398,7 @@ class GaussianSpectrum(_BaseSpectrum):
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))
             sigma_val = np.asarray(sigma.to_value(U.km / U.s))
 
-            with numba_threads(self.ncpu):
+            with numba_threads(ncpu):
                 raw_spectrum = _gaussian_numba_kernel(
                     a_val, b_val, vmids_val, sigma_val, self.spec_dtype
                 )
@@ -596,19 +557,13 @@ class DiracDeltaSpectrum(_BaseSpectrum):
 
     Parameters
     ----------
-    ncpu : int, optional
-        Number of threads to use for evaluation of particle spectra. Defaults to ``1`` if
-        not provided. In most cases :mod:`numba` acceleration is already so fast on one
-        thread that no speedup is obtained with more threads (likely bottleneck on memory
-        access).
-
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
         memory usage by adjusting precision.
     """
 
-    def __init__(self, ncpu: int | None = None, spec_dtype: type = np.float64) -> None:
-        super().__init__(ncpu=ncpu, spec_dtype=spec_dtype)
+    def __init__(self, spec_dtype: type = np.float64) -> None:
+        super().__init__(spec_dtype=spec_dtype)
         return
 
     @U.quantity_input
@@ -618,6 +573,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         b: U.Quantity[U.km / U.s],
         vmids: U.Quantity[U.km / U.s],
         extra_data: dict[str, U.Quantity] | None = None,
+        ncpu: int = 1,
     ) -> U.dimensionless_unscaled:
         """
         Evaluate a Dirac-delta function in a channel.
@@ -640,6 +596,9 @@ class DiracDeltaSpectrum(_BaseSpectrum):
             ``dict`` containing arrays of extra data for the spectral function
             evaluation.
 
+        ncpu : int
+            Number of threads to use in evaluation.
+
         Returns
         -------
         ~astropy.units.Quantity
@@ -655,7 +614,7 @@ class DiracDeltaSpectrum(_BaseSpectrum):
             a_val = np.asarray(a.to_value(U.km / U.s))
             b_val = np.asarray(b.to_value(U.km / U.s))
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))
-            with numba_threads(self.ncpu):
+            with numba_threads(ncpu):
                 raw_spectrum = _diracdelta_numba_kernel(
                     a_val, b_val, vmids_val, self.spec_dtype
                 )

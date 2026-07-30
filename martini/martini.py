@@ -221,25 +221,6 @@ class _BaseMartini:
 
         return
 
-    def init_spectra(self) -> None:
-        """
-        Explicitly trigger evaluation of particle spectra.
-
-        Triggered when :meth:`~martini.martini.Martini.insert_source_in_cube` is called if
-        not called explicitly before this.
-        """
-        if not self.quiet:
-            spectra_start_time = datetime.now()
-            print("Initializing spectra...")
-        self.spectral_model.init_spectra(self.source, self._datacube)
-        if not self.quiet:
-            print(
-                f"Spectra initialized, took {datetime.now() - spectra_start_time} on "
-                f"{self.spectral_model.ncpu} cores."
-            )
-
-        return
-
     def _prune_particles(
         self,
         spatial: bool = True,
@@ -474,8 +455,6 @@ class _BaseMartini:
         quiet = self.quiet if quiet is None else quiet
         if not quiet:
             insert_source_start_time = datetime.now()
-        if self.spectral_model.spectra is None:
-            self.init_spectra()
 
         if progressbar and NUMBA_AVAILABLE:
             warn(
@@ -511,7 +490,6 @@ class _BaseMartini:
         )
         # Estimate memory for main allocations.
         # - The datacube itself (product of shape times size of an element).
-        # - The spectra (product of shape times size of an element).
         # - Particle arrays:
         #   - T_g               (N, 1)
         #   - mHI_g             (N, 1)
@@ -521,12 +499,9 @@ class _BaseMartini:
         #   - spectralcoords    (N, 1)
         #   - pixcoords         (N, 3)
         #   Total 19 * N * 64B
-        assert self.spectral_model.spectra is not None
         baseline_mem_estimate = (
             np.prod(self._datacube.current_shape)
             * np.dtype(self._datacube.cube_dtype).itemsize
-            + np.prod(self.spectral_model.spectra.shape)
-            * np.dtype(self.spectral_model.spec_dtype).itemsize
             + 19 * self.source.npart * 64
         ) / 1024**3
 
@@ -541,22 +516,32 @@ class _BaseMartini:
         # - 2*4B floats to store distances
         tree_peak_mem_estimate = 1.5 * (64 + 36 * estimated_px_hits) / 1024**3  # GB
         tree_completed_mem_estimate = (4 + 8) * estimated_px_hits / 1024**3  # GB
-        # Estimate memory for weights evaluation:
+        # Estimate memory for spectra and weights evaluation:
+        # - The spectra (product of shape times size of an element).
         # - Memory use comes mostly in chunks of 4B * estimated_px_hits.
         # - How many such chunks are allocated depends on the kernel function, but is
         #   not wildly different. The WendlandC2 kernel uses ~17 for instance, but is
         #   among the most efficient. Allow for 24 chunks.
         # - The kernel functions could be individually optimized to perform more
         #   operations in-place in the future.
+        spectra_mem_estimate = (
+            self._datacube.n_channels
+            * np.ones(self.source.npart)
+            * np.dtype(self.spectral_model.spec_dtype).itemsize
+        ) / 1024**3  # GB
         weights_mem_estimate = 24 * 4 * estimated_px_hits / 1024**3  # GB
         tree_dominates = np.sum(tree_peak_mem_estimate) > np.sum(
             weights_mem_estimate
-        ) + np.sum(tree_completed_mem_estimate)  # only dominates if <~2 hits/particle
+        ) + np.sum(tree_completed_mem_estimate) + np.sum(
+            spectra_mem_estimate
+        )  # only dominates if <~2 hits/particle
         single_batch_peak_mem_estimate = (
             np.max(
                 (
                     np.sum(tree_peak_mem_estimate),
-                    np.sum(weights_mem_estimate) + np.sum(tree_completed_mem_estimate),
+                    np.sum(spectra_mem_estimate)
+                    + np.sum(weights_mem_estimate)
+                    + np.sum(tree_completed_mem_estimate),
                 )
             )
             + baseline_mem_estimate
@@ -581,7 +566,9 @@ class _BaseMartini:
             mem_estimate = (
                 tree_peak_mem_estimate
                 if tree_dominates
-                else tree_completed_mem_estimate + weights_mem_estimate
+                else tree_completed_mem_estimate
+                + weights_mem_estimate
+                + spectra_mem_estimate
             )
             if np.any(mem_estimate > segment_mem_allowance):
                 raise RuntimeError(
@@ -598,7 +585,7 @@ class _BaseMartini:
                     segment_length = np.searchsorted(
                         cumsum, segment_mem_allowance, side="right"
                     )
-                    segment_end = segment_start + segment_length
+                    segment_end = segment_start + int(segment_length)
                     segments.append(slice(segment_start, segment_end))
                     segment_start = segment_end
             log_prefix = "  "
@@ -641,15 +628,22 @@ class _BaseMartini:
                 )
 
             if not quiet:
+                print(f"{log_prefix}Evaluating pixel spectra...")
+                spectra_start_time = datetime.now()
+            spectra = self.spectral_model._eval_spectra(
+                self.source, self._datacube, ncpu=ncpu, mask=segment
+            )
+            if not quiet:
+                print(
+                    f"{log_prefix}Evaluated pixel spectra, took "
+                    f"{datetime.now() - spectra_start_time} on {ncpu} cores."
+                )
+            if not quiet:
                 print(f"{log_prefix}Reducing pixel spectra into cube...")
                 px_spectra_start_time = datetime.now()
-            assert self.spectral_model.spectra is not None
-            assert (
-                self._datacube.current_units
-                == self.spectral_model.spectra.unit * weights.unit
-            )
+            assert self._datacube.current_units == spectra.unit * weights.unit
             insert_used_ncpu = self._weighted_sum_and_insert_in_cube(
-                self.spectral_model.spectra[segment].value,
+                spectra.value,
                 weights.value,
                 gs.cell_indices,
                 gs.strides,
