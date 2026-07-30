@@ -823,6 +823,7 @@ class TestTNGSource:
             if result.error is not None:
                 if "HTTPError" in result.error.summary and (
                     "500 Server Error" in result.error.summary
+                    or "503 Server Error" in result.error.summary
                     or "403 Client Error" in result.error.summary
                 ):
                     pytest.xfail("Notebook failed, but due to TNG server issue.")
