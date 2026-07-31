@@ -62,6 +62,7 @@ class _BaseBeam(object):
     ra: U.Quantity[U.deg]
     dec: U.Quantity[U.deg]
 
+    @U.quantity_input
     def __init__(
         self,
         bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
@@ -217,6 +218,7 @@ class GaussianBeam(_BaseBeam):
 
     truncate: float
 
+    @U.quantity_input
     def __init__(
         self,
         bmaj: U.Quantity[U.arcsec] = 15.0 * U.arcsec,
@@ -244,6 +246,7 @@ class GaussianBeam(_BaseBeam):
             :class:`~numpy.ndarray` of corresponding size.
         """
 
+        @U.quantity_input
         def fwhm_to_sigma(fwhm: U.Quantity[U.deg]) -> U.Quantity[U.deg]:
             """
             Convert full-width at half-maximum to Gaussian sigma.

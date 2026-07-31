@@ -29,6 +29,7 @@ from astropy.coordinates import CartesianRepresentation, CartesianDifferential
 import astropy.units as U
 
 
+@U.quantity_input
 def _apply_affine_transform(
     coords: U.Quantity, affine_transform: np.ndarray, transform_units: U.UnitBase
 ) -> U.Quantity:
@@ -72,6 +73,7 @@ def _apply_affine_transform(
     )
 
 
+@U.quantity_input
 def translate(
     cls: CartesianRepresentation, translation_vector: U.Quantity[U.kpc]
 ) -> CartesianRepresentation:
@@ -100,6 +102,7 @@ def translate(
     )
 
 
+@U.quantity_input
 def translate_d(
     cls: CartesianDifferential, translation_vector: U.Quantity[U.km / U.s]
 ) -> CartesianDifferential:

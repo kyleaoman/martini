@@ -5,7 +5,7 @@ Facilitates working with Colibre simulations as input.
 """
 
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from astropy import units as U
 from astropy.coordinates import ICRS
 from .swiftgalaxy_source import SWIFTGalaxySource
@@ -76,18 +76,22 @@ class ColibreSource(SWIFTGalaxySource):
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
     """
 
+    @U.quantity_input
     def __init__(
         self,
-        galaxy: "SWIFTGalaxy",
+        # Union avoids treating string as units:
+        galaxy: Union["SWIFTGalaxy", None],
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoids treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
     ) -> None:
+        assert galaxy is not None
         # No special functionality wanted/needed:
         super().__init__(
             galaxy,

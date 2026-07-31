@@ -6,9 +6,10 @@ simplified :class:`~martini.martini.GlobalProfile` class for use when only a spe
 spatial information) is desired.
 """
 
-import warnings
 import subprocess
 import os
+from tqdm.auto import tqdm
+from datetime import datetime
 from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
@@ -16,7 +17,6 @@ from astropy.io import fits
 from astropy.time import Time
 from astropy.coordinates import Angle
 from astropy import __version__ as astropy_version
-from itertools import product
 from .__version__ import __version__ as martini_version
 from warnings import warn
 from martini.beams import _BaseBeam
@@ -25,6 +25,8 @@ from martini.sources import SPHSource
 from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
+from martini._grid_search import build_tree, find_grid_intersections
+from martini._util import NUMBA_AVAILABLE, numba_threads
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -42,6 +44,74 @@ except (subprocess.CalledProcessError, FileNotFoundError):  # pragma: no cover
     gc = b""
 else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
+
+
+if NUMBA_AVAILABLE:
+    import numba
+
+    @numba.njit(parallel=True)
+    def _weighted_sum_and_insert_in_cube_numba(
+        cube_array: np.ndarray,
+        spectra: np.ndarray,
+        weights: np.ndarray,
+        flat_cube_indices: np.ndarray,
+        strides: np.ndarray,
+        intersections: np.ndarray,
+    ) -> None:
+        """
+        Optimally evaluate weighted combination of spectra and write to datacube array.
+
+        This :mod:`numba` accelerated implementation is much faster than other
+        implementations tested (e.g. vectorized, parallel with :mod:`multiprocess`, etc.).
+        Since it writes directly into an output array, it is only thread safe if no two
+        threads can ever write to the same output index. :mod:`martini` is structured
+        as a loop over pixels where each pixel is visited one or zero times, so this
+        condition is satisfied.
+
+        As required by :mod:`numba`, the arguments are raw arrays. Unit checking is
+        therefore the responsibility of the calling function.
+
+        Parameters
+        ----------
+        cube_array : ~numpy.ndarray
+            The output data cube, as a raw array (can be a view of
+            :class:`~astropy.units.Quantity`).
+
+        spectra : ~numpy.ndarray
+            The array of spectra, one row per particle, as a raw array (can be a view of
+            :class:`~astropy.units.Quantity`).
+
+        weights : ~numpy.ndarray
+            The 1D array of weights, one per particle-pixel match, grouped by pixel, as
+            a raw array (can be a view of :class:`~astropy.units.Quantity`).
+
+        flat_cube_indices : ~numpy.ndarray
+            The 1D array of pixel indices, one per pixel, in the same order as the pixel-
+            groups in the ``weights``. These are unpacked into array locations similar
+            to `~numpy.unravel_index`.
+
+        strides : ~numpy.ndarray
+            The 2D array of strides (start and end locations) that select the ``weights``
+            and ``intersections`` for each pixel. Each row defines a stride and has length
+            2.
+
+        intersections : ~numpy.ndarray
+            The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
+            serves as an index into the ``spectra`` array, the corresponding pixel is
+            identified by the ``flat_cube_indices``. Groups within this array
+            corresponding to individual pixels are selected using a row from ``strides``.
+        """
+        dec_dim = cube_array.shape[1]
+        spec_dim = cube_array.shape[2]
+        for i in numba.prange(len(flat_cube_indices)):  # type: ignore[attr-defined]
+            flat_index = flat_cube_indices[i]
+            ra_index = flat_index // dec_dim
+            dec_index = flat_index % dec_dim
+            for j in range(strides[i, 0], strides[i, 1]):
+                for k in range(spec_dim):
+                    cube_array[ra_index, dec_index, k] += (
+                        weights[j] * spectra[intersections[j], k]
+                    )
 
 
 class _BaseMartini:
@@ -114,6 +184,8 @@ class _BaseMartini:
     sph_kernel: _BaseSPHKernel
     spectral_model: _BaseSpectrum
     quiet: bool
+    _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
+    _jit_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
 
     def __init__(
         self,
@@ -135,6 +207,23 @@ class _BaseMartini:
         self.sph_kernel = sph_kernel
         self.spectral_model = spectral_model
 
+        # Estimate memory for main allocations.
+        # - The datacube itself (product of shape times size of an element).
+        # - Particle arrays:
+        #   - T_g               (N, 1)
+        #   - mHI_g             (N, 1)
+        #   - hsm_g             (N, 1)
+        #   - coordinates_g     (N, 6)
+        #   - skycoords         (N, 6)
+        #   - spectralcoords    (N, 1)
+        #   - pixcoords         (N, 3)
+        #   Total 19 * N * 64B
+        self.baseline_mem_estimate = (
+            np.prod(self._datacube.current_shape)
+            * np.dtype(self._datacube.cube_dtype).itemsize
+            + 19 * self.source.npart * 64
+        ) / 1024**3  # GB
+
         if self.beam is not None:
             self.beam.init_kernel(self._datacube)
             self._datacube.add_pad(self.beam.needs_pad())
@@ -147,21 +236,6 @@ class _BaseMartini:
         self._prune_particles(
             **_prune_kwargs
         )  # prunes both source, and kernel if applicable
-
-        return
-
-    def init_spectra(self) -> None:
-        """
-        Explicitly trigger evaluation of particle spectra.
-
-        Triggered when :meth:`~martini.martini.Martini.insert_source_in_cube` is called if
-        not called explicitly before this.
-        """
-        if not self.quiet:
-            print("Initializing spectra...")
-        self.spectral_model.init_spectra(self.source, self._datacube)
-        if not self.quiet:
-            print("Spectra initialized.")
 
         return
 
@@ -240,54 +314,132 @@ class _BaseMartini:
             )
         return
 
-    def _evaluate_pixel_spectrum(
-        self, ij_px: tuple[int, int]
-    ) -> U.Quantity[U.Jy / U.arcsec**2]:
+    def _weighted_sum_and_insert_in_cube(
+        self,
+        spectra: np.ndarray,
+        weights: np.ndarray,
+        flat_cube_indices: np.ndarray,
+        strides: np.ndarray,
+        intersections: np.ndarray,
+        ncpu: int = 1,
+        progressbar: bool = False,
+    ) -> int:
         """
-        Add up contributions of particles to the spectrum in a pixel.
+        Evaluate weighted combination of spectra and write to datacube array.
 
-        This is the main operation in the core loop of MARTINI. It is embarrassingly
-        parallel. To support parallel excecution we accept storing up to a copy of the
-        entire (future) datacube in one-pixel pieces. This avoids the need for concurrent
-        access to the datacube by parallel processes, which would in the simplest case
-        duplicate a copy of the datacube array per parallel process! In realistic use
-        cases the memory overhead from the equivalent of a second datacube array should be
-        minimal - memory-limited applications should be limited by the memory consumed by
-        particle data, which is not duplicated in parallel execution.
+        Given the pre-computed particle spectra, the kernel weights for their
+        contributions to each pixel the information needed to map each weighted spectrum
+        to the pixels where it contributes, this function sums up the contributions and
+        fills the target datacube array. Normally this should use a :mod:`numba`
+        accelerated implementation but a serial fallback is also provided in case
+        :mod:`numba` is not installed. Since the :mod:`numba` implementation is the
+        default and that must deal with raw arrays (not :class:`~astropy.units.Quantity`
+        arrays), this function expects bare arrays; the calling function is responsible
+        for checking units.
 
         Parameters
         ----------
-        ij_px : tuple
-            A 2-tuple containing integers specifying the indices (i, j) of pixels in the
-            grid where the spectrum should be calculated.
+        spectra : ~numpy.ndarray
+            The array of spectra, one row per particle, as a raw array (can be a view of
+            :class:`~astropy.units.Quantity`).
+
+        weights : ~numpy.ndarray
+            The 1D array of weights, one per particle-pixel match, grouped by pixel, as
+            a raw array (can be a view of :class:`~astropy.units.Quantity`).
+
+        flat_cube_indices : ~numpy.ndarray
+            The 1D array of pixel indices, one per pixel, in the same order as the pixel-
+            groups in the ``weights``. These are unpacked into array locations similar
+            to `~numpy.unravel_index`.
+
+        strides : ~numpy.ndarray
+            The 2D array of strides (start and end locations) that select the ``weights``
+            and ``intersections`` for each pixel. Each row defines a stride and has length
+            2.
+
+        intersections : ~numpy.ndarray
+            The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
+            serves as an index into the ``spectra`` array, the corresponding pixel is
+            identified by the ``flat_cube_indices``. Groups within this array
+            corresponding to individual pixels are selected using a row from ``strides``.
+
+        ncpu : int
+            Number of threads to use in main source insertion loop. Using more than one
+            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
+            threads as available cores. Currently speedup from multiple cores is limited,
+            see full documentation for details.
+
+        progressbar : bool, optional
+            A progress bar is shown by default if supported (usually not supported when
+            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
+            initialised with ``quiet`` set to ``True``, progress bars are switched off
+            unless explicitly turned on.
 
         Returns
         -------
-        ~astropy.units.Quantity
-            :class:`~astropy.units.Quantity` with dimensions of Jy per sq. arcsec.
-            A 1D array containing the spectrum, whose length must match the length of the
-            spectral axis of the datacube.
+        int
+            The number of cores actually used.
         """
-        ij = np.array(ij_px)[..., np.newaxis] * U.pix
-        mask = (
-            np.abs(ij - self.source.pixcoords[:2]) <= self.sph_kernel.sm_ranges
-        ).all(axis=0)
-        weights = self.sph_kernel._px_weight(
-            self.source.pixcoords[:2, mask] - ij, mask=mask
+        cube_view = (
+            self._datacube._array[:, :, :, 0].value
+            if self._datacube.stokes_axis
+            else self._datacube._array.value
         )
-        assert self.spectral_model.spectra is not None
-        tmp = self.spectral_model.spectra[mask]
-        np.multiply(tmp, weights[:, np.newaxis], out=tmp)
-        insertion_values = np.sum(tmp, axis=-2)
-        del tmp
-        return insertion_values
+        dec_dim = cube_view.shape[1]
+        total_elements = len(flat_cube_indices)
+
+        if self._numba_enabled:
+            if self._jit_enabled:
+                with numba_threads(ncpu):
+                    _weighted_sum_and_insert_in_cube_numba(
+                        cube_view,
+                        spectra,
+                        weights,
+                        flat_cube_indices,
+                        strides,
+                        intersections,
+                    )
+                return ncpu
+            else:
+                _weighted_sum_and_insert_in_cube_numba.py_func(
+                    cube_view,
+                    spectra,
+                    weights,
+                    flat_cube_indices,
+                    strides,
+                    intersections,
+                )
+                return 1
+
+        if ncpu != 1:
+            warn("Parallelization not available without 'numba'.", RuntimeWarning)
+            ncpu = 1
+
+        for i in tqdm(range(total_elements), disable=not progressbar):
+            start_j, end_j = strides[i, 0], strides[i, 1]
+            assert start_j < end_j, (
+                "Invalid pixel overlap group length encountered, this is an error."
+            )
+
+            flat_index = flat_cube_indices[i]
+            ra_index = flat_index // dec_dim
+            dec_index = flat_index % dec_dim
+
+            j_slice = slice(start_j, end_j)
+            w_sub = weights[j_slice, np.newaxis]
+            spec_sub = spectra[intersections[j_slice], :]
+
+            cube_view[ra_index, dec_index, :] += np.sum(w_sub * spec_sub, axis=0)
+        return ncpu
 
     def _insert_source_in_cube(
         self,
         skip_validation: bool = False,
         progressbar: bool | None = None,
         ncpu: int = 1,
+        mem_lim_GB: float = 4.0,
         quiet: bool | None = None,
+        _no_summary: bool = False,
     ) -> None:
         """
         Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
@@ -295,104 +447,263 @@ class _BaseMartini:
         Parameters
         ----------
         skip_validation : bool, optional
-            SPH kernel interpolation onto the DataCube is approximated for
-            increased speed. For some combinations of pixel size, distance
-            and SPH smoothing length, the approximation may break down. The
+            SPH kernel interpolation onto the :class:`martini.datacube.DataCube` is
+            approximated for increased speed. For some combinations of pixel size,
+            distance and SPH smoothing length, the approximation may break down. The
             kernel class will check whether this will occur and raise a
-            RuntimeError if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter True.
+            ``RuntimeError`` if so. This validation can be skipped (at the cost
+            of accuracy!) by setting this parameter ``True``.
 
         progressbar : bool, optional
-            A progress bar is shown by default. If martini was initialised with
-            `quiet` set to `True`, progress bars are switched off unless explicitly
-            turned on.
+            A progress bar is shown by default if supported (usually not supported when
+            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
+            initialised with ``quiet`` set to ``True``, progress bars are switched off
+            unless explicitly turned on.
 
         ncpu : int
-            Number of processes to use in main source insertion loop. Using more than
-            one cpu requires the `multiprocess` module (n.b. not the same as
-            `multiprocessing`).
+            Number of threads to use in main source insertion loop. Using more than one
+            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
+            threads as available cores. Currently speedup from multiple cores is limited,
+            see full documentation for details.
+
+        mem_lim_GB : float
+            The peak memory usage can get very large if many particle kernels touch many
+            pixels in the cube. The particles can be processed in batches to mitigate
+            this, but this slows down the code. The memory limit set here (in GB) will
+            trigger batching if estimated memory usage is expected to exceed it. This is
+            a "soft" limit since some allocation outside of direct control (e.g. internal
+            in :mod:`scipy`) cannot be exactly predicted.
 
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
-            quiet parameter of class.
+            ``quiet`` parameter of class.
+
+        _no_summary : bool
+            If ``True`` the final summary message is suppressed (e.g. so that a subclass
+            can replace it).
         """
-        if self.spectral_model.spectra is None:
-            self.init_spectra()
-
-        if progressbar is None:
-            progressbar = not self.quiet
-
-        self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=self.quiet)
-
-        ij_pxs = list(
-            product(
-                np.arange(self._datacube._array.shape[0]),
-                np.arange(self._datacube._array.shape[1]),
+        if self.baseline_mem_estimate > mem_lim_GB:
+            raise RuntimeError(
+                f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
+                f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
+                f" `mem_lim_GB` when calling `insert_source_in_cube`."
             )
+        quiet = self.quiet if quiet is None else quiet
+        if not quiet:
+            insert_source_start_time = datetime.now()
+
+        if progressbar and self._numba_enabled:
+            warn(
+                "'numba'-accelerated 'martini' does not support progress bar (but it "
+                "will be pretty fast anyway!).",
+                RuntimeWarning,
+            )
+        if self._numba_enabled:
+            progressbar = False
+        elif progressbar is None:
+            progressbar = not quiet
+
+        self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=quiet)
+
+        ij_pxs = np.flip(
+            np.mgrid[
+                : float(self._datacube.current_shape[1]),
+                : float(self._datacube.current_shape[0]),
+            ].T.reshape(-1, 2),
+            1,
         )
-
-        # figure out which progressbar style to use
-        from tqdm.autonotebook import tqdm
-
-        if ncpu == 1:
-            self._datacube._array += U.Quantity(
-                [
-                    self._evaluate_pixel_spectrum(ij_px)
-                    for ij_px in tqdm(ij_pxs, disable=not progressbar)
-                ]
-            ).reshape(self._datacube._array.shape)
+        if not quiet:
+            print("Building pixel grid KDTree...")
+            tree_build_start_time = datetime.now()
+        tree = build_tree(ij_pxs)
+        if not quiet:
+            print(f"Built KDTree, took {datetime.now() - tree_build_start_time}.")
+        clipped_sm_ranges = np.clip(
+            self.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
+        )
+        estimated_px_hits = np.clip(
+            np.pi * clipped_sm_ranges**2, 0, self._datacube.current_n_px
+        )
+        # Estimate memory for tree query. At peak:
+        # - 64B per list (once for each entry in estimated_px_hits).
+        # - 8B (pointer) + 28B (integer) = 36B for each estimated_px_hits.
+        # - Internally C++ vectors are used for storage which over-allocate when resized
+        #   in steps of a factor of 2. In practice seems like a factor of 1.5 allows for
+        #   this.
+        # When finished:
+        # - 4B ints to store each px_hit
+        # - 2*4B floats to store distances
+        tree_peak_mem_estimate = 1.5 * (64 + 36 * estimated_px_hits) / 1024**3  # GB
+        tree_completed_mem_estimate = (4 + 8) * estimated_px_hits / 1024**3  # GB
+        # Estimate memory for spectra and weights evaluation:
+        # - The spectra (product of shape times size of an element).
+        # - Memory use comes mostly in chunks of 4B * estimated_px_hits.
+        # - How many such chunks are allocated depends on the kernel function, but is
+        #   not wildly different. The WendlandC2 kernel uses ~17 for instance, but is
+        #   among the most efficient. Allow for 24 chunks.
+        # - The kernel functions could be individually optimized to perform more
+        #   operations in-place in the future.
+        spectra_mem_estimate = (
+            self._datacube.n_channels
+            * np.ones(self.source.npart)
+            * np.dtype(self.spectral_model.spec_dtype).itemsize
+        ) / 1024**3  # GB
+        weights_mem_estimate = 24 * 4 * estimated_px_hits / 1024**3  # GB
+        tree_dominates = np.sum(tree_peak_mem_estimate) > np.sum(
+            weights_mem_estimate
+        ) + np.sum(tree_completed_mem_estimate) + np.sum(
+            spectra_mem_estimate
+        )  # only dominates if <~2 hits/particle
+        single_batch_peak_mem_estimate = (
+            np.max(
+                (
+                    np.sum(tree_peak_mem_estimate),
+                    np.sum(spectra_mem_estimate)
+                    + np.sum(weights_mem_estimate)
+                    + np.sum(tree_completed_mem_estimate),
+                )
+            )
+            + self.baseline_mem_estimate
+        )
+        if single_batch_peak_mem_estimate > mem_lim_GB:
+            warn(
+                f"Requested memory limit ({mem_lim_GB}GB) is insufficient to process all "
+                "particles at once (estimated memory required: "
+                f"{single_batch_peak_mem_estimate:.1f}GB). Processing in batches instead,"
+                " this could take longer. Increase `mem_lim_GB` when calling "
+                "`insert_source_in_cube` if possible.",
+                RuntimeWarning,
+            )
+            segment_mem_allowance = mem_lim_GB - self.baseline_mem_estimate
+            segments = []
+            mem_estimate = (
+                tree_peak_mem_estimate
+                if tree_dominates
+                else tree_completed_mem_estimate
+                + weights_mem_estimate
+                + spectra_mem_estimate
+            )
+            if np.any(mem_estimate > segment_mem_allowance):
+                raise RuntimeError(
+                    f"Requested memory limit ({mem_lim_GB}GB) minus the estimated "
+                    f"baseline memory ({self.baseline_mem_estimate}GB, e.g. to store"
+                    " particle data) leaves insufficient memory for "
+                    "`insert_source_in_cube`, even when particles are processed in "
+                    "batches. Increase `mem_lim_GB` when calling `insert_source_in_cube`."
+                )
+            # Should always have a particle if we get here, but make very sure so we don't
+            # enter an infinite loop:
+            assert len(mem_estimate) > 0, (
+                "Particles processing in batches but no particles present, this is "
+                "an error."
+            )
+            segment_start = 0
+            while segment_start < len(mem_estimate):
+                cumsum = np.cumsum(mem_estimate[segment_start:])
+                segment_length = np.searchsorted(
+                    cumsum, segment_mem_allowance, side="right"
+                )
+                segment_end = segment_start + int(segment_length)
+                segments.append(slice(segment_start, segment_end))
+                segment_start = segment_end
+            log_prefix = "  "
         else:
-            from multiprocess.pool import ThreadPool
+            segments = [slice(None)]
+            log_prefix = ""
+        for i, segment in enumerate(segments, 1):
+            if not quiet:
+                if len(segments) > 1:
+                    print(f"Processing particle group {i} of {len(segments)}...")
+                print(f"{log_prefix}Indexing particle-pixel overlaps...")
+                grid_search_start_time = datetime.now()
+            pixcoords = self.source.pixcoords[:2, segment].to_value(U.pix).T
+            sm_ranges = clipped_sm_ranges[segment]
+            gs = find_grid_intersections(
+                tree,
+                ij_pxs,
+                pixcoords,
+                sm_ranges,
+                ncpu=ncpu,
+                dist_dtype=self.spectral_model.spec_dtype,
+            )
+            if not quiet:
+                print(
+                    f"{log_prefix}Indexed particle-pixel overlaps, took "
+                    f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
+                )
+            if not quiet:
+                print(f"{log_prefix}Evaluating kernel weights...")
+                weights_start_time = datetime.now()
+            segment_start = 0 if segment.start is None else segment.start
+            weights = self.sph_kernel._px_weight(
+                U.Quantity(gs.distances.T, U.pix, copy=False),
+                mask=segment_start + gs.intersections,
+            )
+            if not quiet:
+                print(
+                    f"{log_prefix}Evaluated kernel weights, took "
+                    f"{datetime.now() - weights_start_time}."
+                )
 
-            # not multiprocessing, need serialization from dill not pickle
-
-            total = len(ij_pxs)
-            with ThreadPool(processes=ncpu) as pool:
-                self._datacube._array += U.Quantity(
-                    list(
-                        tqdm(
-                            pool.imap(
-                                self._evaluate_pixel_spectrum,
-                                ij_pxs,
-                            ),
-                            total=total,
-                            disable=not progressbar,
-                        )
-                    )
-                ).reshape(self._datacube._array.shape)
-
+            if not quiet:
+                print(f"{log_prefix}Evaluating pixel spectra...")
+                spectra_start_time = datetime.now()
+            spectra = self.spectral_model._eval_spectra(
+                self.source, self._datacube, ncpu=ncpu, mask=segment
+            )
+            if not quiet:
+                print(
+                    f"{log_prefix}Evaluated pixel spectra, took "
+                    f"{datetime.now() - spectra_start_time} on {ncpu} cores."
+                )
+            if not quiet:
+                print(f"{log_prefix}Reducing pixel spectra into cube...")
+                px_spectra_start_time = datetime.now()
+            assert self._datacube.current_units == spectra.unit * weights.unit
+            insert_used_ncpu = self._weighted_sum_and_insert_in_cube(
+                spectra.value,
+                weights.value,
+                gs.cell_indices,
+                gs.strides,
+                gs.intersections,
+                ncpu=ncpu,
+                progressbar=progressbar,
+            )
+            if not quiet:
+                print(
+                    f"{log_prefix}Reduced pixel spectra into cube, took "
+                    f"{datetime.now() - px_spectra_start_time} on {insert_used_ncpu} "
+                    "cores."
+                )
         self._datacube._array = self._datacube._array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )
-        pad_mask = (
-            np.s_[
-                self._datacube.padx : -self._datacube.padx,
-                self._datacube.pady : -self._datacube.pady,
-                ...,
-            ]
-            if self._datacube.padx > 0 and self._datacube.pady > 0
-            else np.s_[...]
-        )
-        inserted_flux_density = np.sum(
-            self._datacube._array[pad_mask] * self._datacube.px_size**2
-        ).to(U.Jy)
-        inserted_mass = (
-            2.36e5
-            * U.Msun
-            * self.source.distance.to_value(U.Mpc) ** 2
-            * np.sum(
-                (self._datacube._array[pad_mask] * self._datacube.px_size**2)
-                .sum((0, 1))
-                .squeeze()
-                .to_value(U.Jy)
-                * np.abs(
-                    np.diff(self._datacube.velocity_channel_edges.to_value(U.km / U.s))
+        if not quiet and not _no_summary:
+            inserted_flux_density = np.sum(
+                self._datacube._array[self._datacube.pad_mask]
+                * self._datacube.px_size**2
+            ).to(U.Jy)
+            inserted_mass = (
+                2.36e5
+                * U.Msun
+                * self.source.distance.to_value(U.Mpc) ** 2
+                * np.sum(
+                    (
+                        self._datacube._array[self._datacube.pad_mask]
+                        * self._datacube.px_size**2
+                    )
+                    .sum((0, 1))
+                    .squeeze()
+                    .to_value(U.Jy)
+                    * np.abs(
+                        np.diff(
+                            self._datacube.velocity_channel_edges.to_value(U.km / U.s)
+                        )
+                    )
                 )
             )
-        )
-        if (quiet is None and not self.quiet) or (quiet is not None and not quiet):
             print(
-                "Source inserted.",
+                f"Source inserted, took {datetime.now() - insert_source_start_time}.",
                 f"  Flux density in cube: {inserted_flux_density:.2e}",
                 f"  Mass in cube (assuming distance {self.source.distance:.2f} and a"
                 f" spatially resolved source):"
@@ -829,6 +1140,7 @@ class Martini(_BaseMartini):
         skip_validation: bool = False,
         progressbar: bool | None = None,
         ncpu: int = 1,
+        mem_lim_GB: float = 4.0,
     ) -> None:
         """
         Populate the DataCube with flux from the particles in the source.
@@ -844,18 +1156,30 @@ class Martini(_BaseMartini):
             of accuracy!) by setting this parameter ``True``.
 
         progressbar : bool, optional
-            A progress bar is shown by default. Progress bars work, with perhaps
-            some visual glitches, in parallel. If :class:`~martini.martini.Martini` was
+            A progress bar is shown by default if supported (usually not supported when
+            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
             initialised with ``quiet`` set to ``True``, progress bars are switched off
             unless explicitly turned on.
 
         ncpu : int
-            Number of processes to use in main source insertion loop. Using more than
-            one cpu requires the :mod:`multiprocess` module (n.b. not the same as
-            ``multiprocessing``).
+            Number of threads to use in main source insertion loop. Using more than one
+            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
+            threads as available cores. Currently speedup from multiple cores is limited,
+            see full documentation for details.
+
+        mem_lim_GB : float
+            The peak memory usage can get very large if many particle kernels touch many
+            pixels in the cube. The particles can be processed in batches to mitigate
+            this, but this slows down the code. The memory limit set here (in GB) will
+            trigger batching if estimated memory usage is expected to exceed it. This is
+            a "soft" limit since some allocation outside of direct control (e.g. internal
+            in :mod:`scipy`) cannot be exactly predicted.
         """
         super()._insert_source_in_cube(
-            skip_validation=skip_validation, progressbar=progressbar, ncpu=ncpu
+            skip_validation=skip_validation,
+            progressbar=progressbar,
+            ncpu=ncpu,
+            mem_lim_GB=mem_lim_GB,
         )
 
         return
@@ -876,10 +1200,10 @@ class Martini(_BaseMartini):
                 " by martini with a smaller beam?)"
             )
 
-        unit = self._datacube._array.unit
+        unit = self._datacube.current_units
         assert self.beam.kernel is not None  # placate mypy
         for spatial_slice in self._datacube.spatial_slices:
-            # use a view [...] to force in-place modification
+            # use a view to force in-place modification
             spatial_slice[...] = (
                 fftconvolve(spatial_slice, self.beam.kernel, mode="same") * unit
             )
@@ -921,11 +1245,11 @@ class Martini(_BaseMartini):
                 equivalencies=U.beam_angular_area(self.beam.area),
             )
             .to(
-                self._datacube._array.unit,
+                self._datacube.current_units,
                 equivalencies=[self._datacube.arcsec2_to_pix],
             )
         )
-        self._datacube._array = self._datacube._array + noise_cube
+        self._datacube._array += noise_cube
         if not self.quiet:
             print(
                 "Noise added.",
@@ -941,7 +1265,6 @@ class Martini(_BaseMartini):
         filename: str,
         overwrite: bool = True,
         obj_name: str = "MOCK",
-        channels: None = None,  # deprecated
         dtype: str | np.dtype | None = None,
     ) -> None:
         """
@@ -959,21 +1282,10 @@ class Martini(_BaseMartini):
         obj_name : str
             Name to write in the ``OBJECT`` FITS header field (max 16 characters).
 
-        channels : str, deprecated
-            Deprecated, channels and their units now fixed at
-            :class:`~martini.datacube.DataCube` initialization.
-
         dtype : str or dtype
             Typecode or data-type to which the array is cast. Should be supported
             by fits. Default to not do data type conversion.
         """
-        if channels is not None:  # pragma: no cover
-            warnings.warn(
-                DeprecationWarning(
-                    "`channels` argument to `write_fits` ignored, channels and their"
-                    " units now fixed at DataCube initialization."
-                )
-            )
         self._datacube.drop_pad()
 
         filename = str(filename)
@@ -1017,7 +1329,7 @@ class Martini(_BaseMartini):
         header.append(("INSTRUME", "MARTINI", martini_version))
         header.append(("BSCALE", 1.0))
         header.append(("BZERO", 0.0))
-        datacube_array_units = self._datacube._array.unit
+        datacube_array_units = self._datacube.current_units
         header.append(
             ("DATAMAX", np.max(self._datacube._array.to_value(datacube_array_units)))
         )
@@ -1027,9 +1339,7 @@ class Martini(_BaseMartini):
         header.append(("ORIGIN", "astropy v" + astropy_version))
         # long names break fits format, don't let the user set this
         if len(obj_name) > 16:
-            warnings.warn(
-                "obj_name longer than 16 characters, truncating", RuntimeWarning
-            )
+            warn("obj_name longer than 16 characters, truncating", RuntimeWarning)
             obj_name = obj_name[:16]
         header.append(("OBJECT", obj_name))
         if self.beam is not None:
@@ -1058,7 +1368,6 @@ class Martini(_BaseMartini):
         self,
         filename: str,
         overwrite: bool = True,
-        channels: None = None,  # deprecated
     ) -> None:
         """
         Output the beam to a FITS-format file.
@@ -1075,23 +1384,11 @@ class Martini(_BaseMartini):
         overwrite : bool, optional
             Whether to allow overwriting existing files.
 
-        channels : str, deprecated
-            Deprecated, channels and their units now fixed at
-            :class:`~martini.datacube.DataCube` initialization.
-
         Raises
         ------
         ValueError
             If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
-        if channels is not None:  # pragma: no cover
-            warnings.warn(
-                DeprecationWarning(
-                    "`channels` argument to `write_fits` ignored, channels and their"
-                    " units now fixed at DataCube initialization."
-                )
-            )
-
         if self.beam is None:
             raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
         assert self.beam.kernel is not None
@@ -1157,7 +1454,6 @@ class Martini(_BaseMartini):
         overwrite: bool = True,
         memmap: bool = False,
         compact: bool = False,
-        channels: None = None,  # deprecated
     ) -> "h5py.File | None":
         """
         Output the data cube and beam to a HDF5-format file.
@@ -1181,19 +1477,7 @@ class Martini(_BaseMartini):
             If ``True``, omit pixel coordinate arrays to save disk space. In this
             case pixel coordinates can still be reconstructed from FITS-style
             keywords stored in the FluxCube attributes.
-
-        channels : str, deprecated
-            Deprecated, channels and their units now fixed at
-            :class:`~martini.datacube.DataCube` initialization.
         """
-        if channels is not None:  # pragma: no cover
-            warnings.warn(
-                DeprecationWarning(
-                    "`channels` argument to `write_fits` ignored, channels and their"
-                    " units now fixed at DataCube initialization."
-                )
-            )
-
         import h5py
 
         self._datacube.drop_pad()
@@ -1206,16 +1490,16 @@ class Martini(_BaseMartini):
         driver = "core" if memmap else None
         h5_kwargs = {"backing_store": False} if memmap else {}
         f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
-        datacube_array_units = self._datacube._array.unit
+        datacube_array_units = self._datacube.current_units
         f["FluxCube"] = self._datacube._array.to_value(datacube_array_units).squeeze()
         c = f["FluxCube"]
         origin = 0  # index from 0 like numpy, not from 1
         if not compact:
             # voxel centre coordinates:
             xgrid, ygrid, vgrid = np.meshgrid(
-                np.arange(self._datacube._array.shape[0]),
-                np.arange(self._datacube._array.shape[1]),
-                np.arange(self._datacube._array.shape[2]),
+                np.arange(self._datacube.current_shape[0]),
+                np.arange(self._datacube.current_shape[1]),
+                np.arange(self._datacube.current_shape[2]),
                 indexing="ij",
             )
             cgrid = (
@@ -1253,9 +1537,9 @@ class Martini(_BaseMartini):
             f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
             # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
             xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
-                np.arange(self._datacube._array.shape[0] + 1) - 0.5,
-                np.arange(self._datacube._array.shape[1] + 1) - 0.5,
-                np.arange(self._datacube._array.shape[2] + 1) - 0.5,
+                np.arange(self._datacube.current_shape[0] + 1) - 0.5,
+                np.arange(self._datacube.current_shape[1] + 1) - 0.5,
+                np.arange(self._datacube.current_shape[2] + 1) - 0.5,
                 indexing="ij",
             )
             cgrid_vertices = (
@@ -1303,7 +1587,7 @@ class Martini(_BaseMartini):
                     getattr(self._datacube, dataset_name).unit
                 )
         c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
-        c.attrs["FluxCubeUnit"] = str(self._datacube._array.unit)
+        c.attrs["FluxCubeUnit"] = str(self._datacube.current_units)
         c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
         c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
         c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
@@ -1427,10 +1711,6 @@ class GlobalProfile(_BaseMartini):
     quiet : bool, optional
         If ``True``, suppress output to stdout.
 
-    channels : str, deprecated
-        Deprecated, channels and their units now fixed at
-        :class:`~martini.datacube.DataCube` initialization.
-
     See Also
     --------
     martini.sources.sph_source.SPHSource
@@ -1505,6 +1785,7 @@ class GlobalProfile(_BaseMartini):
         M.insert_source_in_spectrum()
     """
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -1514,17 +1795,7 @@ class GlobalProfile(_BaseMartini):
         channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
         spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0 * U.km * U.s**-1,
         quiet: bool = False,
-        channels: None = None,  # deprecated
     ) -> None:
-        if channels is not None:  # pragma: no cover
-            warnings.warn(
-                DeprecationWarning(
-                    "The `channels` argument to `GlobalProfile.__init__` is deprecated"
-                    " and has been ignored. If `channel_width` has velocity units"
-                    " channels are evenly spaced in velocity, and if it has frequency"
-                    " units they are evenly spaced in frequency."
-                )
-            )
         super().__init__(
             source=source,
             datacube=_GlobalProfileDataCube(
@@ -1548,7 +1819,9 @@ class GlobalProfile(_BaseMartini):
 
         return
 
-    def insert_source_in_spectrum(self) -> None:
+    def insert_source_in_spectrum(
+        self, mem_lim_GB: float = 4.0, quiet: bool = False
+    ) -> None:
         """
         Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
 
@@ -1557,13 +1830,31 @@ class GlobalProfile(_BaseMartini):
         regardless of  position on the sky. The line-of-sight vector still depends on
         the particle positions, so the direction to the individual particles is still
         taken into account.
+
+        Parameters
+        ----------
+        mem_lim_GB : float
+            The peak memory usage can get very large if many particle kernels touch many
+            pixels in the cube. The particles can be processed in batches to mitigate
+            this, but this slows down the code. The memory limit set here (in GB) will
+            trigger batching if estimated memory usage is expected to exceed it. This is
+            a "soft" limit since some allocation outside of direct control (e.g. internal
+            in :mod:`scipy`) cannot be exactly predicted.
+
+        quiet : bool, optional
+            If ``True``, suppress output to stdout. If specified, takes precedence over
+            ``quiet`` parameter of class.
         """
         # skip_validation=True: all particles can contribute their kernel to the pixel;
         # ncpu=1 since we have 1 pixel and source insertion is parallel over pixels;
         # no progressbar since there's only 1 pixel of progress;
-        # quiet=True because messages assume a resolved source, replace with new ones
         super()._insert_source_in_cube(
-            skip_validation=True, progressbar=False, ncpu=1, quiet=True
+            skip_validation=True,
+            progressbar=False,
+            ncpu=1,
+            mem_lim_GB=mem_lim_GB,
+            quiet=quiet,
+            _no_summary=True,
         )
         # The datacube in Jy/arcsec^2 is a bit misleading because the source is
         # (presumably) completely unresolved so extrapolating its surface brightness
@@ -1596,6 +1887,7 @@ class GlobalProfile(_BaseMartini):
             )
 
     @property
+    @U.quantity_input
     def spectrum(self) -> U.Quantity[U.Jy]:
         """
         The spectrum of the source with spatial information integrated out.
@@ -1614,7 +1906,8 @@ class GlobalProfile(_BaseMartini):
         return self._spectrum
 
     @property
-    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
+    @U.quantity_input
+    def channel_edges(self) -> U.Quantity:
         """
         The edges of the channels for the spectrum.
 
@@ -1636,7 +1929,8 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
-    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
+    @U.quantity_input
+    def channel_mids(self) -> U.Quantity:
         """
         The centres of the channels for the spectrum.
 
@@ -1658,6 +1952,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
+    @U.quantity_input
     def frequency_channel_edges(self) -> U.Quantity[U.Hz]:
         """
         The edges of the frequency channels for the spectrum.
@@ -1677,6 +1972,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
+    @U.quantity_input
     def frequency_channel_mids(self) -> U.Quantity[U.Hz]:
         """
         The centres of the frequency channels for the spectrum.
@@ -1696,6 +1992,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
+    @U.quantity_input
     def velocity_channel_edges(self) -> U.Quantity[U.km / U.s]:
         """
         The edges of the channels for the spectrum in velocity units.
@@ -1715,6 +2012,7 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_edges
 
     @property
+    @U.quantity_input
     def velocity_channel_mids(self) -> U.Quantity[U.km / U.s]:
         """
         The centres of the channels for the spectrum.
@@ -1734,7 +2032,8 @@ class GlobalProfile(_BaseMartini):
         return self._datacube.channel_mids
 
     @property
-    def channel_width(self) -> U.Quantity[U.Hz] | U.Quantity[U.km / U.s]:
+    @U.quantity_input
+    def channel_width(self) -> U.Quantity:
         """
         The width of the channels for the spectrum.
 

@@ -13,7 +13,7 @@ from astropy.coordinates import ICRS
 from .sph_source import SPHSource
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from ..L_coords import L_coords
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Union
 from requests.models import Response
 
 if TYPE_CHECKING:
@@ -175,6 +175,7 @@ class TNGSource(SPHSource):
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
     """
 
+    @U.quantity_input
     def __init__(
         self,
         simulation: str,
@@ -186,10 +187,11 @@ class TNGSource(SPHSource):
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoids treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
     ) -> None:
         # optional dependencies for this source class
         import h5py

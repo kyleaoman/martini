@@ -74,7 +74,7 @@ class _BaseSPHKernel(object):
 
     __metaclass__ = ABCMeta
     sm_lengths: U.Quantity[U.pix]
-    sm_ranges: np.ndarray
+    sm_ranges: U.Quantity[U.pix]
     size_in_fwhm: float | list[float] | None
     _rescale: float | np.ndarray
 
@@ -82,9 +82,10 @@ class _BaseSPHKernel(object):
         self._rescale = 1.0
         return
 
+    @U.quantity_input
     def _px_weight(
         self, dij: U.Quantity[U.pix], mask: np.ndarray | EllipsisType = ...
-    ) -> U.Quantity[U.pix**2]:
+    ) -> U.Quantity[U.pix**-2]:
         """
         Calculate kernel integral using scaled smoothing lengths.
 
@@ -109,13 +110,15 @@ class _BaseSPHKernel(object):
         """
         if mask is not Ellipsis:
             rescale = (
-                self._rescale[mask]
+                self._rescale.astype(dij.dtype)[mask]
                 if not isinstance(self._rescale, float)
-                else self._rescale
+                else np.array(self._rescale, dtype=dij.dtype)
             )
-            rescaled_h = self.sm_lengths[mask] * rescale
+            rescaled_h = self.sm_lengths.astype(dij.dtype)[mask] * rescale
         else:
-            rescaled_h = self.sm_lengths * self._rescale
+            rescaled_h = self.sm_lengths.astype(dij.dtype) * np.array(
+                self._rescale, dtype=dij.dtype
+            )
         return self._kernel_integral(dij, rescaled_h, mask=mask)
 
     def _confirm_validation(
@@ -137,6 +140,7 @@ class _BaseSPHKernel(object):
         """
         return self._validate(self.sm_lengths, noraise=noraise, quiet=quiet)
 
+    @U.quantity_input
     def _validate_error(
         self,
         msg: str,
@@ -257,7 +261,7 @@ class _BaseSPHKernel(object):
     def _init_sm_ranges(self) -> None:
         """Determine maximum number of pixels reached by kernel."""
         # store as float: use case for np.inf in GlobalProfile:
-        self.sm_ranges = np.ceil(self.sm_lengths * self.size_in_fwhm)
+        self.sm_ranges = self.sm_lengths * self.size_in_fwhm
 
         return
 
@@ -279,6 +283,7 @@ class _BaseSPHKernel(object):
         pass  # pragma: no cover
 
     @abstractmethod
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -309,6 +314,7 @@ class _BaseSPHKernel(object):
         pass  # pragma: no cover
 
     @abstractmethod
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:
@@ -397,6 +403,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         W *= 21 / 2 / np.pi
         return W
 
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -428,7 +435,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
         dr2 = np.power(dij, 2).sum(axis=0)
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R2 = dr2 / (h * h)
         retval[R2 == 0] = 2.0 / 3.0
         use = np.logical_and(R2 < 1, R2 != 0)
@@ -440,6 +447,7 @@ class _WendlandC2Kernel(_BaseSPHKernel):
         norm = 21 / 2 / np.pi
         return retval * norm / np.power(h, 2)
 
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:
@@ -541,6 +549,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         W *= 1365 / 64 / np.pi
         return W
 
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -674,7 +683,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
             )
 
         dr2 = np.power(dij, 2).sum(axis=0)
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R = np.sqrt(dr2) / h
         use = np.logical_and(R < 1, R != 0)
         norm = 1365 / 64 / np.pi
@@ -684,6 +693,7 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         retval = retval / np.power(h, 2)
         return retval
 
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:
@@ -788,6 +798,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         W *= 8 / np.pi
         return W
 
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -820,7 +831,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         """
         dij *= 2  # changes interval from [0, 2) to [0, 1)
         dr2 = np.power(dij, 2).sum(axis=0)
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R2 = dr2 / (h * h)
         retval[R2 == 0] = 11.0 / 16.0 + 0.25 * 0.25
         case1 = np.logical_and(R2 > 0, R2 <= 1)
@@ -857,6 +868,7 @@ class _CubicSplineKernel(_BaseSPHKernel):
         # rescaling from interval [0, 2) to [0, 1) requires mult. by 4
         return retval / 1.59689476201133 / np.power(h, 2) * 4
 
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:
@@ -991,6 +1003,7 @@ class _GaussianKernel(_BaseSPHKernel):
             / self.norm
         )
 
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -1021,19 +1034,25 @@ class _GaussianKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Kernel integral over the pixel area.
         """
-        sig = 1 / (2 * np.sqrt(2 * np.log(2)))  # s.t. FWHM = 1
+        sig = np.array(
+            1 / (2 * np.sqrt(2 * np.log(2))), dtype=dij.dtype
+        )  # s.t. FWHM = 1
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
         with np.errstate(invalid="ignore"):
-            zmax = np.sqrt(np.power(self.truncate, 2) - np.power(dr / h / sig, 2))
-        zmax = np.where(self.truncate > dr / h / sig, zmax, 0)
-        x0 = (dij[0] - 0.5 * U.pix) / h / np.sqrt(2) / sig
-        x1 = (dij[0] + 0.5 * U.pix) / h / np.sqrt(2) / sig
-        y0 = (dij[1] - 0.5 * U.pix) / h / np.sqrt(2) / sig
-        y1 = (dij[1] + 0.5 * U.pix) / h / np.sqrt(2) / sig
-
-        retval = (
-            0.25 * erf(zmax / np.sqrt(2)) * (erf(x1) - erf(x0)) * (erf(y1) - erf(y0))
+            zmax = np.sqrt(
+                np.power(self.truncate, 2).astype(dij.dtype) - np.power(dr / h / sig, 2)
+            )
+        zmax = np.where(
+            self.truncate > dr / h / sig, zmax, np.array(0, dtype=dij.dtype)
         )
+        half_px = U.Quantity(np.array(0.5, dtype=dij.dtype), U.pix, copy=False)
+        sqrt2 = np.sqrt(np.array(2, dtype=dij.dtype))
+        x0 = (dij[0] - half_px) / h / sqrt2 / sig
+        x1 = (dij[0] + half_px) / h / sqrt2 / sig
+        y0 = (dij[1] - half_px) / h / sqrt2 / sig
+        y1 = (dij[1] + half_px) / h / sqrt2 / sig
+
+        retval = 0.25 * erf(zmax / sqrt2) * (erf(x1) - erf(x0)) * (erf(y1) - erf(y0))
 
         # explicit truncation not required as only pixels inside
         # truncation radius should be passed, next line useful for
@@ -1043,6 +1062,7 @@ class _GaussianKernel(_BaseSPHKernel):
         retval /= self.norm
         return retval * h.unit**-2
 
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:
@@ -1133,6 +1153,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
         """
         return np.where(q, 0, np.inf)
 
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -1162,8 +1183,17 @@ class DiracDeltaKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Kernel integral over the pixel area.
         """
-        return np.where((np.abs(dij) < 0.5 * U.pix).all(axis=0), 1, 0) * U.pix**-2
+        return U.Quantity(
+            np.where(
+                (np.abs(dij) < 0.5 * U.pix).all(axis=0),
+                np.array(1, dtype=dij.dtype),
+                np.array(0, dij.dtype),
+            ),
+            U.pix**-2,
+            copy=False,
+        )
 
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:
@@ -1206,7 +1236,7 @@ class DiracDeltaKernel(_BaseSPHKernel):
 
 class _AdaptiveKernel(_BaseSPHKernel):
     """
-    Allows use of multiple kernels to adapt to sph kernel-to-pixel size ratio.
+    Allow use of multiple kernels to adapt to sph kernel-to-pixel size ratio.
 
     Other provided kernels generally use approximations which break down if
     the ratio of the pixel size and the sph smoothing length are above or below
@@ -1327,6 +1357,7 @@ class _AdaptiveKernel(_BaseSPHKernel):
         """
         return self.kernels[0].kernel(q)
 
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -1355,13 +1386,14 @@ class _AdaptiveKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
-        retval = np.zeros(h.shape) * h.unit**-2
+        retval = U.Quantity(np.zeros(h.shape, dtype=dij.dtype), h.unit**-2, copy=False)
         for ik in np.unique(self.kernel_indices[mask]):
             K = self.kernels[0] if ik == -1 else self.kernels[ik]
             kmask = self.kernel_indices[mask] == ik
             retval[kmask] = K._kernel_integral(dij[:, kmask], h[kmask])
         return retval
 
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:
@@ -1483,6 +1515,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
             W = W.squeeze()
         return W
 
+    @U.quantity_input
     def _kernel_integral(
         self,
         dij: U.Quantity[U.pix],
@@ -1514,7 +1547,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
             Approximate kernel integral over the pixel area.
         """
         dr = np.sqrt(np.power(dij, 2).sum(axis=0))
-        retval = np.zeros(h.shape)
+        retval = np.zeros(h.shape, dtype=dij.dtype)
         R = (dr / h).to_value(U.dimensionless_unscaled)
 
         def IA(
@@ -1563,6 +1596,7 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         retval *= 2 * 15625 / 512 / np.pi
         return retval / np.power(h, 2)
 
+    @U.quantity_input
     def _validate(
         self, sm_lengths: U.Quantity[U.pix], noraise: bool = False, quiet: bool = False
     ) -> np.ndarray:

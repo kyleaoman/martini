@@ -6,7 +6,7 @@ Facilitates working with Magneticum simulations as input.
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 import astropy.units as U
 from astropy.coordinates import ICRS
 from ..sph_kernels import _WendlandC6Kernel, find_fwhm
@@ -120,6 +120,7 @@ class MagneticumSource(SPHSource):
         should be passed initialized, e.g. ``ICRS()`` (not just ``ICRS``).
     """
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -142,10 +143,11 @@ class MagneticumSource(SPHSource):
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0 * U.deg,
         dec: U.Quantity[U.deg] = 0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoids treating string as units
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
     ) -> None:
         from g3read import GadgetFile, read_particles_in_box
 

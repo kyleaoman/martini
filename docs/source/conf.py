@@ -74,10 +74,10 @@ def setup(app):  # numpydoc ignore=GL08
 html_static_path = ["_static"]
 
 intersphinx_mapping = {
-    "multiprocess": ("https://multiprocess.readthedocs.io/en/latest/", None),
     "h5py": ("https://docs.h5py.org/en/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
+    "numba": ("https://numba.readthedocs.io/en/stable/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
     "astropy": ("https://docs.astropy.org/en/stable/", None),
     "swiftgalaxy": ("https://swiftgalaxy.readthedocs.io/en/latest", None),
