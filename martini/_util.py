@@ -6,13 +6,13 @@ from typing import Generator
 
 try:
     import numba
-except ImportError:
+except ImportError:  # pragma: no cover
     NUMBA_AVAILABLE = False
 else:
     NUMBA_AVAILABLE = True
 
 if not NUMBA_AVAILABLE:
-    warn(
+    warn(  # pragma: no cover
         "'numba' is unavailable, 'martini' will run slowly. Installing 'numba' is "
         "recommended.",
         RuntimeWarning,
