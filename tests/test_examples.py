@@ -13,7 +13,7 @@ class TestExamples:
         with open("examples/martini_source_injection.ipynb") as f:
             nb_content = f.read()
         assert (
-            '"!{sys.executable} -m pip install \\"astromartini[tngsource]=='
+            '"!{sys.executable} -m pip install \\"astromartini[tngsource,parallel]=='
             + __version__
             + '\\"'
             in nb_content

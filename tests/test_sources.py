@@ -705,7 +705,7 @@ class TestEagleSource:
         with open("examples/martini_eagle.ipynb") as f:
             nb_content = f.read()
         assert (
-            '"!{sys.executable} -m pip install \\"astromartini[eaglesource]=='
+            '"!{sys.executable} -m pip install \\"astromartini[eaglesource,parallel]=='
             + __version__
             + '\\""'
             in nb_content
@@ -749,7 +749,7 @@ class TestSimbaSource:
         with open("examples/martini_simba.ipynb") as f:
             nb_content = f.read()
         assert (
-            '"!{sys.executable} -m pip install \\"astromartini[simbasource]=='
+            '"!{sys.executable} -m pip install \\"astromartini[simbasource,parallel]=='
             + __version__
             + '\\""'
             in nb_content
@@ -793,7 +793,7 @@ class TestTNGSource:
         with open("examples/martini_TNG.ipynb") as f:
             nb_content = f.read()
         assert (
-            '"!{sys.executable} -m pip install \\"astromartini[tngsource]=='
+            '"!{sys.executable} -m pip install \\"astromartini[tngsource,parallel]=='
             + __version__
             + '\\""'
             in nb_content
@@ -909,7 +909,7 @@ class TestFIRESource:
         with open("examples/martini_fire.ipynb") as f:
             nb_content = f.read()
         assert (
-            '"!{sys.executable} -m pip install \\"astromartini[firesource]=='
+            '"!{sys.executable} -m pip install \\"astromartini[firesource,parallel]=='
             + __version__
             + '\\""'
             in nb_content
