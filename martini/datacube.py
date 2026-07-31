@@ -1,6 +1,7 @@
 """Provide the :class:`~martini.datacube.DataCube` class for creating a data cube."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
+from types import EllipsisType
 from collections.abc import Callable, Iterator
 import numpy as np
 import astropy.units as U
@@ -106,8 +107,9 @@ class DataCube(object):
         ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``. For a complete list,
         use :meth:`astropy.coordinates.frame_transform_graph.get_names`.
 
-    velocity_centre : ~astropy.units.Quantity, deprecated
-        Deprecated, use spectral centre instead.
+    cube_dtype : type, optional
+        Data type of the array storing the data cube, can be used to manage memory usage
+        by adjusting precision.
 
     See Also
     --------
@@ -132,7 +134,7 @@ class DataCube(object):
         Callable[[U.Quantity[U.Jy * U.pix**-2]], U.Quantity[U.Jy * U.arcsec**-2]],
         Callable[[U.Quantity[U.Jy * U.arcsec**-2]], U.Quantity[U.Jy * U.pix**-2]],
     ]
-    channel_width: U.Quantity[U.km / U.s]
+    channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz]
     spectral_centre: U.Quantity[U.km / U.s]
     ra: U.Quantity[U.deg]
     dec: U.Quantity[U.deg]
@@ -150,10 +152,12 @@ class DataCube(object):
     stokes_axis: bool
     coordinate_frame: "BaseRADecFrame"
     specsys: str
+    cube_dtype: type
     _freq_channel_mode: bool
     _channel_edges: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
     _channel_mids: U.Quantity[U.Hz] | U.Quantity[U.m / U.s] | None
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -161,40 +165,33 @@ class DataCube(object):
         n_px_y: int,
         n_channels: int,
         px_size: U.Quantity[U.arcsec],
-        channel_width: U.Quantity[U.km * U.s**-1],
-        spectral_centre: U.Quantity[U.km * U.s**-1] = 0.0 * U.km * U.s**-1,
+        channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
+        spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz] = 0.0
+        * U.km
+        * U.s**-1,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         stokes_axis: bool = False,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoids treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
         specsys: str = "icrs",
-        velocity_centre: None = None,  # deprecated
+        cube_dtype: type = np.float64,
     ) -> None:
-        if velocity_centre is not None:  # pragma: no cover
-            warnings.warn(
-                DeprecationWarning(
-                    "velocity_centre is deprecated, use spectral_centre instead."
-                )
-            )
-            spectral_centre = velocity_centre
         self.stokes_axis = stokes_axis
         self.coordinate_frame = coordinate_frame
         self.specsys = _validate_specsys(specsys)
         self._array = None
+        self.cube_dtype = cube_dtype
         self.n_px_x, self.n_px_y, self.n_channels = n_px_x, n_px_y, n_channels
         self.px_size = px_size
         self.arcsec2_to_pix = (
             U.Jy * U.pix**-2,
             U.Jy * U.arcsec**-2,
-            lambda x: x / self.px_size.to_value(U.arcsec) ** 2,
-            lambda x: x * self.px_size.to_value(U.arcsec) ** 2,
+            lambda x: x / self.cube_dtype(self.px_size.to_value(U.arcsec)) ** 2,
+            lambda x: x * self.cube_dtype(self.px_size.to_value(U.arcsec)) ** 2,
         )
-        if U.get_physical_type(channel_width) == "frequency":
-            self._freq_channel_mode = True
-        elif U.get_physical_type(channel_width) == "velocity":
-            self._freq_channel_mode = False
-        else:
-            raise ValueError("Channel width must have frequency or velocity units.")
+        # dimensions guaranteed to be frequency or velocity by decorator above:
+        self._freq_channel_mode = U.get_physical_type(channel_width) == "frequency"
         self.channel_width = np.abs(channel_width)
         self.spectral_centre = SpectralCoord(
             spectral_centre,
@@ -244,28 +241,6 @@ class DataCube(object):
         )
 
         return
-
-    def velocity_channels(self) -> None:
-        """Issue a warning then do nothing (deprecated)."""
-        warnings.warn(
-            DeprecationWarning(
-                "Changing the channel mode is deprecated. You can access channels in"
-                " deisred units with `DataCube.frequency_channel_edges`,"
-                " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
-                " and `DataCube.velocity_channel_mids`."
-            )
-        )  # pragma: no cover
-
-    def freq_channels(self) -> None:
-        """Issue a warning then do nothing (deprecated)."""
-        warnings.warn(
-            DeprecationWarning(
-                "Changing the channel mode is deprecated. You can access channels in"
-                " deisred units with `DataCube.frequency_channel_edges`,"
-                " `DataCube.frequency_channel_mids`, `DataCube.velocity_channel_edges`"
-                " and `DataCube.velocity_channel_mids`."
-            )
-        )  # pragma: no cover
 
     @classmethod
     def from_wcs(cls, input_wcs: WCS, specsys: str | None = None) -> Self:
@@ -428,6 +403,7 @@ class DataCube(object):
         return datacube
 
     @property
+    @U.quantity_input
     def units(
         self,
     ) -> (
@@ -517,7 +493,8 @@ class DataCube(object):
         return self._wcs
 
     @property
-    def channel_mids(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
+    @U.quantity_input
+    def channel_mids(self) -> U.Quantity:
         """
         The centres of the channels from the coordinate system.
 
@@ -542,7 +519,8 @@ class DataCube(object):
         return self._channel_mids
 
     @property
-    def channel_edges(self) -> U.Quantity[U.Hz] | U.Quantity[U.m / U.s]:
+    @U.quantity_input
+    def channel_edges(self) -> U.Quantity:
         """
         The edges of the channels from the coordinate system.
 
@@ -567,6 +545,7 @@ class DataCube(object):
         return self._channel_edges
 
     @property
+    @U.quantity_input
     def velocity_channel_mids(self) -> U.Quantity[U.m / U.s]:
         """
         The centres of the channels from the coordinate system in velocity units.
@@ -580,6 +559,7 @@ class DataCube(object):
         return self.channel_mids.to(U.m / U.s)
 
     @property
+    @U.quantity_input
     def velocity_channel_edges(self) -> U.Quantity[U.m / U.s]:
         """
         The edges of the channels from the coordinate system in velocity units.
@@ -593,6 +573,7 @@ class DataCube(object):
         return self.channel_edges.to(U.m / U.s)
 
     @property
+    @U.quantity_input
     def frequency_channel_mids(self) -> U.Quantity[U.Hz]:
         """
         The centres of the channels from the coordinate system in frequency units.
@@ -606,6 +587,7 @@ class DataCube(object):
         return self.channel_mids.to(U.Hz)
 
     @property
+    @U.quantity_input
     def frequency_channel_edges(self) -> U.Quantity[U.Hz]:
         """
         The edges of the channels from the coordinate system in frequency units.
@@ -638,6 +620,7 @@ class DataCube(object):
         return None  # not found
 
     @property
+    @U.quantity_input
     def channel_maps(self) -> Iterator[U.Quantity]:
         """
         An iterator over the channel maps.
@@ -652,6 +635,7 @@ class DataCube(object):
         return self.spatial_slices
 
     @property
+    @U.quantity_input
     def spatial_slices(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spatial 'slices' of the cube.
@@ -677,6 +661,7 @@ class DataCube(object):
             )
 
     @property
+    @U.quantity_input
     def spectra(self) -> Iterator[U.Quantity]:
         """
         An iterator over the spectra (one in each spatial pixel).
@@ -701,6 +686,30 @@ class DataCube(object):
                     (self.wcs.wcs.lng, self.wcs.wcs.lat, self.wcs.wcs.spec)
                 ).reshape(spectra_shape)
             )
+
+    @property
+    def current_n_px(self) -> int:
+        """
+        Get the current pixel count, including any pixels added in padding, if applicable.
+
+        Returns
+        -------
+        int
+            The current pixel count.
+        """
+        return (self.n_px_x + self.padx * 2) * (self.n_px_y + self.pady * 2)
+
+    @property
+    def current_units(self) -> U.Unit:
+        """
+        Get the current units of the data cube.
+
+        Returns
+        -------
+        ~astropy.units.Unit
+            The current units of the data cube array.
+        """
+        return self._array.unit
 
     def add_pad(self, pad: tuple[int, int]) -> None:
         """
@@ -736,6 +745,22 @@ class DataCube(object):
             extend_crpix.append(0)
         self.wcs.wcs.crpix = self.wcs.wcs.crpix + np.array(extend_crpix)
         return
+
+    @property
+    def pad_mask(self) -> tuple[slice, slice, EllipsisType]:
+        """
+        Get the mask needed to remove the pad region.
+
+        Returns
+        -------
+        tuple
+            The mask that can be used to drop the pad region from the data cube.
+        """
+        return np.s_[
+            self.padx : -self.padx if self.padx else -1,
+            self.pady : -self.pady if self.pady else -1,
+            ...,
+        ]
 
     def drop_pad(self) -> None:
         """
@@ -782,6 +807,7 @@ class DataCube(object):
             spectral_centre=self.spectral_centre,
             ra=self.ra,
             dec=self.dec,
+            cube_dtype=self.cube_dtype,
         )
         copy.padx, copy.pady = self.padx, self.pady
         copy._wcs = self.wcs.copy()
@@ -822,6 +848,7 @@ class DataCube(object):
                 self._array.to_value(array_unit) if self._array is not None else None
             )
             f["_array"].attrs["datacube_unit"] = str(array_unit)
+            f["_array"].attrs["cube_dtype"] = self.cube_dtype.__name__
             f["_array"].attrs["n_px_x"] = self.n_px_x
             f["_array"].attrs["n_px_y"] = self.n_px_y
             f["_array"].attrs["n_channels"] = self.n_channels
@@ -892,6 +919,7 @@ class DataCube(object):
             ra = f["_array"].attrs["ra"] * U.Unit(f["_array"].attrs["ra_unit"])
             dec = f["_array"].attrs["dec"] * U.Unit(f["_array"].attrs["dec_unit"])
             stokes_axis = bool(f["_array"].attrs["stokes_axis"])
+            cube_dtype = np.dtype(f["_array"].attrs["cube_dtype"])
             D = cls(
                 n_px_x=n_px_x,
                 n_px_y=n_px_y,
@@ -902,9 +930,13 @@ class DataCube(object):
                 ra=ra,
                 dec=dec,
                 stokes_axis=stokes_axis,
+                cube_dtype=cube_dtype,
             )
             D.add_pad((f["_array"].attrs["padx"], f["_array"].attrs["pady"]))
-            D._array = f["_array"] * U.Unit(f["_array"].attrs["datacube_unit"])
+            D._array = U.Quantity(
+                np.asarray(f["_array"], dtype=cube_dtype),
+                U.Unit(f["_array"].attrs["datacube_unit"]),
+            )
             # must be after add_pad:
             D._wcs = wcs.WCS(f["_array"].attrs["wcs_hdr"])
         return D
@@ -944,10 +976,12 @@ class _GlobalProfileDataCube(DataCube):
         (WCS) associated with the data cube, selected from the list ``"gcrs"``,
         ``"icrs"``, ``"hcrs"``, ``"lsrk"``, ``"lsrd"``, ``"lsr"``.
 
-    velocity_centre : ~astropy.units.Quantity, deprecated
-        Deprecated, use spectral centre instead.
+    cube_dtype : type, optional
+        Data type of the array storing the data cube, can be used to manage memory usage
+        by adjusting precision.
     """
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -955,7 +989,7 @@ class _GlobalProfileDataCube(DataCube):
         channel_width: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
         spectral_centre: U.Quantity[U.km / U.s] | U.Quantity[U.Hz],
         specsys: str = "icrs",
-        velocity_centre: None = None,  # deprecated
+        cube_dtype: type = np.float64,
     ) -> None:
         super().__init__(
             n_px_x=1,
@@ -969,7 +1003,7 @@ class _GlobalProfileDataCube(DataCube):
             stokes_axis=False,
             coordinate_frame=ICRS(),
             specsys=specsys,
-            velocity_centre=velocity_centre,
+            cube_dtype=cube_dtype,
         )
 
         return

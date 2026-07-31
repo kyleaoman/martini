@@ -5,7 +5,7 @@ Enables using the :mod:`simobj` interface to simulations.
 """
 
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 import astropy.units as U
 from astropy.coordinates import ICRS
 from .sph_source import SPHSource
@@ -91,18 +91,20 @@ class SOSource(SPHSource):
         :class:`simobj.simobj.SimObj` class to obtain FWHM smoothing lenghts.
     """
 
+    @U.quantity_input
     def __init__(
         self,
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoid treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
         SO_args: dict | None = None,
-        SO_instance: "SimObj | None" = None,
+        SO_instance: Union["SimObj", None] = None,
         rescale_hsm_g: float = 1.0,
     ) -> None:
         from simobj import SimObj  # optional dependency for this source class

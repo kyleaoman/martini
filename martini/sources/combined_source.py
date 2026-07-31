@@ -235,6 +235,7 @@ class CombinedSource(SPHSource):
             )
 
     @property
+    @U.quantity_input
     def distance(self) -> U.Quantity[U.Mpc]:
         """
         The approximate distance of the source.
@@ -258,6 +259,7 @@ class CombinedSource(SPHSource):
         return self._distance
 
     @property
+    @U.quantity_input
     def vsys(self) -> U.Quantity[U.km / U.s]:
         """
         The approximate systemic velocity of the source.
@@ -366,6 +368,7 @@ class CombinedSource(SPHSource):
         return figure
 
     @property
+    @U.quantity_input
     def T_g(self) -> U.Quantity[U.K]:
         """
         Get the combined particle temperatures from all of the combined sources.
@@ -386,6 +389,7 @@ class CombinedSource(SPHSource):
         return self._T_g
 
     @T_g.setter
+    @U.quantity_input
     def T_g(self, value: U.Quantity[U.K]) -> None:
         """
         Set the particle temperatures.
@@ -408,6 +412,7 @@ class CombinedSource(SPHSource):
         self._T_g = value
 
     @property
+    @U.quantity_input
     def mHI_g(self) -> U.Quantity[U.Msun]:
         """
         Get the combined particle HI masses from all of the combined sources.
@@ -424,6 +429,7 @@ class CombinedSource(SPHSource):
         return self._mHI_g
 
     @mHI_g.setter
+    @U.quantity_input
     def mHI_g(self, value: U.Quantity[U.Msun]) -> None:
         """
         Set the particle HI masses.
@@ -446,6 +452,7 @@ class CombinedSource(SPHSource):
         self._mHI_g = value
 
     @property
+    @U.quantity_input
     def hsm_g(self) -> U.Quantity[U.kpc]:
         """
         Get the combined particle smoothing lengths from all of the combined sources.
@@ -466,6 +473,7 @@ class CombinedSource(SPHSource):
         return self._hsm_g
 
     @hsm_g.setter
+    @U.quantity_input
     def hsm_g(self, value: U.Quantity[U.kpc]) -> None:
         """
         Set the particle smoothing lengths.
@@ -644,6 +652,7 @@ class CombinedSource(SPHSource):
         self._spectralcoords = value
 
     @property
+    @U.quantity_input
     def pixcoords(self) -> U.Quantity[U.pix]:
         """
         Get the combined pixel coordinates from all of the combined sources.
@@ -745,6 +754,7 @@ class CombinedSource(SPHSource):
         """
         raise NotImplementedError("Rotate individual sources, not CombinedSource.")
 
+    @U.quantity_input
     def translate(self, translation_vector: U.Quantity[U.kpc]) -> None:
         """
         Translate the source.
@@ -765,6 +775,7 @@ class CombinedSource(SPHSource):
         """
         raise NotImplementedError("Translate individual sources, not CombinedSource.")
 
+    @U.quantity_input
     def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
         """
         Apply an offset to the source velocity.

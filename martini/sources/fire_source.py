@@ -6,7 +6,7 @@ Facilitates working with FIRE simulations.
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from ..sph_kernels import _CubicSplineKernel, find_fwhm
 from ..L_coords import L_coords
 from astropy import units as U, constants as C
@@ -124,10 +124,10 @@ class FIRESource(SPHSource):
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
     ) -> None:
         import gizmo_analysis as gizmo
 

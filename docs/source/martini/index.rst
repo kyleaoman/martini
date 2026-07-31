@@ -142,19 +142,6 @@ Analogous usage works with the :class:`~martini.martini.Martini`
 :func:`~martini.martini.Martini.preview` function (except that the extent of the data cube
 will be overlaid).
 
-Initializing the spectra
-------------------------
-
-Before the source can be inserted into the datacube, the spectra of all (remaining)
-particles need to be calculated on the spectral axis grid. For sources with many particles
-this can take a bit of time, but the calculation is vectorized and so scales efficiently
-to large numbers of particles. By default this calculation happens when
-:meth:`~martini.martini.Martini.insert_source_in_cube` is called (see below), but it can
-be explicitly triggered earlier by calling :meth:`~martini.martini.Martini.init_spectra`.
-After the actual source insertion, this is usually the most computationally expensive
-step. For sources with large numbers of particles see
-:ref:`the guidance on parallelization <spec-parallel>` for this step.
-
 Inserting the source
 --------------------
 
@@ -166,44 +153,80 @@ that needs to be done is to call :meth:`martini.martini.Martini.insert_source_in
 
     m.insert_source_in_cube()
 
-Since this is the most computationally demanding step in MARTINI, a progress bar is
-displayed by default. This can be suppressed by passing the argument ``progressbar=False``
-(or enabled with ``progressbar=True`` if :class:`~martini.martini.Martini` was initialized
-with ``quiet=True``). There is another optional argument ``skip_validation``. Setting this
-to ``True`` disables internal accuracy checks and is only intended for
-experimentation/prototyping and code development; it should never be used for science (and
-anyway doesn't have any benefit in terms of e.g. speed).
+There is an optional argument ``skip_validation``. Setting this to ``True`` disables
+internal accuracy checks and is only intended for experimentation/prototyping and code
+development; it should never be used for science (and anyway doesn't have any benefit in
+terms of e.g. speed).
 
-Parallelization
-+++++++++++++++
+Memory management
++++++++++++++++++
 
-.. note::
-
-   Available since ``v2.0.4``.
-
-The core loop in the source insertion function is "embarassingly parallel". Parallel
-execution is implemented using the `multiprocess`_ package. You may need to install this,
-for instance ``pip install multiprocess`` to install from PyPI. To make use of the
-parallelization simply specify the number of processes to use, for example:
-
-.. _multiprocess: https://pypi.org/project/multiprocess/
+:mod:`martini` is a memory-intensive package. New in ``v3``, the main source insertion is
+much faster and can automatically split the job into pieces to keep memory usage below a
+desired threshold. You can set the threshold with:
 
 .. code-block:: python
 
-    m.insert_source_in_cube(ncpu=2)
+    m.insert_source_in_cube(mem_lim_GB=4.0)
 
-Executing with ``N`` processes is usually almost exactly ``N`` times faster than using a
-single process (provided that ``N`` cpus are available and otherwise idle).
+The default is 4GB which should avoid running out of memory on most modern systems. It is
+recommended to set this as high as possible given the hardware memory available. The code
+will then estimate its memory usage to process all particles in a single batch and if this
+exceeds the requested limit will break the process into parts that fit within the limit.
+This is less efficient than processing all particles in a single batch, but only slightly,
+and will barely be noticeable if :mod:`numba` is installed (see below) and 4-8 threads are
+used.
 
-.. warning::
+You can also set the precision of the data cube array (see ``cube_dtype`` in
+:class:`~martini.datacube.DataCube`) and arrays used to store particle spectra (see
+``spec_dtype`` in :mod:`~martini.spectral_models`). These default to double-precision
+(``np.float64``). Setting them to single-precision (``np.float32``) instead will reduce
+the memory footprint of these and several intermediate arrays used internally by a factor
+of ``2``. Consider adjusting these settings if single-precision is sufficient and memory
+is tight.
 
-    ``multiprocess`` is not to be confused with ``multiprocessing`` - it is a fork of that
-    package that, amongst other additional features, implements the object serialization
-    used to pass data to/from processes with ``dill`` instead of ``pickle``. This allows
-    MARTINI's object-oriented elements to be passed to processes. With
-    ``multiprocessing``, lots of internal bits would need to be moved to module-level
-    global variables/functions, largely defeating the purpose of an object-oriented
-    design.
+Acceleration and parallelization
+++++++++++++++++++++++++++++++++
+
+New in ``v3``, many of the core routines are now implemented with :mod:`numba`
+"just-in-time" compiled code. It is strongly recommended to install :mod:`numba`.
+:mod:`martini` will still function without :mod:`numba` acceleration but will be
+a factor of several slower. If you do not have :mod:`numba` installed, the code will
+produce a warning to remind you.
+
+In addition to being "accelerated" with :mod:`numba`, several critical segments also
+support multi-threaded execution. Using multiple threads can be enabled with:
+
+.. code-block:: python
+
+    m.insert_source_in_cube(ncpu=2)  # or more
+
+However, consider the following before turning up the thread count. Currently
+multi-threaded operations include:
+
+ - Evaluating the spectra of the particles. With :mod:`numba` acceleration, using multiple
+   threads usually leads to a negligible speedup. This is because the calculation is
+   already so fast that CPU throughput is not the limiting factor (probably e.g. memory
+   bandwidth). Multiple threads might speed up the process for very large numbers of
+   particles (millions+) processed in a single batch, but most machines will not have
+   enough memory (likely 1TB or more) to support this.
+ - Querying a :class:`~scipy.spatial.KDTree` to find intersections between particle
+   smoothing kernels and pixels. Usually this is also not CPU-limited and speedups are
+   limited despite multi-thread compatibility.
+ - Applying the kernel weights to the spectra for each pixel and writing the result to the
+   data cube. This operation does speed up significantly with additional threads, however
+   it is normally not the bottleneck overall so speeding up this process makes little
+   difference overall.
+
+In summary there is usually little benefit to using more threads, but it also does not do
+any harm. If many data cubes need to be created, running several instances of
+:mod:`martini` is a better approach than trying to leverage multi-threading, but keep in
+mind that :mod:`martini` is most efficient when it has enough memory to avoid
+batch-processing particles. Memory demands will usually be the limiting factor for how
+many data cubes can be created simultaenously. If there are unused CPU cores that can
+be used for multi-threading then setting ``ncpu`` as high as ``8`` is reasonable, going
+beyond this is probably pointless.
+
 
 Adding noise
 ------------

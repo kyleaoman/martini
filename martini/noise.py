@@ -38,6 +38,7 @@ class _BaseNoise(object):
         return
 
     @abstractmethod
+    @U.quantity_input
     def generate(
         self, datacube: DataCube, beam: _BaseBeam
     ) -> U.Quantity[U.Jy * U.arcsec**-2]:
@@ -94,8 +95,9 @@ class GaussianNoise(_BaseNoise):
         Seed for random number generator.
     """
 
-    rms: U.Quantity[U.Jy * U.beam**-1]
+    target_rms: U.Quantity[U.Jy * U.beam**-1]
 
+    @U.quantity_input
     def __init__(
         self,
         rms: U.Quantity[U.Jy * U.beam**-1] = 1.0 * U.Jy * U.beam**-1,
@@ -107,9 +109,10 @@ class GaussianNoise(_BaseNoise):
 
         return
 
+    @U.quantity_input
     def generate(
         self, datacube: DataCube, beam: _BaseBeam
-    ) -> U.Quantity[U.Jy * U.arcsec**-2]:
+    ) -> U.Quantity[U.Jy / U.beam]:
         """
         Create a cube containing Gaussian noise.
 
@@ -149,7 +152,12 @@ class GaussianNoise(_BaseNoise):
         # Approximation turns out to be low by ~ 10%, correct for this:
         rms = self.target_rms * 2.19568 * np.sqrt(np.pi * sig_maj * sig_min)
         rms_unit = rms.unit
-        return (
-            self.rng.normal(scale=rms.to_value(rms_unit), size=datacube.datacube_shape)
-            * rms_unit
+        return U.Quantity(
+            datacube.cube_dtype(rms.to_value(rms_unit))
+            * self.rng.standard_normal(
+                size=datacube._array.shape,
+                dtype=datacube.cube_dtype,
+            ),
+            rms_unit,
+            copy=False,
         )

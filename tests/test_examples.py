@@ -8,12 +8,12 @@ import pytest
 class TestExamples:
     """Test that (non-source module) example notebooks work without error."""
 
-    def test_source_injection_example_version(self):
+    def test_source_injection_notebook_version(self):
         """Check that the source injection notebook uses current version of martini."""
         with open("examples/martini_source_injection.ipynb") as f:
             nb_content = f.read()
         assert (
-            '"!{sys.executable} -m pip install \\"astromartini[tngsource]=='
+            '"!{sys.executable} -m pip install \\"astromartini[tngsource,parallel]=='
             + __version__
             + '\\"'
             in nb_content
@@ -23,7 +23,7 @@ class TestExamples:
         not os.path.isfile("examples/NGC_2841_NA_CUBE_THINGS.FITS"),
         reason="sample data not locally available",
     )
-    def test_source_injection_example(self):
+    def test_source_injection_notebook(self):
         """Test that the source injection demo runs without error and produces output."""
         pytest.importorskip(
             "nbmake", reason="nbmake (optional dependency) not available"

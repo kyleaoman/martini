@@ -185,6 +185,7 @@ class Mochi(Martini):
         skip_validation: bool = False,
         progressbar: bool | None = None,
         ncpu: int = 1,
+        mem_lim_GB: float = 4.0,
     ) -> None:
         """
         Populate the DataCube with flux from the particles in the source.

@@ -2,6 +2,7 @@
 
 import os
 import pytest
+import warnings
 import numpy as np
 from martini.martini import Martini, GlobalProfile, _BaseMartini
 from martini.datacube import DataCube, HIfreq
@@ -520,22 +521,15 @@ class TestMartini:
         m.reset()
         assert m.datacube._array.shape == expected_shape
 
-    def test_explicit_init_spectra(self, m_init):
-        """
-        Check that we can explicitly initialize the spectra.
-
-        Usually it happens later when ``insert_source_in_cube`` is called.
-        """
-        assert m_init.spectral_model.spectra is None
-        m_init.init_spectra()
-        assert m_init.spectral_model.spectra is not None
-
     def test_preview(self, m_init):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         # with default arguments
         plt.close(m_init.preview())
@@ -555,7 +549,10 @@ class TestMartini:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         m_init._datacube.px_size = 20 * U.deg / m_init._datacube.n_px_x
         assert m_init._datacube.px_size * m_init._datacube.n_px_x > 10 * U.deg
@@ -572,7 +569,10 @@ class TestMartini:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         m_init._datacube.dec = dec
         assert np.abs(m_init._datacube.dec) - 90 * U.deg < 5 * U.deg
@@ -821,15 +821,19 @@ class TestMartini:
 class TestParallel:
     """Test that results running in parallel agree with those running serially."""
 
-    def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
+    @pytest.mark.parametrize("jit_on", (True, False))
+    def test_parallel_consistent_with_serial(
+        self, many_particle_source, dc_zeros, jit_on
+    ):
         """
         Check running the source insertion loop in parallel.
 
-        Should give the same result as running in serial.
+        Should give the same result as running in serial. The serial "fallback"
+        implementation is the reference case. We check both the numba implementation but
+        running as python code (without jit) against this, and also the compiled,
+        multi-threaded implementation.
         """
-        pytest.importorskip(
-            "multiprocess", reason="multiprocess (optional dependency) not available"
-        )
+        pytest.importorskip("numba", reason="numba (optional dependency) not available")
 
         m = Martini(
             source=many_particle_source(),
@@ -840,7 +844,10 @@ class TestParallel:
             spectral_model=GaussianSpectrum(),
         )
 
-        m.insert_source_in_cube(ncpu=1, progressbar=False)
+        m._numba_enabled = False
+        m._jit_enabled = False
+        m.insert_source_in_cube(ncpu=1, progressbar=False)  # fallback implementation
+
         expected_result = m.datacube._array
 
         # check that we're not testing on a zero array
@@ -854,9 +861,87 @@ class TestParallel:
             0.0,
         )
 
-        m.insert_source_in_cube(ncpu=2, progressbar=False)
+        m._numba_enabled = True
+        m._jit_enabled = jit_on
+        m.insert_source_in_cube(progressbar=False)
 
         assert U.allclose(m.datacube._array, expected_result)
+
+    def test_numba_related_warnings(self, m_init):
+        """Check that we warn the user that ncpu>1 doesn't work without numba."""
+        m_init._numba_enabled = False
+        with pytest.warns(RuntimeWarning, match="Parallelization not available"):
+            m_init.insert_source_in_cube(ncpu=2)
+        m_init.reset()
+        m_init._numba_enabled = True
+        with pytest.warns(
+            RuntimeWarning,
+            match="'numba'-accelerated 'martini' does not support progress bar",
+        ):
+            m_init.insert_source_in_cube(progressbar=True)
+
+
+class TestBatched:
+    """Test that results running in particle batches agree with running all at once."""
+
+    @pytest.mark.parametrize("numba_on", (True, False))
+    def test_batched_consistent_with_concurrent(
+        self, many_particle_source, dc_zeros, numba_on
+    ):
+        """
+        Check running the source insertion loop in batches.
+
+        Should give the same result as running in one batch.
+        """
+        m = Martini(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=_GaussianKernel(),
+            spectral_model=GaussianSpectrum(),
+        )
+
+        m._numba_enabled = numba_on
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "error", category=RuntimeWarning, message="Requested memory limit"
+            )
+            m._insert_source_in_cube(
+                progressbar=False, mem_lim_GB=m.baseline_mem_estimate + 0.1
+            )
+
+        expected_result = m.datacube._array
+
+        # check that we're not testing on a zero array
+        assert m.datacube._array.sum() > 0
+
+        m.reset()
+
+        # check the reset was successful
+        assert np.allclose(
+            m.datacube._array.to_value(m.datacube._array.unit),
+            0.0,
+        )
+
+        with pytest.warns(RuntimeWarning, match="Requested memory limit"):
+            m._insert_source_in_cube(
+                progressbar=False, mem_lim_GB=m.baseline_mem_estimate + 0.0001
+            )
+
+        assert U.allclose(m.datacube._array, expected_result)
+
+    def test_insufficient_memory(self, m_init):
+        """Test that insufficient memory to process even one particle crashes."""
+        with pytest.warns(RuntimeWarning, match="Requested memory limit"):
+            with pytest.raises(RuntimeError, match="Requested memory limit"):
+                m_init.insert_source_in_cube(
+                    progressbar=False, mem_lim_GB=m_init.baseline_mem_estimate
+                )
+        with pytest.raises(RuntimeError, match="Requested memory limit"):
+            m_init.insert_source_in_cube(
+                progressbar=False, mem_lim_GB=m_init.baseline_mem_estimate - 0.0001
+            )
 
 
 class TestGlobalProfile:
@@ -997,7 +1082,10 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         # with default arguments
         plt.close(gp.preview())
@@ -1033,7 +1121,10 @@ class TestGlobalProfile:
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
         )
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
 
         # with default arguments
         plt.close(gp.plot_spectrum())

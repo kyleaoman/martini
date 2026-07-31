@@ -6,7 +6,7 @@ Enables working with any SPH or similar simulation as input.
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from astropy.coordinates import (
     CartesianRepresentation,
     CartesianDifferential,
@@ -169,13 +169,14 @@ class SPHSource(object):
     skycoords: SkyCoord | None
     spectralcoords: SpectralCoord | None
 
+    @U.quantity_input
     def __init__(
         self,
         *,
         distance: U.Quantity[U.Mpc],
         vpeculiar: U.Quantity[U.km / U.s] = 0.0 * U.km / U.s,
         rotation: Rotation | None = None,
-        L_coords: L_coords | None = None,
+        L_coords: Union[L_coords, None] = None,
         ra: U.Quantity[U.deg] = 0.0 * U.deg,
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         h: float = 0.7,
@@ -185,7 +186,8 @@ class SPHSource(object):
         vxyz_g: U.Quantity[U.km / U.s],
         hsm_g: U.Quantity[U.kpc] | None = None,
         coordinate_axis: int | None = None,
-        coordinate_frame: "BaseRADecFrame" = ICRS(),
+        # Union avoid treating string as units:
+        coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
     ) -> None:
         if isinstance(rotation, dict):
             raise ValueError(
@@ -555,6 +557,7 @@ class SPHSource(object):
         self.coordinates_g = self.coordinates_g.transform(do_rot)
         return Rotation.from_matrix(do_rot)
 
+    @U.quantity_input
     def translate(self, translation_vector: U.Quantity[U.kpc]) -> None:
         """
         Translate the source.
@@ -575,6 +578,7 @@ class SPHSource(object):
         self._append_to_coordinate_affine_transform(affine_transform)
         return
 
+    @U.quantity_input
     def boost(self, boost_vector: U.Quantity[U.km / U.s]) -> None:
         """
         Apply an offset to the source velocity.

@@ -2,7 +2,7 @@
 
 import pytest
 import numpy as np
-from martini import DataCube
+from martini.datacube import DataCube, HIfreq
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from astropy import units as U
 
@@ -13,24 +13,44 @@ class TestGaussianSpectrum:
     """Test functionality of the Gaussian spectrum module."""
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
-    def test_init_spectra(self, sigma, single_particle_source):
+    @pytest.mark.parametrize("channel_mode", ("frequency", "velocity"))
+    def test_eval_spectra(self, sigma, single_particle_source, channel_mode):
         """Check that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
+        velocity_channel_width = 4 * U.km / U.s
+        velocity_spectral_centre = source.vsys
+        if channel_mode == "frequency":
+            channel_width = np.abs(
+                np.diff(
+                    (
+                        velocity_spectral_centre
+                        + np.array([-0.5, 0.5]) * velocity_channel_width
+                    ).to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+                )
+            ).squeeze()
+            spectral_centre = velocity_spectral_centre.to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        elif channel_mode == "velocity":
+            channel_width = velocity_channel_width
+            spectral_centre = velocity_spectral_centre
+        else:
+            raise ValueError("Unknown channel mode.")
         datacube = DataCube(
             n_px_x=256,
             n_px_y=256,
             px_size=15 * U.arcsec,
             n_channels=64,
-            channel_width=4 * U.km / U.s,
-            spectral_centre=source.vsys,
+            channel_width=channel_width,
+            spectral_centre=spectral_centre,
         )
-        spectral_model.init_spectra(source, datacube)
+        spectra = spectral_model._eval_spectra(source, datacube)
         expected_flux = (
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
-        flux = spectral_model.spectra[0].sum() * datacube.channel_width
+        flux = spectra[0].sum() * velocity_channel_width
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width_constant(self, single_particle_source):
@@ -98,24 +118,44 @@ class TestGaussianSpectrum:
 class TestDiracDeltaSpectrum:
     """Test functionality of the Dirac-delta spectrum module."""
 
-    def test_init_spectra(self, single_particle_source):
+    @pytest.mark.parametrize("channel_mode", ("frequency", "velocity"))
+    def test_eval_spectra(self, single_particle_source, channel_mode):
         """Check that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
+        velocity_channel_width = 4 * U.km / U.s
+        velocity_spectral_centre = source.vsys
+        if channel_mode == "frequency":
+            channel_width = np.abs(
+                np.diff(
+                    (
+                        velocity_spectral_centre
+                        + np.array([-0.5, 0.5]) * velocity_channel_width
+                    ).to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+                )
+            ).squeeze()
+            spectral_centre = velocity_spectral_centre.to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        elif channel_mode == "velocity":
+            channel_width = velocity_channel_width
+            spectral_centre = velocity_spectral_centre
+        else:
+            raise ValueError("Unknown channel mode.")
         datacube = DataCube(
             n_px_x=16,
             n_px_y=16,
             px_size=15 * U.arcsec,
             n_channels=64,
-            channel_width=4 * U.km / U.s,
-            spectral_centre=source.vsys,
+            channel_width=channel_width,
+            spectral_centre=spectral_centre,
         )
-        spectral_model.init_spectra(source, datacube)
+        spectra = spectral_model._eval_spectra(source, datacube)
         expected_flux = (
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
-        flux = spectral_model.spectra[0].sum() * datacube.channel_width
+        flux = spectra[0].sum() * velocity_channel_width
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width(self, single_particle_source):
@@ -175,20 +215,23 @@ def test_spectrum_precision(SpectralModel, dtype, single_particle_source):
         px_size=15.0 * U.arcsec,
         channel_width=4.0 * U.km / U.s,
     )
-    spectral_model.init_spectra(source, datacube)
-    assert spectral_model.spectra.dtype == dtype
+    spectra = spectral_model._eval_spectra(source, datacube)
+    assert spectra.dtype == dtype
 
 
 @pytest.mark.parametrize("SpectralModel", spectral_models)
 def test_parallel_spectra(SpectralModel, cross_source):
-    """Check that spectra calculated in serial and parallel are consistent."""
-    pytest.importorskip(
-        "multiprocess", reason="multiprocess (optional dependency) not available."
-    )
+    """
+    Check that spectra calculated in serial and parallel are consistent.
+
+    The serial "fallback" implementation is the reference case. We check both the numba
+    implementation but running as python code without jit compilation, and also the
+    multi-threaded, compiled numba implementation.
+    """
+    pytest.importorskip("numba", reason="numba (optional dependency) not available.")
     source = cross_source()
     source._init_skycoords()
-    spectral_model_serial = SpectralModel()
-    spectral_model_parallel = SpectralModel(ncpu=2)
+    spectral_model = SpectralModel()
     datacube = DataCube(
         n_px_x=256,
         n_px_y=256,
@@ -196,6 +239,14 @@ def test_parallel_spectra(SpectralModel, cross_source):
         px_size=15.0 * U.arcsec,
         channel_width=4.0 * U.km / U.s,
     )
-    spectral_model_serial.init_spectra(source, datacube)
-    spectral_model_parallel.init_spectra(source, datacube)
-    assert U.allclose(spectral_model_serial.spectra, spectral_model_parallel.spectra)
+    spectral_model._numba_enabled = False
+    spectral_model._jit_enabled = False
+    serial_spectra = spectral_model._eval_spectra(source, datacube, ncpu=1)
+    spectral_model._numba_enabled = True
+    spectral_model._jit_enabled = False
+    spectra_nojit = spectral_model._eval_spectra(source, datacube, ncpu=1)
+    spectral_model._numba_enabled = True
+    spectral_model._jit_enabled = True
+    spectra_jit_enabled = spectral_model._eval_spectra(source, datacube, ncpu=1)
+    assert U.allclose(serial_spectra, spectra_nojit)
+    assert U.allclose(serial_spectra, spectra_jit_enabled)
