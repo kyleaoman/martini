@@ -938,6 +938,10 @@ class TestBatched:
                 m_init.insert_source_in_cube(
                     progressbar=False, mem_lim_GB=m_init.baseline_mem_estimate
                 )
+        with pytest.raises(RuntimeError, match="Requested memory limit"):
+            m_init.insert_source_in_cube(
+                progressbar=False, mem_lim_GB=m_init.baseline_mem_estimate - 0.0001
+            )
 
 
 class TestGlobalProfile:

@@ -207,6 +207,17 @@ class _BaseMartini:
         self.sph_kernel = sph_kernel
         self.spectral_model = spectral_model
 
+        # Estimate memory for main allocations.
+        # - The datacube itself (product of shape times size of an element).
+        # - Particle arrays:
+        #   - T_g               (N, 1)
+        #   - mHI_g             (N, 1)
+        #   - hsm_g             (N, 1)
+        #   - coordinates_g     (N, 6)
+        #   - skycoords         (N, 6)
+        #   - spectralcoords    (N, 1)
+        #   - pixcoords         (N, 3)
+        #   Total 19 * N * 64B
         self.baseline_mem_estimate = (
             np.prod(self._datacube.current_shape)
             * np.dtype(self._datacube.cube_dtype).itemsize
@@ -406,8 +417,9 @@ class _BaseMartini:
 
         for i in tqdm(range(total_elements), disable=not progressbar):
             start_j, end_j = strides[i, 0], strides[i, 1]
-            if start_j >= end_j:
-                continue
+            assert start_j < end_j, (
+                "Invalid pixel overlap group length encountered, this is an error."
+            )
 
             flat_index = flat_cube_indices[i]
             ra_index = flat_index // dec_dim
@@ -470,6 +482,12 @@ class _BaseMartini:
             If ``True`` the final summary message is suppressed (e.g. so that a subclass
             can replace it).
         """
+        if self.baseline_mem_estimate > mem_lim_GB:
+            raise RuntimeError(
+                f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
+                f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
+                f" `mem_lim_GB` when calling `insert_source_in_cube`."
+            )
         quiet = self.quiet if quiet is None else quiet
         if not quiet:
             insert_source_start_time = datetime.now()
@@ -506,24 +524,6 @@ class _BaseMartini:
         estimated_px_hits = np.clip(
             np.pi * clipped_sm_ranges**2, 0, self._datacube.current_n_px
         )
-        # Estimate memory for main allocations.
-        # - The datacube itself (product of shape times size of an element).
-        # - Particle arrays:
-        #   - T_g               (N, 1)
-        #   - mHI_g             (N, 1)
-        #   - hsm_g             (N, 1)
-        #   - coordinates_g     (N, 6)
-        #   - skycoords         (N, 6)
-        #   - spectralcoords    (N, 1)
-        #   - pixcoords         (N, 3)
-        #   Total 19 * N * 64B
-        if self.baseline_mem_estimate > mem_lim_GB:
-            raise RuntimeError(
-                f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
-                f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
-                f" `mem_lim_GB` when calling `insert_source_in_cube`."
-            )
-
         # Estimate memory for tree query. At peak:
         # - 64B per list (once for each entry in estimated_px_hits).
         # - 8B (pointer) + 28B (integer) = 36B for each estimated_px_hits.
