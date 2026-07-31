@@ -520,8 +520,8 @@ class _BaseMartini:
         if self.baseline_mem_estimate > mem_lim_GB:
             raise RuntimeError(
                 f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
-                f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase "
-                f"`mem_lim_GB` when calling `insert_source_in_cube`."
+                f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
+                f" `mem_lim_GB` when calling `insert_source_in_cube`."
             )
 
         # Estimate memory for tree query. At peak:
