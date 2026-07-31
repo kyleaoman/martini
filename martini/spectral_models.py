@@ -53,7 +53,8 @@ class _BaseSpectrum(metaclass=ABCMeta):
     """
 
     spec_dtype: type
-    _allow_numba: bool = True  # intended for switching off in tests
+    _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
+    _jit_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
 
     def __init__(self, spec_dtype: type = np.float64) -> None:
         self.spec_dtype = spec_dtype
@@ -386,20 +387,19 @@ class GaussianSpectrum(_BaseSpectrum):
         assert extra_data is not None
         sigma = extra_data["sigma"]
 
-        if (
-            NUMBA_AVAILABLE
-            and self._allow_numba
-            and a.ndim == 2
-            and b.ndim == 2
-            and vmids.ndim == 2
-        ):
+        if self._numba_enabled and a.ndim == 2 and b.ndim == 2 and vmids.ndim == 2:
             a_val = np.asarray(a.to_value(U.km / U.s))
             b_val = np.asarray(b.to_value(U.km / U.s))
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))
             sigma_val = np.asarray(sigma.to_value(U.km / U.s))
 
-            with numba_threads(ncpu):
-                raw_spectrum = _gaussian_numba_kernel(
+            if self._jit_enabled:
+                with numba_threads(ncpu):
+                    raw_spectrum = _gaussian_numba_kernel(
+                        a_val, b_val, vmids_val, sigma_val, self.spec_dtype
+                    )
+            else:
+                raw_spectrum = _gaussian_numba_kernel.py_func(
                     a_val, b_val, vmids_val, sigma_val, self.spec_dtype
                 )
             return raw_spectrum * U.dimensionless_unscaled
@@ -604,18 +604,17 @@ class DiracDeltaSpectrum(_BaseSpectrum):
         ~astropy.units.Quantity
             The evaluated spectral model (dimensionless).
         """
-        if (
-            NUMBA_AVAILABLE
-            and self._allow_numba
-            and a.ndim == 2
-            and b.ndim == 2
-            and vmids.ndim == 2
-        ):
+        if self._numba_enabled and a.ndim == 2 and b.ndim == 2 and vmids.ndim == 2:
             a_val = np.asarray(a.to_value(U.km / U.s))
             b_val = np.asarray(b.to_value(U.km / U.s))
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))
-            with numba_threads(ncpu):
-                raw_spectrum = _diracdelta_numba_kernel(
+            if self._jit_enabled:
+                with numba_threads(ncpu):
+                    raw_spectrum = _diracdelta_numba_kernel(
+                        a_val, b_val, vmids_val, self.spec_dtype
+                    )
+            else:
+                raw_spectrum = _diracdelta_numba_kernel.py_func(
                     a_val, b_val, vmids_val, self.spec_dtype
                 )
             return raw_spectrum * U.dimensionless_unscaled

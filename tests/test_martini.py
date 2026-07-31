@@ -824,7 +824,10 @@ class TestParallel:
         """
         Check running the source insertion loop in parallel.
 
-        Should give the same result as running in serial.
+        Should give the same result as running in serial. The serial "fallback"
+        implementation is the reference case. We check both the numba implementation but
+        running as python code (without jit) against this, and also the compiled,
+        multi-threaded implementation.
         """
         pytest.importorskip("numba", reason="numba (optional dependency) not available")
 
@@ -836,8 +839,11 @@ class TestParallel:
             sph_kernel=_GaussianKernel(),
             spectral_model=GaussianSpectrum(),
         )
-        m._allow_numba = False
-        m.insert_source_in_cube(ncpu=1, progressbar=False)
+
+        m._numba_enabled = False
+        m._jit_enabled = False
+        m.insert_source_in_cube(ncpu=1, progressbar=False)  # fallback implementation
+
         expected_result = m.datacube._array
 
         # check that we're not testing on a zero array
@@ -851,9 +857,38 @@ class TestParallel:
             0.0,
         )
 
-        m.insert_source_in_cube(ncpu=2, progressbar=False)
+        m._numba_enabled = True
+        m._jit_enabled = False
+        m.insert_source_in_cube(progressbar=False)  # numba implementation, no jit
 
         assert U.allclose(m.datacube._array, expected_result)
+
+        m.reset()
+
+        # check the reset was successful
+        assert np.allclose(
+            m.datacube._array.to_value(m.datacube._array.unit),
+            0.0,
+        )
+
+        m._numba_enabled = True
+        m._jit_enabled = True
+        m.insert_source_in_cube(ncpu=2, progressbar=False)  # numba implementation, jit
+
+        assert U.allclose(m.datacube._array, expected_result)
+
+    def test_numba_related_warnings(self, m_init):
+        """Check that we warn the user that ncpu>1 doesn't work without numba."""
+        m_init._numba_enabled = False
+        with pytest.warns(RuntimeWarning, match="Parallelization not available"):
+            m_init.insert_source_in_cube(ncpu=2)
+        m_init.reset()
+        m_init._numba_enabled = True
+        with pytest.warns(
+            RuntimeWarning,
+            match="'numba'-accelerated 'martini' does not support progress bar",
+        ):
+            m_init.insert_source_in_cube(progressbar=True)
 
 
 class TestGlobalProfile:

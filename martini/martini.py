@@ -184,7 +184,8 @@ class _BaseMartini:
     sph_kernel: _BaseSPHKernel
     spectral_model: _BaseSpectrum
     quiet: bool
-    _allow_numba: bool = True  # intended for switching off in tests
+    _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
+    _jit_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
 
     def __init__(
         self,
@@ -370,9 +371,20 @@ class _BaseMartini:
         dec_dim = cube_view.shape[1]
         total_elements = len(flat_cube_indices)
 
-        if NUMBA_AVAILABLE:
-            with numba_threads(ncpu):
-                _weighted_sum_and_insert_in_cube_numba(
+        if self._numba_enabled:
+            if self._jit_enabled:
+                with numba_threads(ncpu):
+                    _weighted_sum_and_insert_in_cube_numba(
+                        cube_view,
+                        spectra,
+                        weights,
+                        flat_cube_indices,
+                        strides,
+                        intersections,
+                    )
+                return ncpu
+            else:
+                _weighted_sum_and_insert_in_cube_numba.py_func(
                     cube_view,
                     spectra,
                     weights,
@@ -380,7 +392,7 @@ class _BaseMartini:
                     strides,
                     intersections,
                 )
-            return ncpu
+                return 1
 
         if ncpu != 1:
             warn("Parallelization not available without 'numba'.", RuntimeWarning)
@@ -456,13 +468,13 @@ class _BaseMartini:
         if not quiet:
             insert_source_start_time = datetime.now()
 
-        if progressbar and NUMBA_AVAILABLE:
+        if progressbar and self._numba_enabled:
             warn(
                 "'numba'-accelerated 'martini' does not support progress bar (but it "
                 "will be pretty fast anyway!).",
                 RuntimeWarning,
             )
-        if NUMBA_AVAILABLE:
+        if self._numba_enabled:
             progressbar = False
         elif progressbar is None:
             progressbar = not quiet
@@ -504,6 +516,12 @@ class _BaseMartini:
             * np.dtype(self._datacube.cube_dtype).itemsize
             + 19 * self.source.npart * 64
         ) / 1024**3
+        if baseline_mem_estimate > mem_lim_GB:
+            raise RuntimeError(
+                f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
+                f"baseline memory requirement of {baseline_mem_estimate}GB. Increase "
+                f"`mem_lim_GB` when calling `insert_source_in_cube`."
+            )
 
         # Estimate memory for tree query. At peak:
         # - 64B per list (once for each entry in estimated_px_hits).
@@ -555,12 +573,6 @@ class _BaseMartini:
                 "`insert_source_in_cube` if possible.",
                 RuntimeWarning,
             )
-            if baseline_mem_estimate > mem_lim_GB:
-                raise RuntimeError(
-                    f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
-                    f"baseline memory requirement of {baseline_mem_estimate}GB. Increase "
-                    f"`mem_lim_GB` when calling `insert_source_in_cube`."
-                )
             segment_mem_allowance = mem_lim_GB - baseline_mem_estimate
             segments = []
             mem_estimate = (
