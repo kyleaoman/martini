@@ -207,6 +207,12 @@ class _BaseMartini:
         self.sph_kernel = sph_kernel
         self.spectral_model = spectral_model
 
+        self.baseline_mem_estimate = (
+            np.prod(self._datacube.current_shape)
+            * np.dtype(self._datacube.cube_dtype).itemsize
+            + 19 * self.source.npart * 64
+        ) / 1024**3  # GB
+
         if self.beam is not None:
             self.beam.init_kernel(self._datacube)
             self._datacube.add_pad(self.beam.needs_pad())
@@ -511,15 +517,10 @@ class _BaseMartini:
         #   - spectralcoords    (N, 1)
         #   - pixcoords         (N, 3)
         #   Total 19 * N * 64B
-        baseline_mem_estimate = (
-            np.prod(self._datacube.current_shape)
-            * np.dtype(self._datacube.cube_dtype).itemsize
-            + 19 * self.source.npart * 64
-        ) / 1024**3
-        if baseline_mem_estimate > mem_lim_GB:
+        if self.baseline_mem_estimate > mem_lim_GB:
             raise RuntimeError(
                 f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
-                f"baseline memory requirement of {baseline_mem_estimate}GB. Increase "
+                f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase "
                 f"`mem_lim_GB` when calling `insert_source_in_cube`."
             )
 
@@ -562,7 +563,7 @@ class _BaseMartini:
                     + np.sum(tree_completed_mem_estimate),
                 )
             )
-            + baseline_mem_estimate
+            + self.baseline_mem_estimate
         )
         if single_batch_peak_mem_estimate > mem_lim_GB:
             warn(
@@ -573,7 +574,7 @@ class _BaseMartini:
                 "`insert_source_in_cube` if possible.",
                 RuntimeWarning,
             )
-            segment_mem_allowance = mem_lim_GB - baseline_mem_estimate
+            segment_mem_allowance = mem_lim_GB - self.baseline_mem_estimate
             segments = []
             mem_estimate = (
                 tree_peak_mem_estimate
@@ -585,21 +586,26 @@ class _BaseMartini:
             if np.any(mem_estimate > segment_mem_allowance):
                 raise RuntimeError(
                     f"Requested memory limit ({mem_lim_GB}GB) minus the estimated "
-                    f"baseline memory ({baseline_mem_estimate}GB, e.g. to store particle"
-                    " data) leaves insufficient memory for `insert_source_in_cube`, even"
-                    " when particles are processed in batches. Increase "
-                    "`mem_lim_GB` when calling `insert_source_in_cube`."
+                    f"baseline memory ({self.baseline_mem_estimate}GB, e.g. to store"
+                    " particle data) leaves insufficient memory for "
+                    "`insert_source_in_cube`, even when particles are processed in "
+                    "batches. Increase `mem_lim_GB` when calling `insert_source_in_cube`."
                 )
-            if len(mem_estimate) > 0:
-                segment_start = 0
-                while segment_start < len(mem_estimate):
-                    cumsum = np.cumsum(mem_estimate[segment_start:])
-                    segment_length = np.searchsorted(
-                        cumsum, segment_mem_allowance, side="right"
-                    )
-                    segment_end = segment_start + int(segment_length)
-                    segments.append(slice(segment_start, segment_end))
-                    segment_start = segment_end
+            # Should always have a particle if we get here, but make very sure so we don't
+            # enter an infinite loop:
+            assert len(mem_estimate) > 0, (
+                "Particles processing in batches but no particles present, this is "
+                "an error."
+            )
+            segment_start = 0
+            while segment_start < len(mem_estimate):
+                cumsum = np.cumsum(mem_estimate[segment_start:])
+                segment_length = np.searchsorted(
+                    cumsum, segment_mem_allowance, side="right"
+                )
+                segment_end = segment_start + int(segment_length)
+                segments.append(slice(segment_start, segment_end))
+                segment_start = segment_end
             log_prefix = "  "
         else:
             segments = [slice(None)]

@@ -2,6 +2,7 @@
 
 import os
 import pytest
+import warnings
 import numpy as np
 from martini.martini import Martini, GlobalProfile, _BaseMartini
 from martini.datacube import DataCube, HIfreq
@@ -820,7 +821,10 @@ class TestMartini:
 class TestParallel:
     """Test that results running in parallel agree with those running serially."""
 
-    def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
+    @pytest.mark.parametrize("jit_on", (True, False))
+    def test_parallel_consistent_with_serial(
+        self, many_particle_source, dc_zeros, jit_on
+    ):
         """
         Check running the source insertion loop in parallel.
 
@@ -858,22 +862,8 @@ class TestParallel:
         )
 
         m._numba_enabled = True
-        m._jit_enabled = False
-        m.insert_source_in_cube(progressbar=False)  # numba implementation, no jit
-
-        assert U.allclose(m.datacube._array, expected_result)
-
-        m.reset()
-
-        # check the reset was successful
-        assert np.allclose(
-            m.datacube._array.to_value(m.datacube._array.unit),
-            0.0,
-        )
-
-        m._numba_enabled = True
-        m._jit_enabled = True
-        m.insert_source_in_cube(ncpu=2, progressbar=False)  # numba implementation, jit
+        m._jit_enabled = jit_on
+        m.insert_source_in_cube(progressbar=False)
 
         assert U.allclose(m.datacube._array, expected_result)
 
@@ -889,6 +879,65 @@ class TestParallel:
             match="'numba'-accelerated 'martini' does not support progress bar",
         ):
             m_init.insert_source_in_cube(progressbar=True)
+
+
+class TestBatched:
+    """Test that results running in particle batches agree with running all at once."""
+
+    @pytest.mark.parametrize("numba_on", (True, False))
+    def test_batched_consistent_with_concurrent(
+        self, many_particle_source, dc_zeros, numba_on
+    ):
+        """
+        Check running the source insertion loop in batches.
+
+        Should give the same result as running in one batch.
+        """
+        m = Martini(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=_GaussianKernel(),
+            spectral_model=GaussianSpectrum(),
+        )
+
+        m._numba_enabled = numba_on
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "error", category=RuntimeWarning, message="Requested memory limit"
+            )
+            m._insert_source_in_cube(
+                progressbar=False, mem_lim_GB=m.baseline_mem_estimate + 0.1
+            )
+
+        expected_result = m.datacube._array
+
+        # check that we're not testing on a zero array
+        assert m.datacube._array.sum() > 0
+
+        m.reset()
+
+        # check the reset was successful
+        assert np.allclose(
+            m.datacube._array.to_value(m.datacube._array.unit),
+            0.0,
+        )
+
+        with pytest.warns(RuntimeWarning, match="Requested memory limit"):
+            m._insert_source_in_cube(
+                progressbar=False, mem_lim_GB=m.baseline_mem_estimate + 0.0001
+            )
+
+        assert U.allclose(m.datacube._array, expected_result)
+
+    def test_insufficient_memory(self, m_init):
+        """Test that insufficient memory to process even one particle crashes."""
+        with pytest.warns(RuntimeWarning, match="Requested memory limit"):
+            with pytest.raises(RuntimeError, match="Requested memory limit"):
+                m_init.insert_source_in_cube(
+                    progressbar=False, mem_lim_GB=m_init.baseline_mem_estimate
+                )
 
 
 class TestGlobalProfile:
