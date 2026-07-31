@@ -105,17 +105,9 @@ class _BaseSpectrum(metaclass=ABCMeta):
         vmids = source.skycoords.radial_velocity[mask]
         A = source.mHI_g[mask] * np.power(source.skycoords.distance[mask].to(U.Mpc), -2)
         extra_data = self.get_spectral_function_extra_data(source, datacube, mask=mask)
-        if all(np.diff(channel_edges) > 0):
-            lower_edges_slice: slice = np.s_[:-1]
-            upper_edges_slice: slice = np.s_[1:]
-        elif all(np.diff(channel_edges) < 0):
-            lower_edges_slice = np.s_[1:]
-            upper_edges_slice = np.s_[:-1]
-        else:
-            raise ValueError("Channel edges are not monotonic sequence.")
         spectra = self.spectral_function(
-            channel_edges[np.newaxis, lower_edges_slice].astype(self.spec_dtype),
-            channel_edges[np.newaxis, upper_edges_slice].astype(self.spec_dtype),
+            channel_edges[np.newaxis, 1:].astype(self.spec_dtype),
+            channel_edges[np.newaxis, :-1].astype(self.spec_dtype),
             vmids[:, np.newaxis].astype(self.spec_dtype),
             extra_data=extra_data,
             ncpu=ncpu,

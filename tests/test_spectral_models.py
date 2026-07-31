@@ -2,7 +2,7 @@
 
 import pytest
 import numpy as np
-from martini import DataCube
+from martini.datacube import DataCube, HIfreq
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from astropy import units as U
 
@@ -13,24 +13,44 @@ class TestGaussianSpectrum:
     """Test functionality of the Gaussian spectrum module."""
 
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
-    def test_eval_spectra(self, sigma, single_particle_source):
+    @pytest.mark.parametrize("channel_mode", ("frequency", "velocity"))
+    def test_eval_spectra(self, sigma, single_particle_source, channel_mode):
         """Check that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
         spectral_model = GaussianSpectrum(sigma=sigma)
+        velocity_channel_width = 4 * U.km / U.s
+        velocity_spectral_centre = source.vsys
+        if channel_mode == "frequency":
+            channel_width = np.abs(
+                np.diff(
+                    (
+                        velocity_spectral_centre
+                        + np.array([-0.5, 0.5]) * velocity_channel_width
+                    ).to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+                )
+            ).squeeze()
+            spectral_centre = velocity_spectral_centre.to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        elif channel_mode == "velocity":
+            channel_width = velocity_channel_width
+            spectral_centre = velocity_spectral_centre
+        else:
+            raise ValueError("Unknown channel mode.")
         datacube = DataCube(
             n_px_x=256,
             n_px_y=256,
             px_size=15 * U.arcsec,
             n_channels=64,
-            channel_width=4 * U.km / U.s,
-            spectral_centre=source.vsys,
+            channel_width=channel_width,
+            spectral_centre=spectral_centre,
         )
         spectra = spectral_model._eval_spectra(source, datacube)
         expected_flux = (
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
-        flux = spectra[0].sum() * datacube.channel_width
+        flux = spectra[0].sum() * velocity_channel_width
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width_constant(self, single_particle_source):
@@ -98,24 +118,44 @@ class TestGaussianSpectrum:
 class TestDiracDeltaSpectrum:
     """Test functionality of the Dirac-delta spectrum module."""
 
-    def test_eval_spectra(self, single_particle_source):
+    @pytest.mark.parametrize("channel_mode", ("frequency", "velocity"))
+    def test_eval_spectra(self, single_particle_source, channel_mode):
         """Check that spectrum sums to expected flux."""
         source = single_particle_source(distance=1 * U.Mpc)  # D=1Mpc
         source._init_skycoords()
         spectral_model = DiracDeltaSpectrum()
+        velocity_channel_width = 4 * U.km / U.s
+        velocity_spectral_centre = source.vsys
+        if channel_mode == "frequency":
+            channel_width = np.abs(
+                np.diff(
+                    (
+                        velocity_spectral_centre
+                        + np.array([-0.5, 0.5]) * velocity_channel_width
+                    ).to(U.Hz, equivalencies=U.doppler_radio(HIfreq))
+                )
+            ).squeeze()
+            spectral_centre = velocity_spectral_centre.to(
+                U.Hz, equivalencies=U.doppler_radio(HIfreq)
+            )
+        elif channel_mode == "velocity":
+            channel_width = velocity_channel_width
+            spectral_centre = velocity_spectral_centre
+        else:
+            raise ValueError("Unknown channel mode.")
         datacube = DataCube(
             n_px_x=16,
             n_px_y=16,
             px_size=15 * U.arcsec,
             n_channels=64,
-            channel_width=4 * U.km / U.s,
-            spectral_centre=source.vsys,
+            channel_width=channel_width,
+            spectral_centre=spectral_centre,
         )
         spectra = spectral_model._eval_spectra(source, datacube)
         expected_flux = (
             source.mHI_g[0] / 2.36e5 * U.Jy * U.km * U.s**-1 / U.Msun
         )  # D=1Mpc
-        flux = spectra[0].sum() * datacube.channel_width
+        flux = spectra[0].sum() * velocity_channel_width
         assert U.isclose(flux, expected_flux, rtol=1.0e-5)
 
     def test_half_width(self, single_particle_source):
