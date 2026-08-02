@@ -214,9 +214,9 @@ class Mochi(Martini):
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
         self.sph_kernel._init_sm_ranges()
         cell_grid = (
-            AdaptiveCellGrid(self.datacube)  # do any options need exposing?
+            AdaptiveCellGrid(self._datacube)  # do any options need exposing?
             if self.adaptive_grid
-            else CellGrid(self.datacube)
+            else CellGrid(self._datacube)
         )
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
         if hasattr(cell_grid, "eval_grid_refinement"):
@@ -224,34 +224,40 @@ class Mochi(Martini):
         cell_grid.interpolate_fields(self.source, self.sph_kernel, self.interpolant)
         if hasattr(cell_grid, "create_regular_array"):
             cell_grid.create_regular_array()
-        self.datacube._array = cell_grid.eval_radiative_transfer(
+        self._datacube._array = cell_grid.eval_radiative_transfer(
             # haven't exposed the index datatype option
-            self.datacube,
+            self._datacube,
             self.spectral_model,
             self.radiative_transfer,
         )
         # can the unit conversion be merged with martini?
-        self.datacube._array *= (
+        self._datacube._array *= (
             self.source.distance.to(U.Mpc) ** -2
         )  # use distances of individual cells instead
-        self.datacube._array /= np.abs(
-            np.diff(self.datacube.velocity_channel_edges)
+        self._datacube._array /= np.abs(
+            np.diff(self._datacube.velocity_channel_edges)
         ).to(U.km / U.s)[:, np.newaxis, np.newaxis]
 
-        MHI_to_Jy_inplace(self.datacube._array)
-        self.datacube._array /= U.pix**2
+        self._datacube._array[np.isnan(self._datacube._array)] = (
+            0  # why are there nans?
+        )
+        MHI_to_Jy_inplace(self._datacube._array)
+        self._datacube._array /= U.pix**2
+        self._datacube._array = self._datacube._array.to(
+            U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
+        )
         target_shape = (
             # should this be y then x? there's a flip below.
-            self.datacube.n_px_x + 2 * self.datacube.padx,
-            self.datacube.n_px_y + 2 * self.datacube.pady,
+            self._datacube.n_px_x + 2 * self._datacube.padx,
+            self._datacube.n_px_y + 2 * self._datacube.pady,
         )
         # If resize could be avoided that would:
         #  - remove a dependency
         #  - remove an interpolation operation that seems a bit dubious (?)
-        self.datacube._array = _resize_cube(self.datacube._array, target_shape)
-        self.datacube._array = np.flip(self.datacube._array, 2)
-        self.datacube._array = np.moveaxis(
-            self.datacube._array,
+        self._datacube._array = _resize_cube(self._datacube._array, target_shape)
+        self._datacube._array = np.flip(self._datacube._array, 2)
+        self._datacube._array = np.moveaxis(
+            self._datacube._array,
             (0, 1, 2),
             (2, 1, 0),
         )
