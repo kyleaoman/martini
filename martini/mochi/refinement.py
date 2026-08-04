@@ -6,7 +6,7 @@ from typing import Callable
 from functools import partial
 from martini.mochi._dtypes import CELL_DTYPE as _CELL_DTYPE
 
-_RF = np.sqrt(3) / 2
+_RF = np.sqrt(3) / 2  # ratio between radius and cell length
 
 
 def _refine_grid_bisect(
@@ -30,7 +30,8 @@ def _refine_grid_bisect(
         ??.
 
     in_cell : ~numpy.ndarray
-        Flag for each particle indicating whether it is in this cell.
+        Flag for each particle of mask indicating whether it is in this cell.
+        Particles not in_cell won't be included in the masks for new cells.
 
     new_cells : list
         ??.
@@ -69,10 +70,10 @@ def _pass_complete_cell(cells_lists: list, content_list: list) -> None:
     Parameters
     ----------
     cells_lists : list
-        ??.
+        List of cell properties.
 
     content_list : list
-        ??.
+        Content list of current cell to be appended to cell_lists.
     """
     for i in range(len(cells_lists)):
         cells_lists[i].append(content_list[i])
@@ -169,14 +170,15 @@ def _occupancy_in_cell(
     cell: np.void,
 ) -> np.ndarray:
     """
-    Describe.
+    Return a sub-mask of mask.
 
-    ??.
+    The sub-mask has True for particles_pos within the cell and otherwise false.
+    A cubic cell is assumed. particles_radii is unused.
 
     Parameters
     ----------
     mask : ~numpy.ndarray
-        ??.
+        Mask of particles to consider.
 
     particles_pos : ~astropy.units.Quantity
         Particle locations in the cell grid with units of pixels.
@@ -203,22 +205,21 @@ def _occupancy_in_cell(
 
 def _has_more_than(count: int, in_cell: np.ndarray) -> np.bool:
     """
-    Describe.
-
-    ??.
+    Check if in_cell has more non-zero values than count.
 
     Parameters
     ----------
     count : int
-        ??.
+        Number for input in_cell to count over.
 
     in_cell : ~numpy.ndarray
-        ??.
+        Mask of particles for cell to consider.
 
     Returns
     -------
     ~numpy.bool
-        ??.
+        returns True if count is smaller than the number of non-zero values in in_cell.
+        returns False otherwise.
     """
     return count < np.count_nonzero(in_cell)
 
@@ -231,17 +232,20 @@ def _intersect_in_cell(
     cell: np.void,
 ) -> np.ndarray:
     """
-    Describe.
+    Return a sub-mask of input mask of particles.
 
-    ??.
+    Particles below threshold of cell size and which intersect with the cell are set to
+    True. Note that intersection is done approximately based on radius/length conversion.
+    Otherwise, they are set to False.
 
     Parameters
     ----------
     threshold : float
-        ??.
+        Ratio between particle radius and cell size for particle to be considered.
+        Particles over > cell / threshold are discarded as being too large.
 
     mask : ~numpy.ndarray
-        ??.
+        Mask of particles to be considered.
 
     particles_pos : ~astropy.units.Quantity
         Particle locations in the cell grid with units of pixels.

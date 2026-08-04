@@ -51,6 +51,7 @@ def _eval_kernel(
 def _eval_cache_kernel(q: float, kernel_cache: np.ndarray) -> float:
     """
     Get the value of the kernel function on a pre-computed discrete grid.
+
     Since kernels are generally well behaved compact functions,
     computing the kernel thousands of times can be needlessly expensive
     especially for more computationally expensive kernels.
@@ -345,8 +346,8 @@ def particle_scatter(
 ) -> dict[str, U.Quantity]:
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
-    Wrapper for main_loop functions to avoid code duplication.
 
+    Wrapper for main_loop functions to avoid code duplication.
 
     Parameters
     ----------
