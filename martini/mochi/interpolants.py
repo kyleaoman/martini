@@ -168,6 +168,7 @@ def sph_loop(
         kernel_weights * temperatures[gs.intersections], gs.strides[:, 0]
     )
     kernel_slice = field_masses != 0
+
     final_masses_HI = U.Quantity(field_masses_HI, mass_unit / volume_unit, copy=False)
     final_velocities = U.Quantity(
         np.where(kernel_slice, field_momenta / field_masses, 0),
@@ -193,7 +194,8 @@ def mfm_loop(
     momenta: np.ndarray,
     temperatures: np.ndarray,
     smoothing_lengths: np.ndarray,
-    gs: FindGridIntersectionsResult,
+    dist: np.ndarray,
+    slices: np.ndarray,
     cell_volumes: np.ndarray,
     kernel_cache: np.ndarray,
     n_pos: int,
@@ -253,63 +255,72 @@ def mfm_loop(
     dict
         Contains the interpolated fields.
     """
-    # Technically don't need the zero-initialized arrays here but keep for now as
-    # arrays to accumulate will be needed to break particles into batches for processing,
-    # which will be needed when the tree search result gets huge.
     field_masses_HI = np.zeros(n_pos)
     field_masses = np.zeros(n_pos)
     field_momenta = np.zeros(n_pos)
     field_temperatures = np.zeros(n_pos)
     h3 = smoothing_lengths**3
-    kernel_weights = (
-        _eval_cache_kernel(
-            np.sqrt((gs.distances**2).sum(axis=1))
-            / smoothing_lengths[gs.intersections],
-            kernel_cache,
+    n_part = len(smoothing_lengths)
+    total_kernel = np.zeros(n_pos)
+    for i in range(n_part):
+        if len(slices[i]) == 0:
+            continue
+        particle_kernel = (
+            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
         )
-        / h3[gs.intersections]
-    )
-    total_kernel = np.add.reduceat(kernel_weights, gs.strides[:, 0])
-    volume = (
-        kernel_weights * cell_volumes[gs.intersections] / total_kernel[gs.intersections]
-    )
-    # probably can find a better way of masking out the volume==0 elements
-    field_masses_HI[gs.cell_indices] += np.add.reduceat(
-        np.where(volume > 0, kernel_weights * masses_HI[gs.intersections] / volume, 0),
-        gs.strides[:, 0],
-    )
-    field_masses[gs.cell_indices] += np.add.reduceat(
-        np.where(volume > 0, kernel_weights * masses[gs.intersections] / volume, 0),
-        gs.strides[:, 0],
-    )
-    field_momenta[gs.cell_indices] += np.add.reduceat(
-        np.where(volume > 0, kernel_weights * momenta[gs.intersections] / volume, 0),
-        gs.strides[:, 0],
-    )
-    field_temperatures[gs.cell_indices] += np.add.reduceat(
-        np.where(
-            volume > 0, kernel_weights * temperatures[gs.intersections] / volume, 0
-        ),
-        gs.strides[:, 0],
-    )
+        total_kernel[slices[i]] += particle_kernel
+        slices[i] = slices[i][particle_kernel != 0]
+        dist[i] = dist[i][particle_kernel != 0]
+    field_masses_HI = np.zeros(n_pos)
+    field_masses = np.zeros(n_pos)
+    field_momenta = np.zeros(n_pos)
+    field_temperatures = np.zeros(n_pos)
+    for i in range(n_part):
+        if len(slices[i]) == 0:
+            continue
+        particle_kernel = (
+            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
+        )
+        volume = np.sum(
+            particle_kernel * (cell_volumes[slices[i]] / total_kernel[slices[i]])
+        )
+        if isinstance(mask_out_of_bound, bool):
+            raise ValueError("Expected an array of booleans, got a boolean instead.")
+        if mask_out_of_bound[i]:
+            volume *= (
+                np.pi
+                * 4
+                / 3
+                * smoothing_lengths[i] ** 3
+                / np.sum(cell_volumes[slices[i]])
+            )  # for out of bounds particles, the volume is scaled up
+        field_masses_HI[slices[i]] += particle_kernel * masses_HI[i] / volume
+        field_masses[slices[i]] += particle_kernel * masses[i] / volume
+        field_momenta[slices[i]] += particle_kernel * momenta[i] / volume
+        field_temperatures[slices[i]] += particle_kernel * temperatures[i] / volume
     kernel_slice = total_kernel != 0
-    final_masses_HI = U.Quantity(
-        np.where(kernel_slice, field_masses_HI / total_kernel, 0),
-        mass_unit / volume_unit,
-        copy=False,
+    final_velocities = np.zeros(n_pos) * velocity_unit
+    final_temperatures = np.zeros(n_pos) * velocity_unit**2
+    final_masses_HI = np.zeros(n_pos) * mass_unit / volume_unit
+    final_masses = np.zeros(n_pos)
+    final_masses_HI[kernel_slice] = (
+        field_masses_HI[kernel_slice]
+        * mass_unit
+        / volume_unit
+        / total_kernel[kernel_slice]
     )
-    final_masses_dimless = np.where(kernel_slice, field_masses / total_kernel, 0)
-    final_velocities = U.Quantity(
-        np.where(kernel_slice, field_momenta / final_masses_dimless / total_kernel, 0),
-        velocity_unit,
-        copy=False,
+    final_masses[kernel_slice] = field_masses[kernel_slice] / total_kernel[kernel_slice]
+    final_velocities[kernel_slice] = (
+        field_momenta[kernel_slice]
+        * velocity_unit
+        / total_kernel[kernel_slice]
+        / final_masses[kernel_slice]
     )
-    final_temperatures = U.Quantity(
-        np.where(
-            kernel_slice, field_temperatures / final_masses_dimless / total_kernel, 0
-        ),
-        velocity_unit**2,
-        copy=False,
+    final_temperatures[kernel_slice] = (
+        field_temperatures[kernel_slice]
+        * velocity_unit**2
+        / total_kernel[kernel_slice]
+        / final_masses[kernel_slice]
     )
     return {
         "velocities": final_velocities,
