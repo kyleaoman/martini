@@ -201,7 +201,8 @@ def mfm_loop(
     momenta: np.ndarray,
     temperatures: np.ndarray,
     smoothing_lengths: np.ndarray,
-    gs: FindGridIntersectionsResult,
+    dist: np.ndarray,
+    slices: np.ndarray,
     cell_volumes: np.ndarray,
     kernel_cache: np.ndarray,
     n_pos: int,
@@ -272,255 +273,75 @@ def mfm_loop(
     dict
         Contains the interpolated fields.
     """
-    n_particles = len(masses)
+    field_masses_HI = np.zeros(n_pos)
+    field_masses = np.zeros(n_pos)
+    field_momenta = np.zeros(n_pos)
+    field_temperatures = np.zeros(n_pos)
     h3 = smoothing_lengths**3
-
-    # 1. Coordinate extractions (cell -> particle)
-    # Negate to get particle -> cell center vectors: dx = x_cell - x_particle
-    dx_ji = -gs.distances[:, 0].ravel()
-    dy_ji = -gs.distances[:, 1].ravel()
-    dz_ji = -gs.distances[:, 2].ravel()
-
-    r_norms = np.sqrt(dx_ji * dx_ji + dy_ji * dy_ji + dz_ji * dz_ji)
-    p_idx = gs.intersections.ravel()  # Length: 1,868,878
-    c_idx_active = gs.cell_indices.ravel()  # Length: 45,907 (Active cells)
-    start_indices = gs.strides[:, 0].ravel()
-
-    # Compute active counts per block to handle expansion maps safely
-    counts = np.diff(gs.strides, axis=1).ravel()  # Length: 45,907
-
-    kernel_weights = (
-        _eval_cache_kernel(r_norms / smoothing_lengths[p_idx], kernel_cache) / h3[p_idx]
-    )
-
-    # Base grid mass accumulation
-    grid_masses = np.zeros(n_pos)
-    grid_masses[c_idx_active] += np.add.reduceat(
-        kernel_weights * masses[p_idx], start_indices
-    )
-
-    # =========================================================================
-    # STEP 1: CONSTRUCT PARTICLE-SPACE GRADIENT MATRICES (E_j)
-    # =========================================================================
-    E00 = dx_ji * dx_ji * kernel_weights
-    E01 = dx_ji * dy_ji * kernel_weights
-    E02 = dx_ji * dz_ji * kernel_weights
-    E11 = dy_ji * dy_ji * kernel_weights
-    E12 = dy_ji * dz_ji * kernel_weights
-    E22 = dz_ji * dz_ji * kernel_weights
-
-    p_E00 = np.bincount(p_idx, weights=E00, minlength=n_particles)
-    p_E01 = np.bincount(p_idx, weights=E01, minlength=n_particles)
-    p_E02 = np.bincount(p_idx, weights=E02, minlength=n_particles)
-    p_E11 = np.bincount(p_idx, weights=E11, minlength=n_particles)
-    p_E12 = np.bincount(p_idx, weights=E12, minlength=n_particles)
-    p_E22 = np.bincount(p_idx, weights=E22, minlength=n_particles)
-
-    det = (
-        p_E00 * (p_E11 * p_E22 - p_E12 * p_E12)
-        - p_E01 * (p_E01 * p_E22 - p_E12 * p_E02)
-        + p_E02 * (p_E01 * p_E12 - p_E11 * p_E02)
-    )
-
-    valid_particles = det > 1e-12
-    inv_E00 = np.zeros(n_particles)
-    inv_E01 = np.zeros(n_particles)
-    inv_E02 = np.zeros(n_particles)
-    inv_E11 = np.zeros(n_particles)
-    inv_E12 = np.zeros(n_particles)
-    inv_E22 = np.zeros(n_particles)
-
-    if np.any(valid_particles):
-        inv_det = 1.0 / det[valid_particles]
-        inv_E00[valid_particles] = (
-            p_E11[valid_particles] * p_E22[valid_particles]
-            - p_E12[valid_particles] * p_E12[valid_particles]
-        ) * inv_det
-        inv_E01[valid_particles] = (
-            p_E02[valid_particles] * p_E12[valid_particles]
-            - p_E01[valid_particles] * p_E22[valid_particles]
-        ) * inv_det
-        inv_E02[valid_particles] = (
-            p_E01[valid_particles] * p_E12[valid_particles]
-            - p_E02[valid_particles] * p_E11[valid_particles]
-        ) * inv_det
-        inv_E11[valid_particles] = (
-            p_E00[valid_particles] * p_E22[valid_particles]
-            - p_E02[valid_particles] * p_E02[valid_particles]
-        ) * inv_det
-        inv_E12[valid_particles] = (
-            p_E02[valid_particles] * p_E01[valid_particles]
-            - p_E00[valid_particles] * p_E12[valid_particles]
-        ) * inv_det
-        inv_E22[valid_particles] = (
-            p_E00[valid_particles] * p_E11[valid_particles]
-            - p_E01[valid_particles] * p_E01[valid_particles]
-        ) * inv_det
-
-    # =========================================================================
-    # STEP 2: GENERATE BASELINE SPH GRID GUESSES FOR THE RHS DEVIATIONS
-    # =========================================================================
-    grid_W_sum = np.zeros(n_pos)
-    grid_W_sum[c_idx_active] += np.add.reduceat(kernel_weights, start_indices)
-    safe_W_sum = np.where(grid_W_sum > 0, grid_W_sum, 1.0)
-
-    raw_grid_v = np.zeros(n_pos)
-    raw_grid_v[c_idx_active] += np.add.reduceat(
-        kernel_weights * momenta[p_idx], start_indices
-    )
-    cell_v = raw_grid_v / safe_W_sum
-
-    raw_grid_T = np.zeros(n_pos)
-    raw_grid_T[c_idx_active] += np.add.reduceat(
-        kernel_weights * temperatures[p_idx], start_indices
-    )
-    cell_T = raw_grid_T / safe_W_sum
-
-    # =========================================================================
-    # EXACT INDEX MAPPING: Expand active cell matrices to intersection tracking size
-    # =========================================================================
-    # Inflate cell property references from active cells up to the full intersection length
-    m_cell_v = np.repeat(cell_v[c_idx_active], counts)
-    m_cell_T = np.repeat(cell_T[c_idx_active], counts)
-
-    dv = m_cell_v - momenta[p_idx]
-    dT = m_cell_T - temperatures[p_idx]
-    # =========================================================================
-
-    # RHS collection vectors per particle using bincount
-    rhs_v0 = np.bincount(
-        p_idx, weights=dv * kernel_weights * dx_ji, minlength=n_particles
-    )
-    rhs_v1 = np.bincount(
-        p_idx, weights=dv * kernel_weights * dy_ji, minlength=n_particles
-    )
-    rhs_v2 = np.bincount(
-        p_idx, weights=dv * kernel_weights * dz_ji, minlength=n_particles
-    )
-
-    rhs_T0 = np.bincount(
-        p_idx, weights=dT * kernel_weights * dx_ji, minlength=n_particles
-    )
-    rhs_T1 = np.bincount(
-        p_idx, weights=dT * kernel_weights * dy_ji, minlength=n_particles
-    )
-    rhs_T2 = np.bincount(
-        p_idx, weights=dT * kernel_weights * dz_ji, minlength=n_particles
-    )
-
-    # Solve particle primitive gradients (3 components of length n_particles)
-    p_grad_v0 = inv_E00 * rhs_v0 + inv_E01 * rhs_v1 + inv_E02 * rhs_v2
-    p_grad_v1 = inv_E01 * rhs_v0 + inv_E11 * rhs_v1 + inv_E12 * rhs_v2
-    p_grad_v2 = inv_E02 * rhs_v0 + inv_E12 * rhs_v1 + inv_E22 * rhs_v2
-
-    p_grad_T0 = inv_E00 * rhs_T0 + inv_E01 * rhs_T1 + inv_E02 * rhs_T2
-    p_grad_T1 = inv_E01 * rhs_T0 + inv_E11 * rhs_T1 + inv_E12 * rhs_T2
-    p_grad_T2 = inv_E02 * rhs_T0 + inv_E12 * rhs_T1 + inv_E22 * rhs_T2
-    # =========================================================================
-    # STEP 3: PHYSICAL SLOPE LIMITING (True Barth-Jespersen / Minmod)
-    # =========================================================================
-    # Find the maximum and minimum physical states surrounding each particle
-    # based on the grid cells they actually overlap.
-    p_max_v = np.zeros(n_particles)
-    p_min_v = np.zeros(n_particles)
-    p_max_T = np.zeros(n_particles)
-    p_min_T = np.zeros(n_particles)
-
-    # Initialize bounds with the particles' self-values
-    p_max_v[:] = momenta
-    p_min_v[:] = momenta
-    p_max_T[:] = temperatures
-    p_min_T[:] = temperatures
-
-    # Track the extreme neighbor bounds using bincount accumulations
-    np.maximum.at(p_max_v, p_idx, m_cell_v)
-    np.minimum.at(p_min_v, p_idx, m_cell_v)
-    np.maximum.at(p_max_T, p_idx, m_cell_T)
-    np.minimum.at(p_min_T, p_idx, m_cell_T)
-    # Map the localized maximum and minimum envelopes back onto the intersections stream
-    m_max_v = p_max_v[p_idx]
-    m_min_v = p_min_v[p_idx]
-    m_max_T = p_max_T[p_idx]
-    m_min_T = p_min_T[p_idx]
-
-    # Calculate un-limited reconstructions
-    v_delta = (
-        p_grad_v0[p_idx] * dx_ji + p_grad_v1[p_idx] * dy_ji + p_grad_v2[p_idx] * dz_ji
-    )
-    t_delta = (
-        p_grad_T0[p_idx] * dx_ji + p_grad_T1[p_idx] * dy_ji + p_grad_T2[p_idx] * dz_ji
-    )
-
-    # Compute the strict gradient scaling factor alpha to prevent overshoots
-    # Alpha drops toward 0.0 only near extreme shocks, preserving linear slopes elsewhere
-    alpha_v = np.ones_like(v_delta)
-    alpha_T = np.ones_like(t_delta)
-
-    # Handle positive gradients (overshoots above neighbor maximums)
-    pos_v = v_delta > 0
-    pos_T = t_delta > 0
-    if np.any(pos_v):
-        alpha_v[pos_v] = np.minimum(
-            1.0, (m_max_v[pos_v] - momenta[p_idx][pos_v]) / (v_delta[pos_v] + 1e-20)
+    n_part = len(smoothing_lengths)
+    total_kernel = np.zeros(n_pos)
+    for i in range(n_part):
+        if len(slices[i]) == 0:
+            continue
+        particle_kernel = (
+            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
         )
-    if np.any(pos_T):
-        alpha_T[pos_T] = np.minimum(
-            1.0,
-            (m_max_T[pos_T] - temperatures[p_idx][pos_T]) / (t_delta[pos_T] + 1e-20),
+        total_kernel[slices[i]] += particle_kernel
+        slices[i] = slices[i][particle_kernel != 0]
+        dist[i] = dist[i][particle_kernel != 0]
+    field_masses_HI = np.zeros(n_pos)
+    field_masses = np.zeros(n_pos)
+    field_momenta = np.zeros(n_pos)
+    field_temperatures = np.zeros(n_pos)
+    for i in range(n_part):
+        if len(slices[i]) == 0:
+            continue
+        particle_kernel = (
+            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
         )
-
-    # Handle negative gradients (undershoots below neighbor minimums)
-    neg_v = v_delta < 0
-    neg_T = t_delta < 0
-    if np.any(neg_v):
-        alpha_v[neg_v] = np.minimum(
-            1.0, (m_min_v[neg_v] - momenta[p_idx][neg_v]) / (v_delta[neg_v] - 1e-20)
+        volume = np.sum(
+            particle_kernel * (cell_volumes[slices[i]] / total_kernel[slices[i]])
         )
-    if np.any(neg_T):
-        alpha_T[neg_T] = np.minimum(
-            1.0,
-            (m_min_T[neg_T] - temperatures[p_idx][neg_T]) / (t_delta[neg_T] - 1e-20),
-        )
-
-    # Apply the smooth, physically bounded slope limiter modifications
-    v_recon = momenta[p_idx] + alpha_v * v_delta
-    t_recon = temperatures[p_idx] + alpha_T * t_delta
-
-    # =========================================================================
-    # STEP 4: MASS-WEIGHTED CONSERVATIVE ACCUMULATION
-    # =========================================================================
-    grid_momenta_out = np.zeros(n_pos)
-    grid_temperatures_out = np.zeros(n_pos)
-
-    grid_momenta_out[c_idx_active] += np.add.reduceat(
-        kernel_weights * v_recon, start_indices
+        if isinstance(mask_out_of_bound, bool):
+            raise ValueError("Expected an array of booleans, got a boolean instead.")
+        if mask_out_of_bound[i]:
+            volume *= (
+                np.pi
+                * 4
+                / 3
+                * smoothing_lengths[i] ** 3
+                / np.sum(cell_volumes[slices[i]])
+            )  # for out of bounds particles, the volume is scaled up
+        field_masses_HI[slices[i]] += particle_kernel * masses_HI[i] / volume
+        field_masses[slices[i]] += particle_kernel * masses[i] / volume
+        field_momenta[slices[i]] += particle_kernel * momenta[i] / volume
+        field_temperatures[slices[i]] += particle_kernel * temperatures[i] / volume
+    kernel_slice = total_kernel != 0
+    final_velocities = np.zeros(n_pos) * velocity_unit
+    final_temperatures = np.zeros(n_pos) * velocity_unit**2
+    final_masses_HI = np.zeros(n_pos) * mass_unit / volume_unit
+    final_masses = np.zeros(n_pos)
+    final_masses_HI[kernel_slice] = (
+        field_masses_HI[kernel_slice]
+        * mass_unit
+        / volume_unit
+        / total_kernel[kernel_slice]
     )
-    grid_temperatures_out[c_idx_active] += np.add.reduceat(
-        kernel_weights * t_recon, start_indices
+    final_masses[kernel_slice] = field_masses[kernel_slice] / total_kernel[kernel_slice]
+    final_velocities[kernel_slice] = (
+        field_momenta[kernel_slice]
+        * velocity_unit
+        / total_kernel[kernel_slice]
+        / final_masses[kernel_slice]
     )
-
-    grid_masses_HI = np.zeros(n_pos)
-    grid_masses_HI[c_idx_active] += np.add.reduceat(
-        kernel_weights * masses_HI[p_idx], start_indices
+    final_temperatures[kernel_slice] = (
+        field_temperatures[kernel_slice]
+        * velocity_unit**2
+        / total_kernel[kernel_slice]
+        / final_masses[kernel_slice]
     )
-
-    # 5. Pack Outputs
-    kernel_slice = grid_masses > 0
-    final_masses_HI = U.Quantity(grid_masses_HI, mass_unit / volume_unit, copy=False)
-
-    final_speeds = U.Quantity(
-        np.where(kernel_slice, grid_momenta_out / grid_masses, 0),
-        velocity_unit,
-        copy=False,
-    )
-    final_temperatures = U.Quantity(
-        np.where(kernel_slice, grid_temperatures_out / grid_masses, 0),
-        velocity_unit**2,
-        copy=False,
-    )
-
     return {
-        "velocities": final_speeds,
+        "velocities": final_velocities,
         "masses_HI": final_masses_HI,
         "temperatures": final_temperatures,
     }
