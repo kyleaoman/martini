@@ -15,7 +15,7 @@ from typing import Callable
 from collections.abc import Iterable
 
 
-def eval_kernel(
+def _eval_kernel(
     x_eval: U.Quantity[U.pix],
     x_particle: U.Quantity[U.pix],
     h: U.Quantity[U.pix],
@@ -29,7 +29,7 @@ def eval_kernel(
 
     Parameters
     ----------
-    x_eval : ~astropy.units.Quantity
+    x_eval : ~astropy.units.Quantity[]
         Positions at which to evaluate kernel, with units of pixels.
     x_particle : ~astropy.units.Quantity
         Positions of particles for which to evaluate kernel, with units of pixels.
@@ -51,6 +51,9 @@ def eval_kernel(
 def _eval_cache_kernel(q: float, kernel_cache: np.ndarray) -> float:
     """
     Get the value of the kernel function on a pre-computed discrete grid.
+    Since kernels are generally well behaved compact functions,
+    computing the kernel thousands of times can be needlessly expensive
+    especially for more computationally expensive kernels.
 
     Parameters
     ----------
@@ -82,7 +85,6 @@ def sph_loop(
     velocity_unit: U.Unit,
     mass_unit: U.Unit,
     volume_unit: U.Unit,
-    mask_out_of_bound: bool,
 ) -> dict[str, U.Quantity]:
     """
     Use SPH formalism to scatter particles onto the grid.
@@ -112,21 +114,15 @@ def sph_loop(
         Particle smoothing lengths as an array with implicit units. Should have the same
         implicit units as the ``dist`` argument.
 
-    dist : ~numpy.ndarray
-        Distances of particles from kernel evaluation points as an array with implicit
-        units. Should have the same implicit units as the ``dist`` argument.
-
-    slices : ~numpy.ndarray
-        ??.
-
     cell_volumes : ~numpy.ndarray
-        ??.
+        Volume of cells onto which fields are itnerpolated.
+        Unused in SPH scatter, but kept for homogenisation with mfm_loop.
 
     kernel_cache : ~numpy.ndarray
         Kernel amplitude pre-computed on a discrete grid for fast lookup.
 
     n_pos : int
-        ??.
+        Number of cells positions to evaluate.
 
     velocity_unit : ~astropy.units.Unit
         Units for arguments with dimensions of velocity (or temperature as velocity
@@ -137,9 +133,6 @@ def sph_loop(
 
     volume_unit : ~astropy.units.Unit
         Units for arguments with dimensions of volume.
-
-    mask_out_of_bound : ~astropy.units.Unit
-        ??.
 
     Returns
     -------
@@ -207,7 +200,6 @@ def mfm_loop(
     velocity_unit: U.Unit,
     mass_unit: U.Unit,
     volume_unit: U.Unit,
-    mask_out_of_bound: bool,
 ) -> dict[str, U.Quantity]:
     """
     Use MFM formalism to scatter particles onto the grid.
@@ -237,21 +229,14 @@ def mfm_loop(
         Particle smoothing lengths as an array with implicit units. Should have the same
         implicit units as the ``dist`` argument.
 
-    dist : ~numpy.ndarray
-        Distances of particles from kernel evaluation points as an array with implicit
-        units. Should have the same implicit units as the ``dist`` argument.
-
-    slices : ~numpy.ndarray
-        ??.
-
     cell_volumes : ~numpy.ndarray
-        ??.
+        Volume of cells onto which fields are itnerpolated.
 
     kernel_cache : ~numpy.ndarray
         Kernel amplitude pre-computed on a discrete grid for fast lookup.
 
     n_pos : int
-        ??.
+        Number of cells positions to evaluate.
 
     velocity_unit : ~astropy.units.Unit
         Units for arguments with dimensions of velocity (or temperature as velocity
@@ -262,9 +247,6 @@ def mfm_loop(
 
     volume_unit : ~astropy.units.Unit
         Units for arguments with dimensions of volume.
-
-    mask_out_of_bound : ~astropy.units.Unit
-        ??.
 
     Returns
     -------
@@ -336,40 +318,6 @@ def mfm_loop(
     }
 
 
-def _getOutOfBoundParticles(
-    particle_positions: np.ndarray,
-    particle_radii: np.ndarray,
-    field_positions: np.ndarray,
-) -> np.ndarray:
-    """
-    Find particles that fall outside of the region where fields are being evaluated.
-
-    Parameters
-    ----------
-    particle_positions : ~numpy.ndarray
-        Array of particle positions.
-
-    particle_radii : ~numpy.ndarray
-        Array of particle sizes (radii of compact support).
-
-    field_positions : ~numpy.ndarray
-        Array of locations where the fields are being evaluated.
-
-    Returns
-    -------
-    ~numpy.ndarray
-        Array containing booleans, ``True`` for particles that are outside the region.
-    """
-    # Martini has a pre-emptive particle masking function. Move this functionality there?
-    lowBound = np.min(field_positions, axis=0)
-    topBound = np.max(field_positions, axis=0)
-    mask_out_of_bound = (
-        (particle_positions + particle_radii[:, np.newaxis]) > topBound
-    ) | ((particle_positions - particle_radii[:, np.newaxis]) < lowBound)
-    mask_out_of_bound = np.any(mask_out_of_bound, axis=1)
-    return mask_out_of_bound
-
-
 def particle_scatter(
     main_loop: Callable,  # fill in arg & return types
     positions: U.Quantity[U.pix],
@@ -386,8 +334,8 @@ def particle_scatter(
 ) -> dict[str, U.Quantity]:
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
+    Wrapper for main_loop functions to avoid code duplication.
 
-    ??.
 
     Parameters
     ----------
@@ -431,9 +379,6 @@ def particle_scatter(
         Contains the interpolated fields.
     """
     kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution))
-    mask_out_of_bound = _getOutOfBoundParticles(
-        positions, smoothing_lengths, field_positions
-    )
     masses *= U.dimensionless_unscaled
     if velocities.ndim != 1:
         # more than one dimension of velocity is given, use radial velocity
@@ -461,7 +406,6 @@ def particle_scatter(
         velocities.unit,
         masses_HI.unit,
         smoothing_lengths.unit**3,
-        mask_out_of_bound,
     )
 
 
@@ -483,6 +427,13 @@ def _eval_voronoi_field(
     these refer to Voronoi cells, this is to avoid ambiguity with the grid cells that are
     being interpolated onto.
 
+    Voronoi tesselation works on nearest neighbor assignment. However, on a coarse grid,
+    this assignment can skip particles; a particle is not the nearest neighbor of any
+    grid cell. These particles are assigned to their nearest neighbor grid cell.
+    The final value of a grid cell with multiple particles is taken as the average of its
+    assigned particles; the grid cell is estimated to be equi-partioned between its
+    assigned particles.
+
     Parameters
     ----------
     particle_quantities : ~astropy.units.Quantity
@@ -492,13 +443,13 @@ def _eval_voronoi_field(
         The index of the Voronoi cell enclosing each grid cell.
 
     missed_particle_cell_indices : ~numpy.ndarray or int
-        ??.
+        Nearest neighbor cell indices for each missed particle.
 
     missed_particle_mask : ~numpy.ndarray
-        ??.
+        Mask of particles that were not assigned to any grid cell.
 
     field_n_particle : ~numpy.ndarray
-        ??.
+        number of particles each grid cell receives.
 
     Returns
     -------
@@ -700,7 +651,7 @@ def manual_sph(
         np.zeros(n_pos) * velocities.unit**2 * masses.unit / d_volume.unit
     )
     for i in range(n_part):
-        particle_kernel = eval_kernel(
+        particle_kernel = _eval_kernel(
             field_positions[slices[i]],
             positions[i].reshape((1, n_dim)),
             smoothing_lengths[i],
