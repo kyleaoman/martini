@@ -32,6 +32,7 @@ class TestAdaptiveCellGridUtils:
     def test_refine_grid_bisect(self):
         """Check grid bisect operation for a (0,0,0,2) cell."""
         from martini.mochi.refinement import _refine_grid_bisect
+
         cell = np.array((0, 0, 0, 2), dtype=CELL_DTYPE)
         mask = np.ones(3, dtype=bool)
         incell = np.ones(3, dtype=bool)
@@ -39,12 +40,7 @@ class TestAdaptiveCellGridUtils:
         new_cells_over = []
         new_cells_masks = []
         _refine_grid_bisect(
-            cell,
-            mask,
-            incell,
-            new_cells,
-            new_cells_over,
-            new_cells_masks
+            cell, mask, incell, new_cells, new_cells_over, new_cells_masks
         )
         new_cells_correct = [
             np.array([0, 0, 0, 1], dtype=float),
@@ -70,6 +66,7 @@ class TestAdaptiveCellGridUtils:
     def test_pass_complete_cell(self):
         """Check that _pass_complete_cell correctly passes contents."""
         from martini.mochi.refinement import _pass_complete_cell
+
         cells_lists = [["a"], [1]]
         content_list = ["b", 2]
         _pass_complete_cell(cells_lists, content_list)
@@ -78,13 +75,16 @@ class TestAdaptiveCellGridUtils:
 
     def test_refine_grid(self):
         """Test that refine grid passes correctly when bisect condition is not met."""
+
         def in_cell_condition(mask, positions, radii, cell):
             return np.ones(np.count_nonzero(mask), dtype=bool)
 
         def bisect_condition(in_cell):
             return False
+
         from martini.mochi.refinement import _refine_grid
-        input_cells = np.array([(0, 0, 0, 2)], dtype=CELL_DTYPE),  # cells
+
+        input_cells = (np.array([(0, 0, 0, 2)], dtype=CELL_DTYPE),)  # cells
 
         cells = _refine_grid(
             in_cell_condition,
@@ -99,17 +99,18 @@ class TestAdaptiveCellGridUtils:
 
     def test_occupancy_in_cell(self):
         """Check that only particles inside cell are selected."""
-        cell = np.array((10., 100., 1000., 1.), dtype=CELL_DTYPE)
+        cell = np.array((10.0, 100.0, 1000.0, 1.0), dtype=CELL_DTYPE)
         mask = [True, True]
         particles_pos = np.array([[10.5, 100.5, 1000.5], [10.5, 100.5, -1000.5]])
         particles_radii = np.array([1, 1e7])  # radii should not impact occupancy
-        result = refinement._occupancy_in_cell(mask, particles_pos, particles_radii, cell)
+        result = refinement._occupancy_in_cell(
+            mask, particles_pos, particles_radii, cell
+        )
         correct_result = np.array([True, False])
         assert np.all(correct_result == result)
 
     @pytest.mark.parametrize(
-        "count, mask_count",
-        list(itertools.product([10, 3, 2], [100, 4, 2, 0]))
+        "count, mask_count", list(itertools.product([10, 3, 2], [100, 4, 2, 0]))
     )
     def test_has_more_than(self, count, mask_count):
         """Check that _has_more_than for different counts and masks."""
@@ -120,22 +121,22 @@ class TestAdaptiveCellGridUtils:
 
     def test_intersect_in_cell(self):
         """Check intersect_in_cell selects for small particles intersecting."""
-        cell = np.array((10., 100., 1000., 1.), dtype=CELL_DTYPE)
-        particles_pos = np.array([
-            [10.5, 100.5, 1000.5],
-            [10.5, 100.5, -1000.5],
-            [10.5, 100.5, -1000.5],
-            [10.5, 100.5, 1001.1],
-            [11, 101, 1001.11],  # intersect_in_cell approximates, using worst case
-        ])
+        cell = np.array((10.0, 100.0, 1000.0, 1.0), dtype=CELL_DTYPE)
+        particles_pos = np.array(
+            [
+                [10.5, 100.5, 1000.5],
+                [10.5, 100.5, -1000.5],
+                [10.5, 100.5, -1000.5],
+                [10.5, 100.5, 1001.1],
+                [11, 101, 1001.11],  # intersect_in_cell approximates, using worst case
+            ]
+        )
         particles_radii = np.array([1, 1e7, 0.1, 0.25, 0.01])  # radii should impact
-        mask = [True,] * len(particles_radii)
+        mask = [
+            True,
+        ] * len(particles_radii)
         result = refinement._intersect_in_cell(
-            0.5,
-            mask,
-            particles_pos,
-            particles_radii,
-            cell
+            0.5, mask, particles_pos, particles_radii, cell
         )
         correct_result = np.array([True, False, False, True, False])
         assert np.all(correct_result == result)
