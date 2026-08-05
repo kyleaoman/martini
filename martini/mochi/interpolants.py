@@ -1,8 +1,6 @@
 """Interpolant functions to render particle properties onto a grid."""
 
 from scipy.spatial import distance, KDTree
-
-# from sklearn.neighbors import KDTree as lKDTree
 from martini._grid_search import (
     build_tree,
     find_grid_intersections,
@@ -76,17 +74,15 @@ def _eval_cache_kernel(q: float, kernel_cache: np.ndarray) -> float:
 def sph_loop(
     masses: np.ndarray,
     masses_HI: np.ndarray,
-    momenta: np.ndarray,
-    temperatures: np.ndarray,
+    velocities: np.ndarray,
     smoothing_lengths: np.ndarray,
+    mask_out_of_bound: np.ndarray,
     gs: FindGridIntersectionsResult,
     cell_volumes: np.ndarray,
     kernel_cache: np.ndarray,
-    n_pos: int,
-    velocity_unit: U.Unit,
-    mass_unit: U.Unit,
-    volume_unit: U.Unit,
-) -> dict[str, U.Quantity]:
+    extra_fields: dict[str, np.ndarray],
+    mfm: bool = False,
+) -> dict[str, np.ndarray]:
     """
     Use SPH formalism to scatter particles onto the grid.
 
@@ -95,239 +91,151 @@ def sph_loop(
     Parameters
     ----------
     masses : ~numpy.ndarray
-        Particle masses as an array with implicit units, the units are specified with the
-        ``mass_unit`` argument.
+        Particle masses as an array with implicit units.
 
     masses_HI : ~numpy.ndarray
-        Particle HI masses as an array with implicit units, the units are specified with
-        the ``mass_unit`` argument.
+        Particle HI masses as an array with implicit units.
 
-    momenta : ~numpy.ndarray
-        Particle line-of-sight momenta as an array with implicit units, the units are
-        specified with the ``mass_unit`` and ``velocity_unit`` argument.
-
-    temperatures : ~numpy.ndarray
-        Particle temperatures (thermal velocity dispersions) as an array with implicit
-        units, the units are specified with the ``velocity_unit`` argument (temperature is
-        ``velocity_unit**2``).
+    velocities : ~numpy.ndarray
+        Particle line-of-sight velocities as an array with implicit units.
 
     smoothing_lengths : ~numpy.ndarray
-        Particle smoothing lengths as an array with implicit units. Should have the same
-        implicit units as the ``dist`` argument.
+        Particle smoothing lengths as an array with implicit units.
+
+    mask_out_of_bound : ~numpy.ndarray
+        A boolean mask selecting particles whose kernels extend outside of the region
+        covered by the grid.
+
+    gs : ~martini._grid_search.FindGridIntersectionsResult
+        A ``NamedTuple`` containing the results of a tree search for particles touching
+        grid cell points within given search radii, see
+        :class:`~martini._grid_search.FindGridIntersectionResult` for details.
 
     cell_volumes : ~numpy.ndarray
-        Volume of cells onto which fields are itnerpolated.
-        Unused in SPH scatter, but kept for homogenisation with mfm_loop.
+        Volume of cells onto which fields are itnerpolated. Unused if ``mfm`` is
+        ``False``.
 
     kernel_cache : ~numpy.ndarray
         Kernel amplitude pre-computed on a discrete grid for fast lookup.
 
-    n_pos : int
-        Number of cells positions to evaluate.
+    extra_fields : dict
+        Additional fields that should be interpolated onto the grid (e.g. temperature).
+        The keys are used to insert the interpolated grids into the return dictionary,
+        the values are particle-carried fields to interpolate.
 
-    velocity_unit : ~astropy.units.Unit
-        Units for arguments with dimensions of velocity (or temperature as velocity
-        squared).
-
-    mass_unit : ~astropy.units.Unit
-        Units for arguments with dimensions of mass.
-
-    volume_unit : ~astropy.units.Unit
-        Units for arguments with dimensions of volume.
+    mfm : bool, optional
+        If ``True``, a simplified MFM (without tensor gradient interpolation but with
+        volume weights) deposition is performed, otherwise (by default) SPH deposition
+        is performed.
 
     Returns
     -------
     dict
-        Contains the interpolated fields.
+        Contains the interpolated fields as bare arrays.
     """
     # Technically don't need the zero-initialized arrays here but keep for now as
     # arrays to accumulate will be needed to break particles into batches for processing,
     # which will be needed when the tree search result gets huge.
+    n_pos = gs.cell_indices.size
     field_masses_HI = np.zeros(n_pos)
     field_masses = np.zeros(n_pos)
-    field_momenta = np.zeros(n_pos)
-    field_temperatures = np.zeros(n_pos)
-    h3 = smoothing_lengths**3
+    field_velocities = np.zeros(n_pos)
+    field_extra = {k: np.zeros(n_pos) for k in extra_fields.keys()}
+    total_kernel = np.zeros(n_pos) if mfm else np.array(1.0)
     kernel_weights = (
         _eval_cache_kernel(
             np.sqrt((gs.distances**2).sum(axis=1))
             / smoothing_lengths[gs.intersections],
             kernel_cache,
         )
-        / h3[gs.intersections]
+        / (smoothing_lengths**3)[gs.intersections]
     )
+    if mfm:
+        total_kernel[gs.cell_indices] += np.add.reduceat(
+            kernel_weights, gs.strides[:, 0]
+        )
+    # Need to break here if splitting particles into batches in "mfm" mode:
+    # the total kernel contribution in each cell must be fully accumulated before
+    # calculating volumes & applying weights. However, we may then proceed safely in
+    # batches.
+    if mfm:
+        volumes = np.bincount(
+            gs.intersections,
+            weights=kernel_weights
+            * np.repeat(cell_volumes / total_kernel, np.diff(gs.strides, axis=1)[:, 0]),
+            minlength=masses.size,
+        )
+        volumes[mask_out_of_bound] *= (
+            np.pi
+            * 4
+            / 3
+            * smoothing_lengths**3
+            / np.bincount(
+                gs.intersections,
+                weights=np.where(
+                    kernel_weights,
+                    np.repeat(cell_volumes, np.diff(gs.strides, axis=1)[:, 0]),
+                    0,
+                ),
+                minlength=masses.size,
+            )
+        )[mask_out_of_bound]
+        kernel_weights /= volumes[gs.intersections]
     field_masses[gs.cell_indices] += np.add.reduceat(
         kernel_weights * masses[gs.intersections], gs.strides[:, 0]
     )
     field_masses_HI[gs.cell_indices] += np.add.reduceat(
         kernel_weights * masses_HI[gs.intersections], gs.strides[:, 0]
     )
-    field_momenta[gs.cell_indices] += np.add.reduceat(
-        kernel_weights * momenta[gs.intersections], gs.strides[:, 0]
+    field_velocities[gs.cell_indices] += np.add.reduceat(
+        kernel_weights * (velocities * masses)[gs.intersections], gs.strides[:, 0]
     )
-    field_temperatures[gs.cell_indices] = np.add.reduceat(
-        kernel_weights * temperatures[gs.intersections], gs.strides[:, 0]
-    )
-    kernel_slice = field_masses != 0
-
-    final_masses_HI = U.Quantity(field_masses_HI, mass_unit / volume_unit, copy=False)
-    final_velocities = U.Quantity(
-        np.where(kernel_slice, field_momenta / field_masses, 0),
-        velocity_unit,
-        copy=False,
-    )
-
-    final_temperatures = U.Quantity(
-        np.where(kernel_slice, field_temperatures / field_masses, 0),
-        velocity_unit**2,
-        copy=False,
-    )
+    for k, v in extra_fields.items():
+        field_extra[k][gs.cell_indices] += np.add.reduceat(
+            kernel_weights * (v * masses)[gs.intersections], gs.strides[:, 0]
+        )
+    kernel_slice = total_kernel != 0 if mfm else field_masses != 0
     return {
-        "velocities": final_velocities,
-        "masses_HI": final_masses_HI,
-        "temperatures": final_temperatures,
+        "masses_HI": field_masses_HI / total_kernel,
+        "velocities": np.where(kernel_slice, field_velocities / field_masses, 0),
+        **{
+            k: np.where(kernel_slice, v / field_masses, 0)
+            for k, v in field_extra.items()
+        },
     }
 
 
-def mfm_loop(
-    masses: np.ndarray,
-    masses_HI: np.ndarray,
-    momenta: np.ndarray,
-    temperatures: np.ndarray,
-    smoothing_lengths: np.ndarray,
-    dist: np.ndarray,
-    slices: np.ndarray,
-    cell_volumes: np.ndarray,
-    kernel_cache: np.ndarray,
-    n_pos: int,
-    velocity_unit: U.Unit,
-    mass_unit: U.Unit,
-    volume_unit: U.Unit,
-) -> dict[str, U.Quantity]:
+def _get_out_of_bound_particles(
+    particle_positions: np.ndarray,
+    particle_radii: np.ndarray,
+    field_positions: np.ndarray,
+) -> np.ndarray:
     """
-    Use MFM formalism to scatter particles onto the grid.
-
-    ??.
+    Find particles that fall outside of the region where fields are being evaluated.
 
     Parameters
     ----------
-    masses : ~numpy.ndarray
-        Particle masses as an array with implicit units, the units are specified with the
-        ``mass_unit`` argument.
+    particle_positions : ~numpy.ndarray
+        Array of particle positions.
 
-    masses_HI : ~numpy.ndarray
-        Particle HI masses as an array with implicit units, the units are specified with
-        the ``mass_unit`` argument.
+    particle_radii : ~numpy.ndarray
+        Array of particle sizes (radii of compact support).
 
-    momenta : ~numpy.ndarray
-        Particle line-of-sight momenta as an array with implicit units, the units are
-        specified with the ``mass_unit`` and ``velocity_unit`` arguments.
-
-    temperatures : ~numpy.ndarray
-        Particle temperatures (thermal velocity dispersions) as an array with implicit
-        units, the units are specified with the ``velocity_unit`` argument (temperature is
-        ``velocity_unit**2``).
-
-    smoothing_lengths : ~numpy.ndarray
-        Particle smoothing lengths as an array with implicit units. Should have the same
-        implicit units as the ``dist`` argument.
-
-    cell_volumes : ~numpy.ndarray
-        Volume of cells onto which fields are itnerpolated.
-
-    kernel_cache : ~numpy.ndarray
-        Kernel amplitude pre-computed on a discrete grid for fast lookup.
-
-    n_pos : int
-        Number of cells positions to evaluate.
-
-    velocity_unit : ~astropy.units.Unit
-        Units for arguments with dimensions of velocity (or temperature as velocity
-        squared).
-
-    mass_unit : ~astropy.units.Unit
-        Units for arguments with dimensions of mass.
-
-    volume_unit : ~astropy.units.Unit
-        Units for arguments with dimensions of volume.
+    field_positions : ~numpy.ndarray
+        Array of locations where the fields are being evaluated.
 
     Returns
     -------
-    dict
-        Contains the interpolated fields.
+    ~numpy.ndarray
+        Array containing booleans, ``True`` for particles that are outside the region.
     """
-    field_masses_HI = np.zeros(n_pos)
-    field_masses = np.zeros(n_pos)
-    field_momenta = np.zeros(n_pos)
-    field_temperatures = np.zeros(n_pos)
-    h3 = smoothing_lengths**3
-    n_part = len(smoothing_lengths)
-    total_kernel = np.zeros(n_pos)
-    for i in range(n_part):
-        if len(slices[i]) == 0:
-            continue
-        particle_kernel = (
-            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
-        )
-        total_kernel[slices[i]] += particle_kernel
-        slices[i] = slices[i][particle_kernel != 0]
-        dist[i] = dist[i][particle_kernel != 0]
-    field_masses_HI = np.zeros(n_pos)
-    field_masses = np.zeros(n_pos)
-    field_momenta = np.zeros(n_pos)
-    field_temperatures = np.zeros(n_pos)
-    for i in range(n_part):
-        if len(slices[i]) == 0:
-            continue
-        particle_kernel = (
-            _eval_cache_kernel(dist[i] / smoothing_lengths[i], kernel_cache) / h3[i]
-        )
-        volume = np.sum(
-            particle_kernel * (cell_volumes[slices[i]] / total_kernel[slices[i]])
-        )
-        if isinstance(mask_out_of_bound, bool):
-            raise ValueError("Expected an array of booleans, got a boolean instead.")
-        if mask_out_of_bound[i]:
-            volume *= (
-                np.pi
-                * 4
-                / 3
-                * smoothing_lengths[i] ** 3
-                / np.sum(cell_volumes[slices[i]])
-            )  # for out of bounds particles, the volume is scaled up
-        field_masses_HI[slices[i]] += particle_kernel * masses_HI[i] / volume
-        field_masses[slices[i]] += particle_kernel * masses[i] / volume
-        field_momenta[slices[i]] += particle_kernel * momenta[i] / volume
-        field_temperatures[slices[i]] += particle_kernel * temperatures[i] / volume
-    kernel_slice = total_kernel != 0
-    final_velocities = np.zeros(n_pos) * velocity_unit
-    final_temperatures = np.zeros(n_pos) * velocity_unit**2
-    final_masses_HI = np.zeros(n_pos) * mass_unit / volume_unit
-    final_masses = np.zeros(n_pos)
-    final_masses_HI[kernel_slice] = (
-        field_masses_HI[kernel_slice]
-        * mass_unit
-        / volume_unit
-        / total_kernel[kernel_slice]
-    )
-    final_masses[kernel_slice] = field_masses[kernel_slice] / total_kernel[kernel_slice]
-    final_velocities[kernel_slice] = (
-        field_momenta[kernel_slice]
-        * velocity_unit
-        / total_kernel[kernel_slice]
-        / final_masses[kernel_slice]
-    )
-    final_temperatures[kernel_slice] = (
-        field_temperatures[kernel_slice]
-        * velocity_unit**2
-        / total_kernel[kernel_slice]
-        / final_masses[kernel_slice]
-    )
-    return {
-        "velocities": final_velocities,
-        "masses_HI": final_masses_HI,
-        "temperatures": final_temperatures,
-    }
+    lowBound = np.min(field_positions, axis=0)
+    topBound = np.max(field_positions, axis=0)
+    mask_out_of_bound = (
+        (particle_positions + particle_radii[:, np.newaxis]) > topBound
+    ) | ((particle_positions - particle_radii[:, np.newaxis]) < lowBound)
+    mask_out_of_bound = np.any(mask_out_of_bound, axis=1)
+    return mask_out_of_bound
 
 
 def particle_scatter(
@@ -391,38 +299,53 @@ def particle_scatter(
         Contains the interpolated fields.
     """
     kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution))
-    masses *= U.dimensionless_unscaled
-    if velocities.ndim != 1:
-        # more than one dimension of velocity is given, use radial velocity
-        velocities = velocities[:, 0]
+    mask_out_of_bound = _get_out_of_bound_particles(
+        positions, smoothing_lengths, field_positions
+    )
     n_pos = len(field_positions)
     if not isinstance(d_volume, Iterable):
+        # Is this required, or will it just broadcast if scalar?
         d_volume = np.ones(n_pos) * d_volume
+    assert field_positions.unit == positions.unit
+    assert field_positions.unit == smoothing_lengths.unit
     tree = build_tree(field_positions.value)
-    # Is smoothing length radius of compact support? If not it needs extending?
+    # Check that smoothing length that's been received is radius of compact support
     gs = find_grid_intersections(
         tree, field_positions.value, positions.value, smoothing_lengths.value
     )
-    momenta = velocities.value * masses.value
-    thermal = temperatures.to_value(velocities.unit**2) * masses.value
-    return main_loop(
+    array_results = main_loop(
         masses.value,
         masses_HI.value,
-        momenta,
-        thermal,
+        velocities.value,
         smoothing_lengths.value,
+        mask_out_of_bound,
         gs,
         d_volume.value,
         kernel_cache,
-        n_pos,
-        velocities.unit,
-        masses_HI.unit,
-        smoothing_lengths.unit**3,
+        # have in mind selectively omitting temperatures when not needed by spectral model
+        extra_fields={"temperatures": temperatures.to_value(velocities.unit**2)},
     )
+    array_results["masses_HI"] = U.Quantity(
+        array_results["masses_HI"],
+        masses_HI.unit / smoothing_lengths.unit**3,
+        copy=False,
+    )
+    array_results["velocities"] = U.Quantity(
+        array_results["velocities"],
+        velocities.unit,
+        copy=False,
+    )
+    if "temperatures" in array_results:
+        array_results["temperatures"] = U.Quantity(
+            array_results["temperatures"],
+            velocities.unit**2,
+            copy=False,
+        )
+    return array_results
 
 
-sph = partial(particle_scatter, sph_loop)
-mfm = partial(particle_scatter, mfm_loop)
+sph = partial(particle_scatter, partial(sph_loop, mfm=False))
+mfm = partial(particle_scatter, partial(sph_loop, mfm=True))
 
 
 def _eval_voronoi_field(
@@ -461,7 +384,7 @@ def _eval_voronoi_field(
         Mask of particles that were not assigned to any grid cell.
 
     field_n_particle : ~numpy.ndarray
-        number of particles each grid cell receives.
+        Number of particles each grid cell receives.
 
     Returns
     -------
