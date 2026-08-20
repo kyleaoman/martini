@@ -18,6 +18,7 @@ Overview
    :caption: Documentation contents
 
    getting_started/index
+   mailing_list/index
    sources/index
    datacube/index
    beams/index

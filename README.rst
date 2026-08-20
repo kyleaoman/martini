@@ -46,7 +46,10 @@ MARTINI is a modular package for the creation of synthetic resolved HI line obse
 
 Full documentation_ can be found on ReadTheDocs.
 
+There is a `mailing list`_ for occasional updates (e.g. significant new versions).
+
 .. _documentation: https://martini.readthedocs.io/en/latest/
+.. _mailing list: https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=i9hQcmhLKUW-RNWaLYpvlMRY30A8yhFApq-Hoo2pySNUOFRFRzlGMFVBOFpWNElCUThSTFRBS0lZNS4u
 
 Citing MARTINI
 --------------
