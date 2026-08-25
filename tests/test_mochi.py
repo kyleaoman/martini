@@ -167,8 +167,7 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube)
-        source._init_los_pixcoords(datacube)
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()

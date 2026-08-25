@@ -409,10 +409,9 @@ class TestSPHSource:
         )
         expected_coords = np.arange(5) * U.pix
         source._init_skycoords()
-        source._init_pixcoords(datacube)
-        source._init_los_pixcoords(datacube)
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
         assert U.allclose(
-            source.los_pixcoords,
+            source.los_distance_pixcoords,
             expected_coords,
             atol=1e-4 * U.pix,
         )
