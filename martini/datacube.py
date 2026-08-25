@@ -688,6 +688,18 @@ class DataCube(object):
             )
 
     @property
+    def current_shape(self) -> tuple[int, ...] | None:
+        """
+        Get the current shape of the datacube, including any pad if applicable.
+
+        Returns
+        -------
+        tuple
+            The shape of the current data cube array.
+        """
+        return getattr(self._array, "shape", None)
+
+    @property
     def current_n_px(self) -> int:
         """
         Get the current pixel count, including any pixels added in padding, if applicable.
@@ -709,7 +721,7 @@ class DataCube(object):
         ~astropy.units.Unit
             The current units of the data cube array.
         """
-        return self._array.unit
+        return getattr(self._array, "unit", None)
 
     def add_pad(self, pad: tuple[int, int]) -> None:
         """

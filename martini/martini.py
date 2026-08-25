@@ -385,6 +385,7 @@ class _BaseMartini:
         int
             The number of cores actually used.
         """
+        assert self._datacube._array is not None
         cube_view = (
             self._datacube._array[:, :, :, 0].value
             if self._datacube.stokes_axis
