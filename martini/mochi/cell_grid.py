@@ -54,8 +54,8 @@ class CellGrid:
             [
                 (x, y, z, size)
                 for x in np.linspace(*self.pix_range[0], grid_size, endpoint=False)
-                for y in np.linspace(*self.pix_range[1], grid_size, endpoint=False)
-                for z in np.linspace(*self.pix_range[2], grid_size, endpoint=False)
+                for y in (np.linspace(*self.pix_range[1], grid_size, endpoint=False) + datacube.padx)
+                for z in (np.linspace(*self.pix_range[2], grid_size, endpoint=False) + datacube.pady)
             ],
             dtype=_CELL_DTYPE,
         )
