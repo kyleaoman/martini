@@ -136,7 +136,7 @@ def sph_loop(
     # Technically don't need the zero-initialized arrays here but keep for now as
     # arrays to accumulate will be needed to break particles into batches for processing,
     # which will be needed when the tree search result gets huge.
-    n_pos = gs.cell_indices.size
+    n_pos = len(cell_volumes)
     field_masses_HI = np.zeros(n_pos)
     field_masses = np.zeros(n_pos)
     field_velocities = np.zeros(n_pos)
