@@ -5,6 +5,7 @@ Provides :class:`~martini.martini.Mochi`, the main class of the package.
 """
 
 import numpy as np
+from numpy.typing import NDArray
 import cv2
 from astropy import units as U
 from martini.martini import Martini
@@ -19,6 +20,113 @@ from martini.mochi.cell_grid import CellGrid, AdaptiveCellGrid
 from martini.mochi.refinement import refine_grid_to_half_particle_scale
 from martini.mochi.radiative_transfer import optically_thin
 from martini._unit_conversion import MHI_to_Jy_inplace
+
+def _possible_lengths(length : int, max_pad : int) -> NDArray[np.int_]:
+    """
+    Create an array of the possible lengths up to a maximum padding.
+
+    Step by two so that the padding is applied symmetrically.
+
+    Parameters
+    ----------
+    length: int
+        base length
+    max_pad: int
+        maximum padding value
+
+    Returns
+    -------
+    possible_lengths: ~numpy.ndarray
+        array of possible padded lengths given input base length and maximum padding.
+    """
+    return np.arange(length, length + max_pad + 1, step = 2)
+
+def _coarse_shape(
+        shape : tuple[int, int],
+        max_pad : int = 10
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
+    """
+    Compute a coarse aspect ratio from the input shape and the padding required.
+
+    Parameters
+    ----------
+    shape: tuple[int,int]
+        Target shape of the cube.
+
+    max_pad: int
+        Maximum padding to admit to allow for coarser resolution.
+
+    Returns
+    -------
+    target_shape: tuple[int, int],
+        Coarse shape to use for initial grid resolution.
+
+    pad: tuple[int, int]
+        Padding required for input shape to match target_shape ratio.
+    """
+    array = np.array(shape)
+    target_shape = shape
+    pad = (0,0)
+    if np.any(array == 1):
+        return target_shape, pad
+    if array[0] == array[1]:
+        target_shape = (1,1)
+        return target_shape, pad
+    a1 = _possible_lengths(array[0], max_pad)
+    a2 = _possible_lengths(array[1], max_pad)
+
+    if array[0] < array[1]:
+        div = a1[:, np.newaxis] / a2
+    else:
+        div = a2[:, np.newaxis] / a1
+    for i in range(1, np.max(array)):
+        scale = div * i
+        check = scale == scale.astype(int)
+        if np.any(check):
+            index = np.argwhere(check).squeeze()
+            pad = tuple(index)
+            target_shape = (int(scale[pad]), i)
+            if array[0] > array[1]:
+                pad = pad[::-1]
+                target_shape = target_shape[::-1]
+            return target_shape, pad
+    return target_shape, pad
+
+
+def _resize_cube(cube: U.Quantity, target_shape: tuple[int, int]) -> U.Quantity:
+    """
+    Resize a data cube to the target shape.
+
+    Interpolation is handled with :func:`cv2.resize`.
+
+    Parameters
+    ----------
+    cube : ~astropy.units.Quantity
+        The cube to be resized.
+
+    target_shape : tuple
+        The desired shape as a 3-tuple.
+
+    Returns
+    -------
+    ~astropy.units.Quantity
+        The cube interpolated into the new desired shape using :func:`cv2.resize`.
+    """
+    target_shape = target_shape[::-1]
+    if np.all(np.array(cube.shape[1:]) == np.array(target_shape)):
+        return cube
+
+    unit = cube.unit
+    unitless_cube = cube.to_value(cube.unit)
+    result = np.zeros((cube.shape[0],) + target_shape)
+    for i in range(cube.shape[0]):
+        result[i] = cv2.resize(
+            unitless_cube[i].astype(float),
+            target_shape[::-1],
+            interpolation=cv2.INTER_AREA,
+        )
+    return result * np.prod(cube.shape[1:]) / np.prod(target_shape) * unit
+
 
 
 def _resize_cube(cube: U.Quantity, target_shape: tuple[int, int]) -> U.Quantity:
