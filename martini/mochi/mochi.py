@@ -21,6 +21,7 @@ from martini.mochi.refinement import refine_grid_to_half_particle_scale
 from martini.mochi.radiative_transfer import optically_thin
 from martini._unit_conversion import MHI_to_Jy_inplace
 
+
 def _possible_lengths(length : int, max_pad : int) -> NDArray[np.int_]:
     """
     Create an array of the possible lengths up to a maximum padding.
@@ -39,12 +40,13 @@ def _possible_lengths(length : int, max_pad : int) -> NDArray[np.int_]:
     possible_lengths: ~numpy.ndarray
         array of possible padded lengths given input base length and maximum padding.
     """
-    return np.arange(length, length + max_pad + 1, step = 2)
+    return np.arange(length, length + max_pad + 1, step=2)
+
 
 def _coarse_shape(
         shape : tuple[int, int],
-        max_pad : int = 10
-    ) -> tuple[tuple[int, int], tuple[int, int]]:
+        max_pad : int = 10,
+) -> tuple[tuple[int, int], tuple[int, int]]:
     """
     Compute a coarse aspect ratio from the input shape and the padding required.
 
@@ -66,11 +68,11 @@ def _coarse_shape(
     """
     array = np.array(shape)
     target_shape = shape
-    pad = (0,0)
+    pad = (0, 0)
     if np.any(array == 1):
         return target_shape, pad
     if array[0] == array[1]:
-        target_shape = (1,1)
+        target_shape = (1, 1)
         return target_shape, pad
     a1 = _possible_lengths(array[0], max_pad)
     a2 = _possible_lengths(array[1], max_pad)
@@ -264,7 +266,7 @@ class Mochi(Martini):
         distance computations.
         """
         if not self.adaptive_grid:
-            return 
+            return
         if self._datacube.current_shape is None:
             # Copied this from martini but I don't get why datacube is not yet allocated.
             self._datacube._allocate_cube(datacube_unit=U.Jy * U.pix**-2)
@@ -274,7 +276,6 @@ class Mochi(Martini):
         self.datacube.add_pad(pad)
         self.initial_grid_shape = (shape[0],) + shape  # los direction as z -- needs fix
 
-    
     def insert_source_in_cube(
         self,
         skip_validation: bool = False,
@@ -308,8 +309,8 @@ class Mochi(Martini):
         """
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
         self.sph_kernel._init_sm_ranges()
-        cell_grid = (
-            AdaptiveCellGrid(self._datacube, self.initial_grid_shape)  # do any options need exposing?
+        cell_grid = (  # do any options need exposing?
+            AdaptiveCellGrid(self._datacube, self.initial_grid_shape)
             if self.adaptive_grid
             else CellGrid(self._datacube)
         )

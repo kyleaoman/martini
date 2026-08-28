@@ -60,8 +60,12 @@ class CellGrid:
             [
                 (x, y, z, size)
                 for x in (np.arange(*self.pix_range[0], dtype=float) * size)
-                for y in (np.arange(*self.pix_range[1], dtype=float) * size + datacube.padx)
-                for z in (np.arange(*self.pix_range[2], dtype=float) * size + datacube.pady)
+                for y in (
+                    np.arange(*self.pix_range[1], dtype=float) * size + datacube.padx
+                )
+                for z in (
+                    np.arange(*self.pix_range[2], dtype=float) * size + datacube.pady
+                )
             ],
             dtype=_CELL_DTYPE,
         )
