@@ -115,9 +115,9 @@ def optically_thin(
         xyz_cells = np.column_stack([cell_grid.adaptive_cells[i] for i in "xyz"])
         N = len(cell_grid.adaptive_cells)
         cell_range: np.ndarray = np.arange(N, dtype=index_type)
-        cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(index_type)
+        cells_begin = np.round((xyz_cells - xyz_0)).astype(index_type)
         cells_end = np.round(
-            (xyz_cells - xyz_0 + cell_grid.adaptive_cells["size"][:, np.newaxis]) / dx
+            (xyz_cells - xyz_0 + cell_grid.adaptive_cells["size"][:, np.newaxis])
         ).astype(index_type)
     field_spectra = calculate_field_spectrum(
         cell_grid,
@@ -132,8 +132,8 @@ def optically_thin(
         cube = np.zeros(
             (
                 field_spectra.shape[0],
-                cell_grid.grid_shape[1],
-                cell_grid.grid_shape[2],
+                datacube.current_shape[0],
+                datacube.current_shape[1],
             )
         )
         for i in cell_range:

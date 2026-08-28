@@ -40,28 +40,34 @@ class CellGrid:
     def __init__(
         self,
         datacube: DataCube,
-        grid_size: int | None = None,
+        grid_shape: int | None = None,
     ) -> None:
-        assert datacube.n_px_x == datacube.n_px_y
-        assert datacube.padx == datacube.pady
-        if grid_size is None:
-            grid_size = datacube.n_px_x  # cubic!
-        # For now we are restricted to a cube (not cuboid) voxel grid. Means we're padding
-        # the z-direction, should amend this later.
-        self.pix_range = [(0, datacube.n_px_x + 2 * datacube.padx)] * 3
-        size = (self.pix_range[0][1] - self.pix_range[0][0]) / grid_size  # cubic!
+        if type(grid_shape) is int:
+            grid_shape = (grid_shape,) * 3
+        if grid_shape is None:
+            grid_shape = (
+                datacube.n_px_x + 2 * datacube.padx,
+                datacube.n_px_x + 2 * datacube.padx,
+                datacube.n_px_y + 2 * datacube.pady,
+            )
+        size = datacube.current_shape[0] / grid_shape[1]  # offset because 0 is LOS
+        size_y = datacube.current_shape[1] / grid_shape[2]
+        assert size == size_y  # Enforce cuboid cells
+
+        self.pix_range = [(0, n_px) for n_px in grid_shape]
+
         self.cells = np.array(
             [
                 (x, y, z, size)
-                for x in np.linspace(*self.pix_range[0], grid_size, endpoint=False)
-                for y in (np.linspace(*self.pix_range[1], grid_size, endpoint=False) + datacube.padx)
-                for z in (np.linspace(*self.pix_range[2], grid_size, endpoint=False) + datacube.pady)
+                for x in (np.arange(*self.pix_range[0], dtype=float) * size)
+                for y in (np.arange(*self.pix_range[1], dtype=float) * size + datacube.padx)
+                for z in (np.arange(*self.pix_range[2], dtype=float) * size + datacube.pady)
             ],
             dtype=_CELL_DTYPE,
         )
         self.init_cell_centres()
         self.init_cell_volumes()
-        self.grid_shape = [grid_size] * 3  # cubic!
+        self.grid_shape = grid_shape
 
     def init_particle_locations(
         self,
@@ -290,7 +296,7 @@ class AdaptiveCellGrid(CellGrid):
         datacube: DataCube,
         initial_grid_size: int = 2,
     ) -> None:
-        super().__init__(datacube, grid_size=initial_grid_size)
+        super().__init__(datacube, grid_shape=initial_grid_size)
         self.initial_cells = self.cells
 
     def eval_grid_refinement(

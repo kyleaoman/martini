@@ -112,52 +112,16 @@ def _resize_cube(cube: U.Quantity, target_shape: tuple[int, int]) -> U.Quantity:
     ~astropy.units.Quantity
         The cube interpolated into the new desired shape using :func:`cv2.resize`.
     """
-    target_shape = target_shape[::-1]
     if np.all(np.array(cube.shape[1:]) == np.array(target_shape)):
         return cube
 
     unit = cube.unit
     unitless_cube = cube.to_value(cube.unit)
-    result = np.zeros((cube.shape[0],) + target_shape)
+    result = np.zeros((cube.shape[0],) + target_shape[::-1])
     for i in range(cube.shape[0]):
         result[i] = cv2.resize(
             unitless_cube[i].astype(float),
-            target_shape[::-1],
-            interpolation=cv2.INTER_AREA,
-        )
-    return result * np.prod(cube.shape[1:]) / np.prod(target_shape) * unit
-
-
-
-def _resize_cube(cube: U.Quantity, target_shape: tuple[int, int]) -> U.Quantity:
-    """
-    Resize a data cube to the target shape.
-
-    Interpolation is handled with :func:`cv2.resize`.
-
-    Parameters
-    ----------
-    cube : ~astropy.units.Quantity
-        The cube to be resized.
-
-    target_shape : tuple
-        The desired shape as a 3-tuple.
-
-    Returns
-    -------
-    ~astropy.units.Quantity
-        The cube interpolated into the new desired shape using :func:`cv2.resize`.
-    """
-    if np.all(np.array(cube.shape[1:]) == np.array(target_shape)):
-        return cube
-
-    unit = cube.unit
-    unitless_cube = cube.to_value(cube.unit)
-    result = np.zeros((cube.shape[0],) + target_shape)
-    for i in range(cube.shape[0]):
-        result[i] = cv2.resize(
-            unitless_cube[i].astype(float),
-            target_shape[::-1],
+            target_shape,
             interpolation=cv2.INTER_AREA,
         )
     return result * np.prod(cube.shape[1:]) / np.prod(target_shape) * unit
@@ -285,9 +249,32 @@ class Mochi(Martini):
         self.radiative_transfer = radiative_transfer
         self.refinement_strategy = refinement_strategy
         self.adaptive_grid = adaptive_grid
+        self._init_coarse_grid()
 
         return
 
+    def _init_coarse_grid(self) -> None:
+        """
+        Initialize datacube and interpolation grid for a coarse shape.
+
+        Since MOCHI uses dynamic resolution based on bisection and user input cube shape
+        may not allow factorisation, padding the cube to a simpler aspect ratio so
+        minimal resolution can be invested.
+        Starting from a minimal resolution also reduces the amount of cell-particle
+        distance computations.
+        """
+        if not self.adaptive_grid:
+            return 
+        if self._datacube.current_shape is None:
+            # Copied this from martini but I don't get why datacube is not yet allocated.
+            self._datacube._allocate_cube(datacube_unit=U.Jy * U.pix**-2)
+        shape, pad_coarse = _coarse_shape(self._datacube.current_shape[:2])
+        pad = (pad_coarse[0] + self.datacube.padx, pad_coarse[1] + self.datacube.pady)
+        self.datacube.drop_pad()
+        self.datacube.add_pad(pad)
+        self.initial_grid_shape = (shape[0],) + shape  # los direction as z -- needs fix
+
+    
     def insert_source_in_cube(
         self,
         skip_validation: bool = False,
@@ -322,7 +309,7 @@ class Mochi(Martini):
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
         self.sph_kernel._init_sm_ranges()
         cell_grid = (
-            AdaptiveCellGrid(self._datacube)  # do any options need exposing?
+            AdaptiveCellGrid(self._datacube, self.initial_grid_shape)  # do any options need exposing?
             if self.adaptive_grid
             else CellGrid(self._datacube)
         )

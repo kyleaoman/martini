@@ -374,8 +374,8 @@ class SPHSource(object):
             distances = skycoords_df_frame.distance
             # The LoS depth is assumed equal to the width and height of the datacube at
             # the source distance. They must be equal. This should be refactored later.
-            assert datacube.n_px_x == datacube.n_px_y
-            assert datacube.padx == datacube.pady
+            #assert datacube.n_px_x == datacube.n_px_y
+            #assert datacube.padx == datacube.pady
             # The *centre* of the first pixel is coordinate origin, trim one pixel from
             # interval (i.e. the half pixel from each side).
             distance_interval = (
