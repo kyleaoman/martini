@@ -53,7 +53,7 @@ class _BaseNoise(object):
         datacube : ~martini.datacube.DataCube
             This method will be called passing the :class:`~martini.datacube.DataCube`
             instance as an argument; its attributes can thus be accessed here.
-            ``datacube._array.shape`` is particularly relevant.
+            ``datacube.datacube_shape`` is particularly relevant.
 
         beam : ~martini.beams._BaseBeam
             This method will be called passing the object derived from
@@ -124,7 +124,7 @@ class GaussianNoise(_BaseNoise):
         datacube : ~martini.datacube.DataCube
             This method will be called passing the :class:`~martini.datacube.DataCube`
             instance as an argument; its attributes can thus be accessed here.
-            ``datacube._array.shape`` is particularly relevant.
+            ``datacube.datacube_shape`` is particularly relevant.
 
         beam : ~martini.beams._BaseBeam
             This method will be called passing the object derived from
@@ -155,7 +155,7 @@ class GaussianNoise(_BaseNoise):
         return U.Quantity(
             datacube.cube_dtype(rms.to_value(rms_unit))
             * self.rng.standard_normal(
-                size=datacube._array.shape,
+                size=datacube.current_shape,
                 dtype=datacube.cube_dtype,
             ),
             rms_unit,
