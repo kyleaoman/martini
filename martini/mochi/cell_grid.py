@@ -77,7 +77,6 @@ class CellGrid:
         self,
         source: SPHSource,
         sph_kernel: _BaseSPHKernel,
-        min_radius: U.Quantity[U.pix] = 0.005 * U.pix,
     ) -> None:
         """
         Set up an array of particle locations in the pixel grid.
@@ -90,8 +89,6 @@ class CellGrid:
         sph_kernel : _BaseSPHKernel
             The module specifying the SPH kernel.
 
-        min_radius : ~astropy.units.Quantity
-            Floor to apply to smoothing length values to avoid extremely deep refinement.
         """
         # Perhaps undesirable copy of the pixel coordinates, but awkward to avoid.
         self.positions = np.column_stack(
@@ -101,7 +98,7 @@ class CellGrid:
                 source.pixcoords[1],
             )
         )
-        self.radii = np.clip(sph_kernel.sm_ranges, min_radius, np.inf)
+        self.radii = sph_kernel.sm_ranges
 
     def init_cell_centres(self, prefix: str = "") -> None:
         """
