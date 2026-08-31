@@ -318,8 +318,6 @@ class Mochi(Martini):
         if hasattr(cell_grid, "eval_grid_refinement"):
             cell_grid.eval_grid_refinement(self.refinement_strategy)
         cell_grid.interpolate_fields(self.source, self.sph_kernel, self.interpolant)
-        if hasattr(cell_grid, "create_regular_array"):
-            cell_grid.create_regular_array()
         self._datacube._array = cell_grid.eval_radiative_transfer(
             # haven't exposed the index datatype option
             self._datacube,

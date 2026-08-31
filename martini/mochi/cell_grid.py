@@ -327,37 +327,6 @@ class AdaptiveCellGrid(CellGrid):
         self.init_cell_centres(prefix="adaptive")
         self.init_cell_volumes(prefix="adaptive")
 
-    def create_regular_array(self, dtype: type = np.uintc) -> None:
-        """
-        Re-grid an adaptive cell grid onto a regular grid.
-
-        Parameters
-        ----------
-        dtype : type
-            Data type for the regular cell grid.
-        """
-        x0 = np.min(self.adaptive_cells["x"])
-        y0 = np.min(self.adaptive_cells["y"])
-        z0 = np.min(self.adaptive_cells["z"])
-        xyz_0 = np.array([x0, y0, z0])
-        xyz_cells = np.column_stack([self.adaptive_cells[i] for i in "xyz"])
-        dx = np.min(self.adaptive_cells["size"])
-        self.grid_shape = [
-            int((ax_range[1] - ax_range[0]) // dx) for ax_range in self.pix_range
-        ]
-        N = len(self.adaptive_cells)
-        cell_range: np.ndarray = np.arange(N, dtype=dtype)
-        grid: np.ndarray = np.empty(self.grid_shape, dtype=dtype)
-        cells_begin = np.round((xyz_cells - xyz_0) / dx).astype(int)
-        cells_end = np.round(
-            (xyz_cells - xyz_0 + self.adaptive_cells["size"][:, np.newaxis]) / dx
-        ).astype(int)
-        for i in cell_range:
-            x_start, y_start, z_start = cells_begin[i]
-            x_end, y_end, z_end = cells_end[i]
-            grid[x_start:x_end, y_start:y_end, z_start:z_end] = i
-        self.cell_volumes = dx**3 * self.adaptive_cell_volumes.unit
-
     def interpolate_fields(
         self,
         source: SPHSource,
