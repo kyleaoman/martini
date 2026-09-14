@@ -5,7 +5,7 @@ from martini.beams import GaussianBeam
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from martini.sph_kernels import CubicSplineKernel
 import astropy.units as U
-from martini.mochi.mochi import AdaptiveCellGrid
+from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
 from martini.mochi import interpolants
 from martini.mochi import refinement
 from martini.mochi._dtypes import CELL_DTYPE
@@ -201,13 +201,35 @@ class TestAdaptiveCellGrid:
         grid.eval_grid_refinement(refinement.refine_grid_to_half_particle_scale)
         assert grid.adaptive_cells.dtype == CELL_DTYPE
 
-    def test_init_cell_centres(self):
-        """TBD."""
-        raise NotImplementedError
+    def test_init_cell_centres(self, many_particle_source, dc_zeros):
+        """Check test_init_cell_centres increment half size to lower corner pos."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges()
+        grid = CellGrid(datacube)
+        grid.test_cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
+        test_centres = np.array([[0.5, 0.5, 0.5]]) * U.pix
+        grid.init_cell_centres("test")
+        assert np.all(grid.test_cell_centres == test_centres)
 
-    def test_init_cell_volumes(self):
+    def test_init_cell_volumes(self, many_particle_source, dc_zeros):
         """TBD."""
-        raise NotImplementedError
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges()
+        grid = CellGrid(datacube)
+        grid.test_cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
+        test_volumes = np.array([1]) * U.pix ** 3
+        grid.init_cell_volumes("test")
+        assert np.all(grid.test_cell_volumes == test_volumes)
 
     def test_interpolate_fields(self):
         """TBD."""
