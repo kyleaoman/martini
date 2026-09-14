@@ -148,10 +148,13 @@ class TestAdaptiveCellGridUtils:
         assert np.all(cells == result)
 
     def test_refine_grid_to_particle_scale(self):
-        """TBD."""
+        """Check that the refinement stops appropriately."""
         cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
-        positions = np.array([[0.5, 0.5, 0.5]])
-        radii = np.array([0.1])
+        positions = np.array([
+            [0.5, 0.5, 0.5],  # Nearby particle is too big.
+            [100, 100, 100],  # Small enough but too far.
+        ])
+        radii = np.array([10, 0.1])
         result = refinement.refine_grid_to_half_particle_scale(cells, positions, radii)
         assert np.all(cells == result)
 

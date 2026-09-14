@@ -345,7 +345,7 @@ def refine_grid_to_half_particle_scale(
     """
     return _refine_grid(
         partial(_intersect_in_cell, 0.5),
-        partial(_has_more_than, 2),
+        np.any,
         cells,
         positions,
         radii,
