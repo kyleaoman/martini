@@ -6,7 +6,7 @@ from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from martini.sph_kernels import CubicSplineKernel
 import astropy.units as U
 from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
-from martini.mochi import interpolants
+from martini.mochi import interpolants as module_interpolants
 from martini.mochi import refinement
 from martini.mochi._dtypes import CELL_DTYPE
 import pytest
@@ -14,10 +14,10 @@ import numpy as np
 import itertools
 
 interpolants = (
-    interpolants.sph,
-    interpolants.mfm,
-    interpolants.voronoi_mesh,
-    interpolants.manual_sph,
+    module_interpolants.sph,
+    module_interpolants.mfm,
+    module_interpolants.voronoi_mesh,
+    module_interpolants.manual_sph,
 )
 refinement_strategies = (
     refinement.refine_grid_to_half_particle_scale,
@@ -231,9 +231,24 @@ class TestAdaptiveCellGrid:
         grid.init_cell_volumes("test")
         assert np.all(grid.test_cell_volumes == test_volumes)
 
-    def test_interpolate_fields(self):
-        """TBD."""
-        raise NotImplementedError
+    @pytest.mark.parametrize("interpolant", interpolants)
+    def test_interpolate_fields(self, many_particle_source, dc_zeros, interpolant):
+        """Check that interpolate_fields correctly assigns fields."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges()
+        grid = CellGrid(datacube)
+        grid.init_particle_locations(source, sph_kernel)
+        grid.interpolate_fields(source, sph_kernel, module_interpolants.sph)
+        for key in grid.interpolated_fields.keys():
+            assert ~np.any(np.isnan(grid.interpolated_fields[key]))
+        assert grid.interpolated_fields["masses_HI"].unit == U.Msun / U.pix ** 3
+        assert grid.interpolated_fields["velocities"].unit == U.km / U.s
+        assert grid.interpolated_fields["temperatures"].unit == U.km ** 2 / U.s ** 2
 
     def test_create_regular_array(self):
         """TBD."""
