@@ -132,9 +132,7 @@ class TestAdaptiveCellGridUtils:
             ]
         )
         particles_radii = np.array([1, 1e7, 0.1, 0.25, 0.01])  # radii should impact
-        mask = [
-            True,
-        ] * len(particles_radii)
+        mask = np.arange(len(particles_radii))
         result = refinement._intersect_in_cell(
             0.5, mask, particles_pos, particles_radii, cell
         )
@@ -142,12 +140,20 @@ class TestAdaptiveCellGridUtils:
         assert np.all(correct_result == result)
 
     def test_refine_grid_to_occupancy(self):
-        """TBD."""
-        raise NotImplementedError
+        """Check that refinement stops when only one particle occupies cell."""
+        cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
+        positions = np.array([[0.5, 0.5, 0.5]])
+        radii = [None]  # Should not be needed for this
+        result = refinement.refine_grid_to_single_occupancy(cells, positions, radii)
+        assert np.all(cells == result)
 
     def test_refine_grid_to_particle_scale(self):
         """TBD."""
-        raise NotImplementedError
+        cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
+        positions = np.array([[0.5, 0.5, 0.5]])
+        radii = np.array([0.1])
+        result = refinement.refine_grid_to_half_particle_scale(cells, positions, radii)
+        assert np.all(cells == result)
 
 
 class TestAdaptiveCellGrid:
