@@ -250,10 +250,6 @@ class TestAdaptiveCellGrid:
         assert grid.interpolated_fields["velocities"].unit == U.km / U.s
         assert grid.interpolated_fields["temperatures"].unit == U.km ** 2 / U.s ** 2
 
-    def test_create_regular_array(self):
-        """TBD."""
-        raise NotImplementedError
-
     def eval_radiative_transfer(self):
         """TBD."""
         raise NotImplementedError
