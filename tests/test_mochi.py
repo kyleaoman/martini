@@ -187,9 +187,19 @@ class TestAdaptiveCellGrid:
         assert acg.positions.unit == U.pix
         assert acg.radii.unit == U.pix
 
-    def test_eval_grid_refinement(self):
-        """TBD."""
-        raise NotImplementedError
+    def test_eval_grid_refinement(self, many_particle_source, dc_zeros):
+        """Check normal completion of eval_grid_refinement."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges()
+        grid = AdaptiveCellGrid(datacube)
+        grid.init_particle_locations(source, sph_kernel)
+        grid.eval_grid_refinement(refinement.refine_grid_to_half_particle_scale)
+        assert grid.adaptive_cells.dtype == CELL_DTYPE
 
     def test_init_cell_centres(self):
         """TBD."""
