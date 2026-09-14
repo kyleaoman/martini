@@ -243,7 +243,7 @@ class TestAdaptiveCellGrid:
         sph_kernel._init_sm_ranges()
         grid = CellGrid(datacube)
         grid.init_particle_locations(source, sph_kernel)
-        grid.interpolate_fields(source, sph_kernel, module_interpolants.sph)
+        grid.interpolate_fields(source, sph_kernel, interpolant)
         for key in grid.interpolated_fields.keys():
             assert ~np.any(np.isnan(grid.interpolated_fields[key]))
         assert grid.interpolated_fields["masses_HI"].unit == U.Msun / U.pix ** 3
