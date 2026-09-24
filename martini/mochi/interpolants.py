@@ -159,10 +159,11 @@ def sph_loop(
     # calculating volumes & applying weights. However, we may then proceed safely in
     # batches.
     if mfm:
+        volumes = np.bincount(gs.intersections, weights=kernel_weights, minlength=masses.size)
         volumes = np.bincount(
             gs.intersections,
             weights=kernel_weights
-            * np.repeat(cell_volumes / total_kernel, np.diff(gs.strides, axis=1)[:, 0]),
+            * np.repeat( cell_volumes[gs.cell_indices] / total_kernel[gs.cell_indices], np.diff(gs.strides, axis=1)[:, 0]),
             minlength=masses.size,
         )
         volumes[mask_out_of_bound] *= (
@@ -174,7 +175,7 @@ def sph_loop(
                 gs.intersections,
                 weights=np.where(
                     kernel_weights,
-                    np.repeat(cell_volumes, np.diff(gs.strides, axis=1)[:, 0]),
+                    np.repeat(cell_volumes[gs.cell_indices], np.diff(gs.strides, axis=1)[:, 0]),
                     0,
                 ),
                 minlength=masses.size,
@@ -196,7 +197,7 @@ def sph_loop(
         )
     kernel_slice = total_kernel != 0 if mfm else field_masses != 0
     return {
-        "masses_HI": field_masses_HI / total_kernel,
+        "masses_HI": np.where(kernel_slice, field_masses_HI / total_kernel, 0),
         "velocities": np.where(kernel_slice, field_velocities / field_masses, 0),
         **{
             k: np.where(kernel_slice, v / field_masses, 0)
@@ -298,7 +299,8 @@ def particle_scatter(
     dict
         Contains the interpolated fields.
     """
-    kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution))
+    # endpoint is excluded to avoid null kernel weights inside particle radii
+    kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution, endpoint=False))
     mask_out_of_bound = _get_out_of_bound_particles(
         positions, smoothing_lengths, field_positions
     )
