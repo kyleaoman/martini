@@ -159,11 +159,13 @@ def sph_loop(
     # calculating volumes & applying weights. However, we may then proceed safely in
     # batches.
     if mfm:
-        volumes = np.bincount(gs.intersections, weights=kernel_weights, minlength=masses.size)
         volumes = np.bincount(
             gs.intersections,
             weights=kernel_weights
-            * np.repeat( cell_volumes[gs.cell_indices] / total_kernel[gs.cell_indices], np.diff(gs.strides, axis=1)[:, 0]),
+            * np.repeat(
+                cell_volumes[gs.cell_indices] / total_kernel[gs.cell_indices],
+                np.diff(gs.strides, axis=1)[:, 0]
+            ),
             minlength=masses.size,
         )
         volumes[mask_out_of_bound] *= (
@@ -175,7 +177,10 @@ def sph_loop(
                 gs.intersections,
                 weights=np.where(
                     kernel_weights,
-                    np.repeat(cell_volumes[gs.cell_indices], np.diff(gs.strides, axis=1)[:, 0]),
+                    np.repeat(
+                        cell_volumes[gs.cell_indices],
+                        np.diff(gs.strides, axis=1)[:, 0]
+                    ),
                     0,
                 ),
                 minlength=masses.size,
