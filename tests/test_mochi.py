@@ -246,9 +246,9 @@ class TestAdaptiveCellGrid:
         grid.interpolate_fields(source, sph_kernel, interpolant)
         for key in grid.interpolated_fields.keys():
             assert ~np.any(np.isnan(grid.interpolated_fields[key]))
-        assert grid.interpolated_fields["masses_HI"].unit == U.Msun / U.pix ** 3
-        assert grid.interpolated_fields["velocities"].unit == U.km / U.s
-        assert grid.interpolated_fields["temperatures"].unit == U.km ** 2 / U.s ** 2
+        assert grid.interpolated_fields["masses_HI"].unit.is_equivalent(U.Msun / U.pix ** 3)
+        assert grid.interpolated_fields["velocities"].unit.is_equivalent(U.km / U.s)
+        assert grid.interpolated_fields["temperatures"].unit.is_equivalent(U.km ** 2 / U.s ** 2)
 
     def eval_radiative_transfer(self):
         """TBD."""
