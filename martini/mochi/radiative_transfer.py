@@ -143,5 +143,8 @@ def optically_thin(
         cube *= cube_unit
     else:
         # haven't checked that this is the correct (LoS) axis to sum over:
-        cube = field_spectra.reshape(cell_grid.grid_shape + [-1]).sum(axis=0)
+        print(field_spectra.reshape(cell_grid.grid_shape + (-1,)).shape)
+        cube = field_spectra.reshape(cell_grid.grid_shape + (-1,)).sum(axis=0)
+        cube = cube.T  # Need to check that this does not rotate cube
+        # Should check with a test with non-square datacube.
     return np.flip(np.moveaxis(cube, 1, 2), axis=2)
