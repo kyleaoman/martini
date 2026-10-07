@@ -9,6 +9,7 @@ from astropy import constants as C
 from abc import ABCMeta, abstractmethod
 from martini.datacube import DataCube
 from martini.sources import SPHSource
+from martini._unit_conversion import MHI_to_Jy_inplace
 from martini._util import NUMBA_AVAILABLE, numba_threads
 
 if NUMBA_AVAILABLE:
@@ -116,26 +117,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
         spectra <<= U.dimensionless_unscaled
         np.multiply(A.astype(self.spec_dtype)[..., np.newaxis], spectra, out=spectra)
         np.divide(spectra, channel_widths.astype(self.spec_dtype), out=spectra)
-
-        @U.quantity_input
-        def MHI_to_Jy_inplace(x: U.Quantity[U.Msun / U.Mpc**2 / (U.km / U.s)]) -> None:
-            """
-            Apply the HI mass to flux density conversion, with no memory overhead.
-
-            The conversion is:
-            M_HI/Msun = 2.36x10^5 * (D/Mpc)^2 * (S_21/Jy km s^-1)
-
-            Parameters
-            ----------
-            x : ~astropy.units.Quantity
-                :class:`~astropy.units.Quantity`, with dimensions of
-                mass / length^2 / velocity.
-            """
-            input_units = U.Msun * U.Mpc**-2 * (U.km * U.s**-1) ** -1
-            np.divide(x, 2.36e5, out=x)
-            x *= U.Jy / input_units
-            return
-
         MHI_to_Jy_inplace(spectra)
 
         return spectra
