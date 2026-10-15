@@ -20,6 +20,9 @@ class CellGrid:
 
     Parameters
     ----------
+    source : ~martini.sources.sph_source.SPHSource
+        The source module containing the gas particles or cells.
+
     datacube : ~martini.datacube.DataCube
         The target data cube object for the spectral cube.
 
@@ -35,20 +38,23 @@ class CellGrid:
     interpolated_fields: dict[str, U.Quantity]
     cell_volumes: U.Quantity[U.pix]
     cell_centres: U.Quantity[U.pix]
-    grid_shape: list[int]
+    grid_shape: list[int] | int
 
     def __init__(
         self,
+        source: SPHSource,
         datacube: DataCube,
         grid_shape: int | None = None,
     ) -> None:
         if type(grid_shape) is int:
-            grid_shape = (grid_shape,) * 3
+            grid_shape = [
+                grid_shape,
+            ] * 3
         if grid_shape is None:
             grid_shape = (
-                datacube.n_px_x + 2 * datacube.padx,
-                datacube.n_px_x + 2 * datacube.padx,
-                datacube.n_px_y + 2 * datacube.pady,
+                datacube.current_shape[0],  # copy ra dim length into los dim length
+                datacube.current_shape[0],
+                datacube.current_shape[1],
             )
         size = datacube.current_shape[0] / grid_shape[1]  # offset because 0 is LOS
         size_y = datacube.current_shape[1] / grid_shape[2]
@@ -70,8 +76,8 @@ class CellGrid:
             dtype=_CELL_DTYPE,
         )
         self.init_cell_centres()
-        self.init_cell_volumes()
         self.grid_shape = grid_shape
+        self.init_cell_volumes(source, datacube)
 
     def init_particle_locations(
         self,
@@ -134,15 +140,32 @@ class CellGrid:
         )
         return
 
-    def init_cell_volumes(self, prefix: str = "") -> None:
+    def init_cell_volumes(
+        self, source: SPHSource, datacube: DataCube, prefix: str = ""
+    ) -> None:
         """
         Initialize an array with the volume of each cell.
 
-        The "raw" cell data is encoded as lower corners and sizes, calculate the volume
-        as the cube of the side length.
+        The "raw" cell data is encoded as lower corners and sizes. The cells are
+        approximated as cubic, so their volume is approximately their side length cubed.
+        We assume that the angular size of each individual cell is small, but we apply
+        an approximate correction to the volumes to allow for the grid covering a total
+        angular extent that is not small. Cells at declinations away from the equator have
+        their volumes reduced by a factor of the cosine of the declination. We further
+        correct the volumes such that a cell centred on the grid centre along the LoS
+        direction would have a volume of one cubic pixel at declination zero. Cells closer
+        and further away than this reference distance have their volumes adjusted by the
+        cube of the ratio of their distance from the observer relative to the reference
+        distance.
 
         Parameters
         ----------
+        source : ~martini.sources.sph_source.SPHSource
+            The source module, needed for reference distance.
+
+        datacube : ~martini.datacube.DataCube
+            The datacube module, needed for WCS and grid spacing information.
+
         prefix : str
             By default sets ``self.cell_volumes`` from the ``self.cells``. A prefix, e.g.
             ``"adaptive"`` can be provided, which would set ``self.adaptive_cell_volumes``
@@ -151,10 +174,35 @@ class CellGrid:
         # needs revision to be spherical
         if prefix != "":
             prefix = f"{prefix}_"
+        # all_pix2world gives values in degrees:
+        _, cell_dec = (
+            datacube.wcs.sub(2)
+            .all_pix2world(
+                getattr(self, f"{prefix}cell_centres")[:, :2],
+                1,
+            )
+            .T
+        )
+        ref_cell = (datacube.current_shape[0] / 2) * U.pix
+        dist_offsets = (
+            (getattr(self, f"{prefix}cell_centres")[:, 0] - ref_cell)
+            / U.pix
+            * datacube.px_size
+            * source.distance
+        ).to(source.distance.unit, U.dimensionless_angles())
+        size_correction = ((dist_offsets + source.distance) / source.distance).to_value(
+            U.dimensionless_unscaled
+        )
+        dec_correction = np.cos(np.radians(cell_dec))
+        if (size_correction < 0).any():
+            raise RuntimeError(
+                "Observer must not be inside MOCHI grid (insufficient source distance)."
+            )
         setattr(
             self,
             f"{prefix}cell_volumes",
-            (getattr(self, f"{prefix}cells")["size"] * U.pix) ** 3,
+            dec_correction
+            * (getattr(self, f"{prefix}cells")["size"] * size_correction * U.pix) ** 3,
         )
         return
 
@@ -280,6 +328,9 @@ class AdaptiveCellGrid(CellGrid):
 
     Parameters
     ----------
+    source : ~martini.sources.sph_source.SPHSource
+        The source module containing the gas particles or cells.
+
     datacube : ~martini.datacube.DataCube
         The target data cube object for the spectral cube.
 
@@ -294,14 +345,17 @@ class AdaptiveCellGrid(CellGrid):
 
     def __init__(
         self,
+        source: SPHSource,
         datacube: DataCube,
         initial_grid_size: int = 2,
     ) -> None:
-        super().__init__(datacube, grid_shape=initial_grid_size)
+        super().__init__(source, datacube, grid_shape=initial_grid_size)
         self.initial_cells = self.cells
 
     def eval_grid_refinement(
         self,
+        source: SPHSource,
+        datacube: DataCube,
         refinement_strategy: Callable[
             [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix]], np.ndarray
         ],
@@ -313,6 +367,12 @@ class AdaptiveCellGrid(CellGrid):
 
         Parameters
         ----------
+        source : ~martini.sources.sph_source.SPHSource
+            The source module containing the gas particles or cells.
+
+        datacube : ~martini.datacube.DataCube
+            The target data cube object for the spectral cube.
+
         refinement_strategy : Callable
             The method to decide and apply the refinement criterion.
         """
@@ -322,7 +382,7 @@ class AdaptiveCellGrid(CellGrid):
             self.radii.to_value(U.pix),
         ).view(dtype=_CELL_DTYPE)
         self.init_cell_centres(prefix="adaptive")
-        self.init_cell_volumes(prefix="adaptive")
+        self.init_cell_volumes(source, datacube, prefix="adaptive")
 
     def interpolate_fields(
         self,

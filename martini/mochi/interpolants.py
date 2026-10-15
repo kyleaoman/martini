@@ -164,7 +164,7 @@ def sph_loop(
             weights=kernel_weights
             * np.repeat(
                 cell_volumes[gs.cell_indices] / total_kernel[gs.cell_indices],
-                np.diff(gs.strides, axis=1)[:, 0]
+                np.diff(gs.strides, axis=1)[:, 0],
             ),
             minlength=masses.size,
         )
@@ -178,8 +178,7 @@ def sph_loop(
                 weights=np.where(
                     kernel_weights,
                     np.repeat(
-                        cell_volumes[gs.cell_indices],
-                        np.diff(gs.strides, axis=1)[:, 0]
+                        cell_volumes[gs.cell_indices], np.diff(gs.strides, axis=1)[:, 0]
                     ),
                     0,
                 ),

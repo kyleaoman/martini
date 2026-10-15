@@ -150,10 +150,12 @@ class TestAdaptiveCellGridUtils:
     def test_refine_grid_to_particle_scale(self):
         """Check that the refinement stops appropriately."""
         cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
-        positions = np.array([
-            [0.5, 0.5, 0.5],  # Nearby particle is too big.
-            [100, 100, 100],  # Small enough but too far.
-        ])
+        positions = np.array(
+            [
+                [0.5, 0.5, 0.5],  # Nearby particle is too big.
+                [100, 100, 100],  # Small enough but too far.
+            ]
+        )
         radii = np.array([10, 0.1])
         result = refinement.refine_grid_to_half_particle_scale(cells, positions, radii)
         assert np.all(cells == result)
@@ -227,7 +229,7 @@ class TestAdaptiveCellGrid:
         sph_kernel._init_sm_ranges()
         grid = CellGrid(datacube)
         grid.test_cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
-        test_volumes = np.array([1]) * U.pix ** 3
+        test_volumes = np.array([1]) * U.pix**3
         grid.init_cell_volumes("test")
         assert np.all(grid.test_cell_volumes == test_volumes)
 
@@ -247,9 +249,9 @@ class TestAdaptiveCellGrid:
         fields = grid.interpolated_fields
         for key in fields.keys():
             assert ~np.any(np.isnan(fields[key]))
-        assert fields["masses_HI"].unit.is_equivalent(U.Msun / U.pix ** 3)
+        assert fields["masses_HI"].unit.is_equivalent(U.Msun / U.pix**3)
         assert fields["velocities"].unit.is_equivalent(U.km / U.s)
-        assert fields["temperatures"].unit.is_equivalent(U.km ** 2 / U.s ** 2)
+        assert fields["temperatures"].unit.is_equivalent(U.km**2 / U.s**2)
 
     def eval_radiative_transfer(self):
         """TBD."""

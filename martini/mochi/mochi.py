@@ -22,7 +22,7 @@ from martini.mochi.radiative_transfer import optically_thin
 from martini._unit_conversion import MHI_to_Jy_inplace
 
 
-def _possible_lengths(length : int, max_pad : int) -> NDArray[np.int_]:
+def _possible_lengths(length: int, max_pad: int) -> NDArray[np.int_]:
     """
     Create an array of the possible lengths up to a maximum padding.
 
@@ -44,8 +44,8 @@ def _possible_lengths(length : int, max_pad : int) -> NDArray[np.int_]:
 
 
 def _coarse_shape(
-        shape : tuple[int, int],
-        max_pad : int = 10,
+    shape: tuple[int, int],
+    max_pad: int = 10,
 ) -> tuple[tuple[int, int], tuple[int, int]]:
     """
     Compute a coarse aspect ratio from the input shape and the padding required.
@@ -310,13 +310,15 @@ class Mochi(Martini):
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
         self.sph_kernel._init_sm_ranges()
         cell_grid = (  # do any options need exposing?
-            AdaptiveCellGrid(self._datacube, self.initial_grid_shape)
+            AdaptiveCellGrid(self.source, self._datacube, self.initial_grid_shape)
             if self.adaptive_grid
-            else CellGrid(self._datacube)
+            else CellGrid(self.source, self._datacube)
         )
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
         if hasattr(cell_grid, "eval_grid_refinement"):
-            cell_grid.eval_grid_refinement(self.refinement_strategy)
+            cell_grid.eval_grid_refinement(
+                self.source, self._datacube, self.refinement_strategy
+            )
         cell_grid.interpolate_fields(self.source, self.sph_kernel, self.interpolant)
         self._datacube._array = cell_grid.eval_radiative_transfer(
             # haven't exposed the index datatype option
