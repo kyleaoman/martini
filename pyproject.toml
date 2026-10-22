@@ -21,6 +21,7 @@ dependencies = [
     "scipy",
     "astropy",
     "tqdm",
+    "packingcubes",
 ]
 
 [project.urls]

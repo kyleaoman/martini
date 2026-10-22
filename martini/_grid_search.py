@@ -2,7 +2,7 @@
 
 import itertools
 import numpy as np
-from scipy.spatial import KDTree
+from packingcubes import OpTree
 from typing import NamedTuple
 
 
@@ -36,7 +36,7 @@ class FindGridIntersectionsResult(NamedTuple):
     strides: np.ndarray
 
 
-def build_tree(cell_centres: np.ndarray) -> KDTree:
+def build_tree(cell_centres: np.ndarray) -> OpTree:
     """
     Build a KDTree from the cell centres.
 
@@ -47,11 +47,11 @@ def build_tree(cell_centres: np.ndarray) -> KDTree:
         means the integer pixel coordinates (``(0 * U.pix, 0 * U.pix)`` is the centre of
         the first pixel).
     """
-    return KDTree(cell_centres, leafsize=16, compact_nodes=True, balanced_tree=True)
+    return OpTree(cell_centres)
 
 
 def find_grid_intersections(
-    grid_tree: KDTree,
+    grid_tree: OpTree,
     cell_centres: np.ndarray,
     coords: np.ndarray,
     radii: np.ndarray,
@@ -122,9 +122,11 @@ def find_grid_intersections(
         Each row can be used as a range to select rows from ``intersections`` that share
         a common cell index.
     """
-    candidate_lists = grid_tree.query_ball_point(
-        x=coords, r=radii, p=2.0, workers=ncpu, return_sorted=False
-    )
+    # weirdly list comprehension is way faster than a monolithic query
+    candidate_lists = [
+        grid_tree.query_ball_point(x=coord, r=radius)
+        for coord, radius in zip(coords, radii, strict=True)
+    ]
     data_counts = np.array([len(lst) for lst in candidate_lists], dtype=np.int64)
     total_intersections = np.sum(data_counts)
 

@@ -67,6 +67,7 @@ jobs:
     - name: Test with pytest
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+	NUMBA_THREADING_LAYER: omp
       run: |
         pytest
 
@@ -87,6 +88,7 @@ jobs:
     - name: Test with pytest including coverage report
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+	NUMBA_THREADING_LAYER: omp
       run: |
         pytest --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
