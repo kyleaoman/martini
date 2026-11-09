@@ -11,7 +11,7 @@ def calculate_field_spectrum(
     cell_grid: CellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
-    cell_volume: U.Quantity[U.pix**3],
+    cell_volume: U.Quantity[U.pix**3],  # UNUSED??
 ) -> U.Quantity[U.Msun]:
     """
     Evaluate the spectrum given the fields interpolated onto the grid.
@@ -41,7 +41,7 @@ def calculate_field_spectrum(
     field_masses = cell_grid.interpolated_fields["masses_HI"]
     field_velocities = cell_grid.interpolated_fields["velocities"]
     field_temperatures[field_masses == 0] = 1 * field_temperatures.unit
-    numerator = field_masses * cell_volume
+    numerator = field_masses * U.pix**3  # * cell_volume
     # Some refactoring needed here for better integration with spectral model, or maybe
     # some changes needed in spectral model code.
     # To consider:
@@ -143,7 +143,6 @@ def optically_thin(
         cube *= cube_unit
     else:
         # haven't checked that this is the correct (LoS) axis to sum over:
-        print(field_spectra.reshape(cell_grid.grid_shape + (-1,)).shape)
         cube = field_spectra.reshape(cell_grid.grid_shape + (-1,)).sum(axis=0)
         cube = cube.T  # Need to check that this does not rotate cube
         # Should check with a test with non-square datacube.
