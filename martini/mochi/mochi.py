@@ -267,10 +267,9 @@ class Mochi(Martini):
         """
         if not self.adaptive_grid:
             return
-        if self._datacube.current_shape is None:
-            # Copied this from martini but I don't get why datacube is not yet allocated.
-            self._datacube._allocate_cube(datacube_unit=U.Jy * U.pix**-2)
-        shape, pad_coarse = _coarse_shape(self._datacube.current_shape[:2])
+        shape, pad_coarse = _coarse_shape(
+            (self._datacube.datacube_shape[0], self._datacube.datacube_shape[1])
+        )
         pad = (pad_coarse[0] + self.datacube.padx, pad_coarse[1] + self.datacube.pady)
         self.datacube.drop_pad()
         self.datacube.add_pad(pad)

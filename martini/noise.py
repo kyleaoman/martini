@@ -155,7 +155,7 @@ class GaussianNoise(_BaseNoise):
         return U.Quantity(
             datacube.cube_dtype(rms.to_value(rms_unit))
             * self.rng.standard_normal(
-                size=datacube.current_shape,
+                size=datacube.datacube_shape,
                 dtype=datacube.cube_dtype,
             ),
             rms_unit,

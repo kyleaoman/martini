@@ -26,7 +26,7 @@ class CellGrid:
     datacube : ~martini.datacube.DataCube
         The target data cube object for the spectral cube.
 
-    grid_size : int
+    grid_size : int or None
         The number of cells along each axis of the grid. If ``None``, it is determined
         from the ``datacube`` dimensions.
     """
@@ -38,29 +38,29 @@ class CellGrid:
     interpolated_fields: dict[str, U.Quantity]
     cell_volumes: U.Quantity[U.pix]
     cell_centres: U.Quantity[U.pix]
-    grid_shape: list[int] | int
+    grid_shape: tuple[int, int, int]
 
     def __init__(
         self,
         source: SPHSource,
         datacube: DataCube,
-        grid_shape: int | None = None,
+        grid_shape: tuple[int, int, int] | int | None = None,
     ) -> None:
-        if type(grid_shape) is int:
-            grid_shape = [
-                grid_shape,
-            ] * 3
+        datacube_shape = datacube.datacube_shape[:3]
+        full_grid_shape: tuple[int, int, int]
         if grid_shape is None:
-            grid_shape = (
-                datacube.current_shape[0],  # copy ra dim length into los dim length
-                datacube.current_shape[0],
-                datacube.current_shape[1],
+            full_grid_shape = (
+                datacube_shape[0],  # copy ra dim length into los dim length
+                datacube_shape[0],
+                datacube_shape[1],
             )
-        size = datacube.current_shape[0] / grid_shape[1]  # offset because 0 is LOS
-        size_y = datacube.current_shape[1] / grid_shape[2]
+        elif type(grid_shape) is int:
+            full_grid_shape = (grid_shape, grid_shape, grid_shape)
+        size = datacube_shape[0] / full_grid_shape[1]  # offset because 0 is LOS
+        size_y = datacube_shape[1] / full_grid_shape[2]
         assert size == size_y  # Enforce cuboid cells
 
-        self.pix_range = [(0, n_px) for n_px in grid_shape]
+        self.pix_range = [(0, n_px) for n_px in full_grid_shape]
 
         self.cells = np.array(
             [
@@ -72,7 +72,7 @@ class CellGrid:
             dtype=_CELL_DTYPE,
         )
         self.init_cell_centres()
-        self.grid_shape = grid_shape
+        self.grid_shape = full_grid_shape
         self.init_cell_volumes(source, datacube)
 
     def init_particle_locations(
@@ -181,7 +181,7 @@ class CellGrid:
             )
             .T
         )
-        ref_cell = (datacube.current_shape[0] / 2 - 0.5) * U.pix
+        ref_cell = (datacube.datacube_shape[0] / 2 - 0.5) * U.pix
         dist_offsets = (
             (getattr(self, f"{prefix}cell_centres")[:, 0] - ref_cell)
             / U.pix
@@ -345,7 +345,7 @@ class AdaptiveCellGrid(CellGrid):
         self,
         source: SPHSource,
         datacube: DataCube,
-        initial_grid_size: int = 2,
+        initial_grid_size: int | tuple[int, int, int] = 2,
     ) -> None:
         super().__init__(source, datacube, grid_shape=initial_grid_size)
         self.initial_cells = self.cells

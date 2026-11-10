@@ -132,8 +132,8 @@ def optically_thin(
         cube = np.zeros(
             (
                 field_spectra.shape[0],
-                datacube.current_shape[0],
-                datacube.current_shape[1],
+                datacube.datacube_shape[0],
+                datacube.datacube_shape[1],
             )
         )
         for i in cell_range:
