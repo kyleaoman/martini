@@ -312,6 +312,7 @@ class TestMartini:
 
     def test_add_noise(self, m_init):
         """Check that noise provided goes into the datacube when we call add_noise."""
+        m_init._datacube._allocate_cube()
         assert (m_init.datacube._array.sum() == 0).all()
         assert m_init.noise.seed is not None
         expected_noise = m_init.noise.generate(m_init.datacube, m_init.beam)
@@ -498,7 +499,7 @@ class TestMartini:
         cube_array = m_nn.datacube._array
         assert m_nn.datacube._array.sum() > 0
         m_nn.reset()
-        assert m_nn.datacube._array.sum() == 0
+        assert m_nn.datacube._array is None
         # check that can start over and get the same result w/o errors
         m_nn.insert_source_in_cube(progressbar=False)
         m_nn.convolve_beam()
@@ -519,6 +520,7 @@ class TestMartini:
         )
         expected_shape = m.datacube._array.shape
         m.reset()
+        m._datacube._allocate_cube()
         assert m.datacube._array.shape == expected_shape
 
     def test_preview(self, m_init):
@@ -629,6 +631,7 @@ class TestMartini:
                 + datacube.pady,
             ]
 
+        m_icrs._datacube._allocate_cube()
         assert np.sum(centre_pixels_slice(m_icrs).sum()) == 0
         m_icrs.insert_source_in_cube(progressbar=False)
         assert np.sum(centre_pixels_slice(m_icrs).sum()) > 0
@@ -707,6 +710,7 @@ class TestMartini:
                 :, :, datacube.n_channels // 2 - 1 : datacube.n_channels // 2 + 1
             ]
 
+        m_icrs._datacube._allocate_cube()
         assert np.sum(centre_channels_slice(m_icrs).sum()) == 0
         m_icrs.insert_source_in_cube(progressbar=False)
         assert np.sum(centre_channels_slice(m_icrs).sum()) > 0
@@ -856,10 +860,7 @@ class TestParallel:
         m.reset()
 
         # check the reset was successful
-        assert np.allclose(
-            m.datacube._array.to_value(m.datacube._array.unit),
-            0.0,
-        )
+        assert m.datacube._array is None
 
         m._numba_enabled = True
         m._jit_enabled = jit_on
@@ -919,10 +920,7 @@ class TestBatched:
         m.reset()
 
         # check the reset was successful
-        assert np.allclose(
-            m.datacube._array.to_value(m.datacube._array.unit),
-            0.0,
-        )
+        assert m.datacube._array is None
 
         with pytest.warns(RuntimeWarning, match="Requested memory limit"):
             m._insert_source_in_cube(
@@ -1067,7 +1065,7 @@ class TestGlobalProfile:
         spectrum = gp.spectrum
         assert spectrum.sum() > 0
         gp.reset()
-        assert gp._datacube._array.sum() == 0
+        assert gp._datacube._array is None
         assert not hasattr(gp, "_spectrum")
         # check that can start over and get the same result w/o errors
         gp.insert_source_in_spectrum()

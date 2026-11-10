@@ -232,10 +232,10 @@ class TestAdaptiveCellGrid:
         sph_kernel._init_sm_ranges()
         grid = CellGrid(source, datacube)
         grid.test_cells = np.array(
-            [(-0.5, -0.5, -0.5, datacube.current_shape[0])], dtype=CELL_DTYPE
+            [(-0.5, -0.5, -0.5, datacube.datacube_shape[0])], dtype=CELL_DTYPE
         )
         grid.init_cell_centres(prefix="test")
-        test_volumes = np.array([datacube.current_shape[0] ** 3]) * U.pix**3
+        test_volumes = np.array([datacube.datacube_shape[0] ** 3]) * U.pix**3
         grid.init_cell_volumes(source, datacube, prefix="test")
         assert np.allclose(grid.test_cell_volumes, test_volumes, rtol=1e-6)
 

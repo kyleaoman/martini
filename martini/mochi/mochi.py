@@ -271,6 +271,11 @@ class Mochi(Martini):
             (self._datacube.datacube_shape[0], self._datacube.datacube_shape[1])
         )
         pad = (pad_coarse[0] + self.datacube.padx, pad_coarse[1] + self.datacube.pady)
+        # Ideally this padding calculation should happen before the datacube array is
+        # actually allocated. The shape is available before that. Otherwise we end up
+        # allocating a larger cube, copying the smaller cube into it, then deleting the
+        # smaller cube, which is wasted time and memory. Maybe this is already the case,
+        # but should check.
         self.datacube.drop_pad()
         self.datacube.add_pad(pad)
         self.initial_grid_shape = (shape[0],) + shape  # los direction as z -- needs fix

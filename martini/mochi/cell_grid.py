@@ -56,6 +56,8 @@ class CellGrid:
             )
         elif type(grid_shape) is int:
             full_grid_shape = (grid_shape, grid_shape, grid_shape)
+        else:
+            full_grid_shape = grid_shape
         size = datacube_shape[0] / full_grid_shape[1]  # offset because 0 is LOS
         size_y = datacube_shape[1] / full_grid_shape[2]
         assert size == size_y  # Enforce cuboid cells
