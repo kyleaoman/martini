@@ -712,6 +712,7 @@ class DataCube(object):
         """
         if self.padx > 0 or self.pady > 0:
             raise RuntimeError("Tried to add padding to already padded datacube array.")
+        self.wcs  # touch it to ensure it exists
         tmp = self._array
         shape: tuple = (
             self.n_px_x + pad[0] * 2,
