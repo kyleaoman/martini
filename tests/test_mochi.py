@@ -168,7 +168,8 @@ class TestAdaptiveCellGrid:
         """Check class initialization."""
         datacube = dc_zeros
         initial_grid_size = 3
-        acg = AdaptiveCellGrid(datacube, initial_grid_size=initial_grid_size)
+        source = many_particle_source()
+        acg = AdaptiveCellGrid(source, datacube, initial_grid_size=initial_grid_size)
         # insert checks on acg.pix_range
         assert len(acg.initial_cells) == initial_grid_size**3
         # insert checks on cell locations & sizes
@@ -182,7 +183,7 @@ class TestAdaptiveCellGrid:
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        acg = AdaptiveCellGrid(datacube)
+        acg = AdaptiveCellGrid(source, datacube)
         acg.init_particle_locations(source, sph_kernel)
         assert acg.positions.shape == (source.hsm_g.size, 3)
         assert acg.radii.shape == (source.hsm_g.size,)
@@ -198,9 +199,11 @@ class TestAdaptiveCellGrid:
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = AdaptiveCellGrid(datacube)
+        grid = AdaptiveCellGrid(source, datacube)
         grid.init_particle_locations(source, sph_kernel)
-        grid.eval_grid_refinement(refinement.refine_grid_to_half_particle_scale)
+        grid.eval_grid_refinement(
+            source, datacube, refinement.refine_grid_to_half_particle_scale
+        )
         assert grid.adaptive_cells.dtype == CELL_DTYPE
 
     def test_init_cell_centres(self, many_particle_source, dc_zeros):
@@ -212,10 +215,10 @@ class TestAdaptiveCellGrid:
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(datacube)
+        grid = CellGrid(source, datacube)
         grid.test_cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
         test_centres = np.array([[0.5, 0.5, 0.5]]) * U.pix
-        grid.init_cell_centres("test")
+        grid.init_cell_centres(prefix="test")
         assert np.all(grid.test_cell_centres == test_centres)
 
     def test_init_cell_volumes(self, many_particle_source, dc_zeros):
@@ -227,11 +230,14 @@ class TestAdaptiveCellGrid:
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(datacube)
-        grid.test_cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
-        test_volumes = np.array([1]) * U.pix**3
-        grid.init_cell_volumes("test")
-        assert np.all(grid.test_cell_volumes == test_volumes)
+        grid = CellGrid(source, datacube)
+        grid.test_cells = np.array(
+            [(-0.5, -0.5, -0.5, datacube.current_shape[0])], dtype=CELL_DTYPE
+        )
+        grid.init_cell_centres(prefix="test")
+        test_volumes = np.array([datacube.current_shape[0] ** 3]) * U.pix**3
+        grid.init_cell_volumes(source, datacube, prefix="test")
+        assert np.allclose(grid.test_cell_volumes, test_volumes, rtol=1e-6)
 
     @pytest.mark.parametrize("interpolant", interpolants)
     def test_interpolate_fields(self, many_particle_source, dc_zeros, interpolant):
@@ -243,7 +249,7 @@ class TestAdaptiveCellGrid:
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(datacube)
+        grid = CellGrid(source, datacube)
         grid.init_particle_locations(source, sph_kernel)
         grid.interpolate_fields(source, sph_kernel, interpolant)
         fields = grid.interpolated_fields

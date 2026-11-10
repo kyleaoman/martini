@@ -181,7 +181,7 @@ class CellGrid:
             )
             .T
         )
-        ref_cell = (datacube.current_shape[0] / 2) * U.pix
+        ref_cell = (datacube.current_shape[0] / 2 - 0.5) * U.pix
         dist_offsets = (
             (getattr(self, f"{prefix}cell_centres")[:, 0] - ref_cell)
             / U.pix
