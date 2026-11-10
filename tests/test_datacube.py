@@ -360,6 +360,7 @@ class TestDataCube:
             spectral_centre=3 * 70 * U.km / U.s,
             cube_dtype=cube_dtype,
         )
+        dc._allocate_cube()
         assert dc._array.dtype == cube_dtype
         source = single_particle_source(hsm_g=3 * U.kpc)
         beam = GaussianBeam(bmaj=45 * U.arcsec, bmin=45 * U.arcsec)

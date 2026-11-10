@@ -237,9 +237,10 @@ class DataCube(object):
             The units for the datacube array.
         """
         self._array = U.Quantity(
-            np.zeros(self.datacube_shape), datacube_unit, copy=False
+            np.zeros(self.datacube_shape, dtype=self.cube_dtype),
+            datacube_unit,
+            copy=False,
         )
-
         return
 
     @classmethod
@@ -736,7 +737,7 @@ class DataCube(object):
         self.padx, self.pady = pad  # before accessing datacube_shape in this function
         if self._array is not None:
             tmp = self._array
-            self._array = np.zeros(self.datacube_shape)
+            self._array = np.zeros(self.datacube_shape, dtype=self._array.dtype)
             self._array = self._array * tmp.unit
             xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else slice(None, None, None)
             yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else slice(None, None, None)
