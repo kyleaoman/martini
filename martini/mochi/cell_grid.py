@@ -65,13 +65,9 @@ class CellGrid:
         self.cells = np.array(
             [
                 (x, y, z, size)
-                for x in (np.arange(*self.pix_range[0], dtype=float) * size)
-                for y in (
-                    np.arange(*self.pix_range[1], dtype=float) * size + datacube.padx
-                )
-                for z in (
-                    np.arange(*self.pix_range[2], dtype=float) * size + datacube.pady
-                )
+                for x in (np.arange(*self.pix_range[0], dtype=float) * size) - 0.5
+                for y in (np.arange(*self.pix_range[1], dtype=float) * size) - 0.5
+                for z in (np.arange(*self.pix_range[2], dtype=float) * size) - 0.5
             ],
             dtype=_CELL_DTYPE,
         )
@@ -127,14 +123,16 @@ class CellGrid:
             self,
             f"{prefix}cell_centres",
             (
-                np.column_stack(
-                    (
-                        getattr(self, f"{prefix}cells")["x"],
-                        getattr(self, f"{prefix}cells")["y"],
-                        getattr(self, f"{prefix}cells")["z"],
+                (
+                    np.column_stack(
+                        (
+                            getattr(self, f"{prefix}cells")["x"],
+                            getattr(self, f"{prefix}cells")["y"],
+                            getattr(self, f"{prefix}cells")["z"],
+                        )
                     )
                 )
-                + getattr(self, f"{prefix}cells")["size"][:, np.newaxis] / 2
+                + getattr(self, f"{prefix}cells")["size"][:, None] / 2
             )
             * U.pix,
         )
