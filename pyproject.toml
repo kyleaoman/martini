@@ -32,7 +32,8 @@ dependencies = [
 parallel = ["numba"]
 hdf5_output = ["h5py"]
 plotting = ["matplotlib"]
-optional = ["astromartini[parallel,h5py,matplotlib]"]
+mochi = ["opencv-python"]
+optional = ["astromartini[parallel,h5py,matplotlib,mochi]"]
 colibresource = [
     "swiftgalaxy",
 ]
