@@ -227,6 +227,11 @@ class TestSPHSource:
             SPHSource(
                 xyz_g=row_coords, vxyz_g=col_vels, mHI_g=mHI_g, distance=3 * U.Mpc
             )
+        wrong_coords = np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) * U.kpc
+        with pytest.raises(RuntimeError, match="incorrect coordinate shape"):
+            SPHSource(
+                xyz_g=wrong_coords, vxyz_g=col_vels, mHI_g=mHI_g, distance=3 * U.Mpc
+            )
 
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
@@ -691,7 +696,8 @@ class TestSPHSource:
 class TestPreview:
     """Tests of the source preview functionality."""
 
-    def test_preview(self, source_fixture, request):
+    @pytest.mark.parametrize("use_hsm_g", (True, False))
+    def test_preview(self, source_fixture, request, use_hsm_g):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -705,6 +711,8 @@ class TestPreview:
         # with default arguments
         plt.close(source.preview())
         # with non-default arguments
+        if not use_hsm_g:
+            source.hsm_g = None
         plt.close(
             source.preview(
                 max_points=1000,
