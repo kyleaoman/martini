@@ -310,6 +310,37 @@ class TestMartini:
         m.convolve_beam()
         assert U.allclose(m.datacube._array, convolved_cube)
 
+    def test_no_beam(self, single_particle_source):
+        """Check that convolving without a beam fails."""
+        source = single_particle_source()
+        datacube = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=16,
+            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+        )
+        beam = None
+        noise = None
+        sph_kernel = _GaussianKernel()
+        spectral_model = GaussianSpectrum()
+
+        m = Martini(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=noise,
+            sph_kernel=sph_kernel,
+            spectral_model=spectral_model,
+        )
+        m.insert_source_in_cube()
+        with pytest.warns(
+            UserWarning,
+            match="Skipping beam convolution, no beam object provided to Martini.",
+        ):
+            m.convolve_beam()
+
     def test_add_noise(self, m_init):
         """Check that noise provided goes into the datacube when we call add_noise."""
         m_init._datacube._allocate_cube()
@@ -499,7 +530,7 @@ class TestMartini:
         cube_array = m_nn.datacube._array
         assert m_nn.datacube._array.sum() > 0
         m_nn.reset()
-        assert m_nn.datacube._array is None
+        assert m_nn.datacube._cube_data is None
         # check that can start over and get the same result w/o errors
         m_nn.insert_source_in_cube(progressbar=False)
         m_nn.convolve_beam()
@@ -860,7 +891,7 @@ class TestParallel:
         m.reset()
 
         # check the reset was successful
-        assert m.datacube._array is None
+        assert m.datacube._cube_data is None
 
         m._numba_enabled = True
         m._jit_enabled = jit_on
@@ -920,7 +951,7 @@ class TestBatched:
         m.reset()
 
         # check the reset was successful
-        assert m.datacube._array is None
+        assert m.datacube._cube_data is None
 
         with pytest.warns(RuntimeWarning, match="Requested memory limit"):
             m._insert_source_in_cube(
@@ -1065,7 +1096,7 @@ class TestGlobalProfile:
         spectrum = gp.spectrum
         assert spectrum.sum() > 0
         gp.reset()
-        assert gp._datacube._array is None
+        assert gp._datacube._cube_data is None
         assert not hasattr(gp, "_spectrum")
         # check that can start over and get the same result w/o errors
         gp.insert_source_in_spectrum()

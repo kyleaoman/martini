@@ -385,7 +385,6 @@ class _BaseMartini:
         int
             The number of cores actually used.
         """
-        assert self._datacube._array is not None
         cube_view = (
             self._datacube._array[:, :, :, 0].value
             if self._datacube.stokes_axis
@@ -494,10 +493,6 @@ class _BaseMartini:
                 f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
                 f" `mem_lim_GB` when calling `insert_source_in_cube`."
             )
-
-        if self._datacube._array is None:
-            self._datacube._allocate_cube(datacube_unit=U.Jy * U.pix**-2)
-        assert self._datacube._array is not None
 
         quiet = self.quiet if quiet is None else quiet
         if not quiet:
@@ -1200,10 +1195,6 @@ class Martini(_BaseMartini):
         if self.beam is None:
             warn("Skipping beam convolution, no beam object provided to Martini.")
             return
-        if self._datacube._array is None:
-            raise ValueError(
-                "Martini.convolve_beam: Called with unallocated datacube array."
-            )
 
         minimum_padding = self.beam.needs_pad()
         if (self._datacube.padx < minimum_padding[0]) or (
@@ -1251,10 +1242,6 @@ class Martini(_BaseMartini):
                 " noise level) provided to Martini."
             )
             return
-        if self._datacube._array is None:
-            raise ValueError(
-                "Martini.write_fits: Called with unallocated datacube array."
-            )
 
         # this unit conversion means noise can be added before or after source insertion:
         noise_cube = (
@@ -1305,10 +1292,6 @@ class Martini(_BaseMartini):
             Typecode or data-type to which the array is cast. Should be supported
             by fits. Default to not do data type conversion.
         """
-        if self._datacube._array is None:
-            raise ValueError(
-                "Martini.write_fits: Called with unallocated datacube array."
-            )
         self._datacube.drop_pad()
 
         filename = str(filename)
@@ -1415,7 +1398,6 @@ class Martini(_BaseMartini):
         if self.beam is None:
             raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
         assert self.beam.kernel is not None
-        assert self._datacube._array is not None
 
         filename = filename if filename[-5:] == ".fits" else filename + ".fits"
 
@@ -1502,11 +1484,6 @@ class Martini(_BaseMartini):
             case pixel coordinates can still be reconstructed from FITS-style
             keywords stored in the FluxCube attributes.
         """
-        if self._datacube._array is None:
-            raise ValueError(
-                "Martini.write_fits: Called with unallocated datacube array."
-            )
-
         import h5py
 
         self._datacube.drop_pad()
@@ -1879,7 +1856,6 @@ class GlobalProfile(_BaseMartini):
             quiet=quiet,
             _no_summary=True,
         )
-        assert self._datacube._array is not None
         # The datacube in Jy/arcsec^2 is a bit misleading because the source is
         # (presumably) completely unresolved so extrapolating its surface brightness
         # across the entire pixel is incorrect. Correctly integrate out spatial

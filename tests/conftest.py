@@ -594,8 +594,6 @@ def dc_random(request: FixtureRequest) -> Generator[DataCube, None, None]:
         stokes_axis=stokes_axis,
         px_size=15.0 * U.arcsec,
     )
-    dc._allocate_cube()
-    assert dc._array is not None
     dc._array[...] = (
         np.random.rand(dc._array.size).reshape(dc._array.shape) * dc._array.unit
     )

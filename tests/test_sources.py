@@ -712,7 +712,7 @@ class TestPreview:
         plt.close(source.preview())
         # with non-default arguments
         if not use_hsm_g:
-            source.hsm_g = None
+            source._hsm_g = None
         plt.close(
             source.preview(
                 max_points=1000,
