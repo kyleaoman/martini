@@ -696,7 +696,7 @@ class TestSPHSource:
 class TestPreview:
     """Tests of the source preview functionality."""
 
-    def test_preview(self, source_fixture, request, use_hsm_g):
+    def test_preview(self, source_fixture, request):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
