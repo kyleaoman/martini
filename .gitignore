@@ -22,3 +22,4 @@ examples/tng_api.key
 examples/m11e_res7100
 .coverage
 __pycache__
+.claude/*
