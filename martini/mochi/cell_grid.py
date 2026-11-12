@@ -226,7 +226,7 @@ class CellGrid:
         setattr(
             self,
             f"{prefix}cell_distortion_corrections",
-            dec_correction * size_correction**3,
+            dec_correction * size_correction**3 * U.dimensionless_unscaled,
         )
         return
 
