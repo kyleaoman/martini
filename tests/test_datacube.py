@@ -382,6 +382,11 @@ class TestDataCube:
         m.convolve_beam()
         assert dc._array.dtype == cube_dtype
 
+    def test_repr(self, dc_zeros):
+        """Check that string representation is informative."""
+        assert "Quantity" in str(dc_zeros)
+        assert "Jy / pix2" in str(dc_zeros)
+
 
 class TestDataCubeFromWCS:
     """Test constructing a data cube from an existing WCS instance."""

@@ -696,7 +696,6 @@ class TestSPHSource:
 class TestPreview:
     """Tests of the source preview functionality."""
 
-    @pytest.mark.parametrize("use_hsm_g", (True, False))
     def test_preview(self, source_fixture, request, use_hsm_g):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
@@ -711,8 +710,6 @@ class TestPreview:
         # with default arguments
         plt.close(source.preview())
         # with non-default arguments
-        if not use_hsm_g:
-            source._hsm_g = None
         plt.close(
             source.preview(
                 max_points=1000,

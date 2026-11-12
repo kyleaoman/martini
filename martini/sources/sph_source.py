@@ -863,22 +863,18 @@ class SPHSource(object):
             * 0.5  # guard against getting all 0s
         )
         alpha = hsm_factor if point_scaling == "auto" else 1.0
-        if self.hsm_g is None:
-            size_scale = 1
-        else:
-            size_scale = (
-                self.hsm_g.to_value(U.kpc)
+        hsm_g = getattr(self, "hsm_g", 1 * U.kpc)
+        size_scale = (
+            hsm_g.to_value(U.kpc)
+            / (lim * U.deg * self.distance).to_value(U.kpc, U.dimensionless_angles())
+            if (hsm_g.isscalar or mask.size <= 1)
+            else (
+                hsm_g[mask].to_value(U.kpc)
                 / (lim * U.deg * self.distance).to_value(
                     U.kpc, U.dimensionless_angles()
                 )
-                if (self.hsm_g.isscalar or mask.size <= 1)
-                else (
-                    self.hsm_g[mask].to_value(U.kpc)
-                    / (lim * U.deg * self.distance).to_value(
-                        U.kpc, U.dimensionless_angles()
-                    )
-                )
             )
+        )
         size = 300 * size_scale if point_scaling == "auto" else 10
 
         if newfig := not isinstance(fig, plt.Figure):
