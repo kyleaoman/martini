@@ -36,7 +36,8 @@ class CellGrid:
     positions: U.Quantity[U.pix]
     radii: U.Quantity[U.pix]
     interpolated_fields: dict[str, U.Quantity]
-    cell_volumes: U.Quantity[U.pix]
+    cell_volumes: U.Quantity[U.pix**3]
+    cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled]
     cell_centres: U.Quantity[U.pix]
     grid_shape: tuple[int, int, int]
 
@@ -75,7 +76,8 @@ class CellGrid:
         )
         self.init_cell_centres()
         self.grid_shape = full_grid_shape
-        self.init_cell_volumes(source, datacube)
+        self.init_cell_volumes()
+        self.init_cell_distortion_corrections(source, datacube)
 
     def init_particle_locations(
         self,
@@ -140,23 +142,47 @@ class CellGrid:
         )
         return
 
-    def init_cell_volumes(
+    def init_cell_volumes(self, prefix: str = "") -> None:
+        """
+        Initialize the rectilinear volume of each cell.
+
+        The "raw" cell data is encoded as lower corners and sizes. The cells are cubic in
+        pixel coordinates, so their rectilinear volume is their side length cubed. See
+        :meth:`init_cell_distortion_corrections` for the correction to account for the
+        spherical geometry of the RA-Dec-distance grid.
+
+        Parameters
+        ----------
+        prefix : str
+            By default sets ``self.cell_volumes`` from the ``self.cells``. A prefix, e.g.
+            ``"adaptive"`` can be provided, which would set ``self.adaptive_cell_volumes``
+            from ``self.adaptive_cells``.
+        """
+        if prefix != "":
+            prefix = f"{prefix}_"
+        setattr(
+            self,
+            f"{prefix}cell_volumes",
+            (getattr(self, f"{prefix}cells")["size"] * U.pix) ** 3,
+        )
+        return
+
+    def init_cell_distortion_corrections(
         self, source: SPHSource, datacube: DataCube, prefix: str = ""
     ) -> None:
         """
-        Initialize an array with the volume of each cell.
+        Initialize the spherical distortion correction of each cell volume.
 
-        The "raw" cell data is encoded as lower corners and sizes. The cells are
-        approximated as cubic, so their volume is approximately their side length cubed.
-        We assume that the angular size of each individual cell is small, but we apply
-        an approximate correction to the volumes to allow for the grid covering a total
-        angular extent that is not small. Cells at declinations away from the equator have
-        their volumes reduced by a factor of the cosine of the declination. We further
-        correct the volumes such that a cell centred on the grid centre along the LoS
-        direction would have a volume of one cubic pixel at declination zero. Cells closer
-        and further away than this reference distance have their volumes adjusted by the
-        cube of the ratio of their distance from the observer relative to the reference
-        distance.
+        The cell grid is in RA-Dec-distance space. We assume that the angular size of each
+        individual cell is small, so cells are locally cubic, but the grid may cover a
+        total angular extent that is not small. The volume of each cell is the product of
+        its rectilinear volume (see :meth:`init_cell_volumes`) and this dimensionless
+        correction. Cells at declinations away from the equator have their volumes
+        reduced by a factor of the cosine of the declination. The correction is unity for
+        a cell centred on the grid centre along the LoS direction at declination zero.
+        Cells closer and further away than this reference distance have their volumes
+        adjusted by the cube of the ratio of their distance from the observer relative to
+        the reference distance.
 
         Parameters
         ----------
@@ -167,11 +193,10 @@ class CellGrid:
             The datacube module, needed for WCS and grid spacing information.
 
         prefix : str
-            By default sets ``self.cell_volumes`` from the ``self.cells``. A prefix, e.g.
-            ``"adaptive"`` can be provided, which would set ``self.adaptive_cell_volumes``
-            from ``self.adaptive_cells``.
+            By default sets ``self.cell_distortion_corrections`` from the
+            ``self.cells``. A prefix, e.g. ``"adaptive"`` can be provided, which would set
+            ``self.adaptive_cell_distortion_corrections`` from ``self.adaptive_cells``.
         """
-        # needs revision to be spherical
         if prefix != "":
             prefix = f"{prefix}_"
         # all_pix2world gives values in degrees:
@@ -200,9 +225,8 @@ class CellGrid:
             )
         setattr(
             self,
-            f"{prefix}cell_volumes",
-            dec_correction
-            * (getattr(self, f"{prefix}cells")["size"] * size_correction * U.pix) ** 3,
+            f"{prefix}cell_distortion_corrections",
+            dec_correction * size_correction**3,
         )
         return
 
@@ -232,7 +256,12 @@ class CellGrid:
             :mod:`~martini.mochi.interpolants` module.
         """
         return self._interpolate_fields(
-            source, sph_kernel, interpolant, self.cell_centres, self.cell_volumes
+            source,
+            sph_kernel,
+            interpolant,
+            self.cell_centres,
+            self.cell_volumes,
+            self.cell_distortion_corrections,
         )
 
     def _interpolate_fields(
@@ -241,7 +270,8 @@ class CellGrid:
         sph_kernel: _BaseSPHKernel,
         interpolant: Callable,  # fill in arg & return types
         cell_centres: U.Quantity[U.pix],
-        cell_volumes: U.Quantity[U.pix],
+        cell_volumes: U.Quantity[U.pix**3],
+        cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled],
     ) -> None:
         """
         Interpolate particle-carried fields onto the grid.
@@ -266,7 +296,10 @@ class CellGrid:
             Centre coordinates of cells to use in interpolation, with units of pixels.
 
         cell_volumes : ~astropy.units.Quantity
-            Cell volumes to use in interpolation, with units of pixels.
+            Rectilinear cell volumes to use in interpolation, with units of pixels cubed.
+
+        cell_distortion_corrections : ~astropy.units.Quantity
+            Dimensionless spherical distortion corrections to the cell volumes.
         """
         if source.skycoords is None:
             raise RuntimeError(
@@ -277,6 +310,7 @@ class CellGrid:
             smoothing_lengths=self.radii,
             field_positions=cell_centres,
             d_volume=cell_volumes,
+            distortion_corrections=cell_distortion_corrections,
             kernel=sph_kernel.kernel,
             velocities=source.skycoords.radial_velocity,
             masses_HI=source.mHI_g,
@@ -340,7 +374,8 @@ class AdaptiveCellGrid(CellGrid):
 
     initial_cells: np.ndarray
     adaptive_cells: np.ndarray
-    adaptive_cell_volumes: U.Quantity[U.pix]
+    adaptive_cell_volumes: U.Quantity[U.pix**3]
+    adaptive_cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled]
     adaptive_cell_centres: U.Quantity[U.pix]
 
     def __init__(
@@ -382,7 +417,8 @@ class AdaptiveCellGrid(CellGrid):
             self.radii.to_value(U.pix),
         ).view(dtype=_CELL_DTYPE)
         self.init_cell_centres(prefix="adaptive")
-        self.init_cell_volumes(source, datacube, prefix="adaptive")
+        self.init_cell_volumes(prefix="adaptive")
+        self.init_cell_distortion_corrections(source, datacube, prefix="adaptive")
 
     def interpolate_fields(
         self,
@@ -415,4 +451,5 @@ class AdaptiveCellGrid(CellGrid):
             interpolant,
             self.adaptive_cell_centres,
             self.adaptive_cell_volumes,
+            self.adaptive_cell_distortion_corrections,
         )

@@ -222,7 +222,7 @@ class TestAdaptiveCellGrid:
         assert np.all(grid.test_cell_centres == test_centres)
 
     def test_init_cell_volumes(self, many_particle_source, dc_zeros):
-        """TBD."""
+        """Check that rectilinear volume and distortion correction are initialized."""
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
@@ -236,8 +236,11 @@ class TestAdaptiveCellGrid:
         )
         grid.init_cell_centres(prefix="test")
         test_volumes = np.array([datacube.datacube_shape[0] ** 3]) * U.pix**3
-        grid.init_cell_volumes(source, datacube, prefix="test")
+        grid.init_cell_volumes(prefix="test")
         assert np.allclose(grid.test_cell_volumes, test_volumes, rtol=1e-6)
+        # cell centred on grid centre at dec=0 has no distortion:
+        grid.init_cell_distortion_corrections(source, datacube, prefix="test")
+        assert np.allclose(grid.test_cell_distortion_corrections, 1, rtol=1e-6)
 
     @pytest.mark.parametrize("interpolant", interpolants)
     def test_interpolate_fields(self, many_particle_source, dc_zeros, interpolant):

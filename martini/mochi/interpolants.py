@@ -79,6 +79,7 @@ def sph_loop(
     mask_out_of_bound: np.ndarray,
     gs: FindGridIntersectionsResult,
     cell_volumes: np.ndarray,
+    cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled],
     kernel_cache: np.ndarray,
     extra_fields: dict[str, np.ndarray],
     mfm: bool = False,
@@ -112,8 +113,12 @@ def sph_loop(
         :class:`~martini._grid_search.FindGridIntersectionResult` for details.
 
     cell_volumes : ~numpy.ndarray
-        Volume of cells onto which fields are itnerpolated. Unused if ``mfm`` is
-        ``False``.
+        Rectilinear volume of cells onto which fields are interpolated.
+
+    cell_distortion_corrections : ~numpy.ndarray
+        Spherical distortion corrections of cells onto which fields are interpolated. The
+        interpolated HI density is per unit of corrected volume, such that the HI mass in
+        a cell is the density times ``cell_volumes * cell_distortion_corrections``.
 
     kernel_cache : ~numpy.ndarray
         Kernel amplitude pre-computed on a discrete grid for fast lookup.
@@ -163,7 +168,7 @@ def sph_loop(
             gs.intersections,
             weights=kernel_weights
             * np.repeat(
-                cell_volumes[gs.cell_indices] / total_kernel[gs.cell_indices],
+                (cell_volumes * cell_distortion_corrections)[gs.cell_indices] / total_kernel[gs.cell_indices],
                 np.diff(gs.strides, axis=1)[:, 0],
             ),
             minlength=masses.size,
@@ -175,6 +180,7 @@ def sph_loop(
             * smoothing_lengths**3
             / np.bincount(
                 gs.intersections,
+                # rectilinear volume to match the kernel volume in the numerator:
                 weights=np.where(
                     kernel_weights,
                     np.repeat(
@@ -199,9 +205,16 @@ def sph_loop(
         field_extra[k][gs.cell_indices] += np.add.reduceat(
             kernel_weights * (v * masses)[gs.intersections], gs.strides[:, 0]
         )
-    kernel_slice = total_kernel != 0 if mfm else field_masses != 0
+    if mfm:
+        kernel_slice = total_kernel != 0
+        field_densities_HI = np.where(kernel_slice, field_masses_HI / total_kernel, 0)
+    else:
+        kernel_slice = field_masses != 0
+        # SPH kernels are normalized in pixel coordinates, so field_masses_HI is a density
+        # per unit rectilinear volume. Convert to a density per unit corrected volume.
+        field_densities_HI = field_masses_HI / cell_distortion_corrections
     return {
-        "masses_HI": np.where(kernel_slice, field_masses_HI / total_kernel, 0),
+        "masses_HI": field_densities_HI,
         "velocities": np.where(kernel_slice, field_velocities / field_masses, 0),
         **{
             k: np.where(kernel_slice, v / field_masses, 0)
@@ -253,7 +266,8 @@ def particle_scatter(
     masses: U.Quantity[U.Msun],
     kernel: Callable,  # fill in arg & return types
     field_positions: U.Quantity[U.pix],
-    d_volume: U.Quantity[U.pix],
+    d_volume: U.Quantity[U.pix**3],
+    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
     *,
     kernel_cache_resolution: int = 256,
 ) -> dict[str, U.Quantity]:
@@ -293,7 +307,11 @@ def particle_scatter(
         Positions at which to interpolate fields, implicitly with units of pixels.
 
     d_volume : ~astropy.units.Quantity
-        Volume element size for ``field_positions`` with units of pixels.
+        Rectilinear volume element size for ``field_positions`` with units of pixels
+        cubed.
+
+    distortion_corrections : ~astropy.units.Quantity
+        Dimensionless spherical distortion corrections to ``d_volume``.
 
     kernel_cache_resolution : int
         Number of grid points on which to sample the kernel for fast lookup.
@@ -312,6 +330,8 @@ def particle_scatter(
     if not isinstance(d_volume, Iterable):
         # Is this required, or will it just broadcast if scalar?
         d_volume = np.ones(n_pos) * d_volume
+    if not isinstance(distortion_corrections, Iterable):
+        distortion_corrections = np.ones(n_pos) * distortion_corrections
     assert field_positions.unit == positions.unit
     assert field_positions.unit == smoothing_lengths.unit
     tree = build_tree(field_positions.value)
@@ -326,7 +346,8 @@ def particle_scatter(
         smoothing_lengths.value,
         mask_out_of_bound,
         gs,
-        d_volume.value,
+        d_volume.to_value(positions.unit**3),
+        distortion_corrections.to_value(U.dimensionless_unscaled),
         kernel_cache,
         # have in mind selectively omitting temperatures when not needed by spectral model
         extra_fields={"temperatures": temperatures.to_value(velocities.unit**2)},
@@ -414,7 +435,8 @@ def voronoi_mesh(
     masses: U.Quantity[U.Msun],
     kernel: Callable,  # fill in arg & return types
     field_positions: U.Quantity[U.pix],
-    d_volume: U.Quantity[U.pix],
+    d_volume: U.Quantity[U.pix**3],
+    distortion_corrections: U.Quantity[U.dimensionless_unscaled]
     **kwargs: int,
 ) -> dict[str, U.Quantity]:
     """
@@ -452,7 +474,11 @@ def voronoi_mesh(
         Positions at which to interpolate fields, implicitly with units of pixels.
 
     d_volume : ~astropy.units.Quantity
-        Volume element size for ``field_positions`` with units of pixels.
+        Rectilinear volume element size for ``field_positions`` with units of pixels
+        cubed.
+
+    distortion_corrections : ~astropy.units.Quantity
+        Dimensionless spherical distortion corrections to ``d_volume``.
 
     Returns
     -------
@@ -488,7 +514,7 @@ def voronoi_mesh(
     field_n_particle[missed_particle_cell_indices] += 1
 
     particle_volumes = np.einsum(
-        "ij,j->i", particle_masks, d_volume / field_n_particle
+        "ij,j->i", particle_masks, d_volume * distortion_corrections / field_n_particle
     )  # for shared cells, the volume is divided between the particles
     densities = np.zeros(masses_HI.shape) * masses_HI.unit / particle_volumes.unit
     volume_mask = ~(particle_volumes == 0)
@@ -530,7 +556,8 @@ def manual_sph(
     masses: U.Quantity[U.Msun],
     kernel: Callable,  # fill in arg & return types
     field_positions: U.Quantity[U.pix],
-    d_volume: U.Quantity[U.pix],
+    d_volume: U.Quantity[U.pix**3],
+    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
     **kwargs: int,
 ) -> dict[str, U.Quantity]:
     """
@@ -569,7 +596,13 @@ def manual_sph(
         Positions at which to interpolate fields, implicitly with units of pixels.
 
     d_volume : ~astropy.units.Quantity
-        Volume element size for ``field_positions`` with units of pixels.
+        Rectilinear volume element size for ``field_positions`` with units of pixels
+        cubed.
+
+    distortion_corrections : ~astropy.units.Quantity
+        Dimensionless spherical distortion corrections to ``d_volume``. Used to convert
+        SPH densities (per unit rectilinear volume) to densities per unit corrected
+        volume.
 
     Returns
     -------
@@ -584,6 +617,8 @@ def manual_sph(
     n_pos = len(field_positions)
     if not isinstance(d_volume, Iterable):
         d_volume = np.ones(n_pos) * d_volume
+    if not isinstance(distortion_corrections, Iterable):
+        distortion_corrections = np.ones(n_pos) * distortion_corrections
     slices = KDTree(field_positions).query_ball_point(positions, smoothing_lengths)
     field_masses_HI = np.zeros(n_pos) * masses_HI.unit / d_volume.unit
     field_masses = np.zeros(n_pos) * masses.unit / d_volume.unit
@@ -616,6 +651,9 @@ def manual_sph(
     final_temperatures[kernel_slice] = (
         field_temperatures[kernel_slice] / field_masses[kernel_slice]
     )
+    # SPH kernels are normalized in pixel coordinates, convert density to be per unit
+    # corrected volume:
+    field_masses_HI /= distortion_corrections
     return {
         "velocities": final_velocities,
         "masses_HI": field_masses_HI,

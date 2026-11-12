@@ -11,7 +11,8 @@ def calculate_field_spectrum(
     cell_grid: CellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
-    cell_volume: U.Quantity[U.pix**3],  # UNUSED??
+    cell_volumes: U.Quantity[U.pix**3],
+    cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled],
 ) -> U.Quantity[U.Msun]:
     """
     Evaluate the spectrum given the fields interpolated onto the grid.
@@ -29,19 +30,23 @@ def calculate_field_spectrum(
     spectral_model : _BaseSpectrum
         Spectral model used to evaluate the spectrum.
 
-    cell_volume : ~astropy.units.Quantity
-        Volume of a grid cell with units of pixels cubed.
+    cell_volumes : ~astropy.units.Quantity
+        Rectilinear volume of each cell, with units of pixels cubed.
+
+    cell_distortion_corrections : ~astropy.units.Quantity
+        Dimensionless spherical distortion correction to the volume of each cell.
 
     Returns
     -------
     ~astropy.units.Quantity
-        The evaluated mass spectrum.
+        The evaluated mass spectrum, with shape ``(n_channels, n_cells)``.
     """
     field_temperatures = cell_grid.interpolated_fields["temperatures"]
     field_masses = cell_grid.interpolated_fields["masses_HI"]
     field_velocities = cell_grid.interpolated_fields["velocities"]
     field_temperatures[field_masses == 0] = 1 * field_temperatures.unit
-    numerator = field_masses * U.pix**3  # * cell_volume
+    # field_masses is a density per unit corrected volume, convert to mass in each cell:
+    numerator = field_masses * cell_volumes * cell_distortion_corrections
     # Some refactoring needed here for better integration with spectral model, or maybe
     # some changes needed in spectral model code.
     # To consider:
@@ -101,34 +106,31 @@ def optically_thin(
     ~astropy.units.Quantity
         The mock spectral cube.
     """
-    # both of these should use individual cell volumes:
-    if hasattr(cell_grid, "adaptive_cells"):
-        dx = np.min(cell_grid.adaptive_cells["size"])
-    else:
-        dx = cell_grid.cells["size"][0]
-    element_volume = (dx * U.pix) ** 3
-    if hasattr(cell_grid, "adaptive_cells"):
-        x0 = np.min(cell_grid.adaptive_cells["x"])
-        y0 = np.min(cell_grid.adaptive_cells["y"])
-        z0 = np.min(cell_grid.adaptive_cells["z"])
-        xyz_0 = np.array([x0, y0, z0])
-        xyz_cells = np.column_stack([cell_grid.adaptive_cells[i] for i in "xyz"])
-        N = len(cell_grid.adaptive_cells)
-        cell_range: np.ndarray = np.arange(N, dtype=index_type)
-        cells_begin = np.round((xyz_cells - xyz_0)).astype(index_type)
-        cells_end = np.round(
-            (xyz_cells - xyz_0 + cell_grid.adaptive_cells["size"][:, np.newaxis])
-        ).astype(index_type)
+    adaptive = hasattr(cell_grid, "adaptive_cells")
+    cells = cell_grid.adaptive_cells if adaptive else cell_grid.cells
     field_spectra = calculate_field_spectrum(
         cell_grid,
         datacube,
         spectral_model,
-        element_volume,
+        cell_grid.adaptive_cell_volumes if adaptive else cell_grid.cell_volumes,
+        (
+            cell_grid.adaptive_cell_distortion_corrections
+            if adaptive
+            else cell_grid.cell_distortion_corrections
+        ),
     )
-    if hasattr(cell_grid, "adaptive_cells"):
+    if adaptive:
+        # Each cell's mass is shared equally between the sky-plane (y, z) pixels that it
+        # covers. Cells smaller than a pixel are assigned to the pixel containing their
+        # centre. Pixel edges are aligned with the corner of the initial (coarse) grid.
+        yz_0 = np.array([np.min(cell_grid.cells[i]) for i in "yz"])
+        yz_cells = np.column_stack([cells[i] for i in "yz"]) - yz_0
+        sizes = cells["size"][:, np.newaxis]
+        cells_begin = np.floor(yz_cells + 0.5 * np.minimum(sizes, 1)).astype(index_type)
+        cells_end = cells_begin + np.maximum(np.round(sizes), 1).astype(index_type)
+        footprints = np.prod(cells_end - cells_begin, axis=1)
         cube_unit = field_spectra.unit
-        field_spectra *= cells_end[:, 0] - cells_begin[:, 0]
-        field_spectra = field_spectra[:, :, None, None].value
+        field_spectra = (field_spectra / footprints).to_value(cube_unit)
         cube = np.zeros(
             (
                 field_spectra.shape[0],
@@ -136,14 +138,13 @@ def optically_thin(
                 datacube.datacube_shape[1],
             )
         )
-        for i in cell_range:
-            x_start, y_start, z_start = cells_begin[i]
-            x_end, y_end, z_end = cells_end[i]
-            cube[:, y_start:y_end, z_start:z_end] += field_spectra[:, i]
+        for i in np.arange(len(cells), dtype=index_type):
+            y_start, z_start = cells_begin[i]
+            y_end, z_end = cells_end[i]
+            cube[:, y_start:y_end, z_start:z_end] += field_spectra[:, i, None, None]
         cube *= cube_unit
     else:
-        # haven't checked that this is the correct (LoS) axis to sum over:
-        cube = field_spectra.reshape(cell_grid.grid_shape + (-1,)).sum(axis=0)
-        cube = cube.T  # Need to check that this does not rotate cube
-        # Should check with a test with non-square datacube.
+        # field_spectra has shape (n_channels, n_cells), cells are ordered with the LoS
+        # axis varying slowest, then sum along the LoS:
+        cube = field_spectra.reshape((-1,) + cell_grid.grid_shape).sum(axis=1)
     return np.flip(np.moveaxis(cube, 1, 2), axis=2)
