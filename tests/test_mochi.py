@@ -13,6 +13,8 @@ from martini.mochi._dtypes import CELL_DTYPE
 import pytest
 import numpy as np
 import itertools
+from test_martini import check_mass_accuracy
+from test_sph_kernels import simple_kernels
 
 interpolants = (
     module_interpolants.sph,
@@ -24,6 +26,7 @@ refinement_strategies = (
     refinement.refine_grid_to_half_particle_scale,
     refinement.refine_grid_to_single_occupancy,
 )
+interpolant_ids = ("sph", "mfm", "voronoi_mesh", "manual_sph")
 spectral_models = (GaussianSpectrum, DiracDeltaSpectrum)
 
 
@@ -337,3 +340,109 @@ class TestMochi:
             refinement_strategy=refinement_strategy,
         )
         m.insert_source_in_cube()
+
+
+def check_inserted_mass_accuracy(m):
+    """
+    Check that mass in cube after source insertion matches input mass by better than 1%.
+
+    Unlike :func:`check_mass_accuracy` the mass in the padded region of the cube is
+    included and the beam convolution and output steps are not checked.
+
+    Parameters
+    ----------
+    m : ~martini.mochi.mochi.Mochi
+        The mochi instance to test for accuracy.
+    """
+    # flux in channels
+    F = (m.datacube._array * m.datacube.px_size**2).sum((0, 1)).squeeze()  # Jy
+
+    # channel width
+    dv = np.abs(np.diff(m.datacube.velocity_channel_edges))
+
+    # HI mass
+    MHI = np.sum(
+        2.36e5
+        * U.Msun
+        * m.source.distance.to_value(U.Mpc) ** 2
+        * F.to_value(U.Jy)
+        * dv.to_value(U.km / U.s)
+    ).to(U.Msun)
+
+    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+
+
+class TestMochiMassAccuracy:
+    """Check that the mass of a single particle is conserved by the MOCHI backend."""
+
+    @pytest.mark.parametrize("sph_kernel", simple_kernels)
+    @pytest.mark.parametrize("interpolant", interpolants, ids=interpolant_ids)
+    @pytest.mark.parametrize("adaptive_grid", (True, False))
+    @pytest.mark.parametrize("spectral_model", spectral_models)
+    @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
+    def test_mass_accuracy(
+        self,
+        request,
+        dc_zeros,
+        sph_kernel,
+        interpolant,
+        adaptive_grid,
+        spectral_model,
+        single_particle_source,
+        out_mode,
+    ):
+        """
+        Check that input mass in particles ends up in the output cube.
+
+        Check that the input mass in a single particle gives the correct total mass in
+        the datacube, by checking the conversion back to total mass. Covers testing
+        Mochi.insert_source_in_cube.
+        """
+        kernel_name = sph_kernel.__name__
+        interpolant_name = interpolant_ids[interpolants.index(interpolant)]
+        if kernel_name == "DiracDeltaKernel" and interpolant_name != "voronoi_mesh":
+            request.applymarker(
+                pytest.mark.xfail(
+                    strict=True,
+                    reason="Kernel interpolants deposit no mass for a point-like kernel.",
+                )
+            )
+        elif kernel_name == "_GaussianKernel" and interpolant_name in (
+            "sph",
+            "manual_sph",
+        ):
+            request.applymarker(
+                pytest.mark.xfail(
+                    strict=True,
+                    reason="Gaussian kernel(q) takes q in units of FWHM, not of the "
+                    "radius of compact support.",
+                )
+            )
+        elif interpolant_name == "sph":
+            request.applymarker(
+                pytest.mark.xfail(
+                    strict=True,
+                    reason="Lookup of kernel cache at lower bin edges biases mass high.",
+                )
+            )
+        hsm_g = 0.1 * U.kpc if kernel_name == "DiracDeltaKernel" else 1.0 * U.kpc
+        source = single_particle_source(hsm_g=hsm_g)
+        # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
+        m = Mochi(
+            source=source,
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            spectral_model=spectral_model(),
+            sph_kernel=sph_kernel(),
+            interpolant=interpolant,
+            adaptive_grid=adaptive_grid,
+            quiet=True,
+        )
+        m.insert_source_in_cube()
+        if interpolant_name == "voronoi_mesh":
+            # A single Voronoi cell fills the whole grid, including the padded region
+            # that is cropped after beam convolution, so only check after insertion.
+            check_inserted_mass_accuracy(m)
+        else:
+            check_mass_accuracy(m, out_mode)

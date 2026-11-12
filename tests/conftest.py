@@ -676,8 +676,8 @@ def dc_zeros(request: FixtureRequest) -> Generator[DataCube, None, None]:
             U.Hz, equivalencies=U.doppler_radio(HIfreq)
         )
     dc = DataCube(
-        n_px_x=16,
-        n_px_y=16,
+        n_px_x=32,
+        n_px_y=32,
         n_channels=16,
         channel_width=channel_width,
         spectral_centre=spectral_centre,
