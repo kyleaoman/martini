@@ -168,7 +168,8 @@ def sph_loop(
             gs.intersections,
             weights=kernel_weights
             * np.repeat(
-                (cell_volumes * cell_distortion_corrections)[gs.cell_indices] / total_kernel[gs.cell_indices],
+                (cell_volumes * cell_distortion_corrections)[gs.cell_indices]
+                / total_kernel[gs.cell_indices],
                 np.diff(gs.strides, axis=1)[:, 0],
             ),
             minlength=masses.size,
@@ -436,7 +437,7 @@ def voronoi_mesh(
     kernel: Callable,  # fill in arg & return types
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix**3],
-    distortion_corrections: U.Quantity[U.dimensionless_unscaled]
+    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
     **kwargs: int,
 ) -> dict[str, U.Quantity]:
     """
