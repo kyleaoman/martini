@@ -5,8 +5,6 @@ Provides :class:`~martini.martini.Mochi`, the main class of the package.
 """
 
 import numpy as np
-from numpy.typing import NDArray
-import cv2
 from astropy import units as U
 from martini.martini import Martini
 from martini.datacube import DataCube
@@ -22,111 +20,54 @@ from martini.mochi.radiative_transfer import optically_thin
 from martini._unit_conversion import MHI_to_Jy_inplace
 
 
-def _possible_lengths(length: int, max_pad: int) -> NDArray[np.int_]:
-    """
-    Create an array of the possible lengths up to a maximum padding.
-
-    Step by two so that the padding is applied symmetrically.
-
-    Parameters
-    ----------
-    length: int
-        base length
-    max_pad: int
-        maximum padding value
-
-    Returns
-    -------
-    possible_lengths: ~numpy.ndarray
-        array of possible padded lengths given input base length and maximum padding.
-    """
-    return np.arange(length, length + max_pad + 1, step=2)
-
-
 def _coarse_shape(
     shape: tuple[int, int],
-    max_pad: int = 10,
-) -> tuple[tuple[int, int], tuple[int, int]]:
+    max_extra_fraction: float = 0.1,
+) -> tuple[tuple[int, int], int, tuple[int, int]]:
     """
-    Compute a coarse aspect ratio from the input shape and the padding required.
+    Find a coarse grid of power-of-two sized cells aligned with the pixel grid.
+
+    The initial (coarse) cells have a side length of ``2**k`` pixels, so that cells
+    obtained by repeated bisection have edges that coincide with pixel edges (or nest
+    within a single pixel once smaller than a pixel). The coarse grid covers the input
+    shape, which is padded symmetrically to match the coarse grid. The input shape must
+    have even side lengths, such that the coarse grid extends an even number of pixels
+    beyond it along each axis. The largest ``k`` such that the coarse grid covers at
+    most ``1 + max_extra_fraction`` times as many pixels as the input shape is chosen.
 
     Parameters
     ----------
-    shape: tuple[int,int]
-        Target shape of the cube.
+    shape : tuple[int, int]
+        Shape of the cube (including any existing padding), with even side lengths.
 
-    max_pad: int
-        Maximum padding to admit to allow for coarser resolution.
-
-    Returns
-    -------
-    target_shape: tuple[int, int],
-        Coarse shape to use for initial grid resolution.
-
-    pad: tuple[int, int]
-        Padding required for input shape to match target_shape ratio.
-    """
-    array = np.array(shape)
-    target_shape = shape
-    pad = (0, 0)
-    if np.any(array == 1):
-        return target_shape, pad
-    if array[0] == array[1]:
-        target_shape = (1, 1)
-        return target_shape, pad
-    a1 = _possible_lengths(array[0], max_pad)
-    a2 = _possible_lengths(array[1], max_pad)
-
-    if array[0] < array[1]:
-        div = a1[:, np.newaxis] / a2
-    else:
-        div = a2[:, np.newaxis] / a1
-    for i in range(1, np.max(array)):
-        scale = div * i
-        check = scale == scale.astype(int)
-        if np.any(check):
-            index = np.argwhere(check).squeeze()
-            pad = tuple(index)
-            target_shape = (int(scale[pad]), i)
-            if array[0] > array[1]:
-                pad = pad[::-1]
-                target_shape = target_shape[::-1]
-            return target_shape, pad
-    return target_shape, pad
-
-
-def _resize_cube(cube: U.Quantity, target_shape: tuple[int, int]) -> U.Quantity:
-    """
-    Resize a data cube to the target shape.
-
-    Interpolation is handled with :func:`cv2.resize`.
-
-    Parameters
-    ----------
-    cube : ~astropy.units.Quantity
-        The cube to be resized.
-
-    target_shape : tuple
-        The desired shape as a 3-tuple.
+    max_extra_fraction : float, optional
+        Maximum fractional increase in the number of pixels covered by the coarse grid,
+        relative to ``shape``.
 
     Returns
     -------
-    ~astropy.units.Quantity
-        The cube interpolated into the new desired shape using :func:`cv2.resize`.
-    """
-    if np.all(np.array(cube.shape[1:]) == np.array(target_shape)):
-        return cube
+    coarse_shape : tuple[int, int]
+        Number of coarse cells along each axis.
 
-    unit = cube.unit
-    unitless_cube = cube.to_value(cube.unit)
-    result = np.zeros((cube.shape[0],) + target_shape[::-1])
-    for i in range(cube.shape[0]):
-        result[i] = cv2.resize(
-            unitless_cube[i].astype(float),
-            target_shape,
-            interpolation=cv2.INTER_AREA,
-        )
-    return result * np.prod(cube.shape[1:]) / np.prod(target_shape) * unit
+    cell_size : int
+        Side length of the coarse cells in pixels.
+
+    pad : tuple[int, int]
+        Padding (per side) to add to ``shape`` along each axis.
+    """
+    n_px = np.array(shape)
+    for k in range(int(np.ceil(np.log2(n_px.max()))), -1, -1):
+        cell_size = 2**k
+        coarse_shape = -(-n_px // cell_size)  # ceiling division
+        grid_px = coarse_shape * cell_size
+        if np.prod(grid_px) <= (1 + max_extra_fraction) * np.prod(n_px):
+            break
+    pad = (grid_px - n_px) // 2
+    return (
+        (int(coarse_shape[0]), int(coarse_shape[1])),
+        cell_size,
+        (int(pad[0]), int(pad[1])),
+    )
 
 
 class Mochi(Martini):
@@ -147,7 +88,8 @@ class Mochi(Martini):
     datacube : ~martini.datacube.DataCube
         A :class:`~martini.datacube.DataCube` instance.
         A description of the datacube to create, including pixels, channels,
-        sky position. See :doc:`sub-module documentation </datacube/index>`.
+        sky position. See :doc:`sub-module documentation </datacube/index>`. The number
+        of pixels along each spatial axis must be even.
 
     beam : _BaseBeam, optional
         An instance of a class derived from `~martini.beams._BaseBeam`.
@@ -238,6 +180,11 @@ class Mochi(Martini):
         adaptive_grid: bool = True,
         quiet: bool = False,
     ) -> None:
+        if datacube.n_px_x % 2 or datacube.n_px_y % 2:
+            raise ValueError(
+                "Mochi requires an even number of pixels along each spatial axis of the "
+                f"datacube, got n_px_x={datacube.n_px_x}, n_px_y={datacube.n_px_y}."
+            )
         super().__init__(
             source=source,
             datacube=datacube,
@@ -260,14 +207,15 @@ class Mochi(Martini):
         Initialize datacube and interpolation grid for a coarse shape.
 
         Since MOCHI uses dynamic resolution based on bisection and user input cube shape
-        may not allow factorisation, padding the cube to a simpler aspect ratio so
-        minimal resolution can be invested.
+        may not allow factorisation, the cube is padded such that it is covered by a
+        coarse grid of cells with power-of-two side lengths in pixels. Bisected cells
+        then remain aligned with the pixel grid.
         Starting from a minimal resolution also reduces the amount of cell-particle
         distance computations.
         """
         if not self.adaptive_grid:
             return
-        shape, pad_coarse = _coarse_shape(
+        shape, self.initial_cell_size, pad_coarse = _coarse_shape(
             (self._datacube.datacube_shape[0], self._datacube.datacube_shape[1])
         )
         pad = (pad_coarse[0] + self.datacube.padx, pad_coarse[1] + self.datacube.pady)
@@ -314,7 +262,12 @@ class Mochi(Martini):
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
         self.sph_kernel._init_sm_ranges()
         cell_grid = (  # do any options need exposing?
-            AdaptiveCellGrid(self.source, self._datacube, self.initial_grid_shape)
+            AdaptiveCellGrid(
+                self.source,
+                self._datacube,
+                self.initial_grid_shape,
+                initial_cell_size=self.initial_cell_size,
+            )
             if self.adaptive_grid
             else CellGrid(self.source, self._datacube)
         )
@@ -345,15 +298,6 @@ class Mochi(Martini):
         datacube_array = datacube_array.to(
             U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
         )
-        target_shape = (
-            # should this be y then x? there's a flip below.
-            self._datacube.n_px_x + 2 * self._datacube.padx,
-            self._datacube.n_px_y + 2 * self._datacube.pady,
-        )
-        # If resize could be avoided that would:
-        #  - remove a dependency
-        #  - remove an interpolation operation that seems a bit dubious (?)
-        datacube_array = _resize_cube(datacube_array, target_shape)
         datacube_array = np.flip(datacube_array, 2)
         datacube_array = np.moveaxis(
             datacube_array,

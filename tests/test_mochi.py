@@ -1,6 +1,7 @@
 """Tests of the mochi sub-module."""
 
-from martini.mochi.mochi import Mochi
+from martini.mochi.mochi import Mochi, _coarse_shape
+from martini.datacube import DataCube
 from martini.beams import GaussianBeam
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from martini.sph_kernels import CubicSplineKernel
@@ -269,6 +270,40 @@ class TestAdaptiveCellGrid:
 
 class TestMochi:
     """Main API test for MOCHI backend."""
+
+    @pytest.mark.parametrize(
+        "shape", [(16, 16), (100, 100), (128, 96), (38, 250), (2, 50), (514, 514)]
+    )
+    def test_coarse_shape(self, shape):
+        """
+        Check coarse grid has power-of-two cells exactly covering the padded shape.
+
+        Also checks that no more than 10% additional cells are added.
+        """
+        coarse_shape, cell_size, pad = _coarse_shape(shape)
+        assert cell_size & (cell_size - 1) == 0  # power of two
+        for n, c, p in zip(shape, coarse_shape, pad):
+            assert n + 2 * p == c * cell_size
+        assert np.prod(np.array(coarse_shape) * cell_size) <= 1.1 * np.prod(shape)
+
+    @pytest.mark.parametrize("n_px", [(15, 16), (16, 15)])
+    def test_odd_datacube_raises(self, many_particle_source, n_px):
+        """Check that a datacube with an odd number of pixels is rejected."""
+        datacube = DataCube(
+            n_px_x=n_px[0],
+            n_px_y=n_px[1],
+            n_channels=16,
+            px_size=10 * U.arcsec,
+            channel_width=10 * U.km / U.s,
+        )
+        with pytest.raises(ValueError, match="even number of pixels"):
+            Mochi(
+                source=many_particle_source(),
+                datacube=datacube,
+                sph_kernel=CubicSplineKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+                interpolant=module_interpolants.sph,
+            )
 
     # Testing *all* combinations here is overkill, simplify later.
     @pytest.mark.parametrize("interpolant", interpolants)

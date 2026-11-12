@@ -121,13 +121,17 @@ def optically_thin(
     )
     if adaptive:
         # Each cell's mass is shared equally between the sky-plane (y, z) pixels that it
-        # covers. Cells smaller than a pixel are assigned to the pixel containing their
-        # centre. Pixel edges are aligned with the corner of the initial (coarse) grid.
-        yz_0 = np.array([np.min(cell_grid.cells[i]) for i in "yz"])
-        yz_cells = np.column_stack([cells[i] for i in "yz"]) - yz_0
+        # covers. Cells smaller than a pixel are assigned to the pixel containing them.
+        # Pixel i spans [i - 0.5, i + 0.5) so cell corners offset by 0.5 give pixel edges.
+        yz_cells = np.column_stack([cells[i] for i in "yz"]) + 0.5
         sizes = cells["size"][:, np.newaxis]
-        cells_begin = np.floor(yz_cells + 0.5 * np.minimum(sizes, 1)).astype(index_type)
-        cells_end = cells_begin + np.maximum(np.round(sizes), 1).astype(index_type)
+        cells_begin = np.floor(yz_cells).astype(index_type)
+        cells_end = np.ceil(yz_cells + sizes).astype(index_type)
+        if np.any(cells_end - cells_begin != np.maximum(sizes, 1)):
+            raise RuntimeError(
+                "Cell grid is not aligned with pixel grid, cells must have power-of-two "
+                "sizes with edges on pixel edges."
+            )
         footprints = np.prod(cells_end - cells_begin, axis=1)
         cube_unit = field_spectra.unit
         field_spectra = (field_spectra / footprints).to_value(cube_unit)

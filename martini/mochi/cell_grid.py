@@ -29,6 +29,11 @@ class CellGrid:
     grid_size : int or None
         The number of cells along each axis of the grid. If ``None``, it is determined
         from the ``datacube`` dimensions.
+
+    cell_size : float or None
+        The side length of the cells in pixels. If ``None``, it is determined such that
+        the grid exactly covers the datacube pixel grid. The cell grid may extend
+        beyond the datacube pixel grid if a larger size is given.
     """
 
     cells: np.ndarray
@@ -46,6 +51,7 @@ class CellGrid:
         source: SPHSource,
         datacube: DataCube,
         grid_shape: tuple[int, int, int] | int | None = None,
+        cell_size: float | None = None,
     ) -> None:
         datacube_shape = datacube.datacube_shape[:3]
         full_grid_shape: tuple[int, int, int]
@@ -59,9 +65,12 @@ class CellGrid:
             full_grid_shape = (grid_shape, grid_shape, grid_shape)
         else:
             full_grid_shape = grid_shape
-        size = datacube_shape[0] / full_grid_shape[1]  # offset because 0 is LOS
-        size_y = datacube_shape[1] / full_grid_shape[2]
-        assert size == size_y  # Enforce cuboid cells
+        if cell_size is None:
+            size = datacube_shape[0] / full_grid_shape[1]  # offset because 0 is LOS
+            size_y = datacube_shape[1] / full_grid_shape[2]
+            assert size == size_y  # Enforce cuboid cells
+        else:
+            size = cell_size
 
         self.pix_range = [(0, n_px) for n_px in full_grid_shape]
 
@@ -370,6 +379,10 @@ class AdaptiveCellGrid(CellGrid):
 
     initial_grid_size : int
         The initial number of cells along each axis of the adaptive grid.
+
+    initial_cell_size : float or None
+        The side length of the initial cells in pixels. If ``None``, it is determined
+        such that the grid exactly covers the datacube pixel grid.
     """
 
     initial_cells: np.ndarray
@@ -383,8 +396,11 @@ class AdaptiveCellGrid(CellGrid):
         source: SPHSource,
         datacube: DataCube,
         initial_grid_size: int | tuple[int, int, int] = 2,
+        initial_cell_size: float | None = None,
     ) -> None:
-        super().__init__(source, datacube, grid_shape=initial_grid_size)
+        super().__init__(
+            source, datacube, grid_shape=initial_grid_size, cell_size=initial_cell_size
+        )
         self.initial_cells = self.cells
 
     def eval_grid_refinement(
