@@ -52,15 +52,12 @@ def _pixel_solid_angle_ratio(
         dlng = (
             world_plus[:, celestial.wcs.lng] - world_minus[:, celestial.wcs.lng] + np.pi
         ) % (2 * np.pi) - np.pi
-        dlat = (
-            world_plus[:, celestial.wcs.lng, celestial.wcs.lat]
-            - world_minus[:, celestial.wcs.lng, celestial.wcs.lat]
-        )
+        dlat = world_plus[:, celestial.wcs.lat] - world_minus[:, celestial.wcs.lat]
         derivatives.append((dlng / (2 * h), dlat / (2 * h)))
     (dlng_dx, dlat_dx), (dlng_dy, dlat_dy) = derivatives
     lat = (
-        celestial.all_pix2world(pix, 0)[:, celestial.wcs.lng, celestial.wcs.lat]
-        * to_rad[celestial.wcs.lng, celestial.wcs.lat]
+        celestial.all_pix2world(pix, 0)[:, celestial.wcs.lat]
+        * to_rad[celestial.wcs.lat]
     )
     solid_angle = np.abs(dlng_dx * dlat_dy - dlng_dy * dlat_dx) * np.cos(lat)
     return solid_angle / datacube.px_size.to_value(U.rad) ** 2
