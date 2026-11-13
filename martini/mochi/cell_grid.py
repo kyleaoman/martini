@@ -316,11 +316,11 @@ class CellGrid:
             )
         self.interpolated_fields = interpolant(
             positions=self.positions,
-            smoothing_lengths=self.radii,
+            smoothing_lengths=sph_kernel.sm_lengths,
             field_positions=cell_centres,
             d_volume=cell_volumes,
             distortion_corrections=cell_distortion_corrections,
-            kernel=sph_kernel.kernel,
+            kernel=sph_kernel,
             velocities=source.skycoords.radial_velocity,
             masses_HI=source.mHI_g,
             temperatures=source.T_g * C.k_B / C.m_p,  # approx thermal energy?

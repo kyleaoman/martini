@@ -271,6 +271,20 @@ class TestAdaptiveCellGrid:
         raise NotImplementedError
 
 
+class TestKernelEvaluation:
+    """Test evaluation of SPH kernels for interpolation onto cells."""
+
+    def test_eval_cache_kernel(self):
+        """Check that cached kernel is linearly interpolated and zero beyond extent."""
+        # samples of 2 - (u / 2)**2 at u = 0, 0.5, 1, 1.5, 2:
+        kernel_cache = np.array([2, 1.9375, 1.75, 1.4375, 1])
+        u = np.array([0, 0.25, 0.5, 1.2, 2.0, 3.0])
+        expected = np.array([2, 1.96875, 1.9375, 1.625, 1, 0])
+        assert np.allclose(
+            module_interpolants._eval_cache_kernel(u, kernel_cache, 2.0), expected
+        )
+
+
 class TestMochi:
     """Main API test for MOCHI backend."""
 
@@ -405,24 +419,6 @@ class TestMochiMassAccuracy:
                 pytest.mark.xfail(
                     strict=True,
                     reason="Kernel interpolants deposit no mass for a point-like kernel.",
-                )
-            )
-        elif kernel_name == "_GaussianKernel" and interpolant_name in (
-            "sph",
-            "manual_sph",
-        ):
-            request.applymarker(
-                pytest.mark.xfail(
-                    strict=True,
-                    reason="Gaussian kernel(q) takes q in units of FWHM, not of the "
-                    "radius of compact support.",
-                )
-            )
-        elif interpolant_name == "sph":
-            request.applymarker(
-                pytest.mark.xfail(
-                    strict=True,
-                    reason="Lookup of kernel cache at lower bin edges biases mass high.",
                 )
             )
         hsm_g = 0.1 * U.kpc if kernel_name == "DiracDeltaKernel" else 1.0 * U.kpc

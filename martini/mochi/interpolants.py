@@ -11,16 +11,14 @@ import numpy as np
 from functools import partial
 from typing import Callable
 from collections.abc import Iterable
+from martini.sph_kernels import _BaseSPHKernel
 
 
 def _eval_kernel(
     x_eval: U.Quantity[U.pix],
     x_particle: U.Quantity[U.pix],
     h: U.Quantity[U.pix],
-    kernel: Callable[
-        [U.Quantity[U.dimensionless_unscaled]],
-        np.ndarray,
-    ],
+    kernel: _BaseSPHKernel,
 ) -> U.Quantity[U.pix**-3]:
     """
     Evaluate the kernel.
@@ -32,9 +30,10 @@ def _eval_kernel(
     x_particle : ~astropy.units.Quantity
         Positions of particles for which to evaluate kernel, with units of pixels.
     h : ~astropy.units.Quantity
-        Particle smoothing lengths, with units of pixels.
-    kernel : Callable
-        Kernel function accepting a dimensionless array argument and returning an array.
+        Particle smoothing lengths (FWHM), with units of pixels.
+    kernel : _BaseSPHKernel
+        The SPH kernel, evaluated with
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`.
 
     Returns
     -------
@@ -42,33 +41,45 @@ def _eval_kernel(
         Evaluated kernel at ``x_eval`` for particles at positions ``x_particle`` with
         smoothing lengths ``h``. Expected units of ``pixels**-3``.
     """
-    q = distance.cdist(x_eval / h, x_particle / h)
-    return kernel(q) / (h**3)
+    r = distance.cdist(x_eval.to_value(h.unit), x_particle.to_value(h.unit))
+    return kernel.eval_kernel(r, h.to_value(h.unit)) * h.unit**-3
 
 
-def _eval_cache_kernel(q: float, kernel_cache: np.ndarray) -> float:
+def _eval_cache_kernel(
+    u: np.ndarray, kernel_cache: np.ndarray, kernel_cache_extent: float
+) -> np.ndarray:
     """
     Get the value of the kernel function on a pre-computed discrete grid.
 
     Since kernels are generally well behaved compact functions,
     computing the kernel thousands of times can be needlessly expensive
-    especially for more computationally expensive kernels.
+    especially for more computationally expensive kernels. The kernel is linearly
+    interpolated between the grid points, and is zero beyond the extent of the grid.
 
     Parameters
     ----------
-    q : float
-        Evaluation location where ``1`` is the radius of compact support.
+    u : ~numpy.ndarray
+        Evaluation location in units of the smoothing length (FWHM).
 
-    kernel_cache : np.ndarray
-        The kernel evaluated on a discrete grid.
+    kernel_cache : ~numpy.ndarray
+        The kernel evaluated on a uniform grid spanning ``0 <= u <= kernel_cache_extent``,
+        including both endpoints.
+
+    kernel_cache_extent : float
+        The extent of the grid on which the kernel is evaluated, in units of the
+        smoothing length (FWHM). Should be at least the radius of compact support.
 
     Returns
     -------
-    float
-        The approximate kernel amplitude at location ``q``.
+    ~numpy.ndarray
+        The approximate kernel amplitude at location ``u``.
     """
-    kernel_cache_resolution = len(kernel_cache)
-    return kernel_cache[(np.clip(q, 0, 1) * kernel_cache_resolution).astype(np.uint8)]
+    return np.interp(
+        u,
+        np.linspace(0, kernel_cache_extent, len(kernel_cache)),
+        kernel_cache,
+        right=0.0,
+    )
 
 
 def sph_loop(
@@ -76,11 +87,13 @@ def sph_loop(
     masses_HI: np.ndarray,
     velocities: np.ndarray,
     smoothing_lengths: np.ndarray,
+    support_radii: np.ndarray,
     mask_out_of_bound: np.ndarray,
     gs: FindGridIntersectionsResult,
     cell_volumes: np.ndarray,
     cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled],
     kernel_cache: np.ndarray,
+    kernel_cache_extent: float,
     extra_fields: dict[str, np.ndarray],
     mfm: bool = False,
 ) -> dict[str, np.ndarray]:
@@ -101,7 +114,11 @@ def sph_loop(
         Particle line-of-sight velocities as an array with implicit units.
 
     smoothing_lengths : ~numpy.ndarray
-        Particle smoothing lengths as an array with implicit units.
+        Particle smoothing lengths (FWHM) as an array with implicit units.
+
+    support_radii : ~numpy.ndarray
+        Particle radii of compact support as an array with implicit units (same as
+        ``smoothing_lengths``).
 
     mask_out_of_bound : ~numpy.ndarray
         A boolean mask selecting particles whose kernels extend outside of the region
@@ -121,7 +138,11 @@ def sph_loop(
         a cell is the density times ``cell_volumes * cell_distortion_corrections``.
 
     kernel_cache : ~numpy.ndarray
-        Kernel amplitude pre-computed on a discrete grid for fast lookup.
+        Kernel amplitude pre-computed on a discrete grid for fast lookup, see
+        :func:`_eval_cache_kernel`.
+
+    kernel_cache_extent : float
+        Extent of the grid of ``kernel_cache`` in units of the smoothing length (FWHM).
 
     extra_fields : dict
         Additional fields that should be interpolated onto the grid (e.g. temperature).
@@ -152,6 +173,7 @@ def sph_loop(
             np.sqrt((gs.distances**2).sum(axis=1))
             / smoothing_lengths[gs.intersections],
             kernel_cache,
+            kernel_cache_extent,
         )
         / (smoothing_lengths**3)[gs.intersections]
     )
@@ -178,7 +200,7 @@ def sph_loop(
             np.pi
             * 4
             / 3
-            * smoothing_lengths**3
+            * support_radii**3
             / np.bincount(
                 gs.intersections,
                 # rectilinear volume to match the kernel volume in the numerator:
@@ -265,7 +287,7 @@ def particle_scatter(
     masses_HI: U.Quantity[U.Msun],
     temperatures: U.Quantity[U.km**2 / U.s**2],
     masses: U.Quantity[U.Msun],
-    kernel: Callable,  # fill in arg & return types
+    kernel: _BaseSPHKernel,
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix**3],
     distortion_corrections: U.Quantity[U.dimensionless_unscaled],
@@ -301,8 +323,10 @@ def particle_scatter(
     masses : ~astropy.units.Quantity
         Particle masses with dimensions of mass.
 
-    kernel : Callable
-        Kernel function.
+    kernel : _BaseSPHKernel
+        The SPH kernel, evaluated with
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`. Its ``size_in_fwhm``
+        gives the radii of compact support in units of ``smoothing_lengths``.
 
     field_positions : ~numpy.ndarray
         Positions at which to interpolate fields, implicitly with units of pixels.
@@ -315,17 +339,23 @@ def particle_scatter(
         Dimensionless spherical distortion corrections to ``d_volume``.
 
     kernel_cache_resolution : int
-        Number of grid points on which to sample the kernel for fast lookup.
+        Number of intervals on which to sample the kernel for fast lookup.
 
     Returns
     -------
     dict
         Contains the interpolated fields.
     """
-    # endpoint is excluded to avoid null kernel weights inside particle radii
-    kernel_cache = kernel(np.linspace(0, 1, kernel_cache_resolution, endpoint=False))
+    assert kernel.size_in_fwhm is not None
+    size_in_fwhm = np.asarray(kernel.size_in_fwhm)
+    support_radii = smoothing_lengths * size_in_fwhm
+    # cache kernel in units of the smoothing length (FWHM):
+    kernel_cache_extent = float(np.max(size_in_fwhm))
+    kernel_cache = kernel.eval_kernel(
+        np.linspace(0, kernel_cache_extent, kernel_cache_resolution + 1), 1.0
+    )
     mask_out_of_bound = _get_out_of_bound_particles(
-        positions, smoothing_lengths, field_positions
+        positions, support_radii, field_positions
     )
     n_pos = len(field_positions)
     if not isinstance(d_volume, Iterable):
@@ -336,20 +366,21 @@ def particle_scatter(
     assert field_positions.unit == positions.unit
     assert field_positions.unit == smoothing_lengths.unit
     tree = build_tree(field_positions.value)
-    # Check that smoothing length that's been received is radius of compact support
     gs = find_grid_intersections(
-        tree, field_positions.value, positions.value, smoothing_lengths.value
+        tree, field_positions.value, positions.value, support_radii.value
     )
     array_results = main_loop(
         masses.value,
         masses_HI.value,
         velocities.value,
         smoothing_lengths.value,
+        support_radii.value,
         mask_out_of_bound,
         gs,
         d_volume.to_value(positions.unit**3),
         distortion_corrections.to_value(U.dimensionless_unscaled),
         kernel_cache,
+        kernel_cache_extent,
         # have in mind selectively omitting temperatures when not needed by spectral model
         extra_fields={"temperatures": temperatures.to_value(velocities.unit**2)},
     )
@@ -434,7 +465,7 @@ def voronoi_mesh(
     masses_HI: U.Quantity[U.Msun],
     temperatures: U.Quantity[U.km**2 / U.s**2],
     masses: U.Quantity[U.Msun],
-    kernel: Callable,  # fill in arg & return types
+    kernel: _BaseSPHKernel,
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix**3],
     distortion_corrections: U.Quantity[U.dimensionless_unscaled],
@@ -468,7 +499,7 @@ def voronoi_mesh(
     masses : ~astropy.units.Quantity
         Unused.
 
-    kernel : Callable
+    kernel : _BaseSPHKernel
         Unused.
 
     field_positions : ~numpy.ndarray
@@ -555,7 +586,7 @@ def manual_sph(
     masses_HI: U.Quantity[U.Msun],
     temperatures: U.Quantity[U.km**2 / U.s**2],
     masses: U.Quantity[U.Msun],
-    kernel: Callable,  # fill in arg & return types
+    kernel: _BaseSPHKernel,
     field_positions: U.Quantity[U.pix],
     d_volume: U.Quantity[U.pix**3],
     distortion_corrections: U.Quantity[U.dimensionless_unscaled],
@@ -590,8 +621,10 @@ def manual_sph(
     masses : ~astropy.units.Quantity
         Particle masses with dimensions of mass.
 
-    kernel : Callable
-        Kernel function.
+    kernel : _BaseSPHKernel
+        The SPH kernel, evaluated with
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`. Its ``size_in_fwhm``
+        gives the radii of compact support in units of ``smoothing_lengths``.
 
     field_positions : ~numpy.ndarray
         Positions at which to interpolate fields, implicitly with units of pixels.
@@ -620,7 +653,9 @@ def manual_sph(
         d_volume = np.ones(n_pos) * d_volume
     if not isinstance(distortion_corrections, Iterable):
         distortion_corrections = np.ones(n_pos) * distortion_corrections
-    slices = KDTree(field_positions).query_ball_point(positions, smoothing_lengths)
+    assert kernel.size_in_fwhm is not None
+    support_radii = smoothing_lengths * np.asarray(kernel.size_in_fwhm)
+    slices = KDTree(field_positions).query_ball_point(positions, support_radii)
     field_masses_HI = np.zeros(n_pos) * masses_HI.unit / d_volume.unit
     field_masses = np.zeros(n_pos) * masses.unit / d_volume.unit
     field_velocities = np.zeros(n_pos) * velocities.unit * masses.unit / d_volume.unit
