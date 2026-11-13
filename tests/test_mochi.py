@@ -278,8 +278,8 @@ class TestKernelEvaluation:
         """Check that cached kernel is linearly interpolated and zero beyond extent."""
         # samples of 2 - (u / 2)**2 at u = 0, 0.5, 1, 1.5, 2:
         kernel_cache = np.array([2, 1.9375, 1.75, 1.4375, 1])
-        u = np.array([0, 0.25, 0.5, 1.2, 2.0, 3.0])
-        expected = np.array([2, 1.96875, 1.9375, 1.625, 1, 0])
+        u = np.array([0, 0.25, 0.5, 1.2, 2.0, 2.001, 3.0])
+        expected = np.array([2, 1.96875, 1.9375, 1.625, 1, 0, 0])
         assert np.allclose(
             module_interpolants._eval_cache_kernel(u, kernel_cache, 2.0), expected
         )

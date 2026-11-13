@@ -55,6 +55,8 @@ def _eval_cache_kernel(
     computing the kernel thousands of times can be needlessly expensive
     especially for more computationally expensive kernels. The kernel is linearly
     interpolated between the grid points, and is zero beyond the extent of the grid.
+    The grid is uniform, so the grid points bracketing each location can be computed
+    directly.
 
     Parameters
     ----------
@@ -74,12 +76,15 @@ def _eval_cache_kernel(
     ~numpy.ndarray
         The approximate kernel amplitude at location ``u``.
     """
-    return np.interp(
-        u,
-        np.linspace(0, kernel_cache_extent, len(kernel_cache)),
-        kernel_cache,
-        right=0.0,
-    )
+    n_intervals = len(kernel_cache) - 1
+    x = u * (n_intervals / kernel_cache_extent)  # position in units of grid intervals
+    beyond_extent = x > n_intervals
+    # left grid point of interval, last interval includes its right end:
+    i = np.minimum(x.astype(np.intp), n_intervals - 1)
+    x -= i  # now fractional position within interval
+    W = kernel_cache[i] * (1 - x) + kernel_cache[i + 1] * x
+    W[beyond_extent] = 0.0
+    return W
 
 
 def sph_loop(
