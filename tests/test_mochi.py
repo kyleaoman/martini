@@ -4,7 +4,7 @@ from martini.mochi.mochi import Mochi, _coarse_shape
 from martini.datacube import DataCube
 from martini.beams import GaussianBeam
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
-from martini.sph_kernels import CubicSplineKernel
+from martini.sph_kernels import CubicSplineKernel, DiracDeltaKernel
 import astropy.units as U
 from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
 from martini.mochi import interpolants as module_interpolants
@@ -21,12 +21,13 @@ interpolants = (
     module_interpolants.mfm,
     module_interpolants.voronoi_mesh,
     module_interpolants.manual_sph,
+    module_interpolants.particle_in_cell,
 )
 refinement_strategies = (
     refinement.refine_grid_to_half_particle_scale,
     refinement.refine_grid_to_single_occupancy,
 )
-interpolant_ids = ("sph", "mfm", "voronoi_mesh", "manual_sph")
+interpolant_ids = ("sph", "mfm", "voronoi_mesh", "manual_sph", "particle_in_cell")
 spectral_models = (GaussianSpectrum, DiracDeltaSpectrum)
 
 
@@ -285,6 +286,82 @@ class TestKernelEvaluation:
         )
 
 
+class TestParticleInCell:
+    """Test deposition of particles into the cells containing them."""
+
+    def test_find_containing_cells(self):
+        """Check containing cells on an adaptive grid against a brute force search."""
+        # 2x2x2 coarse cells of size 2, one bisected, one of whose children is bisected:
+        corners, sizes = [], []
+        for corner in itertools.product((0, 2), repeat=3):
+            if corner != (0, 0, 0):
+                corners.append(corner)
+                sizes.append(2.0)
+        for corner in itertools.product((0, 1), repeat=3):
+            if corner != (1, 1, 1):
+                corners.append(corner)
+                sizes.append(1.0)
+        for corner in itertools.product((1, 1.5), repeat=3):
+            corners.append(corner)
+            sizes.append(0.5)
+        cell_corners = np.array(corners, dtype=float)
+        cell_sizes = np.array(sizes)
+        rng = np.random.default_rng(0)
+        coords = np.vstack(
+            (
+                rng.uniform(-0.5, 4.5, (1000, 3)),
+                # on cell boundaries, at the grid edges and outside the grid:
+                [[2, 0.5, 0.5], [1.5, 1.5, 1.5], [0, 0, 0], [4, 1, 1], [-0.1, 1, 1]],
+            )
+        )
+        inside = np.all(
+            np.logical_and(
+                coords[:, np.newaxis, :] >= cell_corners,
+                coords[:, np.newaxis, :] < cell_corners + cell_sizes[:, np.newaxis],
+            ),
+            axis=2,
+        )
+        expected = np.where(inside.any(axis=1), inside.argmax(axis=1), -1)
+        assert np.all(inside.sum(axis=1) <= 1)  # cells do not overlap
+        assert np.array_equal(
+            module_interpolants._find_containing_cells(
+                coords, cell_corners, cell_sizes
+            ),
+            expected,
+        )
+
+    def test_particle_in_cell(self):
+        """Check deposited density, and mass-weighted velocity and temperature."""
+        field_positions = (
+            np.array(list(itertools.product((0.5, 1.5), repeat=3))) * U.pix
+        )
+        n_pos = len(field_positions)
+        distortion_corrections = np.ones(n_pos) * U.dimensionless_unscaled
+        distortion_corrections[0] = 2  # cell with corner at (0, 0, 0)
+        # two particles in the first cell, one outside the grid:
+        fields = module_interpolants.particle_in_cell(
+            positions=np.array([[0.2, 0.3, 0.4], [0.7, 0.1, 0.9], [5, 5, 5]]) * U.pix,
+            velocities=np.array([10, 30, 50]) * U.km / U.s,
+            smoothing_lengths=np.ones(3) * U.pix,
+            masses_HI=np.array([0.5, 1.5, 2.5]) * U.Msun,
+            temperatures=np.array([100, 300, 500]) * U.km**2 / U.s**2,
+            masses=np.array([1, 3, 5]) * U.Msun,
+            kernel=DiracDeltaKernel(),
+            field_positions=field_positions,
+            d_volume=np.ones(n_pos) * U.pix**3,
+            distortion_corrections=distortion_corrections,
+        )
+        expected_densities = np.zeros(n_pos) * U.Msun / U.pix**3
+        expected_densities[0] = 2.0 * U.Msun / (1 * U.pix**3 * 2)
+        expected_velocities = np.zeros(n_pos) * U.km / U.s
+        expected_velocities[0] = (1 * 10 + 3 * 30) / 4 * U.km / U.s
+        expected_temperatures = np.zeros(n_pos) * U.km**2 / U.s**2
+        expected_temperatures[0] = (1 * 100 + 3 * 300) / 4 * U.km**2 / U.s**2
+        assert U.allclose(fields["masses_HI"], expected_densities)
+        assert U.allclose(fields["velocities"], expected_velocities)
+        assert U.allclose(fields["temperatures"], expected_temperatures)
+
+
 class TestMochi:
     """Main API test for MOCHI backend."""
 
@@ -396,7 +473,6 @@ class TestMochiMassAccuracy:
     @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
     def test_mass_accuracy(
         self,
-        request,
         dc_zeros,
         sph_kernel,
         interpolant,
@@ -414,17 +490,10 @@ class TestMochiMassAccuracy:
         """
         kernel_name = sph_kernel.__name__
         interpolant_name = interpolant_ids[interpolants.index(interpolant)]
-        if kernel_name == "DiracDeltaKernel" and interpolant_name != "voronoi_mesh":
-            request.applymarker(
-                pytest.mark.xfail(
-                    strict=True,
-                    reason="Kernel interpolants deposit no mass for a point-like kernel.",
-                )
-            )
         hsm_g = 0.1 * U.kpc if kernel_name == "DiracDeltaKernel" else 1.0 * U.kpc
         source = single_particle_source(hsm_g=hsm_g)
         # single_particle_source has a mass of 1E4Msun, temperature of 1E4K
-        m = Mochi(
+        mochi_kwargs = dict(
             source=source,
             datacube=dc_zeros,
             beam=GaussianBeam(),
@@ -435,6 +504,20 @@ class TestMochiMassAccuracy:
             adaptive_grid=adaptive_grid,
             quiet=True,
         )
+        if kernel_name == "DiracDeltaKernel" and interpolant_name in (
+            "sph",
+            "mfm",
+            "manual_sph",
+        ):
+            # kernel interpolants cannot sample a Dirac-delta kernel:
+            with pytest.raises(ValueError, match="DiracDeltaKernel"):
+                Mochi(**mochi_kwargs)
+            return
+        if kernel_name != "DiracDeltaKernel" and interpolant_name == "particle_in_cell":
+            with pytest.warns(UserWarning, match="particle_in_cell"):
+                m = Mochi(**mochi_kwargs)
+        else:
+            m = Mochi(**mochi_kwargs)
         m.insert_source_in_cube()
         if interpolant_name == "voronoi_mesh":
             # A single Voronoi cell fills the whole grid, including the padded region

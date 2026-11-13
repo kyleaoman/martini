@@ -584,6 +584,174 @@ def voronoi_mesh(
     }
 
 
+def _find_containing_cells(
+    coords: np.ndarray, cell_corners: np.ndarray, cell_sizes: np.ndarray
+) -> np.ndarray:
+    """
+    Find the index of the cell containing each coordinate.
+
+    Cells are cubes that tile a region without overlapping, each with its lower corner at
+    an integer multiple of its size from the lower corner of the region. Cells of each
+    size therefore lie on a regular lattice, so containing cells are found by computing
+    lattice indices one cell size at a time.
+
+    Parameters
+    ----------
+    coords : ~numpy.ndarray
+        Coordinates to place in cells.
+
+    cell_corners : ~numpy.ndarray
+        Lower corners of the cells (same implicit units as ``coords``).
+
+    cell_sizes : ~numpy.ndarray
+        Side lengths of the cells (same implicit units as ``coords``).
+
+    Returns
+    -------
+    ~numpy.ndarray
+        Index of the cell containing each coordinate, or ``-1`` for coordinates outside of
+        all cells.
+    """
+    origin = cell_corners.min(axis=0)
+    containing_cells = np.full(len(coords), -1, dtype=np.intp)
+    for size in np.unique(cell_sizes):
+        level_cells = np.flatnonzero(cell_sizes == size)
+        cell_ijk = np.rint((cell_corners[level_cells] - origin) / size).astype(np.intp)
+        coord_ijk = np.floor((coords - origin) / size).astype(np.intp)
+        lattice_shape = tuple(cell_ijk.max(axis=0) + 1)
+        in_lattice = np.all(
+            np.logical_and(coord_ijk >= 0, coord_ijk < lattice_shape), axis=1
+        )
+        cell_keys = np.ravel_multi_index(tuple(cell_ijk.T), lattice_shape)
+        coord_keys = np.ravel_multi_index(tuple(coord_ijk[in_lattice].T), lattice_shape)
+        sort_order = np.argsort(cell_keys)
+        found = np.minimum(
+            np.searchsorted(cell_keys, coord_keys, sorter=sort_order),
+            len(cell_keys) - 1,
+        )
+        match = cell_keys[sort_order[found]] == coord_keys
+        containing_cells[np.flatnonzero(in_lattice)[match]] = level_cells[
+            sort_order[found[match]]
+        ]
+    return containing_cells
+
+
+def particle_in_cell(
+    positions: U.Quantity[U.pix],
+    velocities: U.Quantity[U.km / U.s],
+    smoothing_lengths: U.Quantity[U.pix],
+    masses_HI: U.Quantity[U.Msun],
+    temperatures: U.Quantity[U.km**2 / U.s**2],
+    masses: U.Quantity[U.Msun],
+    kernel: _BaseSPHKernel,
+    field_positions: U.Quantity[U.pix],
+    d_volume: U.Quantity[U.pix**3],
+    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
+    **kwargs: int,
+) -> dict[str, U.Quantity]:
+    """
+    Deposit particles into the cells containing them.
+
+    This is zeroth-order particle-in-cell assignment: each particle is deposited entirely
+    in the cell that contains it, with no spreading to neighbouring cells. On adaptive
+    grids this differs from "nearest grid point" assignment, because the nearest cell
+    centre is not necessarily the centre of the containing cell. It is intended for use
+    with :class:`~martini.sph_kernels.DiracDeltaKernel`, the SPH kernel is otherwise
+    ignored. Cells containing several particles take their mass-weighted mean properties
+    (e.g. velocity, temperature), so a refinement strategy such as
+    :func:`~martini.mochi.refinement.refine_grid_to_single_occupancy` may be preferable.
+
+    Parameters
+    ----------
+    positions : ~astropy.units.Quantity
+        Particle positions with units of pixels.
+
+    velocities : ~astropy.units.Quantity
+        Particle radial velocities with dimensions of speed.
+
+    smoothing_lengths : ~astropy.units.Quantity
+        Unused.
+
+    masses_HI : ~astropy.units.Quantity
+        Particle HI masses with dimensions of mass.
+
+    temperatures : ~astropy.units.Quantity
+        Particle temperatures (thermal velocity dispersions) with dimensions of speed
+        squared.
+
+    masses : ~astropy.units.Quantity
+        Particle masses with dimensions of mass.
+
+    kernel : _BaseSPHKernel
+        Unused.
+
+    field_positions : ~numpy.ndarray
+        Positions at which to interpolate fields (cell centres), implicitly with units of
+        pixels.
+
+    d_volume : ~astropy.units.Quantity
+        Rectilinear volume element size for ``field_positions`` with units of pixels
+        cubed. Cells are cubic, with side lengths the cube root of this volume.
+
+    distortion_corrections : ~astropy.units.Quantity
+        Dimensionless spherical distortion corrections to ``d_volume``.
+
+    Returns
+    -------
+    dict
+        Contains the interpolated fields.
+    """
+    if velocities.ndim != 1:
+        # more than one dimension of velocity is given, use radial velocity
+        velocities = velocities[:, 0]
+    n_pos = len(field_positions)
+    if not isinstance(d_volume, Iterable):
+        d_volume = np.ones(n_pos) * d_volume
+    if not isinstance(distortion_corrections, Iterable):
+        distortion_corrections = np.ones(n_pos) * distortion_corrections
+    length_unit = field_positions.unit
+    cell_sizes = np.cbrt(d_volume.to_value(length_unit**3))
+    containing_cells = _find_containing_cells(
+        positions.to_value(length_unit),
+        field_positions.to_value(length_unit) - cell_sizes[:, np.newaxis] / 2,
+        cell_sizes,
+    )
+    in_grid = containing_cells >= 0
+    cells = containing_cells[in_grid]
+
+    def deposit(values: np.ndarray) -> np.ndarray:
+        return np.bincount(cells, weights=values[in_grid], minlength=n_pos)
+
+    m = masses.to_value(masses.unit)
+    field_masses = deposit(m)
+    field_masses_HI = deposit(masses_HI.to_value(masses_HI.unit))
+    field_momenta = deposit(m * velocities.to_value(velocities.unit))
+    field_energies = deposit(m * temperatures.to_value(velocities.unit**2))
+    kernel_slice = field_masses != 0
+    corrected_volumes = (d_volume * distortion_corrections).to_value(length_unit**3)
+    return {
+        "velocities": U.Quantity(
+            np.divide(
+                field_momenta, field_masses, out=np.zeros(n_pos), where=kernel_slice
+            ),
+            velocities.unit,
+            copy=False,
+        ),
+        "masses_HI": U.Quantity(
+            field_masses_HI / corrected_volumes,
+            masses_HI.unit / length_unit**3,
+            copy=False,
+        ),
+        "temperatures": U.Quantity(
+            np.divide(
+                field_energies, field_masses, out=np.zeros(n_pos), where=kernel_slice
+            ),
+            velocities.unit**2,
+            copy=False,
+        ),
+    }
+
+
 def manual_sph(
     positions: U.Quantity[U.pix],
     velocities: U.Quantity[U.km / U.s],

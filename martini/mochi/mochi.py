@@ -4,19 +4,21 @@ Create mock observations of HI sources from cosmological hydrodynamical simulati
 Provides :class:`~martini.martini.Mochi`, the main class of the package.
 """
 
+import warnings
 import numpy as np
 from astropy import units as U
 from martini.martini import Martini
 from martini.datacube import DataCube
 from martini.beams import _BaseBeam
 from martini.sources import SPHSource
-from martini.sph_kernels import _BaseSPHKernel
+from martini.sph_kernels import _BaseSPHKernel, DiracDeltaKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
 from typing import Callable
 from martini.mochi.cell_grid import CellGrid, AdaptiveCellGrid
 from martini.mochi.refinement import refine_grid_to_half_particle_scale
 from martini.mochi.radiative_transfer import optically_thin
+from martini.mochi import interpolants
 from martini._unit_conversion import MHI_to_Jy_inplace
 
 
@@ -123,7 +125,10 @@ class Mochi(Martini):
         Function that interpolates the gas particle (or gas cell) properties onto the
         grid. E.g. :func:`~martini.mochi.interpolants.sph` or
         :func:`~martini.mochi.interpolants.mfm` found in the
-        :mod:`~martini.mochi.interpolants` module.
+        :mod:`~martini.mochi.interpolants` module. With a
+        :class:`~martini.sph_kernels.DiracDeltaKernel` use
+        :func:`~martini.mochi.interpolants.particle_in_cell` (or
+        :func:`~martini.mochi.interpolants.voronoi_mesh`).
 
     radiative_transfer : Callable, optional
         Function that evaluates a mock spectral cube (of mass in each pixel-channel
@@ -184,6 +189,22 @@ class Mochi(Martini):
             raise ValueError(
                 "Mochi requires an even number of pixels along each spatial axis of the "
                 f"datacube, got n_px_x={datacube.n_px_x}, n_px_y={datacube.n_px_y}."
+            )
+        is_dirac_delta = isinstance(sph_kernel, DiracDeltaKernel)
+        if is_dirac_delta and interpolant in (
+            interpolants.sph,
+            interpolants.mfm,
+            interpolants.manual_sph,
+        ):
+            raise ValueError(
+                "Kernel interpolants cannot sample a DiracDeltaKernel, use "
+                "interpolant=martini.mochi.interpolants.particle_in_cell "
+                "(or voronoi_mesh)."
+            )
+        if not is_dirac_delta and interpolant is interpolants.particle_in_cell:
+            warnings.warn(
+                "The particle_in_cell interpolant ignores the SPH kernel and deposits "
+                "particles as points, use DiracDeltaKernel to make this explicit."
             )
         super().__init__(
             source=source,
