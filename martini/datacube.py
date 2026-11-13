@@ -773,12 +773,12 @@ class DataCube(object):
         self.padx, self.pady = pad  # before accessing datacube_shape in this function
         if self._cube_data is not None:
             tmp = self._array
-            self._cube_data = (
+            self._array = (
                 np.zeros(self.datacube_shape, dtype=self._array.dtype) * tmp.unit
             )
             xregion = np.s_[pad[0] : -pad[0]] if pad[0] > 0 else slice(None, None, None)
             yregion = np.s_[pad[1] : -pad[1]] if pad[1] > 0 else slice(None, None, None)
-            self._cube_data[xregion, yregion, ...] = tmp
+            self._array[xregion, yregion, ...] = tmp
         extend_crpix = [pad[0], pad[1], 0]
         if self.stokes_axis:
             extend_crpix.append(0)

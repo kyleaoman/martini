@@ -12,7 +12,6 @@ from astropy import units as U
 from astropy.coordinates import ICRS
 
 if TYPE_CHECKING:
-    from swiftsimio import cosmo_array
     from swiftgalaxy import SWIFTGalaxy
     from astropy.coordinates.builtin_frames.baseradecframe import BaseRADecFrame
 
@@ -93,7 +92,7 @@ class SWIFTGalaxySource(SPHSource):
         dec: U.Quantity[U.deg] = 0.0 * U.deg,
         # Union avoids treating string as units:
         coordinate_frame: Union["BaseRADecFrame", None] = ICRS(),
-        _mHI_g: "cosmo_array" = None,
+        _mHI_g: U.Quantity[U.Msun] | None = None,
     ) -> None:
         assert galaxy is not None
         h = galaxy.metadata.cosmology.h

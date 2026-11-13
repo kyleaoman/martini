@@ -216,7 +216,7 @@ class EAGLESource(SPHSource):
             m_g
             * atomic_frac(
                 redshift,
-                rho_g * Habundance_g / (mu * proton_mass),
+                rho_g * Habundance_g / proton_mass,
                 particles["T_g"],
                 rho_g,
                 Habundance_g,

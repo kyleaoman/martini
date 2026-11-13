@@ -19,6 +19,6 @@
     "codeRepository": [
         "https://github.com/kyleaoman/martini",
     ],
-    "version": "3.0.0",
+    "version": "3.0.1",
     "license": "https://spdx.org/licenses/GPL-3.0-only.html",
 }
