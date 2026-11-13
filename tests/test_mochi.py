@@ -249,7 +249,7 @@ class TestAdaptiveCellGrid:
         assert np.allclose(grid.test_cell_distortion_corrections, 1, rtol=1e-6)
 
     def test_init_cell_distances(self, many_particle_source, dc_zeros):
-        """Check that cell distances are offset from the source distance along LoS."""
+        """Check that cell distances are log-spaced about the source distance."""
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
@@ -270,13 +270,74 @@ class TestAdaptiveCellGrid:
         expected_distances = U.Quantity(
             [
                 source.distance,
-                source.distance
-                + (offset * datacube.px_size * source.distance).to(
-                    source.distance.unit, U.dimensionless_angles()
-                ),
+                source.distance * np.exp((offset * datacube.px_size).to_value(U.rad)),
             ]
         )
         assert U.allclose(grid.test_cell_distances, expected_distances, rtol=1e-6)
+
+    def test_cell_distances_match_particle_distances(
+        self, many_particle_source, dc_zeros
+    ):
+        """Check that cells centred on particles are at the particle distances."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges()
+        grid = CellGrid(source, datacube)
+        grid.init_particle_locations(source, sph_kernel)
+        grid.test_cells = np.array(
+            [(*(position - 0.5), 1) for position in grid.positions.to_value(U.pix)],
+            dtype=CELL_DTYPE,
+        )
+        grid.init_cell_centres(prefix="test")
+        grid.init_cell_distances(source, datacube, prefix="test")
+        assert U.allclose(
+            grid.test_cell_distances, source.skycoords.distance, rtol=1e-6
+        )
+
+    def test_init_cell_distortion_corrections_tan(self, many_particle_source):
+        """
+        Check the solid angle correction for a TAN projection at high declination.
+
+        The solid angle per pixel in a TAN projection is ``sin(theta)**3`` (``theta`` the
+        native latitude) times the nominal value, with no dependence on declination. The
+        datacube straddles RA=0 to check wrapping.
+        """
+        datacube = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            n_channels=4,
+            px_size=0.5 * U.deg,
+            channel_width=4 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=60 * U.deg,
+        )
+        source = many_particle_source()
+        grid = CellGrid(source, datacube)
+        centre = datacube.datacube_shape[0] / 2 - 0.5
+        offsets = np.arange(-7, 8)
+        sky_pix = np.array([(centre + i, centre + j) for i in offsets for j in offsets])
+        # unit cells along the grid centre along the LoS:
+        grid.test_cells = np.array(
+            [(centre - 0.5, x - 0.5, y - 0.5, 1) for x, y in sky_pix],
+            dtype=CELL_DTYPE,
+        )
+        grid.init_cell_centres(prefix="test")
+        grid.init_cell_distances(source, datacube, prefix="test")
+        grid.init_cell_distortion_corrections(source, datacube, prefix="test")
+        corrections = grid.test_cell_distortion_corrections.to_value(
+            U.dimensionless_unscaled
+        )
+        theta = datacube.wcs.celestial.wcs.p2s(sky_pix, 0)["theta"]
+        assert np.allclose(corrections, np.sin(np.radians(theta)) ** 3, rtol=1e-6)
+        # unity at the reference point:
+        assert np.isclose(corrections[np.all(sky_pix == centre, axis=1)], 1, rtol=1e-6)
+        # no north-south gradient:
+        corrections = corrections.reshape((offsets.size, offsets.size))
+        assert np.allclose(corrections, corrections[:, ::-1], rtol=1e-6)
 
     @pytest.mark.parametrize("interpolant", interpolants)
     def test_interpolate_fields(self, many_particle_source, dc_zeros, interpolant):

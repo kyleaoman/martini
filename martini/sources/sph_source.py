@@ -345,8 +345,9 @@ class SPHSource(object):
 
         los_distance_pixcoords : bool
             If ``True`` particle locations along the line-of-sight distance axis are
-            evaluated using the same pixel scale as for RA and Dec and stored as
-            ``self.los_distance_pixcoords``.
+            evaluated using the same (local) pixel scale as for RA and Dec and stored as
+            ``self.los_distance_pixcoords``. The coordinate is logarithmic in distance,
+            such that pixels are locally cubic.
         """
         assert self.skycoords is not None, (
             "Initialize source.skycoords before calling _init_pixcoords."
@@ -376,17 +377,15 @@ class SPHSource(object):
             # the source distance. They must be equal. This should be refactored later.
             # assert datacube.n_px_x == datacube.n_px_y
             # assert datacube.padx == datacube.pady
-            # The *centre* of the first pixel is coordinate origin, trim one pixel from
-            # interval (i.e. the half pixel from each side).
-            distance_interval = (
-                (datacube.n_px_x - 1) * datacube.px_size * self.distance
-            ).to(distances.unit, U.dimensionless_angles())
+            # The source distance is at the centre of the LoS axis. Pixels are locally
+            # cubic: at distance d the LoS pixel depth is px_size * d, like the width and
+            # height, so the LoS coordinate is logarithmic in distance.
             self.los_distance_pixcoords = (
                 origin
                 + datacube.padx
-                + (distances - self.distance + distance_interval / 2)
-                * (datacube.n_px_x - 1)
-                / distance_interval
+                + (datacube.n_px_x - 1) / 2
+                + np.log((distances / self.distance).to_value(U.dimensionless_unscaled))
+                / datacube.px_size.to_value(U.rad)
             ) * U.pix
 
         return

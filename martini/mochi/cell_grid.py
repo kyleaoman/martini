@@ -14,6 +14,58 @@ from typing import Callable
 from martini.mochi._dtypes import CELL_DTYPE as _CELL_DTYPE
 
 
+def _pixel_solid_angle_ratio(
+    datacube: DataCube, pix: np.ndarray, h: float = 0.01
+) -> np.ndarray:
+    """
+    Evaluate the solid angle per unit pixel area relative to the nominal pixel size.
+
+    The Jacobian of the datacube WCS is evaluated by central differences, so any
+    celestial projection is supported. For the default TAN (gnomonic) projection the
+    ratio is the cube of the cosine of the angular distance from the WCS reference
+    point.
+
+    Parameters
+    ----------
+    datacube : ~martini.datacube.DataCube
+        The datacube module, needed for WCS information.
+
+    pix : ~numpy.ndarray
+        Pixel coordinates (indexed from 0) along the RA and Dec axes, with shape
+        ``(N, 2)``.
+
+    h : float, optional
+        Half-width used to evaluate central differences, in pixels.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        The dimensionless solid angle ratio at each location, with shape ``(N,)``.
+    """
+    celestial = datacube.wcs.celestial
+    to_rad = [U.Unit(cunit).to(U.rad) for cunit in celestial.wcs.cunit]
+    derivatives = []
+    for step in ((h, 0), (0, h)):
+        world_plus = celestial.all_pix2world(pix + step, 0) * to_rad
+        world_minus = celestial.all_pix2world(pix - step, 0) * to_rad
+        # wrap longitude differences across 2pi -> 0 in longitude:
+        dlng = (
+            world_plus[:, celestial.wcs.lng] - world_minus[:, celestial.wcs.lng] + np.pi
+        ) % (2 * np.pi) - np.pi
+        dlat = (
+            world_plus[:, celestial.wcs.lng, celestial.wcs.lat]
+            - world_minus[:, celestial.wcs.lng, celestial.wcs.lat]
+        )
+        derivatives.append((dlng / (2 * h), dlat / (2 * h)))
+    (dlng_dx, dlat_dx), (dlng_dy, dlat_dy) = derivatives
+    lat = (
+        celestial.all_pix2world(pix, 0)[:, celestial.wcs.lng, celestial.wcs.lat]
+        * to_rad[celestial.wcs.lng, celestial.wcs.lat]
+    )
+    solid_angle = np.abs(dlng_dx * dlat_dy - dlng_dy * dlat_dx) * np.cos(lat)
+    return solid_angle / datacube.px_size.to_value(U.rad) ** 2
+
+
 class CellGrid:
     """
     Manage interpolating fields onto a fixed grid to create a spectral cube.
@@ -184,9 +236,11 @@ class CellGrid:
         """
         Initialize the distance from the observer to the centre of each cell.
 
-        The LoS axis of the cell grid spans the same extent as the RA axis of the
-        datacube, centred on the source distance. A cell centred on the grid centre
-        along the LoS direction is at the source distance.
+        The LoS axis of the cell grid has the same number of pixels as the RA axis of
+        the datacube, centred on the source distance. A cell centred on the grid centre
+        along the LoS direction is at the source distance. Pixels are locally cubic, so
+        the LoS pixel coordinate is logarithmic in distance (see
+        :meth:`~martini.sources.sph_source.SPHSource._init_pixcoords`).
 
         Parameters
         ----------
@@ -204,18 +258,16 @@ class CellGrid:
         if prefix != "":
             prefix = f"{prefix}_"
         ref_cell = (datacube.datacube_shape[0] / 2 - 0.5) * U.pix
-        dist_offsets = (
+        log_distance_ratios = (
             (getattr(self, f"{prefix}cell_centres")[:, 0] - ref_cell)
             / U.pix
             * datacube.px_size
-            * source.distance
-        ).to(source.distance.unit, U.dimensionless_angles())
-        cell_distances = source.distance + dist_offsets
-        if (cell_distances < 0).any():
-            raise RuntimeError(
-                "Observer must not be inside MOCHI grid (insufficient source distance)."
-            )
-        setattr(self, f"{prefix}cell_distances", cell_distances)
+        ).to_value(U.rad)
+        setattr(
+            self,
+            f"{prefix}cell_distances",
+            source.distance * np.exp(log_distance_ratios),
+        )
         return
 
     def init_cell_distortion_corrections(
@@ -224,16 +276,16 @@ class CellGrid:
         """
         Initialize the spherical distortion correction of each cell volume.
 
-        The cell grid is in RA-Dec-distance space. We assume that the angular size of each
+        The cell grid is in projected sky-plane pixel coordinates (following the datacube
+        WCS) and (logarithmic) distance. We assume that the angular size of each
         individual cell is small, so cells are locally cubic, but the grid may cover a
         total angular extent that is not small. The volume of each cell is the product of
         its rectilinear volume (see :meth:`init_cell_volumes`) and this dimensionless
-        correction. Cells at declinations away from the equator have their volumes
-        reduced by a factor of the cosine of the declination. The correction is unity for
-        a cell centred on the grid centre along the LoS direction at declination zero.
-        Cells closer and further away than this reference distance have their volumes
-        adjusted by the cube of the ratio of their distance from the observer relative to
-        the reference distance. Requires the cell distances to be initialized first (see
+        correction. The solid angle subtended by a pixel depends on the WCS projection,
+        and is evaluated relative to the nominal pixel size. Cells have side lengths
+        proportional to their distance from the observer, so their volumes are adjusted
+        by the cube of the ratio of their distance relative to the source distance.
+        Requires the cell distances to be initialized first (see
         :meth:`init_cell_distances`).
 
         Parameters
@@ -251,27 +303,17 @@ class CellGrid:
         """
         if prefix != "":
             prefix = f"{prefix}_"
-        # all_pix2world gives values in degrees:
-        _, cell_dec = (
-            datacube.wcs.sub(2)
-            .all_pix2world(
-                getattr(self, f"{prefix}cell_centres")[:, :2],
-                1,
-            )
-            .T
+        # cell centres are (LoS, RA, Dec) pixel coordinates:
+        angular_correction = _pixel_solid_angle_ratio(
+            datacube, getattr(self, f"{prefix}cell_centres")[:, 1:].to_value(U.pix)
         )
         size_correction = (
             getattr(self, f"{prefix}cell_distances") / source.distance
         ).to_value(U.dimensionless_unscaled)
-        # TODO: the datacube WCS is a projection (TAN by default), so pixels subtend
-        # (approximately) constant solid angle near the reference point and the area
-        # correction should follow the projection rather than cos of absolute Dec. This
-        # introduces a spurious gradient of ~tan(Dec) * dDec across the grid.
-        dec_correction = np.cos(np.radians(cell_dec))
         setattr(
             self,
             f"{prefix}cell_distortion_corrections",
-            dec_correction * size_correction**3 * U.dimensionless_unscaled,
+            angular_correction * size_correction**3 * U.dimensionless_unscaled,
         )
         return
 

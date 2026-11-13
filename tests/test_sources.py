@@ -421,6 +421,44 @@ class TestSPHSource:
             atol=1e-4 * U.pix,
         )
 
+    def test_init_los_pixcoords_log_spacing(self):
+        """Check that pseudo-pixel coordinates along the LoS are log-spaced."""
+        distance = 3 * U.Mpc
+        px_size = 1 * U.deg
+        # particles at distances such that pixels are locally cubic:
+        distances = distance * np.exp(np.arange(-2, 3) * px_size.to_value(U.rad))
+        source = SPHSource(
+            distance=distance,
+            T_g=np.ones(5) * 1e4 * U.K,
+            mHI_g=np.ones(5) * 1e4 * U.Msun,
+            xyz_g=U.Quantity(
+                np.vstack(
+                    (
+                        (distances - distance).to_value(U.kpc),
+                        np.zeros(5),
+                        np.zeros(5),
+                    )
+                ).T,
+                U.kpc,
+            ),
+            vxyz_g=np.zeros((5, 3)) * U.km / U.s,
+            hsm_g=np.ones(5) * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=5,
+            n_px_y=5,
+            n_channels=5,
+            px_size=px_size,
+            channel_width=1 * U.km / U.s,
+        )
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        assert U.allclose(
+            source.los_distance_pixcoords,
+            np.arange(5) * U.pix,
+            atol=1e-6 * U.pix,
+        )
+
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     @pytest.mark.parametrize("dec", (0 * U.deg, 30 * U.deg, -30 * U.deg))
     def test_sky_location(self, ra, dec):
