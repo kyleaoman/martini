@@ -796,8 +796,8 @@ class DataCube(object):
             The mask that can be used to drop the pad region from the data cube.
         """
         return np.s_[
-            self.padx : -self.padx if self.padx else -1,
-            self.pady : -self.pady if self.pady else -1,
+            self.padx : -self.padx if self.padx else None,
+            self.pady : -self.pady if self.pady else None,
             ...,
         ]
 

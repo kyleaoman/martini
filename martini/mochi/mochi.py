@@ -281,6 +281,16 @@ class Mochi(Martini):
             ``multiprocessing``).
         """
         # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
+        # TODO: resolution checks. Kernels are point-sampled at cell centres, so accuracy
+        # depends on cell size relative to the kernel FWHM, not on pixel size as for
+        # Martini's kernel integrals. Refinement (e.g. refine_grid_to_half_particle_scale)
+        # refines relative to the radius of compact support, so cells end up between ~0.6
+        # (Gaussian) and ~1.0 (WendlandC6) FWHM across, and the uniform grid has fixed
+        # 1 px cells. Martini's kernel validation mechanism (_validate /
+        # _confirm_validation with min_valid_size, honouring skip_validation) could be
+        # used to check that the refinement strategy yields a fine enough grid for the
+        # kernel at hand, e.g. by validating smoothing lengths in units of the sizes of
+        # the cells that each particle deposits into (with Mochi-specific tolerances).
         self.sph_kernel._init_sm_ranges()
         cell_grid = (  # do any options need exposing?
             AdaptiveCellGrid(
@@ -306,14 +316,20 @@ class Mochi(Martini):
             self.radiative_transfer,
         )
         # can the unit conversion be merged with martini?
-        datacube_array *= (
-            self.source.distance.to(U.Mpc) ** -2
-        )  # use distances of individual cells instead
+        # TODO: use distances of individual cells instead of the source distance. Cells
+        # nearer/further along the LoS (and their volumes, via the distortion
+        # corrections) are at different distances, so their flux should scale with
+        # their own distance**-2.
+        datacube_array *= self.source.distance.to(U.Mpc) ** -2
         datacube_array /= np.abs(np.diff(self._datacube.velocity_channel_edges)).to(
             U.km / U.s
         )[:, np.newaxis, np.newaxis]
 
-        datacube_array[np.isnan(datacube_array)] = 0  # why are there nans?
+        if np.isnan(datacube_array).any():
+            raise RuntimeError(
+                "NaN values in the MOCHI spectral cube, this indicates a bug (e.g. a "
+                "kernel that the interpolant cannot evaluate)."
+            )
         MHI_to_Jy_inplace(datacube_array)
         datacube_array /= U.pix**2
         datacube_array = datacube_array.to(

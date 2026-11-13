@@ -167,6 +167,13 @@ class TestDataCube:
         assert dc_zeros.padx == 0
         assert dc_zeros.pady == 0
 
+    @pytest.mark.parametrize("pad", ((0, 0), (2, 3), (0, 3), (2, 0)))
+    def test_pad_mask(self, dc_zeros, pad):
+        """Check that the pad mask selects exactly the unpadded region."""
+        initial_shape = dc_zeros._array.shape
+        dc_zeros.add_pad(pad)
+        assert dc_zeros._array[dc_zeros.pad_mask].shape == initial_shape
+
     def test_drop_pad_already_dropped(self, dc_zeros):
         """Check that dropping already dropped pad gives no change."""
         assert dc_zeros.padx == 0

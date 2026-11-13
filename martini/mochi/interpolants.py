@@ -42,6 +42,7 @@ def _eval_kernel(
         smoothing lengths ``h``. Expected units of ``pixels**-3``.
     """
     r = distance.cdist(x_eval.to_value(h.unit), x_particle.to_value(h.unit))
+    # TODO: adaptive kernels evaluate only their preferred kernel, see particle_scatter.
     return kernel.eval_kernel(r, h.to_value(h.unit)) * h.unit**-3
 
 
@@ -355,6 +356,10 @@ def particle_scatter(
     size_in_fwhm = np.asarray(kernel.size_in_fwhm)
     support_radii = smoothing_lengths * size_in_fwhm
     # cache kernel in units of the smoothing length (FWHM):
+    # TODO: adaptive kernels evaluate only their preferred kernel (as in
+    # _AdaptiveKernel.eval_kernel), particles assigned a fallback kernel (e.g. the wider
+    # Gaussian) are still evaluated with the preferred one. Could cache one kernel per
+    # kernel_indices value and select per particle.
     kernel_cache_extent = float(np.max(size_in_fwhm))
     kernel_cache = kernel.eval_kernel(
         np.linspace(0, kernel_cache_extent, kernel_cache_resolution + 1), 1.0

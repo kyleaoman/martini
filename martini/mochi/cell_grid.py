@@ -227,6 +227,10 @@ class CellGrid:
         size_correction = ((dist_offsets + source.distance) / source.distance).to_value(
             U.dimensionless_unscaled
         )
+        # TODO: the datacube WCS is a projection (TAN by default), so pixels subtend
+        # (approximately) constant solid angle near the reference point and the area
+        # correction should follow the projection rather than cos of absolute Dec. This
+        # introduces a spurious gradient of ~tan(Dec) * dDec across the grid.
         dec_correction = np.cos(np.radians(cell_dec))
         if (size_correction < 0).any():
             raise RuntimeError(
