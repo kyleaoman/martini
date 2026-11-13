@@ -13,11 +13,13 @@ def calculate_field_spectrum(
     spectral_model: _BaseSpectrum,
     cell_volumes: U.Quantity[U.pix**3],
     cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled],
-) -> U.Quantity[U.Msun]:
+    cell_distances: U.Quantity[U.Mpc],
+) -> U.Quantity[U.Msun / U.Mpc**2]:
     """
     Evaluate the spectrum given the fields interpolated onto the grid.
 
-    The spectrum is the mass contained in a series of velocity bins.
+    The spectrum is the mass contained in a series of velocity bins, divided by the
+    square of the distance of each cell from the observer.
 
     Parameters
     ----------
@@ -36,17 +38,27 @@ def calculate_field_spectrum(
     cell_distortion_corrections : ~astropy.units.Quantity
         Dimensionless spherical distortion correction to the volume of each cell.
 
+    cell_distances : ~astropy.units.Quantity
+        Distance from the observer to each cell, with dimension of length.
+
     Returns
     -------
     ~astropy.units.Quantity
-        The evaluated mass spectrum, with shape ``(n_channels, n_cells)``.
+        The evaluated mass spectrum divided by distance squared, with shape
+        ``(n_channels, n_cells)``.
     """
     field_temperatures = cell_grid.interpolated_fields["temperatures"]
     field_masses = cell_grid.interpolated_fields["masses_HI"]
     field_velocities = cell_grid.interpolated_fields["velocities"]
     field_temperatures[field_masses == 0] = 1 * field_temperatures.unit
-    # field_masses is a density per unit corrected volume, convert to mass in each cell:
-    numerator = field_masses * cell_volumes * cell_distortion_corrections
+    # field_masses is a density per unit corrected volume, convert to mass in each cell,
+    # then divide by distance squared since flux scales with each cell's own distance:
+    numerator = (
+        field_masses
+        * cell_volumes
+        * cell_distortion_corrections
+        / cell_distances.to(U.Mpc) ** 2
+    )
     # Some refactoring needed here for better integration with spectral model, or maybe
     # some changes needed in spectral model code.
     # To consider:
@@ -81,7 +93,7 @@ def optically_thin(
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
     index_type: type = np.uintc,
-) -> U.Quantity[U.Msun]:
+) -> U.Quantity[U.Msun / U.Mpc**2]:
     """
     Assemble fields into an HI cube using optically thin approximation.
 
@@ -104,7 +116,8 @@ def optically_thin(
     Returns
     -------
     ~astropy.units.Quantity
-        The mock spectral cube.
+        The mock spectral cube, of HI mass divided by distance squared in each pixel and
+        channel.
     """
     adaptive = hasattr(cell_grid, "adaptive_cells")
     cells = cell_grid.adaptive_cells if adaptive else cell_grid.cells
@@ -118,6 +131,7 @@ def optically_thin(
             if adaptive
             else cell_grid.cell_distortion_corrections
         ),
+        cell_grid.adaptive_cell_distances if adaptive else cell_grid.cell_distances,
     )
     if adaptive:
         # Each cell's mass is shared equally between the sky-plane (y, z) pixels that it

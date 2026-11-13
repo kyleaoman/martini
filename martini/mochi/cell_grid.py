@@ -42,6 +42,7 @@ class CellGrid:
     radii: U.Quantity[U.pix]
     interpolated_fields: dict[str, U.Quantity]
     cell_volumes: U.Quantity[U.pix**3]
+    cell_distances: U.Quantity[U.Mpc]
     cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled]
     cell_centres: U.Quantity[U.pix]
     grid_shape: tuple[int, int, int]
@@ -86,6 +87,7 @@ class CellGrid:
         self.init_cell_centres()
         self.grid_shape = full_grid_shape
         self.init_cell_volumes()
+        self.init_cell_distances(source, datacube)
         self.init_cell_distortion_corrections(source, datacube)
 
     def init_particle_locations(
@@ -176,6 +178,46 @@ class CellGrid:
         )
         return
 
+    def init_cell_distances(
+        self, source: SPHSource, datacube: DataCube, prefix: str = ""
+    ) -> None:
+        """
+        Initialize the distance from the observer to the centre of each cell.
+
+        The LoS axis of the cell grid spans the same extent as the RA axis of the
+        datacube, centred on the source distance. A cell centred on the grid centre
+        along the LoS direction is at the source distance.
+
+        Parameters
+        ----------
+        source : ~martini.sources.sph_source.SPHSource
+            The source module, needed for reference distance.
+
+        datacube : ~martini.datacube.DataCube
+            The datacube module, needed for grid spacing information.
+
+        prefix : str
+            By default sets ``self.cell_distances`` from the ``self.cells``. A prefix,
+            e.g. ``"adaptive"`` can be provided, which would set
+            ``self.adaptive_cell_distances`` from ``self.adaptive_cells``.
+        """
+        if prefix != "":
+            prefix = f"{prefix}_"
+        ref_cell = (datacube.datacube_shape[0] / 2 - 0.5) * U.pix
+        dist_offsets = (
+            (getattr(self, f"{prefix}cell_centres")[:, 0] - ref_cell)
+            / U.pix
+            * datacube.px_size
+            * source.distance
+        ).to(source.distance.unit, U.dimensionless_angles())
+        cell_distances = source.distance + dist_offsets
+        if (cell_distances < 0).any():
+            raise RuntimeError(
+                "Observer must not be inside MOCHI grid (insufficient source distance)."
+            )
+        setattr(self, f"{prefix}cell_distances", cell_distances)
+        return
+
     def init_cell_distortion_corrections(
         self, source: SPHSource, datacube: DataCube, prefix: str = ""
     ) -> None:
@@ -191,7 +233,8 @@ class CellGrid:
         a cell centred on the grid centre along the LoS direction at declination zero.
         Cells closer and further away than this reference distance have their volumes
         adjusted by the cube of the ratio of their distance from the observer relative to
-        the reference distance.
+        the reference distance. Requires the cell distances to be initialized first (see
+        :meth:`init_cell_distances`).
 
         Parameters
         ----------
@@ -199,7 +242,7 @@ class CellGrid:
             The source module, needed for reference distance.
 
         datacube : ~martini.datacube.DataCube
-            The datacube module, needed for WCS and grid spacing information.
+            The datacube module, needed for WCS information.
 
         prefix : str
             By default sets ``self.cell_distortion_corrections`` from the
@@ -217,25 +260,14 @@ class CellGrid:
             )
             .T
         )
-        ref_cell = (datacube.datacube_shape[0] / 2 - 0.5) * U.pix
-        dist_offsets = (
-            (getattr(self, f"{prefix}cell_centres")[:, 0] - ref_cell)
-            / U.pix
-            * datacube.px_size
-            * source.distance
-        ).to(source.distance.unit, U.dimensionless_angles())
-        size_correction = ((dist_offsets + source.distance) / source.distance).to_value(
-            U.dimensionless_unscaled
-        )
+        size_correction = (
+            getattr(self, f"{prefix}cell_distances") / source.distance
+        ).to_value(U.dimensionless_unscaled)
         # TODO: the datacube WCS is a projection (TAN by default), so pixels subtend
         # (approximately) constant solid angle near the reference point and the area
         # correction should follow the projection rather than cos of absolute Dec. This
         # introduces a spurious gradient of ~tan(Dec) * dDec across the grid.
         dec_correction = np.cos(np.radians(cell_dec))
-        if (size_correction < 0).any():
-            raise RuntimeError(
-                "Observer must not be inside MOCHI grid (insufficient source distance)."
-            )
         setattr(
             self,
             f"{prefix}cell_distortion_corrections",
@@ -336,7 +368,7 @@ class CellGrid:
         datacube: DataCube,
         spectral_model: _BaseSpectrum,
         radiative_transfer: Callable,  # fill in arg & return types
-    ) -> U.Quantity[U.Msun]:
+    ) -> U.Quantity[U.Msun / U.Mpc**2]:
         """
         "Collapse" the cell grid into a spectral cube.
 
@@ -352,15 +384,17 @@ class CellGrid:
             Spectral model used to evaluate spectra.
 
         radiative_transfer : Callable
-            Function that evaluates a mock spectral cube (of mass in each pixel-channel
-            cell). E.g. :func:`~martini.mochi.radiative_transfer.adaptive_optically_thin`,
-            can be found in the :mod:`~martini.mochi.radiative_transfer` module.
+            Function that evaluates a mock spectral cube (of mass divided by distance
+            squared in each pixel-channel cell). E.g.
+            :func:`~martini.mochi.radiative_transfer.optically_thin`, can be found in the
+            :mod:`~martini.mochi.radiative_transfer` module.
 
         Returns
         -------
         ~astropy.units.Quantity
-            The spectral cube with units of solar masses (i.e. HI contained in each pixel
-            and channel).
+            The spectral cube with units of solar masses per square megaparsec (i.e. HI
+            mass contained in each pixel and channel, with each contribution divided by
+            the square of its distance from the observer).
         """
         return radiative_transfer(  # eventually store as state instead of returning?
             self,
@@ -392,6 +426,7 @@ class AdaptiveCellGrid(CellGrid):
     initial_cells: np.ndarray
     adaptive_cells: np.ndarray
     adaptive_cell_volumes: U.Quantity[U.pix**3]
+    adaptive_cell_distances: U.Quantity[U.Mpc]
     adaptive_cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled]
     adaptive_cell_centres: U.Quantity[U.pix]
 
@@ -438,6 +473,7 @@ class AdaptiveCellGrid(CellGrid):
         ).view(dtype=_CELL_DTYPE)
         self.init_cell_centres(prefix="adaptive")
         self.init_cell_volumes(prefix="adaptive")
+        self.init_cell_distances(source, datacube, prefix="adaptive")
         self.init_cell_distortion_corrections(source, datacube, prefix="adaptive")
 
     def interpolate_fields(

@@ -131,10 +131,11 @@ class Mochi(Martini):
         :func:`~martini.mochi.interpolants.voronoi_mesh`).
 
     radiative_transfer : Callable, optional
-        Function that evaluates a mock spectral cube (of mass in each pixel-channel
-        cell). E.g. :func:`~martini.mochi.radiative_transfer.optically_thin`,
-        can be found in the :mod:`~martini.mochi.radiative_transfer` module. If omitted,
-        the optically thin method is adopted.
+        Function that evaluates a mock spectral cube (of mass divided by distance
+        squared in each pixel-channel cell). E.g.
+        :func:`~martini.mochi.radiative_transfer.optically_thin`, can be found in the
+        :mod:`~martini.mochi.radiative_transfer` module. If omitted, the optically thin
+        method is adopted.
 
     refinement_strategy : Callable, optional
         Function that decides and applies the grid refinement criterion. E.g.
@@ -177,7 +178,7 @@ class Mochi(Martini):
         spectral_model: _BaseSpectrum,
         interpolant: Callable,  # fill in arg & return types
         radiative_transfer: Callable[
-            [CellGrid, DataCube, _BaseSpectrum, type], U.Quantity[U.Msun]
+            [CellGrid, DataCube, _BaseSpectrum, type], U.Quantity[U.Msun / U.Mpc**2]
         ] = optically_thin,
         refinement_strategy: Callable[
             [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix]], np.ndarray
@@ -316,11 +317,6 @@ class Mochi(Martini):
             self.radiative_transfer,
         )
         # can the unit conversion be merged with martini?
-        # TODO: use distances of individual cells instead of the source distance. Cells
-        # nearer/further along the LoS (and their volumes, via the distortion
-        # corrections) are at different distances, so their flux should scale with
-        # their own distance**-2.
-        datacube_array *= self.source.distance.to(U.Mpc) ** -2
         datacube_array /= np.abs(np.diff(self._datacube.velocity_channel_edges)).to(
             U.km / U.s
         )[:, np.newaxis, np.newaxis]

@@ -244,8 +244,39 @@ class TestAdaptiveCellGrid:
         grid.init_cell_volumes(prefix="test")
         assert np.allclose(grid.test_cell_volumes, test_volumes, rtol=1e-6)
         # cell centred on grid centre at dec=0 has no distortion:
+        grid.init_cell_distances(source, datacube, prefix="test")
         grid.init_cell_distortion_corrections(source, datacube, prefix="test")
         assert np.allclose(grid.test_cell_distortion_corrections, 1, rtol=1e-6)
+
+    def test_init_cell_distances(self, many_particle_source, dc_zeros):
+        """Check that cell distances are offset from the source distance along LoS."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        grid = CellGrid(source, datacube)
+        centre = datacube.datacube_shape[0] / 2 - 0.5
+        offset = 3
+        # unit cells centred on the grid centre and offset along the LoS:
+        grid.test_cells = np.array(
+            [
+                (centre - 0.5, centre - 0.5, centre - 0.5, 1),
+                (centre + offset - 0.5, centre - 0.5, centre - 0.5, 1),
+            ],
+            dtype=CELL_DTYPE,
+        )
+        grid.init_cell_centres(prefix="test")
+        grid.init_cell_distances(source, datacube, prefix="test")
+        expected_distances = U.Quantity(
+            [
+                source.distance,
+                source.distance
+                + (offset * datacube.px_size * source.distance).to(
+                    source.distance.unit, U.dimensionless_angles()
+                ),
+            ]
+        )
+        assert U.allclose(grid.test_cell_distances, expected_distances, rtol=1e-6)
 
     @pytest.mark.parametrize("interpolant", interpolants)
     def test_interpolate_fields(self, many_particle_source, dc_zeros, interpolant):
