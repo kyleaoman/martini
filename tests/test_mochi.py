@@ -572,6 +572,7 @@ class TestMochiMassAccuracy:
         spectral_model,
         single_particle_source,
         out_mode,
+        tmp_path_factory,
     ):
         """
         Check that input mass in particles ends up in the output cube.
@@ -616,4 +617,4 @@ class TestMochiMassAccuracy:
             # that is cropped after beam convolution, so only check after insertion.
             check_inserted_mass_accuracy(m)
         else:
-            check_mass_accuracy(m, out_mode)
+            check_mass_accuracy(m, out_mode, tmp_path_factory.mktemp("cube"))

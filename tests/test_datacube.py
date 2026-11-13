@@ -220,45 +220,41 @@ class TestDataCube:
         check_wcs_match(dc_random.wcs, copy.wcs)
 
     @pytest.mark.parametrize("with_pad", (False, True))
-    def test_save_and_load_state(self, dc_random, with_pad):
+    def test_save_and_load_state(self, dc_random, with_pad, tmp_path_factory):
         """Check that we can recover a datacube from a save file."""
         pytest.importorskip("h5py", reason="h5py (optional dependency) not available.")
-        try:
-            if with_pad:
-                dc_random.add_pad((3, 3))
-            dc_random.save_state("test_savestate.hdf5", overwrite=True)
-            loaded = DataCube.load_state("test_savestate.hdf5")
-            for attr in (
-                "n_px_x",
-                "n_px_y",
-                "n_channels",
-                "padx",
-                "pady",
-            ):
-                assert getattr(dc_random, attr) == getattr(loaded, attr)
-            for attr in (
-                "px_size",
-                "channel_width",
-                "spectral_centre",
-                "ra",
-                "dec",
-            ):
-                assert U.isclose(
-                    getattr(dc_random, attr),
-                    getattr(loaded, attr),
-                    atol=1e-6 * getattr(dc_random, attr).unit,
-                )
-            for attr in (
-                "channel_edges",
-                "channel_mids",
-                "_array",
-            ):
-                assert U.allclose(getattr(dc_random, attr), getattr(loaded, attr))
-            check_wcs_match(dc_random.wcs, loaded.wcs)
-        except Exception:
-            raise
-        finally:
-            os.remove("test_savestate.hdf5")
+        if with_pad:
+            dc_random.add_pad((3, 3))
+        filename = str(tmp_path_factory.mktemp("savestate") / "savestate.hdf5")
+        dc_random.save_state(filename, overwrite=True)
+        loaded = DataCube.load_state(filename)
+        for attr in (
+            "n_px_x",
+            "n_px_y",
+            "n_channels",
+            "padx",
+            "pady",
+        ):
+            assert getattr(dc_random, attr) == getattr(loaded, attr)
+        for attr in (
+            "px_size",
+            "channel_width",
+            "spectral_centre",
+            "ra",
+            "dec",
+        ):
+            assert U.isclose(
+                getattr(dc_random, attr),
+                getattr(loaded, attr),
+                atol=1e-6 * getattr(dc_random, attr).unit,
+            )
+        for attr in (
+            "channel_edges",
+            "channel_mids",
+            "_array",
+        ):
+            assert U.allclose(getattr(dc_random, attr), getattr(loaded, attr))
+        check_wcs_match(dc_random.wcs, loaded.wcs)
 
     def test_init_with_mixed_spectral_centre_and_channel_width_units(self):
         """Check that giving channel spacing and central channel in mixed units works."""

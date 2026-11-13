@@ -1,6 +1,5 @@
 """Test the functionality of the main martini module."""
 
-import os
 import pytest
 import warnings
 import numpy as np
@@ -18,7 +17,7 @@ from astropy.coordinates import FK5, ICRS
 from scipy.signal import fftconvolve
 
 
-def check_mass_accuracy(m, out_mode):
+def check_mass_accuracy(m, out_mode, out_dir):
     """
     Check that mass in cube matches input mass by better than 1%.
 
@@ -29,6 +28,9 @@ def check_mass_accuracy(m, out_mode):
 
     out_mode : str
         Can be ``"fits"`` or ``"hdf5"``.
+
+    out_dir : ~pathlib.Path
+        Directory to write the output file to.
     """
     if out_mode == "hdf5":
         h5py = pytest.importorskip(
@@ -86,118 +88,106 @@ def check_mass_accuracy(m, out_mode):
     assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
     if out_mode == "fits":
-        filename = "cube.fits"
-        try:
-            m.write_fits(filename)
-            with fits.open(filename) as f:
-                # distance
-                D = m.source.distance
+        filename = str(out_dir / "cube.fits")
+        m.write_fits(filename)
+        with fits.open(filename) as f:
+            # distance
+            D = m.source.distance
 
-                # radiant intensity
-                fits_wcs = wcs.WCS(f[0].header)
-                Irad = U.Quantity(
-                    f[0].data.T.sum((0, 1)).squeeze(), unit=f[0].header["BUNIT"]
-                )
+            # radiant intensity
+            fits_wcs = wcs.WCS(f[0].header)
+            Irad = U.Quantity(
+                f[0].data.T.sum((0, 1)).squeeze(), unit=f[0].header["BUNIT"]
+            )
 
-                A = (
-                    np.pi
-                    * (f[0].header["BMAJ"] * U.deg)
-                    * (f[0].header["BMIN"] * U.deg)
-                    / 4
-                    / np.log(2)
-                    / U.beam
-                )
-                px_area = U.Quantity(
-                    np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
-                ) * U.Quantity(
-                    np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"]
-                )
+            A = (
+                np.pi
+                * (f[0].header["BMAJ"] * U.deg)
+                * (f[0].header["BMIN"] * U.deg)
+                / 4
+                / np.log(2)
+                / U.beam
+            )
+            px_area = U.Quantity(
+                np.abs(f[0].header["CDELT1"]), unit=f[0].header["CUNIT1"]
+            ) * U.Quantity(np.abs(f[0].header["CDELT2"]), unit=f[0].header["CUNIT2"])
 
-                # flux
-                F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+            # flux
+            F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
 
-                channel_edges = fits_wcs.sub(("spectral",)).all_pix2world(
-                    np.arange(fits_wcs.sub(("spectral",)).pixel_shape[0] + 1) - 0.5,
-                    0,
-                ) * U.Unit(fits_wcs.wcs.cunit[fits_wcs.wcs.spec], format="fits")
-                dv = np.abs(
-                    np.diff(
-                        channel_edges.squeeze().to(
-                            U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
-                        )
+            channel_edges = fits_wcs.sub(("spectral",)).all_pix2world(
+                np.arange(fits_wcs.sub(("spectral",)).pixel_shape[0] + 1) - 0.5,
+                0,
+            ) * U.Unit(fits_wcs.wcs.cunit[fits_wcs.wcs.spec], format="fits")
+            dv = np.abs(
+                np.diff(
+                    channel_edges.squeeze().to(
+                        U.km / U.s, equivalencies=U.doppler_radio(HIfreq)
                     )
                 )
+            )
 
-                # HI mass
-                MHI = np.sum(
-                    2.36e5
-                    * U.Msun
-                    * D.to_value(U.Mpc) ** 2
-                    * F.to_value(U.Jy)
-                    * dv.to_value(U.km / U.s)
-                ).to(U.Msun)
+            # HI mass
+            MHI = np.sum(
+                2.36e5
+                * U.Msun
+                * D.to_value(U.Mpc) ** 2
+                * F.to_value(U.Jy)
+                * dv.to_value(U.km / U.s)
+            ).to(U.Msun)
 
-            # demand accuracy within 1% in output fits file
-            assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-        finally:
-            if os.path.exists(filename):
-                os.remove(filename)
+        # demand accuracy within 1% in output fits file
+        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
     if out_mode == "hdf5":
-        filename = "cube.hdf5"
-        try:
-            m.write_hdf5(filename)
-            with h5py.File(filename, "r") as f:
-                # distance
-                D = m.source.distance
+        filename = str(out_dir / "cube.hdf5")
+        m.write_hdf5(filename)
+        with h5py.File(filename, "r") as f:
+            # distance
+            D = m.source.distance
 
-                # radiant intensity
-                Irad = U.Quantity(
-                    f["FluxCube"][()].sum((0, 1)).squeeze(),
-                    unit=f["FluxCube"].attrs["FluxCubeUnit"],
+            # radiant intensity
+            Irad = U.Quantity(
+                f["FluxCube"][()].sum((0, 1)).squeeze(),
+                unit=f["FluxCube"].attrs["FluxCubeUnit"],
+            )
+
+            A = (
+                np.pi
+                * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
+                * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
+                / 4
+                / np.log(2)
+                / U.beam
+            )
+            dv = np.abs(
+                np.diff(
+                    f["velocity_channel_edges"]
+                    * U.Unit(f["velocity_channel_edges"].attrs["Unit"])
                 )
+            )
+            px_area = U.Quantity(
+                np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
+                unit=f["FluxCube"].attrs["RAUnit"],
+            ) * U.Quantity(
+                np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
+                unit=f["FluxCube"].attrs["DecUnit"],
+            )
 
-                A = (
-                    np.pi
-                    * (f["FluxCube"].attrs["BeamMajor_in_deg"] * U.deg)
-                    * (f["FluxCube"].attrs["BeamMinor_in_deg"] * U.deg)
-                    / 4
-                    / np.log(2)
-                    / U.beam
-                )
-                dv = np.abs(
-                    np.diff(
-                        f["velocity_channel_edges"]
-                        * U.Unit(f["velocity_channel_edges"].attrs["Unit"])
-                    )
-                )
-                px_area = U.Quantity(
-                    np.abs(f["FluxCube"].attrs["deltaRA_in_RAUnit"]),
-                    unit=f["FluxCube"].attrs["RAUnit"],
-                ) * U.Quantity(
-                    np.abs(f["FluxCube"].attrs["deltaDec_in_DecUnit"]),
-                    unit=f["FluxCube"].attrs["DecUnit"],
-                )
+            # flux
+            F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
 
-                # flux
-                F = (Irad / A).to(U.Jy / U.arcsec**2) * px_area
+            # HI mass
+            MHI = np.sum(
+                2.36e5
+                * U.Msun
+                * D.to_value(U.Mpc) ** 2
+                * F.to_value(U.Jy)
+                * dv.to_value(U.km / U.s)
+            ).to(U.Msun)
 
-                # HI mass
-                MHI = np.sum(
-                    2.36e5
-                    * U.Msun
-                    * D.to_value(U.Mpc) ** 2
-                    * F.to_value(U.Jy)
-                    * dv.to_value(U.km / U.s)
-                ).to(U.Msun)
-
-            # demand accuracy within 1% in output hdf5 file
-            assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
-
-        finally:
-            if os.path.exists(filename):
-                os.remove(filename)
+        # demand accuracy within 1% in output hdf5 file
+        assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
 
 
 class TestMartini:
@@ -215,6 +205,7 @@ class TestMartini:
         single_particle_source,
         out_mode,
         combined_source,
+        tmp_path_factory,
     ):
         """
         Check that input mass in particles ends up in the output cube.
@@ -239,13 +230,19 @@ class TestMartini:
             sph_kernel=sph_kernel(),
         )
         m.insert_source_in_cube(progressbar=False)
-        check_mass_accuracy(m, out_mode)
+        check_mass_accuracy(m, out_mode, tmp_path_factory.mktemp("cube"))
 
     @pytest.mark.parametrize("sph_kernel", simple_kernels)
     @pytest.mark.parametrize("spectral_model", (GaussianSpectrum,))
     @pytest.mark.parametrize("dtype", (None, np.float32, np.float64, np.int32))
     def test_fits_dtype(
-        self, dc_zeros, sph_kernel, dtype, spectral_model, single_particle_source
+        self,
+        dc_zeros,
+        sph_kernel,
+        dtype,
+        spectral_model,
+        single_particle_source,
+        tmp_path_factory,
     ):
         """Check that output file dtype matches requested dtype in write call."""
         source = single_particle_source()
@@ -257,16 +254,12 @@ class TestMartini:
             spectral_model=spectral_model(),
             sph_kernel=sph_kernel(),
         )
-        filename = "cube.fits"
-        try:
-            m.write_fits(filename, dtype=dtype)
-            with fits.open(filename) as f:
-                if dtype is None:
-                    dtype = np.float64
-                assert f[0].data.dtype.type == dtype
-        finally:
-            if os.path.exists(filename):
-                os.remove(filename)
+        filename = str(tmp_path_factory.mktemp("cube") / "cube.fits")
+        m.write_fits(filename, dtype=dtype)
+        with fits.open(filename) as f:
+            if dtype is None:
+                dtype = np.float64
+            assert f[0].data.dtype.type == dtype
 
     def test_convolve_beam(self, single_particle_source):
         """Check that beam convolution gives result matching manual calculation."""
@@ -774,83 +767,78 @@ class TestMartini:
                 spectral_model=DiracDeltaSpectrum(),
             )
 
-    def test_hdf5_grids(self, m):
+    def test_hdf5_grids(self, m, tmp_path_factory):
         """Check the explicit RA, Dec and spectral grid optionally output in HDF5 mode."""
         h5py = pytest.importorskip(
             "h5py", reason="h5py (optional dependency) not available."
         )
         origin = 0  # numpy-like, not fits-like, indexing
-        filename = "cube.hdf5"
-        try:
-            m.write_hdf5(filename)
-            with h5py.File(filename, "r") as f:
-                voxel_coords = np.vstack(
+        filename = str(tmp_path_factory.mktemp("cube") / "cube.hdf5")
+        m.write_hdf5(filename)
+        with h5py.File(filename, "r") as f:
+            voxel_coords = np.vstack(
+                (
                     (
-                        (
-                            f["RA"][()].flatten()
-                            * U.Unit(f["RA"].attrs["Unit"], format="fits")
-                        ).to_value(m.datacube.wcs.wcs.cunit[0]),
-                        (
-                            f["Dec"][()].flatten()
-                            * U.Unit(f["Dec"].attrs["Unit"], format="fits")
-                        ).to_value(m.datacube.wcs.wcs.cunit[1]),
-                        (
-                            f["channel_mids"][()].flatten()
-                            * U.Unit(f["channel_mids"].attrs["Unit"], format="fits")
-                        ).to_value(m.datacube.wcs.wcs.cunit[2]),
-                    )
-                ).T
-                ra_idx, dec_idx, spec_idx = m.datacube.wcs.all_world2pix(
-                    voxel_coords, origin
-                ).T
-                ra_idx = ra_idx.reshape((m.datacube._array.shape))
-                dec_idx = dec_idx.reshape((m.datacube._array.shape))
-                spec_idx = spec_idx.reshape((m.datacube._array.shape))
-                expected_idx = np.meshgrid(
-                    np.arange(m.datacube.n_px_x),
-                    np.arange(m.datacube.n_px_y),
-                    np.arange(m.datacube.n_channels),
-                    indexing="ij",
-                )
-                assert np.allclose(ra_idx, expected_idx[0])
-                assert np.allclose(dec_idx, expected_idx[1])
-                assert np.allclose(spec_idx, expected_idx[2])
-                vertex_coords = np.vstack(
+                        f["RA"][()].flatten()
+                        * U.Unit(f["RA"].attrs["Unit"], format="fits")
+                    ).to_value(m.datacube.wcs.wcs.cunit[0]),
                     (
-                        (
-                            f["RA_vertices"][()].flatten()
-                            * U.Unit(f["RA_vertices"].attrs["Unit"], format="fits")
-                        ).to_value(m.datacube.wcs.wcs.cunit[0]),
-                        (
-                            f["Dec_vertices"][()].flatten()
-                            * U.Unit(f["Dec_vertices"].attrs["Unit"], format="fits")
-                        ).to_value(m.datacube.wcs.wcs.cunit[1]),
-                        (
-                            f["channel_vertices"][()].flatten()
-                            * U.Unit(f["channel_vertices"].attrs["Unit"], format="fits")
-                        ).to_value(m.datacube.wcs.wcs.cunit[2]),
-                    )
-                ).T
-                ra_vx_idx, dec_vx_idx, spec_vx_idx = m.datacube.wcs.all_world2pix(
-                    vertex_coords, origin
-                ).T
-                shape = [s + 1 for s in m.datacube._array.shape]
-                ra_vx_idx = ra_vx_idx.reshape(shape)
-                dec_vx_idx = dec_vx_idx.reshape(shape)
-                spec_vx_idx = spec_vx_idx.reshape(shape)
-                expected_vx_idx = np.meshgrid(
-                    np.arange(m.datacube.n_px_x + 1) - 0.5,
-                    np.arange(m.datacube.n_px_y + 1) - 0.5,
-                    np.arange(m.datacube.n_channels + 1) - 0.5,
-                    indexing="ij",
+                        f["Dec"][()].flatten()
+                        * U.Unit(f["Dec"].attrs["Unit"], format="fits")
+                    ).to_value(m.datacube.wcs.wcs.cunit[1]),
+                    (
+                        f["channel_mids"][()].flatten()
+                        * U.Unit(f["channel_mids"].attrs["Unit"], format="fits")
+                    ).to_value(m.datacube.wcs.wcs.cunit[2]),
                 )
-                assert np.allclose(ra_vx_idx, expected_vx_idx[0])
-                assert np.allclose(dec_vx_idx, expected_vx_idx[1])
-                assert np.allclose(spec_vx_idx, expected_vx_idx[2])
-
-        finally:
-            if os.path.exists(filename):
-                os.remove(filename)
+            ).T
+            ra_idx, dec_idx, spec_idx = m.datacube.wcs.all_world2pix(
+                voxel_coords, origin
+            ).T
+            ra_idx = ra_idx.reshape((m.datacube._array.shape))
+            dec_idx = dec_idx.reshape((m.datacube._array.shape))
+            spec_idx = spec_idx.reshape((m.datacube._array.shape))
+            expected_idx = np.meshgrid(
+                np.arange(m.datacube.n_px_x),
+                np.arange(m.datacube.n_px_y),
+                np.arange(m.datacube.n_channels),
+                indexing="ij",
+            )
+            assert np.allclose(ra_idx, expected_idx[0])
+            assert np.allclose(dec_idx, expected_idx[1])
+            assert np.allclose(spec_idx, expected_idx[2])
+            vertex_coords = np.vstack(
+                (
+                    (
+                        f["RA_vertices"][()].flatten()
+                        * U.Unit(f["RA_vertices"].attrs["Unit"], format="fits")
+                    ).to_value(m.datacube.wcs.wcs.cunit[0]),
+                    (
+                        f["Dec_vertices"][()].flatten()
+                        * U.Unit(f["Dec_vertices"].attrs["Unit"], format="fits")
+                    ).to_value(m.datacube.wcs.wcs.cunit[1]),
+                    (
+                        f["channel_vertices"][()].flatten()
+                        * U.Unit(f["channel_vertices"].attrs["Unit"], format="fits")
+                    ).to_value(m.datacube.wcs.wcs.cunit[2]),
+                )
+            ).T
+            ra_vx_idx, dec_vx_idx, spec_vx_idx = m.datacube.wcs.all_world2pix(
+                vertex_coords, origin
+            ).T
+            shape = [s + 1 for s in m.datacube._array.shape]
+            ra_vx_idx = ra_vx_idx.reshape(shape)
+            dec_vx_idx = dec_vx_idx.reshape(shape)
+            spec_vx_idx = spec_vx_idx.reshape(shape)
+            expected_vx_idx = np.meshgrid(
+                np.arange(m.datacube.n_px_x + 1) - 0.5,
+                np.arange(m.datacube.n_px_y + 1) - 0.5,
+                np.arange(m.datacube.n_channels + 1) - 0.5,
+                indexing="ij",
+            )
+            assert np.allclose(ra_vx_idx, expected_vx_idx[0])
+            assert np.allclose(dec_vx_idx, expected_vx_idx[1])
+            assert np.allclose(spec_vx_idx, expected_vx_idx[2])
 
 
 class TestParallel:
@@ -1165,7 +1153,9 @@ class TestMartiniWithDataCubeFromWCS:
     """Test the feature allowing setting up the datacube from an existing WCS."""
 
     @pytest.mark.parametrize("out_mode", ("fits", "hdf5"))
-    def test_source_insertion(self, dc_wcs, single_particle_source, out_mode):
+    def test_source_insertion(
+        self, dc_wcs, single_particle_source, out_mode, tmp_path_factory
+    ):
         """Check that the mass in the final cube agrees with input mass within 1%."""
         datacube = dc_wcs
         distance = (
@@ -1192,4 +1182,4 @@ class TestMartiniWithDataCubeFromWCS:
             sph_kernel=_CubicSplineKernel(),
         )
         m.insert_source_in_cube(progressbar=False)
-        check_mass_accuracy(m, out_mode)
+        check_mass_accuracy(m, out_mode, tmp_path_factory.mktemp("cube"))

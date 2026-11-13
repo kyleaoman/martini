@@ -61,6 +61,7 @@ docs = [
 testing = [
     "flake8",
     "pytest-cov",
+    "pytest-xdist",
     "numpydoc",
     "sphinx-lint",
     "nbmake",
