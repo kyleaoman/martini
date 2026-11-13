@@ -1,22 +1,17 @@
 """Test that demo function is working."""
 
 from martini._demo import demo, demo_source
-import os
 
 
-def test_demo():
+def test_demo(tmp_path_factory):
     """Check that demo completes and produces output files."""
+    tp = tmp_path_factory.mktemp("demo")
     filenames = {
-        "cubefile": "pytest_testcube.fits",
-        "beamfile": "pytest_testbeam.fits",
-        "hdf5file": "pytest_testcube.hdf5",
+        "cubefile": str(tp / "testcube.fits"),
+        "beamfile": str(tp / "testbeam.fits"),
+        "hdf5file": str(tp / "testcube.hdf5"),
     }
-    try:
-        demo(**filenames)
-    finally:
-        for filename in filenames.values():
-            if os.path.exists(filename):
-                os.remove(filename)
+    demo(**filenames)
 
 
 def test_demo_source():

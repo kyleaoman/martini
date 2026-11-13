@@ -594,7 +594,6 @@ def dc_random(request: FixtureRequest) -> Generator[DataCube, None, None]:
         stokes_axis=stokes_axis,
         px_size=15.0 * U.arcsec,
     )
-
     dc._array[...] = (
         np.random.rand(dc._array.size).reshape(dc._array.shape) * dc._array.unit
     )
@@ -639,6 +638,7 @@ def dc_wcs(request: FixtureRequest) -> Generator[DataCube, None, None]:
             dc = DataCube.from_wcs(hdr_wcs)
     else:
         dc = DataCube.from_wcs(hdr_wcs)
+    dc._allocate_cube()
     yield dc
 
 
@@ -676,14 +676,15 @@ def dc_zeros(request: FixtureRequest) -> Generator[DataCube, None, None]:
             U.Hz, equivalencies=U.doppler_radio(HIfreq)
         )
     dc = DataCube(
-        n_px_x=16,
-        n_px_y=16,
+        n_px_x=32,
+        n_px_y=32,
         n_channels=16,
         channel_width=channel_width,
         spectral_centre=spectral_centre,
         stokes_axis=stokes_axis,
         px_size=15.0 * U.arcsec,
     )
+    dc._allocate_cube()
 
     yield dc
 
@@ -706,7 +707,7 @@ def adaptive_kernel_test_datacube() -> Generator[DataCube, None, None]:
         spectral_centre=3 * 70 * U.km / U.s,
         channel_width=4.0 * U.km / U.s,
     )
-
+    dc._allocate_cube()
     yield dc
 
 
