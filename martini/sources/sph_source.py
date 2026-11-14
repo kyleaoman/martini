@@ -164,6 +164,7 @@ class SPHSource(object):
     sky_coordinates: ICRS
     coordinate_frame: "BaseRADecFrame"
     pixcoords: U.Quantity[U.pix]
+    los_distance_pixcoords: U.Quantity[U.pix]
     input_mass: U.Quantity[U.Msun]
     skycoords: SkyCoord | None
     spectralcoords: SpectralCoord | None
@@ -262,6 +263,7 @@ class SPHSource(object):
         self.skycoords = None
         self.spectralcoords = None
         self.pixcoords = None
+        self.los_distance_pixcoords = None
         return
 
     def _init_skycoords(self, _reset: bool = True) -> None:
@@ -327,7 +329,9 @@ class SPHSource(object):
             self.rotate(Rotation.from_euler("y", self.dec.to_value(U.rad)))
         return
 
-    def _init_pixcoords(self, datacube: DataCube, origin: int = 0) -> None:
+    def _init_pixcoords(
+        self, datacube: DataCube, origin: int = 0, los_distance_pixcoords: bool = False
+    ) -> None:
         """
         Initialize pixel coordinates of the particles.
 
@@ -338,6 +342,12 @@ class SPHSource(object):
 
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
+
+        los_distance_pixcoords : bool
+            If ``True`` particle locations along the line-of-sight distance axis are
+            evaluated using the same (local) pixel scale as for RA and Dec and stored as
+            ``self.los_distance_pixcoords``. The coordinate is logarithmic in distance,
+            such that pixels are locally cubic.
         """
         assert self.skycoords is not None, (
             "Initialize source.skycoords before calling _init_pixcoords."
@@ -361,6 +371,23 @@ class SPHSource(object):
             )
             * U.pix
         )
+        if los_distance_pixcoords:
+            distances = skycoords_df_frame.distance
+            # The LoS depth is assumed equal to the width and height of the datacube at
+            # the source distance. They must be equal. This should be refactored later.
+            # assert datacube.n_px_x == datacube.n_px_y
+            # assert datacube.padx == datacube.pady
+            # The source distance is at the centre of the LoS axis. Pixels are locally
+            # cubic: at distance d the LoS pixel depth is px_size * d, like the width and
+            # height, so the LoS coordinate is logarithmic in distance.
+            self.los_distance_pixcoords = (
+                origin
+                + datacube.padx
+                + (datacube.n_px_x - 1) / 2
+                + np.log((distances / self.distance).to_value(U.dimensionless_unscaled))
+                / datacube.px_size.to_value(U.rad)
+            ) * U.pix
+
         return
 
     def apply_mask(self, mask: np.ndarray) -> None:
@@ -390,6 +417,8 @@ class SPHSource(object):
             self.spectralcoords = self.spectralcoords[mask]
         if self.pixcoords is not None:
             self.pixcoords = self.pixcoords[:, mask]
+        if self.los_distance_pixcoords is not None:
+            self.los_distance_pixcoords = self.los_distance_pixcoords[mask]
         if self.hsm_g is not None and not self.hsm_g.isscalar:
             self.hsm_g = self.hsm_g[mask]
         return
@@ -833,22 +862,18 @@ class SPHSource(object):
             * 0.5  # guard against getting all 0s
         )
         alpha = hsm_factor if point_scaling == "auto" else 1.0
-        if self.hsm_g is None:
-            size_scale = 1
-        else:
-            size_scale = (
-                self.hsm_g.to_value(U.kpc)
+        hsm_g = getattr(self, "hsm_g", 1 * U.kpc)
+        size_scale = (
+            hsm_g.to_value(U.kpc)
+            / (lim * U.deg * self.distance).to_value(U.kpc, U.dimensionless_angles())
+            if (hsm_g.isscalar or mask.size <= 1)
+            else (
+                hsm_g[mask].to_value(U.kpc)
                 / (lim * U.deg * self.distance).to_value(
                     U.kpc, U.dimensionless_angles()
                 )
-                if (self.hsm_g.isscalar or mask.size <= 1)
-                else (
-                    self.hsm_g[mask].to_value(U.kpc)
-                    / (lim * U.deg * self.distance).to_value(
-                        U.kpc, U.dimensionless_angles()
-                    )
-                )
             )
+        )
         size = 300 * size_scale if point_scaling == "auto" else 10
 
         if newfig := not isinstance(fig, plt.Figure):

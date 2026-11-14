@@ -61,6 +61,7 @@ class TestDataCube:
             px_size=15 * U.arcsec,
             channel_width=4 * U.km / U.s,
         )
+        datacube._allocate_cube()
         expected_shape = (10, 11, 12, 1) if datacube.stokes_axis else (10, 11, 12)
         assert datacube._array.shape == expected_shape
 
@@ -166,6 +167,13 @@ class TestDataCube:
         assert dc_zeros.padx == 0
         assert dc_zeros.pady == 0
 
+    @pytest.mark.parametrize("pad", ((0, 0), (2, 3), (0, 3), (2, 0)))
+    def test_pad_mask(self, dc_zeros, pad):
+        """Check that the pad mask selects exactly the unpadded region."""
+        initial_shape = dc_zeros._array.shape
+        dc_zeros.add_pad(pad)
+        assert dc_zeros._array[dc_zeros.pad_mask].shape == initial_shape
+
     def test_drop_pad_already_dropped(self, dc_zeros):
         """Check that dropping already dropped pad gives no change."""
         assert dc_zeros.padx == 0
@@ -212,45 +220,41 @@ class TestDataCube:
         check_wcs_match(dc_random.wcs, copy.wcs)
 
     @pytest.mark.parametrize("with_pad", (False, True))
-    def test_save_and_load_state(self, dc_random, with_pad):
+    def test_save_and_load_state(self, dc_random, with_pad, tmp_path_factory):
         """Check that we can recover a datacube from a save file."""
         pytest.importorskip("h5py", reason="h5py (optional dependency) not available.")
-        try:
-            if with_pad:
-                dc_random.add_pad((3, 3))
-            dc_random.save_state("test_savestate.hdf5", overwrite=True)
-            loaded = DataCube.load_state("test_savestate.hdf5")
-            for attr in (
-                "n_px_x",
-                "n_px_y",
-                "n_channels",
-                "padx",
-                "pady",
-            ):
-                assert getattr(dc_random, attr) == getattr(loaded, attr)
-            for attr in (
-                "px_size",
-                "channel_width",
-                "spectral_centre",
-                "ra",
-                "dec",
-            ):
-                assert U.isclose(
-                    getattr(dc_random, attr),
-                    getattr(loaded, attr),
-                    atol=1e-6 * getattr(dc_random, attr).unit,
-                )
-            for attr in (
-                "channel_edges",
-                "channel_mids",
-                "_array",
-            ):
-                assert U.allclose(getattr(dc_random, attr), getattr(loaded, attr))
-            check_wcs_match(dc_random.wcs, loaded.wcs)
-        except Exception:
-            raise
-        finally:
-            os.remove("test_savestate.hdf5")
+        if with_pad:
+            dc_random.add_pad((3, 3))
+        filename = str(tmp_path_factory.mktemp("savestate") / "savestate.hdf5")
+        dc_random.save_state(filename, overwrite=True)
+        loaded = DataCube.load_state(filename)
+        for attr in (
+            "n_px_x",
+            "n_px_y",
+            "n_channels",
+            "padx",
+            "pady",
+        ):
+            assert getattr(dc_random, attr) == getattr(loaded, attr)
+        for attr in (
+            "px_size",
+            "channel_width",
+            "spectral_centre",
+            "ra",
+            "dec",
+        ):
+            assert U.isclose(
+                getattr(dc_random, attr),
+                getattr(loaded, attr),
+                atol=1e-6 * getattr(dc_random, attr).unit,
+            )
+        for attr in (
+            "channel_edges",
+            "channel_mids",
+            "_array",
+        ):
+            assert U.allclose(getattr(dc_random, attr), getattr(loaded, attr))
+        check_wcs_match(dc_random.wcs, loaded.wcs)
 
     def test_init_with_mixed_spectral_centre_and_channel_width_units(self):
         """Check that giving channel spacing and central channel in mixed units works."""
@@ -359,6 +363,7 @@ class TestDataCube:
             spectral_centre=3 * 70 * U.km / U.s,
             cube_dtype=cube_dtype,
         )
+        dc._allocate_cube()
         assert dc._array.dtype == cube_dtype
         source = single_particle_source(hsm_g=3 * U.kpc)
         beam = GaussianBeam(bmaj=45 * U.arcsec, bmin=45 * U.arcsec)
@@ -379,6 +384,11 @@ class TestDataCube:
         assert dc._array.dtype == cube_dtype
         m.convolve_beam()
         assert dc._array.dtype == cube_dtype
+
+    def test_repr(self, dc_zeros):
+        """Check that string representation is informative."""
+        assert "Quantity" in str(dc_zeros)
+        assert "Jy / pix2" in str(dc_zeros)
 
 
 class TestDataCubeFromWCS:

@@ -23,7 +23,7 @@ class TestNoise:
         )
         beam = GaussianBeam()
         noise = noise_generator.generate(datacube, beam)
-        assert noise.shape == datacube._array.shape
+        assert noise.shape == tuple(datacube.datacube_shape)
 
     def test_noise_amplitude(self, m_init):
         """Check that we generate noise with correct amplitude."""
