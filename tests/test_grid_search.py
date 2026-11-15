@@ -221,7 +221,7 @@ class TestUniformGridSearch:
         with pytest.raises(ValueError, match="radii must have"):
             count_grid_intersections((10, 10), coords, radii[:-1])
 
-    def test_without_numba_threads(self, monkeypatch: pytest.Monkeypatch) -> None:
+    def test_without_numba_threads(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Check that the search runs without numba thread control."""
         coords, radii = _random_input((37, 64), 50, 3.0)
         expected = find_grid_intersections((37, 64), coords, radii)
