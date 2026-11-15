@@ -224,9 +224,8 @@ def test_parallel_spectra(SpectralModel, cross_source):
     """
     Check that spectra calculated in serial and parallel are consistent.
 
-    The serial "fallback" implementation is the reference case. We check both the numba
-    implementation but running as python code without jit compilation, and also the
-    multi-threaded, compiled numba implementation.
+    The serial "fallback" implementation is the reference case, the numba implementation
+    is checked against it.
     """
     pytest.importorskip("numba", reason="numba (optional dependency) not available.")
     source = cross_source()
@@ -240,13 +239,7 @@ def test_parallel_spectra(SpectralModel, cross_source):
         channel_width=4.0 * U.km / U.s,
     )
     spectral_model._numba_enabled = False
-    spectral_model._jit_enabled = False
     serial_spectra = spectral_model._eval_spectra(source, datacube, ncpu=1)
     spectral_model._numba_enabled = True
-    spectral_model._jit_enabled = False
-    spectra_nojit = spectral_model._eval_spectra(source, datacube, ncpu=1)
-    spectral_model._numba_enabled = True
-    spectral_model._jit_enabled = True
-    spectra_jit_enabled = spectral_model._eval_spectra(source, datacube, ncpu=1)
-    assert U.allclose(serial_spectra, spectra_nojit)
-    assert U.allclose(serial_spectra, spectra_jit_enabled)
+    numba_spectra = spectral_model._eval_spectra(source, datacube, ncpu=1)
+    assert U.allclose(serial_spectra, numba_spectra)

@@ -6,6 +6,7 @@ exclude =
     __pycache__,
     docs/source/conf.py,
     docs/build,
+    .claude,
 per-file-ignores = 
     martini/__init__.py:F401
     martini/sources/__init__.py:F401

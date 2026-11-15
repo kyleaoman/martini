@@ -210,9 +210,8 @@ multi-threaded operations include:
    bandwidth). Multiple threads might speed up the process for very large numbers of
    particles (millions+) processed in a single batch, but most machines will not have
    enough memory (likely 1TB or more) to support this.
- - Querying a :class:`~scipy.spatial.KDTree` to find intersections between particle
-   smoothing kernels and pixels. Usually this is also not CPU-limited and speedups are
-   limited despite multi-thread compatibility.
+ - Finding intersections between particle smoothing kernels and pixels. Usually this is
+   also not CPU-limited and speedups are limited despite multi-thread compatibility.
  - Applying the kernel weights to the spectra for each pixel and writing the result to the
    data cube. This operation does speed up significantly with additional threads, however
    it is normally not the bottleneck overall so speeding up this process makes little

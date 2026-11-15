@@ -4,8 +4,10 @@ import os
 import pytest
 import warnings
 import numpy as np
-from martini.martini import Martini, GlobalProfile, _BaseMartini
+from martini.martini import Martini, GlobalProfile, _BaseMartini, _plan_segments
 from martini.datacube import DataCube, HIfreq
+import martini._util
+from martini._util import resolve_ncpu
 from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels
 from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaKernel
@@ -821,17 +823,13 @@ class TestMartini:
 class TestParallel:
     """Test that results running in parallel agree with those running serially."""
 
-    @pytest.mark.parametrize("jit_on", (True, False))
-    def test_parallel_consistent_with_serial(
-        self, many_particle_source, dc_zeros, jit_on
-    ):
+    def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
         """
         Check running the source insertion loop in parallel.
 
         Should give the same result as running in serial. The serial "fallback"
-        implementation is the reference case. We check both the numba implementation but
-        running as python code (without jit) against this, and also the compiled,
-        multi-threaded implementation.
+        implementation is the reference case, the numba implementation is checked
+        against it.
         """
         pytest.importorskip("numba", reason="numba (optional dependency) not available")
 
@@ -845,7 +843,6 @@ class TestParallel:
         )
 
         m._numba_enabled = False
-        m._jit_enabled = False
         m.insert_source_in_cube(ncpu=1, progressbar=False)  # fallback implementation
 
         expected_result = m.datacube._array
@@ -862,7 +859,6 @@ class TestParallel:
         )
 
         m._numba_enabled = True
-        m._jit_enabled = jit_on
         m.insert_source_in_cube(progressbar=False)
 
         assert U.allclose(m.datacube._array, expected_result)
@@ -879,6 +875,25 @@ class TestParallel:
             match="'numba'-accelerated 'martini' does not support progress bar",
         ):
             m_init.insert_source_in_cube(progressbar=True)
+
+    def test_all_cores(self, m_init):
+        """Check that ncpu=-1 runs and agrees with a single thread."""
+        m_init.insert_source_in_cube(ncpu=1, progressbar=False)
+        expected_result = m_init.datacube._array.copy()
+        assert expected_result.sum() > 0
+        m_init.reset()
+        m_init.insert_source_in_cube(ncpu=-1, progressbar=False)
+        assert U.allclose(m_init.datacube._array, expected_result)
+
+    def test_resolve_ncpu(self, monkeypatch):
+        """Check conversion of requested thread counts."""
+        assert resolve_ncpu(3) == 3
+        assert resolve_ncpu(-1) >= 1
+        monkeypatch.setattr(martini._util, "NUMBA_AVAILABLE", False)
+        assert resolve_ncpu(-1) == 1
+        for bad in (0, -2):
+            with pytest.raises(ValueError, match="ncpu must be"):
+                resolve_ncpu(bad)
 
 
 class TestBatched:
@@ -931,6 +946,25 @@ class TestBatched:
 
         assert U.allclose(m.datacube._array, expected_result)
 
+    def test_plan_segments(self):
+        """Check that particle batches are contiguous and respect the allowance."""
+        rng = np.random.default_rng(0)
+        mem_estimate = rng.random(100)
+        allowance = 3.0
+        # make sure that batching is actually needed:
+        assert mem_estimate.sum() > allowance
+        segments = _plan_segments(mem_estimate, allowance)
+        assert len(segments) > 1
+        assert segments[0].start == 0
+        assert segments[-1].stop == mem_estimate.size
+        for s0, s1 in zip(segments[:-1], segments[1:]):
+            assert s0.stop == s1.start
+        for segment in segments:
+            assert segment.stop > segment.start
+            assert mem_estimate[segment].sum() <= allowance
+        with pytest.raises(ValueError, match="insufficient for a single particle"):
+            _plan_segments(np.array([1.0, 4.0, 1.0]), allowance)
+
     def test_insufficient_memory(self, m_init):
         """Test that insufficient memory to process even one particle crashes."""
         with pytest.warns(RuntimeWarning, match="Requested memory limit"):
@@ -946,6 +980,25 @@ class TestBatched:
 
 class TestGlobalProfile:
     """Test the functionality of the simplified martini module for global profiles."""
+
+    def test_search_bypass_matches_search(self, many_particle_source):
+        """Check that GlobalProfile's shortcut gives the same overlaps as a search."""
+        source = many_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(),
+            n_channels=32,
+            channel_width=10 * U.km * U.s**-1,
+            spectral_centre=source.vsys,
+        )
+        sm_ranges = m.sph_kernel.sm_ranges.to_value(U.pix)
+        px_hits = m._count_px_hits(sm_ranges, 1)
+        assert np.array_equal(px_hits, _BaseMartini._count_px_hits(m, sm_ranges, 1))
+        for segment in (slice(None), slice(3, 10), slice(5, 5)):
+            gs = m._find_px_hits(segment, sm_ranges, px_hits, 1)
+            gs_search = _BaseMartini._find_px_hits(m, segment, sm_ranges, px_hits, 1)
+            for a, b in zip(gs, gs_search):
+                assert np.array_equal(a, b)
 
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
     @pytest.mark.parametrize("ra", (0 * U.deg, 180 * U.deg))

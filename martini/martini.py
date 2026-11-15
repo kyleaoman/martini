@@ -25,8 +25,12 @@ from martini.sources import SPHSource
 from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
-from martini._grid_search import build_tree, find_grid_intersections
-from martini._util import NUMBA_AVAILABLE, numba_threads
+from martini._grid_search import (
+    count_grid_intersections,
+    find_grid_intersections,
+    FindGridIntersectionsResult,
+)
+from martini._util import NUMBA_AVAILABLE, numba_threads, resolve_ncpu
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -114,6 +118,47 @@ if NUMBA_AVAILABLE:
                     )
 
 
+def _plan_segments(mem_estimate: np.ndarray, allowance: float) -> list[slice]:
+    """
+    Divide particles into contiguous batches that each fit within a memory allowance.
+
+    Parameters
+    ----------
+    mem_estimate : ~numpy.ndarray
+        Estimated memory required to process each particle.
+
+    allowance : float
+        Memory available to process each batch, in the same units as
+        ``mem_estimate``.
+
+    Returns
+    -------
+    list
+        List of :class:`slice` objects selecting the particles in each batch.
+
+    Raises
+    ------
+    ValueError
+        If any single particle needs more memory than the allowance.
+    """
+    if np.any(mem_estimate > allowance):
+        raise ValueError("Memory allowance insufficient for a single particle.")
+    # Should always have a particle if we get here, but make very sure so we don't
+    # enter an infinite loop:
+    assert len(mem_estimate) > 0, (
+        "Particles processing in batches but no particles present, this is an error."
+    )
+    segments = []
+    segment_start = 0
+    while segment_start < len(mem_estimate):
+        cumsum = np.cumsum(mem_estimate[segment_start:])
+        segment_length = np.searchsorted(cumsum, allowance, side="right")
+        segment_end = segment_start + int(segment_length)
+        segments.append(slice(segment_start, segment_end))
+        segment_start = segment_end
+    return segments
+
+
 class _BaseMartini:
     """
     Common methods for the core Martini class and related classes.
@@ -185,7 +230,6 @@ class _BaseMartini:
     spectral_model: _BaseSpectrum
     quiet: bool
     _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
-    _jit_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
 
     def __init__(
         self,
@@ -217,11 +261,11 @@ class _BaseMartini:
         #   - skycoords         (N, 6)
         #   - spectralcoords    (N, 1)
         #   - pixcoords         (N, 3)
-        #   Total 19 * N * 64B
+        #   Total 19 * N * 8B (64-bit floats)
         self.baseline_mem_estimate = (
             np.prod(self._datacube.current_shape)
             * np.dtype(self._datacube.cube_dtype).itemsize
-            + 19 * self.source.npart * 64
+            + 19 * self.source.npart * 8
         ) / 1024**3  # GB
 
         if self.beam is not None:
@@ -314,6 +358,68 @@ class _BaseMartini:
             )
         return
 
+    def _count_px_hits(self, sm_ranges: np.ndarray, ncpu: int) -> np.ndarray:
+        """
+        Count the pixels overlapped by each particle's smoothing kernel.
+
+        Parameters
+        ----------
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of the particles, in pixels.
+
+        ncpu : int
+            Number of threads to use.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            Number of pixels overlapped by each particle.
+        """
+        return count_grid_intersections(
+            self._datacube.current_shape[:2],
+            self.source.pixcoords[:2].to_value(U.pix).T,
+            sm_ranges,
+            ncpu=ncpu,
+        )
+
+    def _find_px_hits(
+        self,
+        segment: slice,
+        sm_ranges: np.ndarray,
+        px_hits: np.ndarray,
+        ncpu: int,
+    ) -> FindGridIntersectionsResult:
+        """
+        Find the pixels overlapped by the smoothing kernels of a batch of particles.
+
+        Parameters
+        ----------
+        segment : slice
+            Selects the batch of particles.
+
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of all particles, in pixels.
+
+        px_hits : ~numpy.ndarray
+            Number of pixels overlapped by each particle (all particles).
+
+        ncpu : int
+            Number of threads to use.
+
+        Returns
+        -------
+        ~martini._grid_search.FindGridIntersectionsResult
+            The particle-pixel overlaps.
+        """
+        return find_grid_intersections(
+            self._datacube.current_shape[:2],
+            self.source.pixcoords[:2, segment].to_value(U.pix).T,
+            sm_ranges[segment],
+            ncpu=ncpu,
+            dist_dtype=self.spectral_model.spec_dtype,
+            counts=px_hits[segment],
+        )
+
     def _weighted_sum_and_insert_in_cube(
         self,
         spectra: np.ndarray,
@@ -389,19 +495,8 @@ class _BaseMartini:
         total_elements = len(flat_cube_indices)
 
         if self._numba_enabled:
-            if self._jit_enabled:
-                with numba_threads(ncpu):
-                    _weighted_sum_and_insert_in_cube_numba(
-                        cube_view,
-                        spectra,
-                        weights,
-                        flat_cube_indices,
-                        strides,
-                        intersections,
-                    )
-                return ncpu
-            else:
-                _weighted_sum_and_insert_in_cube_numba.py_func(
+            with numba_threads(ncpu):
+                _weighted_sum_and_insert_in_cube_numba(
                     cube_view,
                     spectra,
                     weights,
@@ -409,7 +504,7 @@ class _BaseMartini:
                     strides,
                     intersections,
                 )
-                return 1
+            return ncpu
 
         if ncpu != 1:
             warn("Parallelization not available without 'numba'.", RuntimeWarning)
@@ -471,8 +566,8 @@ class _BaseMartini:
             pixels in the cube. The particles can be processed in batches to mitigate
             this, but this slows down the code. The memory limit set here (in GB) will
             trigger batching if estimated memory usage is expected to exceed it. This is
-            a "soft" limit since some allocation outside of direct control (e.g. internal
-            in :mod:`scipy`) cannot be exactly predicted.
+            a "soft" limit since some allocations (e.g. temporary arrays when evaluating
+            the SPH kernel) cannot be exactly predicted.
 
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
@@ -488,6 +583,7 @@ class _BaseMartini:
                 f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
                 f" `mem_lim_GB` when calling `insert_source_in_cube`."
             )
+        ncpu = resolve_ncpu(ncpu)
         quiet = self.quiet if quiet is None else quiet
         if not quiet:
             insert_source_start_time = datetime.now()
@@ -505,64 +601,43 @@ class _BaseMartini:
 
         self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=quiet)
 
-        ij_pxs = np.flip(
-            np.mgrid[
-                : float(self._datacube.current_shape[1]),
-                : float(self._datacube.current_shape[0]),
-            ].T.reshape(-1, 2),
-            1,
-        )
-        if not quiet:
-            print("Building pixel grid KDTree...")
-            tree_build_start_time = datetime.now()
-        tree = build_tree(ij_pxs)
-        if not quiet:
-            print(f"Built KDTree, took {datetime.now() - tree_build_start_time}.")
         clipped_sm_ranges = np.clip(
             self.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
         )
-        estimated_px_hits = np.clip(
-            np.pi * clipped_sm_ranges**2, 0, self._datacube.current_n_px
-        )
-        # Estimate memory for tree query. At peak:
-        # - 64B per list (once for each entry in estimated_px_hits).
-        # - 8B (pointer) + 28B (integer) = 36B for each estimated_px_hits.
-        # - Internally C++ vectors are used for storage which over-allocate when resized
-        #   in steps of a factor of 2. In practice seems like a factor of 1.5 allows for
-        #   this.
-        # When finished:
-        # - 4B ints to store each px_hit
-        # - 2*4B floats to store distances
-        tree_peak_mem_estimate = 1.5 * (64 + 36 * estimated_px_hits) / 1024**3  # GB
-        tree_completed_mem_estimate = (4 + 8) * estimated_px_hits / 1024**3  # GB
-        # Estimate memory for spectra and weights evaluation:
-        # - The spectra (product of shape times size of an element).
-        # - Memory use comes mostly in chunks of 4B * estimated_px_hits.
-        # - How many such chunks are allocated depends on the kernel function, but is
-        #   not wildly different. The WendlandC2 kernel uses ~17 for instance, but is
-        #   among the most efficient. Allow for 24 chunks.
-        # - The kernel functions could be individually optimized to perform more
-        #   operations in-place in the future.
-        spectra_mem_estimate = (
-            self._datacube.n_channels
-            * np.ones(self.source.npart)
-            * np.dtype(self.spectral_model.spec_dtype).itemsize
-        ) / 1024**3  # GB
-        weights_mem_estimate = 24 * 4 * estimated_px_hits / 1024**3  # GB
-        tree_dominates = np.sum(tree_peak_mem_estimate) > np.sum(
-            weights_mem_estimate
-        ) + np.sum(tree_completed_mem_estimate) + np.sum(
-            spectra_mem_estimate
-        )  # only dominates if <~2 hits/particle
-        single_batch_peak_mem_estimate = (
-            np.max(
-                (
-                    np.sum(tree_peak_mem_estimate),
-                    np.sum(spectra_mem_estimate)
-                    + np.sum(weights_mem_estimate)
-                    + np.sum(tree_completed_mem_estimate),
-                )
+        if not quiet:
+            print("Counting particle-pixel overlaps...")
+            count_start_time = datetime.now()
+        px_hits = self._count_px_hits(clipped_sm_ranges, ncpu)
+        if not quiet:
+            print(
+                f"Counted {np.sum(px_hits)} particle-pixel overlaps, took "
+                f"{datetime.now() - count_start_time}."
             )
+        # Estimate memory per particle-pixel overlap (bytes), with s the size of an
+        # element of the spectra and d=2 the number of spatial dimensions:
+        # - While indexing overlaps: 4B particle index + 4B pixel index + d*s offset
+        #   vector, unordered; plus a copy of the particle index and offset vector
+        #   ordered by pixel (4B + d*s).
+        # - While evaluating weights: the ordered copy (4B + d*s) is retained. Memory
+        #   use comes mostly in chunks of s per overlap. How many such chunks are
+        #   allocated depends on the kernel function, but is not wildly different. The
+        #   WendlandC2 kernel uses ~17 for instance, but is among the most efficient.
+        #   Allow for 24 chunks. The kernel functions could be individually optimized
+        #   to perform more operations in-place in the future.
+        # The spectra take n_channels * s per particle.
+        # There is also a fixed overhead of 16B per pixel to index the overlaps, per
+        # batch of particles.
+        spec_itemsize = np.dtype(self.spectral_model.spec_dtype).itemsize
+        indexing_mem_per_hit = (4 + 4 + 2 * spec_itemsize) + (4 + 2 * spec_itemsize)
+        weights_mem_per_hit = (4 + 2 * spec_itemsize) + 24 * spec_itemsize
+        mem_estimate = (
+            px_hits * max(indexing_mem_per_hit, weights_mem_per_hit)
+            + self._datacube.n_channels * spec_itemsize
+        ) / 1024**3  # GB
+        segment_overhead_mem_estimate = 16 * self._datacube.current_n_px / 1024**3  # GB
+        single_batch_peak_mem_estimate = (
+            np.sum(mem_estimate)
+            + segment_overhead_mem_estimate
             + self.baseline_mem_estimate
         )
         if single_batch_peak_mem_estimate > mem_lim_GB:
@@ -574,38 +649,19 @@ class _BaseMartini:
                 "`insert_source_in_cube` if possible.",
                 RuntimeWarning,
             )
-            segment_mem_allowance = mem_lim_GB - self.baseline_mem_estimate
-            segments = []
-            mem_estimate = (
-                tree_peak_mem_estimate
-                if tree_dominates
-                else tree_completed_mem_estimate
-                + weights_mem_estimate
-                + spectra_mem_estimate
+            segment_mem_allowance = (
+                mem_lim_GB - self.baseline_mem_estimate - segment_overhead_mem_estimate
             )
-            if np.any(mem_estimate > segment_mem_allowance):
+            try:
+                segments = _plan_segments(mem_estimate, segment_mem_allowance)
+            except ValueError as e:
                 raise RuntimeError(
                     f"Requested memory limit ({mem_lim_GB}GB) minus the estimated "
                     f"baseline memory ({self.baseline_mem_estimate}GB, e.g. to store"
                     " particle data) leaves insufficient memory for "
                     "`insert_source_in_cube`, even when particles are processed in "
                     "batches. Increase `mem_lim_GB` when calling `insert_source_in_cube`."
-                )
-            # Should always have a particle if we get here, but make very sure so we don't
-            # enter an infinite loop:
-            assert len(mem_estimate) > 0, (
-                "Particles processing in batches but no particles present, this is "
-                "an error."
-            )
-            segment_start = 0
-            while segment_start < len(mem_estimate):
-                cumsum = np.cumsum(mem_estimate[segment_start:])
-                segment_length = np.searchsorted(
-                    cumsum, segment_mem_allowance, side="right"
-                )
-                segment_end = segment_start + int(segment_length)
-                segments.append(slice(segment_start, segment_end))
-                segment_start = segment_end
+                ) from e
             log_prefix = "  "
         else:
             segments = [slice(None)]
@@ -616,16 +672,7 @@ class _BaseMartini:
                     print(f"Processing particle group {i} of {len(segments)}...")
                 print(f"{log_prefix}Indexing particle-pixel overlaps...")
                 grid_search_start_time = datetime.now()
-            pixcoords = self.source.pixcoords[:2, segment].to_value(U.pix).T
-            sm_ranges = clipped_sm_ranges[segment]
-            gs = find_grid_intersections(
-                tree,
-                ij_pxs,
-                pixcoords,
-                sm_ranges,
-                ncpu=ncpu,
-                dist_dtype=self.spectral_model.spec_dtype,
-            )
+            gs = self._find_px_hits(segment, clipped_sm_ranges, px_hits, ncpu)
             if not quiet:
                 print(
                     f"{log_prefix}Indexed particle-pixel overlaps, took "
@@ -1172,8 +1219,8 @@ class Martini(_BaseMartini):
             pixels in the cube. The particles can be processed in batches to mitigate
             this, but this slows down the code. The memory limit set here (in GB) will
             trigger batching if estimated memory usage is expected to exceed it. This is
-            a "soft" limit since some allocation outside of direct control (e.g. internal
-            in :mod:`scipy`) cannot be exactly predicted.
+            a "soft" limit since some allocations (e.g. temporary arrays when evaluating
+            the SPH kernel) cannot be exactly predicted.
         """
         super()._insert_source_in_cube(
             skip_validation=skip_validation,
@@ -1819,6 +1866,76 @@ class GlobalProfile(_BaseMartini):
 
         return
 
+    def _count_px_hits(self, sm_ranges: np.ndarray, ncpu: int) -> np.ndarray:
+        """
+        Count the pixels overlapped by each particle's smoothing kernel.
+
+        For :class:`~martini.martini.GlobalProfile` every particle is assumed to
+        overlap the (single) pixel, so no search is needed.
+
+        Parameters
+        ----------
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of the particles, in pixels (unused).
+
+        ncpu : int
+            Number of threads to use (unused).
+
+        Returns
+        -------
+        ~numpy.ndarray
+            Number of pixels overlapped by each particle.
+        """
+        return np.ones(self.source.npart, dtype=np.int64)
+
+    def _find_px_hits(
+        self,
+        segment: slice,
+        sm_ranges: np.ndarray,
+        px_hits: np.ndarray,
+        ncpu: int,
+    ) -> FindGridIntersectionsResult:
+        """
+        Find the pixels overlapped by the smoothing kernels of a batch of particles.
+
+        For :class:`~martini.martini.GlobalProfile` every particle is treated as
+        overlapping the single pixel at zero offset. Their line of sight velocities
+        are still correctly projected.
+
+        Parameters
+        ----------
+        segment : slice
+            Selects the batch of particles.
+
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of all particles, in pixels (unused).
+
+        px_hits : ~numpy.ndarray
+            Number of pixels overlapped by each particle (unused).
+
+        ncpu : int
+            Number of threads to use (unused).
+
+        Returns
+        -------
+        ~martini._grid_search.FindGridIntersectionsResult
+            The particle-pixel overlaps.
+        """
+        n = len(range(self.source.npart)[segment])
+        if n == 0:
+            return FindGridIntersectionsResult(
+                intersections=np.empty(0),
+                distances=np.empty(0),
+                cell_indices=np.empty(0),
+                strides=np.empty((0, 2)),
+            )
+        return FindGridIntersectionsResult(
+            intersections=np.arange(n, dtype=np.int32),
+            distances=np.zeros((n, 2), dtype=self.spectral_model.spec_dtype),
+            cell_indices=np.zeros(1, dtype=np.int64),
+            strides=np.array([[0, n]], dtype=np.int64),
+        )
+
     def insert_source_in_spectrum(
         self, mem_lim_GB: float = 4.0, quiet: bool = False
     ) -> None:
@@ -1838,8 +1955,8 @@ class GlobalProfile(_BaseMartini):
             pixels in the cube. The particles can be processed in batches to mitigate
             this, but this slows down the code. The memory limit set here (in GB) will
             trigger batching if estimated memory usage is expected to exceed it. This is
-            a "soft" limit since some allocation outside of direct control (e.g. internal
-            in :mod:`scipy`) cannot be exactly predicted.
+            a "soft" limit since some allocations (e.g. temporary arrays when evaluating
+            the SPH kernel) cannot be exactly predicted.
 
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
