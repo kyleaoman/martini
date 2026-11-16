@@ -142,7 +142,17 @@ class SimbaSource(SPHSource):
             lbox = f["Header"].attrs["BoxSize"] / h * U.kpc
             gas = f["PartType0"]
             fZ = gas["Metallicity"][()][:, 0]
-            fHe = gas["Metallicity"][()][:, 1]
+            if gas["Metallicity"].shape[1] == 11:
+                # Simba tracks 11 elements....
+                fHe = gas["Metallicity"][()][:, 1]
+            elif gas["Metallicity"].shape[1] == 34:
+                # ...but Simba-C tracks 34, and has He in a different column
+                fHe = gas["Metallicity"][()][:, 2]
+            else:
+                raise ValueError(
+                    f"Found {gas['Metallicity'].shape[1]} columns in "
+                    "PartType0/Metallicity, but expected 11 (SIMBA) or 34 (SIMBA-C)."
+                )
             fH = 1 - fHe - fZ
             xe = gas["ElectronAbundance"][()]
             particles = {
