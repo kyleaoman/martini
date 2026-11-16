@@ -141,9 +141,18 @@ class SimbaSource(SPHSource):
             h = f["Header"].attrs["HubbleParam"]
             lbox = f["Header"].attrs["BoxSize"] / h * U.kpc
             gas = f["PartType0"]
-            fZ = gas["Metallicity"][()][:, 0]
-            fHe = gas["Metallicity"][()][:, 1]
-            fH = 1 - fHe - fZ
+            abundances = gas["Metallicity"][()]
+            if abundances.shape[1] == 11:
+                # Simba tracks 11 elements, not explicitly including H...
+                fH = 1 - abundances[:, 0] - abundances[:, 1]  # 1 - fZ - fHe
+            elif gas["Metallicity"].shape[1] == 34:
+                # ...but Simba-C tracks 34, and has H in column 1
+                fH = abundances[:, 1]
+            else:
+                raise ValueError(
+                    f"Found {abundances.shape[1]} columns in "
+                    "PartType0/Metallicity, but expected 11 (SIMBA) or 34 (SIMBA-C)."
+                )
             xe = gas["ElectronAbundance"][()]
             particles = {
                 "xyz_g": gas["Coordinates"][()] * a / h * U.kpc,
@@ -168,7 +177,7 @@ class SimbaSource(SPHSource):
                 / h
                 * U.Msun,
             }
-            del fH, fHe, xe
+            del fH, xe, abundances
 
         with h5py.File(groupFile, "r") as f:
             groupIDs = f["galaxy_data/GroupID"][()]
