@@ -18,6 +18,7 @@ from astropy.time import Time
 from astropy.coordinates import Angle
 from astropy import __version__ as astropy_version
 from .__version__ import __version__ as martini_version
+import warnings
 from warnings import warn
 from martini.beams import _BaseBeam
 from martini.datacube import DataCube, _GlobalProfileDataCube
@@ -29,9 +30,19 @@ from martini._grid_search import (
     count_grid_intersections,
     find_grid_intersections,
     FindGridIntersectionsResult,
+    _balanced_blocks,
 )
+from martini.sph_kernels import ScalarKernelIntegral
 from martini._util import NUMBA_AVAILABLE, numba_threads, resolve_ncpu
 from typing import TYPE_CHECKING
+
+if NUMBA_AVAILABLE:
+    from numba import njit
+    from numba.core.errors import NumbaExperimentalFeatureWarning
+if TYPE_CHECKING or not NUMBA_AVAILABLE:
+    prange = range  # pragma: no cover
+else:
+    from numba import prange
 
 if TYPE_CHECKING:
     import h5py
@@ -50,72 +61,93 @@ else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
+def _insert_weighted_spectra_loop(
+    cube: np.ndarray,
+    spectra: np.ndarray,
+    intersections: np.ndarray,
+    cell_indices: np.ndarray,
+    strides: np.ndarray,
+    coords: np.ndarray,
+    h: np.ndarray,
+    kernel_slot: np.ndarray,
+    kernel_integrals: tuple[ScalarKernelIntegral, ...],
+    kernel_params: np.ndarray,
+    block_edges: np.ndarray,
+) -> None:
+    """
+    Add the kernel-weighted spectra of particles into the pixels that they overlap.
+
+    Kernel weights are evaluated on the fly from the particle positions and are not
+    stored. Each pixel is visited by one thread only, so the writes are thread safe.
+
+    The compiled kernel integrals (``_scalar_kernel_integral`` of the kernel classes in
+    martini.sph_kernels, compiled by ``_compile_scalar_integral``) are passed into the
+    compiled loops as numba "first-class functions". This lets each particle use its own
+    kernel (for adaptive kernels) without hard-coding the available kernels here.
+
+    Parameters
+    ----------
+    cube : ~numpy.ndarray
+        The data cube array, shape ``(nx, ny, n_channels)``, modified in place.
+
+    spectra : ~numpy.ndarray
+        The spectra of the particles, shape ``(N, n_channels)``.
+
+    intersections : ~numpy.ndarray
+        Particle-pixel overlaps grouped by pixel, see
+        :func:`~martini._grid_search.find_grid_intersections`.
+
+    cell_indices : ~numpy.ndarray
+        The (flattened) index of each pixel with overlaps.
+
+    strides : ~numpy.ndarray
+        The range of ``intersections`` for each pixel.
+
+    coords : ~numpy.ndarray
+        Particle positions in pixel units, shape ``(N, 2)``.
+
+    h : ~numpy.ndarray
+        Rescaled smoothing lengths of the particles in pixels.
+
+    kernel_slot : ~numpy.ndarray
+        For each particle, the entry of ``kernel_integrals`` and ``kernel_params`` to
+        use.
+
+    kernel_integrals : tuple
+        Table of compiled kernel integrals.
+
+    kernel_params : ~numpy.ndarray
+        Table of kernel parameters, shape ``(n_kernels, 2)``.
+
+    block_edges : ~numpy.ndarray
+        Pixels are processed in parallel in blocks ``block_edges[b]:block_edges[b + 1]``
+        (indices into ``cell_indices``).
+    """
+    ny = cube.shape[1]
+    n_channels = cube.shape[2]
+    for b in prange(block_edges.size - 1):
+        for c in range(block_edges[b], block_edges[b + 1]):
+            i = cell_indices[c] // ny
+            j = cell_indices[c] - i * ny
+            for m in range(strides[c, 0], strides[c, 1]):
+                p = intersections[m]
+                slot = kernel_slot[p]
+                w = kernel_integrals[slot](
+                    coords[p, 0] - i,
+                    coords[p, 1] - j,
+                    h[p],
+                    kernel_params[slot, 0],
+                    kernel_params[slot, 1],
+                )
+                if w != 0:
+                    for k in range(n_channels):
+                        cube[i, j, k] += w * spectra[p, k]
+
+
 if NUMBA_AVAILABLE:
-    import numba
-
-    @numba.njit(parallel=True)
-    def _weighted_sum_and_insert_in_cube_numba(
-        cube_array: np.ndarray,
-        spectra: np.ndarray,
-        weights: np.ndarray,
-        flat_cube_indices: np.ndarray,
-        strides: np.ndarray,
-        intersections: np.ndarray,
-    ) -> None:
-        """
-        Optimally evaluate weighted combination of spectra and write to datacube array.
-
-        This :mod:`numba` accelerated implementation is much faster than other
-        implementations tested (e.g. vectorized, parallel with :mod:`multiprocess`, etc.).
-        Since it writes directly into an output array, it is only thread safe if no two
-        threads can ever write to the same output index. :mod:`martini` is structured
-        as a loop over pixels where each pixel is visited one or zero times, so this
-        condition is satisfied.
-
-        As required by :mod:`numba`, the arguments are raw arrays. Unit checking is
-        therefore the responsibility of the calling function.
-
-        Parameters
-        ----------
-        cube_array : ~numpy.ndarray
-            The output data cube, as a raw array (can be a view of
-            :class:`~astropy.units.Quantity`).
-
-        spectra : ~numpy.ndarray
-            The array of spectra, one row per particle, as a raw array (can be a view of
-            :class:`~astropy.units.Quantity`).
-
-        weights : ~numpy.ndarray
-            The 1D array of weights, one per particle-pixel match, grouped by pixel, as
-            a raw array (can be a view of :class:`~astropy.units.Quantity`).
-
-        flat_cube_indices : ~numpy.ndarray
-            The 1D array of pixel indices, one per pixel, in the same order as the pixel-
-            groups in the ``weights``. These are unpacked into array locations similar
-            to `~numpy.unravel_index`.
-
-        strides : ~numpy.ndarray
-            The 2D array of strides (start and end locations) that select the ``weights``
-            and ``intersections`` for each pixel. Each row defines a stride and has length
-            2.
-
-        intersections : ~numpy.ndarray
-            The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
-            serves as an index into the ``spectra`` array, the corresponding pixel is
-            identified by the ``flat_cube_indices``. Groups within this array
-            corresponding to individual pixels are selected using a row from ``strides``.
-        """
-        dec_dim = cube_array.shape[1]
-        spec_dim = cube_array.shape[2]
-        for i in numba.prange(len(flat_cube_indices)):  # type: ignore[attr-defined]
-            flat_index = flat_cube_indices[i]
-            ra_index = flat_index // dec_dim
-            dec_index = flat_index % dec_dim
-            for j in range(strides[i, 0], strides[i, 1]):
-                for k in range(spec_dim):
-                    cube_array[ra_index, dec_index, k] += (
-                        weights[j] * spectra[intersections[j], k]
-                    )
+    _insert_weighted_spectra_loop = njit(parallel=True, cache=True)(
+        _insert_weighted_spectra_loop
+    )
 
 
 def _plan_segments(mem_estimate: np.ndarray, allowance: float) -> list[slice]:
@@ -386,8 +418,8 @@ class _BaseMartini:
         self,
         segment: slice,
         sm_ranges: np.ndarray,
-        px_hits: np.ndarray,
         ncpu: int,
+        return_distances: bool = True,
     ) -> FindGridIntersectionsResult:
         """
         Find the pixels overlapped by the smoothing kernels of a batch of particles.
@@ -400,11 +432,11 @@ class _BaseMartini:
         sm_ranges : ~numpy.ndarray
             Smoothing kernel ranges of all particles, in pixels.
 
-        px_hits : ~numpy.ndarray
-            Number of pixels overlapped by each particle (all particles).
-
         ncpu : int
             Number of threads to use.
+
+        return_distances : bool
+            If ``False``, offsets between particles and pixel centres are not returned.
 
         Returns
         -------
@@ -417,8 +449,72 @@ class _BaseMartini:
             sm_ranges[segment],
             ncpu=ncpu,
             dist_dtype=self.spectral_model.spec_dtype,
-            counts=px_hits[segment],
+            return_distances=return_distances,
         )
+
+    def _insert_weighted_spectra(
+        self,
+        spectra: np.ndarray,
+        gs: FindGridIntersectionsResult,
+        segment: slice,
+        kernel_arrays: tuple[
+            np.ndarray, tuple[ScalarKernelIntegral, ...], np.ndarray, np.ndarray
+        ],
+        ncpu: int,
+    ) -> None:
+        """
+        Evaluate kernel weights on the fly and add weighted spectra into the cube.
+
+        Uses compiled kernel integrals, so that the weights are never stored.
+
+        Parameters
+        ----------
+        spectra : ~numpy.ndarray
+            The spectra of the particles in the batch, as a raw array.
+
+        gs : ~martini._grid_search.FindGridIntersectionsResult
+            The particle-pixel overlaps of the particles in the batch.
+
+        segment : slice
+            Selects the batch of particles.
+
+        kernel_arrays : tuple
+            Kernel description, see
+            :meth:`~martini.sph_kernels._BaseSPHKernel._numba_kernel_arrays`.
+
+        ncpu : int
+            Number of threads to use.
+        """
+        if gs.intersections.size == 0:
+            return
+        cube_view = (
+            self._datacube._array[:, :, :, 0].value
+            if self._datacube.stokes_axis
+            else self._datacube._array.value
+        )
+        kernel_slot, kernel_integrals, kernel_params, h = kernel_arrays
+        hits_per_px = gs.strides[:, 1] - gs.strides[:, 0]
+        with numba_threads(ncpu), warnings.catch_warnings():
+            # compiled kernel integrals are passed to compiled code as numba
+            # "first-class functions", flagged as an experimental feature:
+            if NUMBA_AVAILABLE:
+                warnings.simplefilter("ignore", NumbaExperimentalFeatureWarning)
+            _insert_weighted_spectra_loop(
+                cube_view,
+                spectra,
+                gs.intersections,
+                gs.cell_indices,
+                gs.strides,
+                np.ascontiguousarray(
+                    self.source.pixcoords[:2, segment].to_value(U.pix).T,
+                    dtype=np.float64,
+                ),
+                h[segment],
+                kernel_slot[segment],
+                kernel_integrals,
+                kernel_params,
+                _balanced_blocks(hits_per_px, 8 * ncpu),
+            )
 
     def _weighted_sum_and_insert_in_cube(
         self,
@@ -436,11 +532,10 @@ class _BaseMartini:
         Given the pre-computed particle spectra, the kernel weights for their
         contributions to each pixel the information needed to map each weighted spectrum
         to the pixels where it contributes, this function sums up the contributions and
-        fills the target datacube array. Normally this should use a :mod:`numba`
-        accelerated implementation but a serial fallback is also provided in case
-        :mod:`numba` is not installed. Since the :mod:`numba` implementation is the
-        default and that must deal with raw arrays (not :class:`~astropy.units.Quantity`
-        arrays), this function expects bare arrays; the calling function is responsible
+        fills the target datacube array. This serial implementation is a fallback used
+        when :mod:`numba` is unavailable or disabled (otherwise kernel weights are
+        evaluated on the fly in compiled code). This function expects bare arrays (not
+        :class:`~astropy.units.Quantity` arrays); the calling function is responsible
         for checking units.
 
         Parameters
@@ -470,21 +565,16 @@ class _BaseMartini:
             corresponding to individual pixels are selected using a row from ``strides``.
 
         ncpu : int
-            Number of threads to use in main source insertion loop. Using more than one
-            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
-            threads as available cores. Currently speedup from multiple cores is limited,
-            see full documentation for details.
+            Requested number of threads. This implementation is serial, a warning is
+            issued if more than one thread is requested without :mod:`numba`.
 
         progressbar : bool, optional
-            A progress bar is shown by default if supported (usually not supported when
-            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
-            initialised with ``quiet`` set to ``True``, progress bars are switched off
-            unless explicitly turned on.
+            If ``True``, show a progress bar.
 
         Returns
         -------
         int
-            The number of cores actually used.
+            The number of cores actually used (always ``1``).
         """
         cube_view = (
             self._datacube._array[:, :, :, 0].value
@@ -493,18 +583,6 @@ class _BaseMartini:
         )
         dec_dim = cube_view.shape[1]
         total_elements = len(flat_cube_indices)
-
-        if self._numba_enabled:
-            with numba_threads(ncpu):
-                _weighted_sum_and_insert_in_cube_numba(
-                    cube_view,
-                    spectra,
-                    weights,
-                    flat_cube_indices,
-                    strides,
-                    intersections,
-                )
-            return ncpu
 
         if ncpu != 1:
             warn("Parallelization not available without 'numba'.", RuntimeWarning)
@@ -526,6 +604,60 @@ class _BaseMartini:
 
             cube_view[ra_index, dec_index, :] += np.sum(w_sub * spec_sub, axis=0)
         return ncpu
+
+    def _insertion_mem_estimate(
+        self, px_hits: np.ndarray, sm_ranges: np.ndarray, weight_and_insert: bool
+    ) -> tuple[np.ndarray, float]:
+        """
+        Estimate the memory needed to insert the source in the cube.
+
+        Estimates memory (bytes), with s the size of an element of the spectra and d=2
+        the number of spatial dimensions:
+
+        - Per particle-pixel overlap, the index of the particle (4B), grouped by pixel.
+          If the kernel weights are evaluated on the fly, that's all. Otherwise:
+
+          - The offset vector between the particle and pixel centre (``d*s``).
+          - While evaluating weights, memory use comes mostly in chunks of ``s`` per
+            overlap. How many such chunks are allocated depends on the kernel
+            function, but is not wildly different. The ``WendlandC2`` kernel uses ~17
+            for instance, but is among the most efficient. Allow for 24 chunks.
+
+        - Per particle, the spectrum ``(n_channels * s)`` and an entry in the list of
+          candidate particles for each pixel row that it may overlap (4B).
+        - Per batch of particles, a fixed overhead of up to 24B per pixel (pixels with
+          overlaps and the corresponding ranges of overlaps).
+
+        Parameters
+        ----------
+        px_hits : ~numpy.ndarray
+            Number of pixels overlapped by each particle.
+
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of the particles, in pixels.
+
+        weight_and_insert : bool
+            ``True`` if kernel weights are evaluated on the fly while inserting spectra
+            (so not stored).
+
+        Returns
+        -------
+        tuple
+            The memory needed for each particle, and the fixed memory needed for each
+            batch of particles, in GB.
+        """
+        spec_itemsize = np.dtype(self.spectral_model.spec_dtype).itemsize
+        mem_per_hit = (
+            4 if weight_and_insert else 4 + 2 * spec_itemsize + 24 * spec_itemsize
+        )
+        nx = self._datacube.current_shape[0]
+        mem_estimate = (
+            px_hits * mem_per_hit
+            + self._datacube.n_channels * spec_itemsize
+            + 4 * np.minimum(2 * sm_ranges + 3, nx)
+        ) / 1024**3  # GB
+        segment_overhead_mem_estimate = 24 * self._datacube.current_n_px / 1024**3  # GB
+        return mem_estimate, segment_overhead_mem_estimate
 
     def _insert_source_in_cube(
         self,
@@ -588,13 +720,28 @@ class _BaseMartini:
         if not quiet:
             insert_source_start_time = datetime.now()
 
-        if progressbar and self._numba_enabled:
+        # With numba, kernel weights are evaluated on the fly in compiled code while
+        # inserting the weighted spectra into the cube (the weights are never stored).
+        # Without numba, weights are evaluated with numpy and stored, then used to
+        # insert spectra.
+        weight_and_insert = self._numba_enabled
+        kernel_arrays = None
+        if weight_and_insert:
+            kernel_arrays = self.sph_kernel._numba_kernel_arrays()
+            if kernel_arrays is None:
+                raise ValueError(
+                    f"The SPH kernel {type(self.sph_kernel).__name__} has no compiled "
+                    "kernel integral (`_scalar_kernel_integral`), which is required when "
+                    "'numba' is available. See the kernels in `martini.sph_kernels` for "
+                    "examples."
+                )
+        if progressbar and weight_and_insert:
             warn(
                 "'numba'-accelerated 'martini' does not support progress bar (but it "
                 "will be pretty fast anyway!).",
                 RuntimeWarning,
             )
-        if self._numba_enabled:
+        if weight_and_insert:
             progressbar = False
         elif progressbar is None:
             progressbar = not quiet
@@ -613,28 +760,9 @@ class _BaseMartini:
                 f"Counted {np.sum(px_hits)} particle-pixel overlaps, took "
                 f"{datetime.now() - count_start_time}."
             )
-        # Estimate memory per particle-pixel overlap (bytes), with s the size of an
-        # element of the spectra and d=2 the number of spatial dimensions:
-        # - While indexing overlaps: 4B particle index + 4B pixel index + d*s offset
-        #   vector, unordered; plus a copy of the particle index and offset vector
-        #   ordered by pixel (4B + d*s).
-        # - While evaluating weights: the ordered copy (4B + d*s) is retained. Memory
-        #   use comes mostly in chunks of s per overlap. How many such chunks are
-        #   allocated depends on the kernel function, but is not wildly different. The
-        #   WendlandC2 kernel uses ~17 for instance, but is among the most efficient.
-        #   Allow for 24 chunks. The kernel functions could be individually optimized
-        #   to perform more operations in-place in the future.
-        # The spectra take n_channels * s per particle.
-        # There is also a fixed overhead of 16B per pixel to index the overlaps, per
-        # batch of particles.
-        spec_itemsize = np.dtype(self.spectral_model.spec_dtype).itemsize
-        indexing_mem_per_hit = (4 + 4 + 2 * spec_itemsize) + (4 + 2 * spec_itemsize)
-        weights_mem_per_hit = (4 + 2 * spec_itemsize) + 24 * spec_itemsize
-        mem_estimate = (
-            px_hits * max(indexing_mem_per_hit, weights_mem_per_hit)
-            + self._datacube.n_channels * spec_itemsize
-        ) / 1024**3  # GB
-        segment_overhead_mem_estimate = 16 * self._datacube.current_n_px / 1024**3  # GB
+        mem_estimate, segment_overhead_mem_estimate = self._insertion_mem_estimate(
+            px_hits, clipped_sm_ranges, weight_and_insert
+        )
         single_batch_peak_mem_estimate = (
             np.sum(mem_estimate)
             + segment_overhead_mem_estimate
@@ -672,25 +800,29 @@ class _BaseMartini:
                     print(f"Processing particle group {i} of {len(segments)}...")
                 print(f"{log_prefix}Indexing particle-pixel overlaps...")
                 grid_search_start_time = datetime.now()
-            gs = self._find_px_hits(segment, clipped_sm_ranges, px_hits, ncpu)
+            gs = self._find_px_hits(
+                segment, clipped_sm_ranges, ncpu, return_distances=not weight_and_insert
+            )
             if not quiet:
                 print(
                     f"{log_prefix}Indexed particle-pixel overlaps, took "
                     f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
                 )
-            if not quiet:
-                print(f"{log_prefix}Evaluating kernel weights...")
-                weights_start_time = datetime.now()
-            segment_start = 0 if segment.start is None else segment.start
-            weights = self.sph_kernel._px_weight(
-                U.Quantity(gs.distances.T, U.pix, copy=False),
-                mask=segment_start + gs.intersections,
-            )
-            if not quiet:
-                print(
-                    f"{log_prefix}Evaluated kernel weights, took "
-                    f"{datetime.now() - weights_start_time}."
+            if not weight_and_insert:
+                if not quiet:
+                    print(f"{log_prefix}Evaluating kernel weights...")
+                    weights_start_time = datetime.now()
+                segment_start = 0 if segment.start is None else segment.start
+                assert gs.distances is not None
+                weights = self.sph_kernel._px_weight(
+                    U.Quantity(gs.distances.T, U.pix, copy=False),
+                    mask=segment_start + gs.intersections,
                 )
+                if not quiet:
+                    print(
+                        f"{log_prefix}Evaluated kernel weights, took "
+                        f"{datetime.now() - weights_start_time}."
+                    )
 
             if not quiet:
                 print(f"{log_prefix}Evaluating pixel spectra...")
@@ -704,18 +836,32 @@ class _BaseMartini:
                     f"{datetime.now() - spectra_start_time} on {ncpu} cores."
                 )
             if not quiet:
-                print(f"{log_prefix}Reducing pixel spectra into cube...")
+                if weight_and_insert:
+                    print(
+                        f"{log_prefix}Evaluating kernel weights and reducing pixel "
+                        "spectra into cube..."
+                    )
+                else:
+                    print(f"{log_prefix}Reducing pixel spectra into cube...")
                 px_spectra_start_time = datetime.now()
-            assert self._datacube.current_units == spectra.unit * weights.unit
-            insert_used_ncpu = self._weighted_sum_and_insert_in_cube(
-                spectra.value,
-                weights.value,
-                gs.cell_indices,
-                gs.strides,
-                gs.intersections,
-                ncpu=ncpu,
-                progressbar=progressbar,
-            )
+            if weight_and_insert:
+                assert kernel_arrays is not None
+                assert self._datacube.current_units == spectra.unit * U.pix**-2
+                self._insert_weighted_spectra(
+                    spectra.value, gs, segment, kernel_arrays, ncpu
+                )
+                insert_used_ncpu = ncpu
+            else:
+                assert self._datacube.current_units == spectra.unit * weights.unit
+                insert_used_ncpu = self._weighted_sum_and_insert_in_cube(
+                    spectra.value,
+                    weights.value,
+                    gs.cell_indices,
+                    gs.strides,
+                    gs.intersections,
+                    ncpu=ncpu,
+                    progressbar=progressbar,
+                )
             if not quiet:
                 print(
                     f"{log_prefix}Reduced pixel spectra into cube, took "
@@ -1892,8 +2038,8 @@ class GlobalProfile(_BaseMartini):
         self,
         segment: slice,
         sm_ranges: np.ndarray,
-        px_hits: np.ndarray,
         ncpu: int,
+        return_distances: bool = True,
     ) -> FindGridIntersectionsResult:
         """
         Find the pixels overlapped by the smoothing kernels of a batch of particles.
@@ -1910,11 +2056,11 @@ class GlobalProfile(_BaseMartini):
         sm_ranges : ~numpy.ndarray
             Smoothing kernel ranges of all particles, in pixels (unused).
 
-        px_hits : ~numpy.ndarray
-            Number of pixels overlapped by each particle (unused).
-
         ncpu : int
             Number of threads to use (unused).
+
+        return_distances : bool
+            If ``False``, offsets between particles and pixel centres are not returned.
 
         Returns
         -------
@@ -1925,13 +2071,17 @@ class GlobalProfile(_BaseMartini):
         if n == 0:
             return FindGridIntersectionsResult(
                 intersections=np.empty(0),
-                distances=np.empty(0),
+                distances=np.empty(0) if return_distances else None,
                 cell_indices=np.empty(0),
                 strides=np.empty((0, 2)),
             )
         return FindGridIntersectionsResult(
             intersections=np.arange(n, dtype=np.int32),
-            distances=np.zeros((n, 2), dtype=self.spectral_model.spec_dtype),
+            distances=(
+                np.zeros((n, 2), dtype=self.spectral_model.spec_dtype)
+                if return_distances
+                else None
+            ),
             cell_indices=np.zeros(1, dtype=np.int64),
             strides=np.array([[0, n]], dtype=np.int64),
         )

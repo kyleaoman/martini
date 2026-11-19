@@ -130,6 +130,9 @@ class TestUniformGridSearch:
         assert np.array_equal(gs.strides[1:, 0], gs.strides[:-1, 1])
         assert gs.strides[-1, 1] == gs.intersections.size
         assert np.all(gs.strides[:, 1] > gs.strides[:, 0])
+        # within each cell, matches are in ascending order of search coordinate index:
+        for start, end in gs.strides:
+            assert np.all(np.diff(gs.intersections[start:end]) > 0)
         # We expect some particles to be small and miss touching any cell centres:
         assert (radii < 0.5 * np.sqrt(len(grid_shape))).any()
         assert np.unique(part).size < n  # strictly less
@@ -193,10 +196,37 @@ class TestUniformGridSearch:
         assert np.array_equal(
             counts, np.bincount(gs.intersections, minlength=coords.shape[0])
         )
-        # passing counts in gives the same result:
-        gs_counts = find_grid_intersections(grid_shape, coords, radii, counts=counts)
-        for a, b in zip(gs, gs_counts):
-            assert np.array_equal(a, b)
+
+    @pytest.mark.parametrize("grid_shape", ((37, 64), (24, 20, 16)))
+    def test_without_distances(self, grid_shape: tuple[int, ...]) -> None:
+        """Check that skipping the distances leaves the other results unchanged."""
+        coords, radii = _random_input(grid_shape, 100, 3.0, margin=2)
+        gs = find_grid_intersections(grid_shape, coords, radii)
+        gs_nodist = find_grid_intersections(
+            grid_shape, coords, radii, return_distances=False
+        )
+        assert gs_nodist.distances is None
+        for field in ("intersections", "cell_indices", "strides"):
+            assert np.array_equal(getattr(gs, field), getattr(gs_nodist, field))
+        empty = find_grid_intersections(
+            grid_shape, coords[:0], radii[:0], return_distances=False
+        )
+        assert empty.distances is None
+
+    @pytest.mark.parametrize("ncpu", (1, 3))
+    def test_unbalanced_load(self, ncpu: int) -> None:
+        """Check a mix of one huge and many tiny search radii (uneven work per line)."""
+        grid_shape = (40, 30)
+        coords, radii = _random_input(grid_shape, 200, 1.0)
+        coords[0] = (10.0, 12.0)
+        radii[0] = 25.0
+        bf_part, bf_cell, bf_dvec = _brute_force(grid_shape, coords, radii)
+        part, cell, dvec = _unpack(
+            find_grid_intersections(grid_shape, coords, radii, ncpu=ncpu)
+        )
+        assert np.array_equal(part, bf_part)
+        assert np.array_equal(cell, bf_cell)
+        assert np.allclose(dvec, bf_dvec)
 
     def test_dist_dtype(self) -> None:
         """Check that distances have the requested dtype."""

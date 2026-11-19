@@ -2,13 +2,20 @@
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
+import functools
+import math
 from types import EllipsisType
+from typing import TYPE_CHECKING
 import numpy as np
 import astropy.units as U
 from scipy.special import erf
 from scipy.optimize import fsolve
 from martini.sources import SPHSource
 from martini.datacube import DataCube
+from martini._util import NUMBA_AVAILABLE
+
+if NUMBA_AVAILABLE:
+    from numba import njit
 
 
 def find_fwhm(f: Callable[[np.ndarray], np.ndarray]) -> float:
@@ -48,6 +55,178 @@ def find_fwhm(f: Callable[[np.ndarray], np.ndarray]) -> float:
     return 2 * fsolve(shifted_kernel, 0.5)[0]
 
 
+def _wendland_c6_indef(
+    R: np.ndarray | float, z: np.ndarray | float
+) -> np.ndarray | float:
+    """
+    Evaluate the indefinite integral used in the WendlandC6 kernel integral.
+
+    Used by both the vectorized (numpy) kernel integral and the scalar (numba) kernel
+    integral.
+
+    Parameters
+    ----------
+    R : ~numpy.ndarray or float
+        Dimensionless cylindrical radii.
+
+    z : ~numpy.ndarray or float
+        Dimensionless vertical coordinates.
+
+    Returns
+    -------
+    ~numpy.ndarray or float
+        Result of the expression.
+    """
+    return (
+        -231 * np.power(R, 10) * z
+        - 385 * np.power(R, 8) * np.power(z, 3)
+        - 1155 * np.power(R, 8) * z
+        - 462 * np.power(R, 6) * np.power(z, 5)
+        - 1540 * np.power(R, 6) * np.power(z, 3)
+        - 462 * np.power(R, 6) * z
+        - 330 * np.power(R, 4) * np.power(z, 7)
+        - 1386 * np.power(R, 4) * np.power(z, 5)
+        - 462 * np.power(R, 4) * np.power(z, 3)
+        + 66 * np.power(R, 4) * z
+        - (128 + 1 / 3) * np.power(R, 2) * np.power(z, 9)
+        - 660 * np.power(R, 2) * np.power(z, 7)
+        - 277.2 * np.power(R, 2) * np.power(z, 5)
+        + 44 * np.power(R, 2) * np.power(z, 3)
+        + 8 / 3 * np.power(z, 11) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + (16 + 4 / 15)
+        * np.power(R, 2)
+        * np.power(z, 9)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 70.4 * np.power(z, 9) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 360.8
+        * np.power(R, 2)
+        * np.power(z, 7)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 132 * np.power(z, 7) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 550
+        * np.power(R, 2)
+        * np.power(z, 5)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        - 11 * np.power(R, 2) * z
+        + 7.21875
+        * np.power(R, 12)
+        * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
+        + 24.7813 * np.power(R, 10) * z * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 173.25
+        * np.power(R, 10)
+        * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
+        + 530.75 * np.power(R, 8) * z * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 288.75
+        * np.power(R, 8)
+        * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
+        + 47.4792
+        * np.power(R, 8)
+        * np.power(z, 3)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 767.25 * np.power(R, 6) * z * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 58.0167
+        * np.power(R, 6)
+        * np.power(z, 5)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 819.5
+        * np.power(R, 6)
+        * np.power(z, 3)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 41.7
+        * np.power(R, 4)
+        * np.power(z, 7)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 752.4
+        * np.power(R, 4)
+        * np.power(z, 5)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        + 896.5
+        * np.power(R, 4)
+        * np.power(z, 3)
+        * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
+        - 21 * np.power(z, 11)
+        - (128 + 1 / 3) * np.power(z, 9)
+        - 66 * np.power(z, 7)
+        + 13.2 * np.power(z, 5)
+        - 11 / 3 * np.power(z, 3)
+        + z
+    )
+
+
+def _quartic_spline_ia(
+    R: np.ndarray | float, z: np.ndarray | float, A: np.ndarray | float
+) -> np.ndarray | float:
+    """
+    Evaluate the expression used in the quartic spline kernel integral.
+
+    Used by both the vectorized (numpy) kernel integral and the scalar (numba) kernel
+    integral.
+
+    Parameters
+    ----------
+    R : ~numpy.ndarray or float
+        Dimensionless cylindrical radii.
+
+    z : ~numpy.ndarray or float
+        Dimensionless vertical coordinates.
+
+    A : ~numpy.ndarray or float
+        Dimensionless amplitudes.
+
+    Returns
+    -------
+    ~numpy.ndarray or float
+        Result of the expression.
+    """
+    q = np.sqrt(np.power(z, 2) + np.power(R, 2))
+    R2 = np.power(R, 2)
+    return (
+        np.power(A, 4) * z
+        - 2 * np.power(A, 3) * z * q
+        + 2 * np.power(A, 2) * z * (3 * R2 + np.power(z, 2))
+        - A * R2 * (4 * np.power(A, 2) + 3 * R2) * np.arcsinh(z / R) / 2
+        - A * z * q * (5 * R2 + 2 * np.power(z, 2)) / 2
+        + R2 * R2 * z
+        + 2 * R2 * np.power(z, 3) / 3
+        + np.power(z, 5) / 5
+    )
+
+
+if TYPE_CHECKING or not NUMBA_AVAILABLE:
+    _wendland_c6_indef_compiled = _wendland_c6_indef  # pragma: no cover
+    _quartic_spline_ia_compiled = _quartic_spline_ia  # pragma: no cover
+else:
+    _wendland_c6_indef_compiled = njit(cache=True, inline="always")(_wendland_c6_indef)
+    _quartic_spline_ia_compiled = njit(cache=True, inline="always")(_quartic_spline_ia)
+
+ScalarKernelIntegral = Callable[[float, float, float, float, float], float]
+
+
+@functools.cache
+def _compile_scalar_integral(integral: ScalarKernelIntegral) -> ScalarKernelIntegral:
+    """
+    Compile a scalar kernel integral (once) for use in compiled code.
+
+    All scalar kernel integrals share one signature, so that compiled code can choose
+    between them at run time (as numba "first-class functions").
+
+    Parameters
+    ----------
+    integral : ~collections.abc.Callable
+        A ``_scalar_kernel_integral`` static method of a kernel class.
+
+    Returns
+    -------
+    ~collections.abc.Callable
+        The compiled function (the input function if :mod:`numba` is unavailable).
+    """
+    if not NUMBA_AVAILABLE:  # pragma: no cover
+        return integral
+    return njit("float64(float64, float64, float64, float64, float64)", cache=True)(
+        integral
+    )
+
+
 class _BaseSPHKernel(object):
     """
     Abstract base class for classes implementing SPH kernels to inherit from.
@@ -70,6 +249,14 @@ class _BaseSPHKernel(object):
     ratio of the pixel size and smoothing length), and raise an error if not. It should
     return a boolean array with ``True`` for particles which pass validation, and
     ``False`` otherwise.
+
+    When :mod:`numba` is available, classes must also provide a static method
+    ``_scalar_kernel_integral(dx, dy, h, p0, p1)`` that evaluates the same integral as
+    :meth:`~martini.sph_kernels._BaseSPHKernel._kernel_integral` for a single
+    particle-pixel pair (offsets ``dx``, ``dy`` and smoothing length ``h`` in pixels,
+    kernel parameters ``p0``, ``p1`` from ``_numba_params``) and that :mod:`numba` can
+    compile. It is used to evaluate kernel weights on the fly while inserting a source;
+    the kernels in this module provide examples.
     """
 
     __metaclass__ = ABCMeta
@@ -77,10 +264,52 @@ class _BaseSPHKernel(object):
     sm_ranges: U.Quantity[U.pix]
     size_in_fwhm: float | list[float] | None
     _rescale: float | np.ndarray
+    _scalar_kernel_integral: ScalarKernelIntegral | None = None
 
     def __init__(self) -> None:
         self._rescale = 1.0
         return
+
+    def _numba_params(self) -> tuple[float, float]:
+        """
+        Provide parameters for the compiled scalar kernel integral.
+
+        Returns
+        -------
+        tuple
+            Two kernel-specific parameters (unused entries are ``0.0``).
+        """
+        return (0.0, 0.0)
+
+    def _numba_kernel_arrays(
+        self,
+    ) -> (
+        tuple[np.ndarray, tuple[ScalarKernelIntegral, ...], np.ndarray, np.ndarray]
+        | None
+    ):
+        """
+        Describe the kernel of each particle for compiled evaluation.
+
+        Returns
+        -------
+        tuple or None
+            ``None`` if no compiled implementation is available. Otherwise a tuple of
+            the index into the kernel table for each particle, the table of compiled
+            kernel integrals, the table of kernel parameters (one row per table entry),
+            and the rescaled smoothing length of each particle in pixels.
+        """
+        if self._scalar_kernel_integral is None:
+            return None
+        h = np.asarray(
+            self.sm_lengths.to_value(U.pix) * np.asarray(self._rescale),
+            dtype=np.float64,
+        )
+        return (
+            np.zeros(h.size, dtype=np.int32),
+            (_compile_scalar_integral(self._scalar_kernel_integral),),
+            np.array([self._numba_params()], dtype=np.float64),
+            h,
+        )
 
     @U.quantity_input
     def _px_weight(
@@ -367,6 +596,51 @@ class _WendlandC2Kernel(_BaseSPHKernel):
 
     min_valid_size: float = 1.51
 
+    @staticmethod
+    def _scalar_kernel_integral(
+        dx: float, dy: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the WendlandC2 kernel integral over a pixel.
+
+        Mirrors :meth:`_kernel_integral` for a single particle-pixel pair, for use in
+        compiled code (see :func:`_compile_scalar_integral`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the pixel centre to the particle along the first axis, in pixels.
+
+        dy : float
+            Offset from the pixel centre to the particle along the second axis, in
+            pixels.
+
+        h : float
+            Rescaled smoothing length, in pixels.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel integral over the pixel area, per unit pixel area.
+        """
+        R2 = (dx * dx + dy * dy) / (h * h)
+        if R2 == 0:
+            retval = 2.0 / 3.0
+        elif R2 < 1:
+            A = math.sqrt(1 - R2)
+            retval = 5 * R2 * R2 * (0.5 * R2 + 3) * math.log(
+                (1 + A) / math.sqrt(R2)
+            ) + A * (-27.0 / 2.0 * R2 * R2 - 14.0 / 3.0 * R2 + 2.0 / 3.0)
+        else:
+            return 0.0
+        return retval * (21 / 2 / np.pi) / (h * h)
+
     def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
@@ -510,6 +784,57 @@ class _WendlandC6Kernel(_BaseSPHKernel):
 
     min_valid_size: float = 1.29
 
+    @staticmethod
+    def _scalar_kernel_integral(
+        dx: float, dy: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the WendlandC6 kernel integral over a pixel.
+
+        Mirrors :meth:`_kernel_integral` for a single particle-pixel pair, for use in
+        compiled code (see :func:`_compile_scalar_integral`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the pixel centre to the particle along the first axis, in pixels.
+
+        dy : float
+            Offset from the pixel centre to the particle along the second axis, in
+            pixels.
+
+        h : float
+            Rescaled smoothing length, in pixels.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel integral over the pixel area, per unit pixel area.
+        """
+        R = math.sqrt(dx * dx + dy * dy) / h
+        norm = 1365 / 64 / np.pi
+        if R == 0:
+            retval = norm * 2 * (4 / 15)
+        elif R < 1:
+            zmax = math.sqrt(1 - R * R)
+            retval = (
+                norm
+                * 2
+                * float(
+                    _wendland_c6_indef_compiled(R, zmax)
+                    - _wendland_c6_indef_compiled(R, 0.0)
+                )
+            )
+        else:
+            return 0.0
+        return retval / (h * h)
+
     def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
@@ -580,115 +905,17 @@ class _WendlandC6Kernel(_BaseSPHKernel):
         ~numpy.ndarray
             Approximate kernel integral over the pixel area.
         """
-
-        def indef(R: np.ndarray, z: np.ndarray | float) -> np.ndarray:
-            """
-            Evaluate expression involved in the integral.
-
-            Parameters
-            ----------
-            R : ~numpy.ndarray
-                Dimensionless cylindrical radii.
-
-            z : ~numpy.ndarray
-                Dimensionless vertical coordinates.
-
-            Returns
-            -------
-            ~numpy.ndarray
-                Result of the expression.
-            """
-            return (
-                -231 * np.power(R, 10) * z
-                - 385 * np.power(R, 8) * np.power(z, 3)
-                - 1155 * np.power(R, 8) * z
-                - 462 * np.power(R, 6) * np.power(z, 5)
-                - 1540 * np.power(R, 6) * np.power(z, 3)
-                - 462 * np.power(R, 6) * z
-                - 330 * np.power(R, 4) * np.power(z, 7)
-                - 1386 * np.power(R, 4) * np.power(z, 5)
-                - 462 * np.power(R, 4) * np.power(z, 3)
-                + 66 * np.power(R, 4) * z
-                - (128 + 1 / 3) * np.power(R, 2) * np.power(z, 9)
-                - 660 * np.power(R, 2) * np.power(z, 7)
-                - 277.2 * np.power(R, 2) * np.power(z, 5)
-                + 44 * np.power(R, 2) * np.power(z, 3)
-                + 8 / 3 * np.power(z, 11) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + (16 + 4 / 15)
-                * np.power(R, 2)
-                * np.power(z, 9)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 70.4 * np.power(z, 9) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 360.8
-                * np.power(R, 2)
-                * np.power(z, 7)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 132 * np.power(z, 7) * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 550
-                * np.power(R, 2)
-                * np.power(z, 5)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                - 11 * np.power(R, 2) * z
-                + 7.21875
-                * np.power(R, 12)
-                * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
-                + 24.7813
-                * np.power(R, 10)
-                * z
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 173.25
-                * np.power(R, 10)
-                * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
-                + 530.75
-                * np.power(R, 8)
-                * z
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 288.75
-                * np.power(R, 8)
-                * (np.log(np.sqrt(np.power(R, 2) + np.power(z, 2)) + z))
-                + 47.4792
-                * np.power(R, 8)
-                * np.power(z, 3)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 767.25
-                * np.power(R, 6)
-                * z
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 58.0167
-                * np.power(R, 6)
-                * np.power(z, 5)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 819.5
-                * np.power(R, 6)
-                * np.power(z, 3)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 41.7
-                * np.power(R, 4)
-                * np.power(z, 7)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 752.4
-                * np.power(R, 4)
-                * np.power(z, 5)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                + 896.5
-                * np.power(R, 4)
-                * np.power(z, 3)
-                * (np.sqrt(np.power(R, 2) + np.power(z, 2)))
-                - 21 * np.power(z, 11)
-                - (128 + 1 / 3) * np.power(z, 9)
-                - 66 * np.power(z, 7)
-                + 13.2 * np.power(z, 5)
-                - 11 / 3 * np.power(z, 3)
-                + z
-            )
-
         dr2 = np.power(dij, 2).sum(axis=0)
         retval = np.zeros(h.shape, dtype=dij.dtype)
         R = np.sqrt(dr2) / h
         use = np.logical_and(R < 1, R != 0)
         norm = 1365 / 64 / np.pi
         zmax = np.sqrt(1 - np.power(R[use], 2))
-        retval[use] = norm * 2 * (indef(R[use], zmax) - indef(R[use], 0.0))
+        retval[use] = (
+            norm
+            * 2
+            * (_wendland_c6_indef(R[use], zmax) - _wendland_c6_indef(R[use], 0.0))
+        )
         retval[R == 0] = norm * 2 * (4 / 15)
         retval = retval / np.power(h, 2)
         return retval
@@ -757,6 +984,75 @@ class _CubicSplineKernel(_BaseSPHKernel):
     """
 
     min_valid_size: float = 1.16
+
+    @staticmethod
+    def _scalar_kernel_integral(
+        dx: float, dy: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the cubic spline kernel integral over a pixel.
+
+        Mirrors :meth:`_kernel_integral` for a single particle-pixel pair, for use in
+        compiled code (see :func:`_compile_scalar_integral`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the pixel centre to the particle along the first axis, in pixels.
+
+        dy : float
+            Offset from the pixel centre to the particle along the second axis, in
+            pixels.
+
+        h : float
+            Rescaled smoothing length, in pixels.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel integral over the pixel area, per unit pixel area.
+        """
+        R2 = 4 * (dx * dx + dy * dy) / (h * h)
+        if R2 == 0:
+            retval = 11.0 / 16.0 + 0.25 * 0.25
+        elif R2 <= 1:
+            A = math.sqrt(1 - R2)
+            B = math.sqrt(4 - R2)
+            I1 = (
+                A
+                - 0.5 * A**3
+                - 1.5 * R2 * A
+                + 3.0 / 32.0 * A * (3 * R2 + 2)
+                + 9.0 / 32.0 * R2 * R2 * (math.log(1 + A) - math.log(math.sqrt(R2)))
+            )
+            I3 = (
+                -B * (3 * R2 + 56) / 4.0
+                + A * (4 * R2 + 50) / 8.0
+                - 3.0 / 8.0 * R2 * (R2 + 16) * math.log((2 + B) / (1 + A))
+                + 2 * (3 * R2 + 4) * (B - A)
+                + 2 * (B**3 - A**3)
+            )
+            retval = I1 + 0.25 * I3
+        elif R2 <= 4:
+            B = math.sqrt(4 - R2)
+            I2 = (
+                -B * (3 * R2 + 56) / 4.0
+                - 3.0 / 8.0 * R2 * (R2 + 16) * math.log((2 + B) / math.sqrt(R2))
+                + 2 * (3 * R2 + 4) * B
+                + 2 * B**3
+            )
+            retval = 0.25 * I2
+        else:
+            return 0.0
+        # 1.597 is normalization s.t. kernel integral = 1 for particle mass = 1
+        # rescaling from interval [0, 2) to [0, 1) requires mult. by 4
+        return retval / 1.59689476201133 / (h * h) * 4
 
     def __init__(self) -> None:
         super().__init__()
@@ -940,6 +1236,55 @@ class _GaussianKernel(_BaseSPHKernel):
     lims: tuple[int, int]
     norm: float
 
+    @staticmethod
+    def _scalar_kernel_integral(
+        dx: float, dy: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the truncated Gaussian kernel integral over a pixel.
+
+        Mirrors :meth:`_kernel_integral` for a single particle-pixel pair, for use in
+        compiled code (see :func:`_compile_scalar_integral`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the pixel centre to the particle along the first axis, in pixels.
+
+        dy : float
+            Offset from the pixel centre to the particle along the second axis, in
+            pixels.
+
+        h : float
+            Rescaled smoothing length, in pixels.
+
+        p0 : float
+            Truncation radius in standard deviations.
+
+        p1 : float
+            Normalization of the truncated kernel.
+
+        Returns
+        -------
+        float
+            Kernel integral over the pixel area, per unit pixel area.
+        """
+        truncate, norm = p0, p1
+        sig = 1 / (2 * math.sqrt(2 * math.log(2)))  # s.t. FWHM = 1
+        dr = math.sqrt(dx * dx + dy * dy)
+        if (dr - math.sqrt(0.5)) / h / sig > truncate:
+            return 0.0
+        q = dr / h / sig
+        zmax = math.sqrt(truncate * truncate - q * q) if truncate > q else 0.0
+        s = math.sqrt(2.0) * sig * h
+        retval = (
+            0.25
+            * math.erf(zmax / math.sqrt(2.0))
+            * (math.erf((dx + 0.5) / s) - math.erf((dx - 0.5) / s))
+            * (math.erf((dy + 0.5) / s) - math.erf((dy - 0.5) / s))
+        )
+        return retval / norm
+
     def __init__(self, truncate: float = 3.0) -> None:
         self.truncate = truncate
         if self.truncate < 2:
@@ -964,6 +1309,17 @@ class _GaussianKernel(_BaseSPHKernel):
         super().__init__()
         self.size_in_fwhm = self.truncate / (2 * np.sqrt(2 * np.log(2)))
         return
+
+    def _numba_params(self) -> tuple[float, float]:
+        """
+        Provide parameters for the compiled scalar kernel integral.
+
+        Returns
+        -------
+        tuple
+            The truncation radius (in standard deviations) and normalization.
+        """
+        return (float(self.truncate), float(self.norm))
 
     def kernel(self, q: np.ndarray) -> np.ndarray:
         r"""
@@ -1122,6 +1478,41 @@ class DiracDeltaKernel(_BaseSPHKernel):
     """
 
     max_valid_size: float = 0.5
+
+    @staticmethod
+    def _scalar_kernel_integral(
+        dx: float, dy: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the Dirac-delta kernel integral over a pixel.
+
+        Mirrors :meth:`_kernel_integral` for a single particle-pixel pair, for use in
+        compiled code (see :func:`_compile_scalar_integral`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the pixel centre to the particle along the first axis, in pixels.
+
+        dy : float
+            Offset from the pixel centre to the particle along the second axis, in
+            pixels.
+
+        h : float
+            Rescaled smoothing length, in pixels.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel integral over the pixel area, per unit pixel area.
+        """
+        return 1.0 if (abs(dx) < 0.5 and abs(dy) < 0.5) else 0.0
 
     def __init__(self, size_in_fwhm: float = 1.0) -> None:
         super().__init__()
@@ -1303,6 +1694,42 @@ class _AdaptiveKernel(_BaseSPHKernel):
 
         return
 
+    def _numba_kernel_arrays(
+        self,
+    ) -> (
+        tuple[np.ndarray, tuple[ScalarKernelIntegral, ...], np.ndarray, np.ndarray]
+        | None
+    ):
+        """
+        Describe the kernel of each particle for compiled evaluation.
+
+        Each particle uses the sub-kernel selected for it (the first kernel if none
+        passed validation).
+
+        Returns
+        -------
+        tuple or None
+            ``None`` if any sub-kernel has no compiled implementation. Otherwise a tuple
+            of the index into the kernel table for each particle, the table of compiled
+            kernel integrals, the table of kernel parameters (one row per table entry),
+            and the rescaled smoothing length of each particle in pixels.
+        """
+        integrals = [K._scalar_kernel_integral for K in self.kernels]
+        if any(integral is None for integral in integrals):
+            return None
+        h = np.asarray(
+            self.sm_lengths.to_value(U.pix) * np.asarray(self._rescale),
+            dtype=np.float64,
+        )
+        return (
+            np.where(self.kernel_indices == -1, 0, self.kernel_indices).astype(
+                np.int32
+            ),
+            tuple(_compile_scalar_integral(integral) for integral in integrals),
+            np.array([K._numba_params() for K in self.kernels], dtype=np.float64),
+            h,
+        )
+
     def _apply_mask(self, mask: np.ndarray) -> None:
         """
         Apply a mask to maskable attributes.
@@ -1460,6 +1887,58 @@ class _QuarticSplineKernel(_BaseSPHKernel):
 
     min_valid_size: float = 1.2385
 
+    @staticmethod
+    def _scalar_kernel_integral(
+        dx: float, dy: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the quartic spline kernel integral over a pixel.
+
+        Mirrors :meth:`_kernel_integral` for a single particle-pixel pair, for use in
+        compiled code (see :func:`_compile_scalar_integral`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the pixel centre to the particle along the first axis, in pixels.
+
+        dy : float
+            Offset from the pixel centre to the particle along the second axis, in
+            pixels.
+
+        h : float
+            Rescaled smoothing length, in pixels.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel integral over the pixel area, per unit pixel area.
+        """
+        R = math.sqrt(dx * dx + dy * dy) / h
+        if R == 0:
+            retval = 384 / 3125
+        elif R < 1:
+            retval = 0.0
+            if R < 0.2:
+                retval += 10 * float(
+                    _quartic_spline_ia_compiled(R, math.sqrt(0.2**2 - R * R), 0.2)
+                )
+            if R < 0.6:
+                retval -= 5 * float(
+                    _quartic_spline_ia_compiled(R, math.sqrt(0.6**2 - R * R), 0.6)
+                )
+            retval += float(_quartic_spline_ia_compiled(R, math.sqrt(1 - R * R), 1.0))
+        else:
+            return 0.0
+        # factor of 2 is because all integrals above are half-intervals
+        return retval * 2 * 15625 / 512 / np.pi / (h * h)
+
     def __init__(self) -> None:
         super().__init__()
         _unscaled_fwhm = find_fwhm(lambda r: self.eval_kernel(r, 1))
@@ -1550,47 +2029,16 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         retval = np.zeros(h.shape, dtype=dij.dtype)
         R = (dr / h).to_value(U.dimensionless_unscaled)
 
-        def IA(
-            R: np.ndarray | float, z: np.ndarray | float, A: np.ndarray | float
-        ) -> np.ndarray | float:
-            """
-            Evaluate expression involved in the integral.
-
-            Parameters
-            ----------
-            R : ~numpy.ndarray
-                Dimensionless cylindrical radii.
-
-            z : ~numpy.ndarray
-                Dimensionless vertical coordinates.
-
-            A : ~numpy.ndarray
-                Dimensionless amplitudes.
-
-            Returns
-            -------
-            ~numpy.ndarray
-                Result of the expression.
-            """
-            q = np.sqrt(np.power(z, 2) + np.power(R, 2))
-            R2 = np.power(R, 2)
-            return (
-                np.power(A, 4) * z
-                - 2 * np.power(A, 3) * z * q
-                + 2 * np.power(A, 2) * z * (3 * R2 + np.power(z, 2))
-                - A * R2 * (4 * np.power(A, 2) + 3 * R2) * np.arcsinh(z / R) / 2
-                - A * z * q * (5 * R2 + 2 * np.power(z, 2)) / 2
-                + R2 * R2 * z
-                + 2 * R2 * np.power(z, 3) / 3
-                + np.power(z, 5) / 5
-            )
-
         m1 = np.logical_and(R > 0, R < 0.2)
-        retval[m1] += 10 * IA(R[m1], np.sqrt(0.2**2 - np.power(R[m1], 2)), 0.2)
+        retval[m1] += 10 * _quartic_spline_ia(
+            R[m1], np.sqrt(0.2**2 - np.power(R[m1], 2)), 0.2
+        )
         m2 = np.logical_and(R > 0, R < 0.6)
-        retval[m2] -= 5 * IA(R[m2], np.sqrt(0.6**2 - np.power(R[m2], 2)), 0.6)
+        retval[m2] -= 5 * _quartic_spline_ia(
+            R[m2], np.sqrt(0.6**2 - np.power(R[m2], 2)), 0.6
+        )
         m3 = np.logical_and(R > 0, R < 1.0)
-        retval[m3] += IA(R[m3], np.sqrt(1 - np.power(R[m3], 2)), 1.0)
+        retval[m3] += _quartic_spline_ia(R[m3], np.sqrt(1 - np.power(R[m3], 2)), 1.0)
         retval[R == 0] = 384 / 3125
         # factor of 2 is because all integrals above are half-intervals
         retval *= 2 * 15625 / 512 / np.pi

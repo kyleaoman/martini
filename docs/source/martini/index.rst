@@ -161,9 +161,9 @@ terms of e.g. speed).
 Memory management
 +++++++++++++++++
 
-:mod:`martini` is a memory-intensive package. New in ``v3``, the main source insertion is
-much faster and can automatically split the job into pieces to keep memory usage below a
-desired threshold. You can set the threshold with:
+In some regimes, :mod:`martini` is a memory-intensive package. New in ``v3``, the main
+source insertion is much faster and can automatically split the job into pieces to keep
+memory usage below a desired threshold. You can set the threshold with:
 
 .. code-block:: python
 
@@ -201,31 +201,20 @@ support multi-threaded execution. Using multiple threads can be enabled with:
 
     m.insert_source_in_cube(ncpu=2)  # or more
 
-However, consider the following before turning up the thread count. Currently
-multi-threaded operations include:
+Several steps are multi-threaded and divide their work evenly between threads:
 
- - Evaluating the spectra of the particles. With :mod:`numba` acceleration, using multiple
-   threads usually leads to a negligible speedup. This is because the calculation is
-   already so fast that CPU throughput is not the limiting factor (probably e.g. memory
-   bandwidth). Multiple threads might speed up the process for very large numbers of
-   particles (millions+) processed in a single batch, but most machines will not have
-   enough memory (likely 1TB or more) to support this.
- - Finding intersections between particle smoothing kernels and pixels. Usually this is
-   also not CPU-limited and speedups are limited despite multi-thread compatibility.
- - Applying the kernel weights to the spectra for each pixel and writing the result to the
-   data cube. This operation does speed up significantly with additional threads, however
-   it is normally not the bottleneck overall so speeding up this process makes little
-   difference overall.
+ - Finding the pixels overlapped by each particle's smoothing kernel.
+ - Evaluating the spectra of the particles.
+ - Evaluating the kernel weights and adding the weighted spectra of the particles into the
+   data cube.
 
-In summary there is usually little benefit to using more threads, but it also does not do
-any harm. If many data cubes need to be created, running several instances of
-:mod:`martini` is a better approach than trying to leverage multi-threading, but keep in
-mind that :mod:`martini` is most efficient when it has enough memory to avoid
-batch-processing particles. Memory demands will usually be the limiting factor for how
-many data cubes can be created simultaenously. If there are unused CPU cores that can
-be used for multi-threading then setting ``ncpu`` as high as ``8`` is reasonable, going
-beyond this is probably pointless.
-
+Typically, using 4 to 8 threads makes source insertion several times faster than using a
+single thread, with diminishing returns beyond this as remaining serial steps (and
+memory bandwidth) start to dominate. Setting ``ncpu=-1`` uses all available cores. If
+many data cubes need to be created, running several instances of :mod:`martini` in
+parallel is also a good option, but keep in mind that :mod:`martini` is most efficient
+when it has enough memory to avoid batch-processing particles. Memory demands will
+usually be the limiting factor for how many data cubes can be created simultaneously.
 
 Adding noise
 ------------

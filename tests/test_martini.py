@@ -6,10 +6,11 @@ import warnings
 import numpy as np
 from martini.martini import Martini, GlobalProfile, _BaseMartini, _plan_segments
 from martini.datacube import DataCube, HIfreq
+from martini._grid_search import FindGridIntersectionsResult
 import martini._util
 from martini._util import resolve_ncpu
 from martini.beams import GaussianBeam
-from test_sph_kernels import simple_kernels
+from test_sph_kernels import simple_kernels, recommended_kernels
 from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from martini.sources import SPHSource, CombinedSource
@@ -863,6 +864,72 @@ class TestParallel:
 
         assert U.allclose(m.datacube._array, expected_result)
 
+    @pytest.mark.parametrize("sph_kernel", simple_kernels + recommended_kernels)
+    def test_weight_and_insert_matches_fallback(
+        self, many_particle_source, dc_zeros, sph_kernel
+    ):
+        """Check that evaluating kernel weights on the fly matches precomputed weights."""
+        pytest.importorskip("numba", reason="numba (optional dependency) not available")
+        m = Martini(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=sph_kernel(),
+            spectral_model=GaussianSpectrum(),
+        )
+        assert m.sph_kernel._numba_kernel_arrays() is not None
+        m._numba_enabled = False
+        m.insert_source_in_cube(skip_validation=True, progressbar=False)
+        expected_result = m.datacube._array.copy()
+        assert expected_result.sum() > 0
+        m.reset()
+        m._numba_enabled = True
+        m.insert_source_in_cube(skip_validation=True, progressbar=False)
+        assert U.allclose(m.datacube._array, expected_result)
+
+    def test_kernel_without_compiled_integral(
+        self, many_particle_source, dc_zeros, monkeypatch
+    ):
+        """Check that a kernel without a compiled integral is an error with numba."""
+        m = Martini(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=_GaussianKernel(),
+            spectral_model=GaussianSpectrum(),
+        )
+        m.insert_source_in_cube(progressbar=False)
+        expected_result = m.datacube._array.copy()
+        m.reset()
+        monkeypatch.setattr(
+            m.sph_kernel, "_scalar_kernel_integral", None, raising=False
+        )
+        with pytest.raises(ValueError, match="_scalar_kernel_integral"):
+            m.insert_source_in_cube(progressbar=False)
+        # without numba the (uncompiled) fallback still works:
+        m.reset()
+        m._numba_enabled = False
+        m.insert_source_in_cube(progressbar=False)
+        assert U.allclose(m.datacube._array, expected_result)
+
+    def test_insert_without_overlaps(self, m_init):
+        """Check that a batch of particles outside of the cube leaves it unchanged."""
+        kernel_arrays = m_init.sph_kernel._numba_kernel_arrays()
+        assert kernel_arrays is not None
+        gs = FindGridIntersectionsResult(
+            intersections=np.empty(0, dtype=np.int32),
+            distances=None,
+            cell_indices=np.empty(0, dtype=np.int64),
+            strides=np.empty((0, 2), dtype=np.int64),
+        )
+        before = m_init.datacube._array.copy()
+        m_init._insert_weighted_spectra(
+            np.empty((0, m_init.datacube.n_channels)), gs, slice(0, 0), kernel_arrays, 1
+        )
+        assert U.allclose(m_init.datacube._array, before)
+
     def test_numba_related_warnings(self, m_init):
         """Check that we warn the user that ncpu>1 doesn't work without numba."""
         m_init._numba_enabled = False
@@ -939,9 +1006,21 @@ class TestBatched:
             0.0,
         )
 
+        # set the memory limit to allow about half of the particles per batch:
+        sm_ranges = np.clip(
+            m.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
+        )
+        weight_and_insert = numba_on
+        mem_estimate, overhead = m._insertion_mem_estimate(
+            m._count_px_hits(sm_ranges, 1), sm_ranges, weight_and_insert
+        )
+        assert mem_estimate.max() < 0.5 * mem_estimate.sum()
         with pytest.warns(RuntimeWarning, match="Requested memory limit"):
             m._insert_source_in_cube(
-                progressbar=False, mem_lim_GB=m.baseline_mem_estimate + 0.0001
+                progressbar=False,
+                mem_lim_GB=m.baseline_mem_estimate
+                + overhead
+                + 0.5 * mem_estimate.sum(),
             )
 
         assert U.allclose(m.datacube._array, expected_result)
@@ -995,8 +1074,8 @@ class TestGlobalProfile:
         px_hits = m._count_px_hits(sm_ranges, 1)
         assert np.array_equal(px_hits, _BaseMartini._count_px_hits(m, sm_ranges, 1))
         for segment in (slice(None), slice(3, 10), slice(5, 5)):
-            gs = m._find_px_hits(segment, sm_ranges, px_hits, 1)
-            gs_search = _BaseMartini._find_px_hits(m, segment, sm_ranges, px_hits, 1)
+            gs = m._find_px_hits(segment, sm_ranges, 1)
+            gs_search = _BaseMartini._find_px_hits(m, segment, sm_ranges, 1)
             for a, b in zip(gs, gs_search):
                 assert np.array_equal(a, b)
 

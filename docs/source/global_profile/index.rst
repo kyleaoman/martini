@@ -104,9 +104,9 @@ Parallelization
 
 Paralleliztion (``ncpu>1``) is not available in this mode. The source insertion function
 is a loop over pixels. Since in :class:`~martini.martini.GlobalProfile` there is only a
-single pixel, multithreading will not be beneficial for this task. The
-:class:`~scipy.spatial.KDTree` lookup is also trivial in this mode so does not benefit
-either.
+single pixel, multithreading will not be beneficial for this task. The search for the
+pixels overlapped by each particle is skipped entirely in this mode, since every particle
+contributes to the single pixel.
 
 Quick plot of the spectrum
 --------------------------
