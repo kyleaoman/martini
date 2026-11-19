@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v6
@@ -87,6 +87,7 @@ jobs:
     - name: Test with pytest including coverage report
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+        NUMBA_DISABLE_JIT: "1"
       run: |
         pytest --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov

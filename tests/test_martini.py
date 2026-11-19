@@ -1,13 +1,17 @@
 """Test the functionality of the main martini module."""
 
 import os
+import re
 import pytest
 import warnings
 import numpy as np
-from martini.martini import Martini, GlobalProfile, _BaseMartini
+from martini.martini import Martini, GlobalProfile, _BaseMartini, _plan_segments
 from martini.datacube import DataCube, HIfreq
+from martini._grid_search import FindGridIntersectionsResult
+import martini._util
+from martini._util import resolve_ncpu
 from martini.beams import GaussianBeam
-from test_sph_kernels import simple_kernels
+from test_sph_kernels import simple_kernels, recommended_kernels
 from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from martini.sources import SPHSource, CombinedSource
@@ -317,16 +321,9 @@ class TestMartini:
         expected_noise = m_init.noise.generate(m_init.datacube, m_init.beam)
         m_init.noise.reset_rng()
         m_init.add_noise()
-        assert U.allclose(
-            m_init.datacube._array,
-            expected_noise.to(
-                U.Jy * U.arcsec**-2,
-                equivalencies=U.beam_angular_area(m_init.beam.area),
-            ).to(
-                m_init.datacube._array.unit,
-                equivalencies=[m_init.datacube.arcsec2_to_pix],
-            ),
-        )
+        # noise is generated in the units of the data cube:
+        assert expected_noise.unit == m_init.datacube._array.unit
+        assert U.allclose(m_init.datacube._array, expected_noise)
 
     @pytest.mark.parametrize(
         ("ra_off", "ra_in"),
@@ -821,17 +818,13 @@ class TestMartini:
 class TestParallel:
     """Test that results running in parallel agree with those running serially."""
 
-    @pytest.mark.parametrize("jit_on", (True, False))
-    def test_parallel_consistent_with_serial(
-        self, many_particle_source, dc_zeros, jit_on
-    ):
+    def test_parallel_consistent_with_serial(self, many_particle_source, dc_zeros):
         """
         Check running the source insertion loop in parallel.
 
         Should give the same result as running in serial. The serial "fallback"
-        implementation is the reference case. We check both the numba implementation but
-        running as python code (without jit) against this, and also the compiled,
-        multi-threaded implementation.
+        implementation is the reference case, the numba implementation is checked
+        against it.
         """
         pytest.importorskip("numba", reason="numba (optional dependency) not available")
 
@@ -845,7 +838,6 @@ class TestParallel:
         )
 
         m._numba_enabled = False
-        m._jit_enabled = False
         m.insert_source_in_cube(ncpu=1, progressbar=False)  # fallback implementation
 
         expected_result = m.datacube._array
@@ -862,10 +854,75 @@ class TestParallel:
         )
 
         m._numba_enabled = True
-        m._jit_enabled = jit_on
         m.insert_source_in_cube(progressbar=False)
 
         assert U.allclose(m.datacube._array, expected_result)
+
+    @pytest.mark.parametrize("sph_kernel", simple_kernels + recommended_kernels)
+    def test_weight_and_insert_matches_fallback(
+        self, many_particle_source, dc_zeros, sph_kernel
+    ):
+        """Check that evaluating kernel weights on the fly matches precomputed weights."""
+        pytest.importorskip("numba", reason="numba (optional dependency) not available")
+        m = Martini(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=sph_kernel(),
+            spectral_model=GaussianSpectrum(),
+        )
+        assert m.sph_kernel._numba_kernel_arrays() is not None
+        m._numba_enabled = False
+        m.insert_source_in_cube(skip_validation=True, progressbar=False)
+        expected_result = m.datacube._array.copy()
+        assert expected_result.sum() > 0
+        m.reset()
+        m._numba_enabled = True
+        m.insert_source_in_cube(skip_validation=True, progressbar=False)
+        assert U.allclose(m.datacube._array, expected_result)
+
+    def test_kernel_without_compiled_integral(
+        self, many_particle_source, dc_zeros, monkeypatch
+    ):
+        """Check that a kernel without a compiled integral is an error with numba."""
+        m = Martini(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            noise=None,
+            sph_kernel=_GaussianKernel(),
+            spectral_model=GaussianSpectrum(),
+        )
+        m.insert_source_in_cube(progressbar=False)
+        expected_result = m.datacube._array.copy()
+        m.reset()
+        monkeypatch.setattr(
+            m.sph_kernel, "_scalar_kernel_integral", None, raising=False
+        )
+        with pytest.raises(ValueError, match="_scalar_kernel_integral"):
+            m.insert_source_in_cube(progressbar=False)
+        # without numba the (uncompiled) fallback still works:
+        m.reset()
+        m._numba_enabled = False
+        m.insert_source_in_cube(progressbar=False)
+        assert U.allclose(m.datacube._array, expected_result)
+
+    def test_insert_without_overlaps(self, m_init):
+        """Check that a batch of particles outside of the cube leaves it unchanged."""
+        kernel_arrays = m_init.sph_kernel._numba_kernel_arrays()
+        assert kernel_arrays is not None
+        gs = FindGridIntersectionsResult(
+            intersections=np.empty(0, dtype=np.int32),
+            distances=None,
+            cell_indices=np.empty(0, dtype=np.int64),
+            strides=np.empty((0, 2), dtype=np.int64),
+        )
+        before = m_init.datacube._array.copy()
+        m_init._insert_weighted_spectra(
+            np.empty((0, m_init.datacube.n_channels)), gs, slice(0, 0), kernel_arrays, 1
+        )
+        assert U.allclose(m_init.datacube._array, before)
 
     def test_numba_related_warnings(self, m_init):
         """Check that we warn the user that ncpu>1 doesn't work without numba."""
@@ -879,6 +936,25 @@ class TestParallel:
             match="'numba'-accelerated 'martini' does not support progress bar",
         ):
             m_init.insert_source_in_cube(progressbar=True)
+
+    def test_all_cores(self, m_init):
+        """Check that ncpu=-1 runs and agrees with a single thread."""
+        m_init.insert_source_in_cube(ncpu=1, progressbar=False)
+        expected_result = m_init.datacube._array.copy()
+        assert expected_result.sum() > 0
+        m_init.reset()
+        m_init.insert_source_in_cube(ncpu=-1, progressbar=False)
+        assert U.allclose(m_init.datacube._array, expected_result)
+
+    def test_resolve_ncpu(self, monkeypatch):
+        """Check conversion of requested thread counts."""
+        assert resolve_ncpu(3) == 3
+        assert resolve_ncpu(-1) >= 1
+        monkeypatch.setattr(martini._util, "NUMBA_AVAILABLE", False)
+        assert resolve_ncpu(-1) == 1
+        for bad in (0, -2):
+            with pytest.raises(ValueError, match="ncpu must be"):
+                resolve_ncpu(bad)
 
 
 class TestBatched:
@@ -924,12 +1000,43 @@ class TestBatched:
             0.0,
         )
 
+        # set the memory limit to allow about half of the particles per batch:
+        sm_ranges = np.clip(
+            m.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
+        )
+        weight_and_insert = numba_on
+        mem_estimate, overhead = m._insertion_mem_estimate(
+            m._count_px_hits(sm_ranges, 1), sm_ranges, weight_and_insert
+        )
+        assert mem_estimate.max() < 0.5 * mem_estimate.sum()
         with pytest.warns(RuntimeWarning, match="Requested memory limit"):
             m._insert_source_in_cube(
-                progressbar=False, mem_lim_GB=m.baseline_mem_estimate + 0.0001
+                progressbar=False,
+                mem_lim_GB=m.baseline_mem_estimate
+                + overhead
+                + 0.5 * mem_estimate.sum(),
             )
 
         assert U.allclose(m.datacube._array, expected_result)
+
+    def test_plan_segments(self):
+        """Check that particle batches are contiguous and respect the allowance."""
+        rng = np.random.default_rng(0)
+        mem_estimate = rng.random(100)
+        allowance = 3.0
+        # make sure that batching is actually needed:
+        assert mem_estimate.sum() > allowance
+        segments = _plan_segments(mem_estimate, allowance)
+        assert len(segments) > 1
+        assert segments[0].start == 0
+        assert segments[-1].stop == mem_estimate.size
+        for s0, s1 in zip(segments[:-1], segments[1:]):
+            assert s0.stop == s1.start
+        for segment in segments:
+            assert segment.stop > segment.start
+            assert mem_estimate[segment].sum() <= allowance
+        with pytest.raises(ValueError, match="insufficient for a single particle"):
+            _plan_segments(np.array([1.0, 4.0, 1.0]), allowance)
 
     def test_insufficient_memory(self, m_init):
         """Test that insufficient memory to process even one particle crashes."""
@@ -946,6 +1053,25 @@ class TestBatched:
 
 class TestGlobalProfile:
     """Test the functionality of the simplified martini module for global profiles."""
+
+    def test_search_bypass_matches_search(self, many_particle_source):
+        """Check that GlobalProfile's shortcut gives the same overlaps as a search."""
+        source = many_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(),
+            n_channels=32,
+            channel_width=10 * U.km * U.s**-1,
+            spectral_centre=source.vsys,
+        )
+        sm_ranges = m.sph_kernel.sm_ranges.to_value(U.pix)
+        px_hits = m._count_px_hits(sm_ranges, 1)
+        assert np.array_equal(px_hits, _BaseMartini._count_px_hits(m, sm_ranges, 1))
+        for segment in (slice(None), slice(3, 10), slice(5, 5)):
+            gs = m._find_px_hits(segment, sm_ranges, 1)
+            gs_search = _BaseMartini._find_px_hits(m, segment, sm_ranges, 1)
+            for a, b in zip(gs, gs_search):
+                assert np.array_equal(a, b)
 
     @pytest.mark.parametrize("spectral_model", (DiracDeltaSpectrum, GaussianSpectrum))
     @pytest.mark.parametrize("ra", (0 * U.deg, 180 * U.deg))
@@ -1164,3 +1290,70 @@ class TestMartiniWithDataCubeFromWCS:
         )
         m.insert_source_in_cube(progressbar=False)
         check_mass_accuracy(m, out_mode)
+
+
+class TestLogging:
+    """Test the progress messages logged by Martini."""
+
+    def test_step_messages(self, m_init, capsys, tmp_path):
+        """Check start and end messages of each main step, and their formatting."""
+        # pruning (at initialization) was logged:
+        assert any("Pruning particles" in record for record in m_init._logger.records)
+        m_init.insert_source_in_cube(progressbar=False)
+        m_init.add_noise()
+        m_init.convolve_beam()
+        m_init.write_fits(tmp_path / "cube.fits")
+        lines = capsys.readouterr().out.splitlines()
+        assert all(re.match(r"^\[\d\d:\d\d:\d\d\] ", line) for line in lines)
+        messages = [line[11:] for line in lines]
+        for start, end in (
+            (
+                "Inserting source in data cube...",
+                "Source inserted in data cube, took ",
+            ),
+            ("Adding noise...", "Noise added, took "),
+            ("Convolving beam...", "Beam convolved, took "),
+            ("Writing data cube to FITS file...", "Wrote FITS file "),
+        ):
+            assert start in messages
+            assert any(message.startswith(end) for message in messages)
+        # stages of source insertion are indented under it:
+        assert "  Counting particle-pixel overlaps..." in messages
+        assert any(
+            message.startswith("  Reduced pixel spectra into cube, took ")
+            for message in messages
+        )
+        # summary details are indented below the end message:
+        assert any(
+            message.startswith("  Flux density in cube: ") for message in messages
+        )
+
+    def test_quiet(self, m_init, capsys):
+        """Check that a quiet run prints nothing but still records its log."""
+        m_init.quiet = True
+        m_init.insert_source_in_cube(progressbar=False)
+        assert capsys.readouterr().out == ""
+        assert any(
+            record[11:].startswith("Source inserted in data cube, took ")
+            for record in m_init._logger.records
+        )
+
+    def test_global_profile_messages(self, single_particle_source):
+        """Check that GlobalProfile names the spectrum in its messages."""
+        source = single_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(),
+            n_channels=32,
+            channel_width=10 * U.km * U.s**-1,
+            spectral_centre=source.vsys,
+            quiet=True,
+        )
+        m.insert_source_in_spectrum()
+        messages = [record[11:] for record in m._logger.records]
+        assert "Pruning particles that will not contribute to spectrum..." in messages
+        assert "Inserting source in spectrum..." in messages
+        assert any(
+            message.startswith("Source inserted in spectrum, took ")
+            for message in messages
+        )

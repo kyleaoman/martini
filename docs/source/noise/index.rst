@@ -59,3 +59,16 @@ within the method. Other parameters are expected to be passed to the noise class
 initialization, analogous to the ``rms`` argument of the
 :meth:`~martini.noise.GaussianNoise.__init__` method of
 :class:`~martini.noise.GaussianNoise`.
+
+The units of the noise returned by :meth:`~martini.noise._BaseNoise.generate` determine
+how it is used. Noise in units of flux density per unit area (such as
+:math:`\mathrm{Jy}\,\mathrm{arcsec}^{-2}`, or the current units of the datacube) is
+noise that still needs to be convolved with the beam: it must be added with
+:meth:`~martini.martini.Martini.add_noise` before
+:meth:`~martini.martini.Martini.convolve_beam`. Noise in units of flux density per beam
+(such as :math:`\mathrm{Jy}\,\mathrm{beam}^{-1}`) is treated as already convolved with
+the beam (for example, noise taken from a real observation): it must be added after
+:meth:`~martini.martini.Martini.convolve_beam`. Calling
+:meth:`~martini.martini.Martini.add_noise` in the wrong order raises an error. Returning
+the noise in the current units of the datacube avoids converting units of the (possibly
+large) noise array.
