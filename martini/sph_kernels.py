@@ -13,6 +13,7 @@ from scipy.optimize import fsolve
 from martini.sources import SPHSource
 from martini.datacube import DataCube
 from martini._util import NUMBA_AVAILABLE
+from martini._logging import _ProgressLogger
 
 if NUMBA_AVAILABLE:
     from numba import njit
@@ -265,6 +266,8 @@ class _BaseSPHKernel(object):
     size_in_fwhm: float | list[float] | None
     _rescale: float | np.ndarray
     _scalar_kernel_integral: ScalarKernelIntegral | None = None
+    # Progress logger, set by martini.Martini so that messages nest with its own:
+    _logger: _ProgressLogger | None = None
 
     def __init__(self) -> None:
         self._rescale = 1.0
@@ -400,23 +403,16 @@ class _BaseSPHKernel(object):
             If ``True``, suppress reports on smoothing lengths.
         """
         if not quiet:
-            print(f"    ---------{self.__class__.__name__} VALIDATION---------")
-            print("    Median smoothing length: ", np.median(sm_lengths), "px")
-            print("    Minimum smoothing length: ", np.min(sm_lengths), "px")
-            print("    Maximum smoothing length: ", np.max(sm_lengths), "px")
-            print(
-                "    Smoothing length histogram (np.histogram):",
-                np.histogram(sm_lengths),
-            )
-            print(
-                "    ",
-                np.sum(np.logical_not(valid)),
-                "/",
-                sm_lengths.size,
-                "smoothing lengths fail validation.",
-            )
-            print(
-                "    -----------------------------" + "-" * len(self.__class__.__name__)
+            logger = self._logger if self._logger is not None else _ProgressLogger()
+            logger.message(f"{self.__class__.__name__} validation:")
+            logger.message(
+                f"Median smoothing length: {np.median(sm_lengths)}",
+                f"Minimum smoothing length: {np.min(sm_lengths)}",
+                f"Maximum smoothing length: {np.max(sm_lengths)}",
+                f"Smoothing length histogram (np.histogram): {np.histogram(sm_lengths)}",
+                f"{np.sum(np.logical_not(valid))} / {sm_lengths.size} smoothing lengths"
+                " fail validation.",
+                extra_indent=1,
             )
         if not noraise:
             raise RuntimeError(msg)

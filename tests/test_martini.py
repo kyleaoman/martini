@@ -1,6 +1,7 @@
 """Test the functionality of the main martini module."""
 
 import os
+import re
 import pytest
 import warnings
 import numpy as np
@@ -1296,3 +1297,70 @@ class TestMartiniWithDataCubeFromWCS:
         )
         m.insert_source_in_cube(progressbar=False)
         check_mass_accuracy(m, out_mode)
+
+
+class TestLogging:
+    """Test the progress messages logged by Martini."""
+
+    def test_step_messages(self, m_init, capsys, tmp_path):
+        """Check start and end messages of each main step, and their formatting."""
+        # pruning (at initialization) was logged:
+        assert any("Pruning particles" in record for record in m_init._logger.records)
+        m_init.insert_source_in_cube(progressbar=False)
+        m_init.add_noise()
+        m_init.convolve_beam()
+        m_init.write_fits(tmp_path / "cube.fits")
+        lines = capsys.readouterr().out.splitlines()
+        assert all(re.match(r"^\[\d\d:\d\d:\d\d\] ", line) for line in lines)
+        messages = [line[11:] for line in lines]
+        for start, end in (
+            (
+                "Inserting source in data cube...",
+                "Source inserted in data cube, took ",
+            ),
+            ("Adding noise...", "Noise added, took "),
+            ("Convolving beam...", "Beam convolved, took "),
+            ("Writing data cube to FITS file...", "Wrote FITS file "),
+        ):
+            assert start in messages
+            assert any(message.startswith(end) for message in messages)
+        # stages of source insertion are indented under it:
+        assert "  Counting particle-pixel overlaps..." in messages
+        assert any(
+            message.startswith("  Reduced pixel spectra into cube, took ")
+            for message in messages
+        )
+        # summary details are indented below the end message:
+        assert any(
+            message.startswith("  Flux density in cube: ") for message in messages
+        )
+
+    def test_quiet(self, m_init, capsys):
+        """Check that a quiet run prints nothing but still records its log."""
+        m_init.quiet = True
+        m_init.insert_source_in_cube(progressbar=False)
+        assert capsys.readouterr().out == ""
+        assert any(
+            record[11:].startswith("Source inserted in data cube, took ")
+            for record in m_init._logger.records
+        )
+
+    def test_global_profile_messages(self, single_particle_source):
+        """Check that GlobalProfile names the spectrum in its messages."""
+        source = single_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(),
+            n_channels=32,
+            channel_width=10 * U.km * U.s**-1,
+            spectral_centre=source.vsys,
+            quiet=True,
+        )
+        m.insert_source_in_spectrum()
+        messages = [record[11:] for record in m._logger.records]
+        assert "Pruning particles that will not contribute to spectrum..." in messages
+        assert "Inserting source in spectrum..." in messages
+        assert any(
+            message.startswith("Source inserted in spectrum, took ")
+            for message in messages
+        )
