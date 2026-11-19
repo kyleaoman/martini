@@ -1,5 +1,6 @@
 """Test the functionality of the noise modules."""
 
+import pytest
 import numpy as np
 from martini.noise import GaussianNoise
 from martini.beams import GaussianBeam
@@ -94,12 +95,29 @@ class TestNoise:
         assert U.allclose(noise1, noise2)
 
 
-class _JyPerBeamNoise(GaussianNoise):
-    """Gaussian noise returned in Jy/beam, as a user-defined noise model might do."""
+class _ConvolvedNoise(GaussianNoise):
+    """
+    Noise already convolved with the beam, with units of flux density per beam.
+
+    Parameters
+    ----------
+    *args : tuple
+        Positional arguments passed to :class:`~martini.noise.GaussianNoise`.
+
+    unit : ~astropy.units.UnitBase
+        Units (of flux density per beam) of the generated noise.
+
+    **kwargs : dict
+        Keyword arguments passed to :class:`~martini.noise.GaussianNoise`.
+    """
+
+    def __init__(self, *args, unit=U.Jy * U.beam**-1, **kwargs):
+        self.unit = unit
+        super().__init__(*args, **kwargs)
 
     def generate(self, datacube, beam):
         """
-        Create a cube containing Gaussian noise in units of Jy/beam.
+        Create a cube containing (white) noise with the target rms per beam.
 
         Parameters
         ----------
@@ -112,12 +130,34 @@ class _JyPerBeamNoise(GaussianNoise):
         Returns
         -------
         ~astropy.units.Quantity
-            Noise realization in Jy/beam.
+            Noise realization in units of flux density per beam.
+        """
+        noise = self.rng.standard_normal(size=datacube._array.shape)
+        return (noise * self.target_rms).to(self.unit)
+
+
+class _PerAreaNoise(GaussianNoise):
+    """Noise to be convolved with the beam, returned in Jy/arcsec^2."""
+
+    def generate(self, datacube, beam):
+        """
+        Create a cube containing noise in units of Jy/arcsec^2.
+
+        Parameters
+        ----------
+        datacube : ~martini.datacube.DataCube
+            The data cube.
+
+        beam : ~martini.beams._BaseBeam
+            The beam.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Noise realization in Jy/arcsec^2.
         """
         noise = super().generate(datacube, beam)
-        return noise.to(
-            U.Jy * U.arcsec**-2, equivalencies=[datacube.arcsec2_to_pix]
-        ).to(U.Jy * U.beam**-1, equivalencies=U.beam_angular_area(beam.area))
+        return noise.to(U.Jy * U.arcsec**-2, equivalencies=[datacube.arcsec2_to_pix])
 
 
 class TestNoiseUnits:
@@ -154,15 +194,52 @@ class TestNoiseUnits:
         ).to(datacube.current_units, equivalencies=[datacube.arcsec2_to_pix])
         assert U.allclose(noise, expected)
 
-    def test_other_units_converted(self, m_init):
-        """Check that noise models returning Jy/beam give the same data cube."""
+    def test_per_area_units_converted(self, m_init):
+        """Check that per-area noise in other units gives the same data cube."""
         rms = m_init.noise.target_rms
         initial = m_init.datacube._array.copy()
         m_init.noise = GaussianNoise(rms=rms, seed=5)
         m_init.add_noise()
         expected = m_init.datacube._array.copy()
         m_init.datacube._array[...] = initial
-        m_init.noise = _JyPerBeamNoise(rms=rms, seed=5)
+        m_init.noise = _PerAreaNoise(rms=rms, seed=5)
         m_init.add_noise()
         assert m_init.datacube._array.unit == expected.unit
         assert U.allclose(m_init.datacube._array, expected)
+
+    @pytest.mark.parametrize("unit", (U.Jy * U.beam**-1, U.mJy * U.beam**-1))
+    def test_convolved_noise_after_beam(self, m_init, unit):
+        """Check that convolved noise is added after beam convolution."""
+        rms = m_init.noise.target_rms
+        m_init.insert_source_in_cube(progressbar=False)
+        m_init.convolve_beam()
+        before = m_init.datacube._array.copy()
+        m_init.noise = _ConvolvedNoise(rms=rms, seed=7, unit=unit)
+        m_init.add_noise()
+        expected = _ConvolvedNoise(rms=rms, seed=7).generate(m_init.datacube, None)
+        assert m_init.datacube._array.unit == U.Jy * U.beam**-1
+        assert U.allclose(m_init.datacube._array - before, expected)
+
+    def test_convolved_noise_before_beam(self, m_init):
+        """Check that convolved noise added before beam convolution is an error."""
+        m_init.noise = _ConvolvedNoise(rms=m_init.noise.target_rms)
+        with pytest.raises(ValueError, match="after `convolve_beam`"):
+            m_init.add_noise()
+
+    def test_gaussian_noise_after_beam(self, m_init):
+        """Check that noise to be convolved added after beam convolution is an error."""
+        m_init.insert_source_in_cube(progressbar=False)
+        m_init.convolve_beam()
+        with pytest.raises(ValueError, match="before convolving the beam"):
+            m_init.add_noise()
+
+    def test_per_area_noise_after_beam(self, m_init):
+        """Check the error from Martini for per-area noise after beam convolution."""
+        m_init.insert_source_in_cube(progressbar=False)
+        m_init.convolve_beam()
+        m_init.noise = _PerAreaNoise(rms=m_init.noise.target_rms)
+        m_init.noise.generate = lambda datacube, beam: U.Quantity(  # bypass own check
+            np.zeros(datacube._array.shape), U.Jy * U.arcsec**-2
+        )
+        with pytest.raises(ValueError, match="before `convolve_beam`"):
+            m_init.add_noise()

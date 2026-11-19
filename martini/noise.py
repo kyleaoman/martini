@@ -16,9 +16,15 @@ class _BaseNoise(object):
     method :meth:`~martini.noise._BaseNoise.generate` which receives two arguments,
     a :class:`~martini.datacube.DataCube` instance and a beam instance. This method
     should return an :class:`~astropy.units.Quantity` array with the same shape as the
-    datacube array, with units of flux density per beam or per unit area. Returning
-    the current units of the data cube (``datacube.current_units``) avoids a unit
-    conversion of the noise cube when it is added to the data cube.
+    datacube array. The units of the noise determine how it is used:
+
+    - Flux density per unit area (e.g. Jy/arcsec^2): noise that will be convolved with
+      the beam, added to the data cube before beam convolution.
+    - Flux density per beam (e.g. Jy/beam): noise that is already convolved with the
+      beam, added to the data cube after beam convolution.
+
+    Returning the current units of the data cube (``datacube.current_units``) avoids a
+    unit conversion of the noise cube when it is added to the data cube.
 
     Parameters
     ----------
@@ -64,8 +70,9 @@ class _BaseNoise(object):
         Returns
         -------
         ~astropy.units.Quantity
-            :class:`~astropy.units.Quantity`, with dimensions of flux density per beam
-            or per unit area. Noise realization with size matching the
+            :class:`~astropy.units.Quantity`, with dimensions of flux density per unit
+            area (noise to be convolved with the beam) or per beam (noise already
+            convolved with the beam). Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
         """
         pass  # pragma: no cover
@@ -113,7 +120,8 @@ class GaussianNoise(_BaseNoise):
         Create a cube containing Gaussian noise.
 
         The noise is generated in the current units of the data cube (so that it can be
-        added to the data cube without converting units).
+        added to the data cube without converting units). It is noise to be convolved
+        with the beam, so the data cube must not already be convolved with the beam.
 
         Parameters
         ----------
@@ -135,7 +143,18 @@ class GaussianNoise(_BaseNoise):
             :class:`~astropy.units.Quantity`, in the current units of the data cube.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
+
+        Raises
+        ------
+        ValueError
+            If the data cube is already convolved with the beam.
         """
+        if datacube.current_units.is_equivalent(U.Jy / U.beam):
+            raise ValueError(
+                "GaussianNoise generates noise to be convolved with the beam, but the "
+                "data cube is already convolved with the beam: add noise before "
+                "convolving the beam."
+            )
         sig_maj = (beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
             U.dimensionless_unscaled
         )

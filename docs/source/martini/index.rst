@@ -227,8 +227,11 @@ time to use it, after inserting the source into the cube. Simply call
 
     m.add_noise()
 
-This function has no required or optional parameters, so that's all there is to it. Adding
-the noise should normally be done before convolving with the beam.
+This function has no required or optional parameters, so that's all there is to it. Noise
+that still needs to be convolved with the beam (such as that from
+:class:`~martini.noise.GaussianNoise`) must be added before convolving with the beam, and
+noise that is already convolved with the beam (with units of flux density per beam) must
+be added afterwards; see :doc:`/noise/index`.
 
 Convolving the beam
 -------------------

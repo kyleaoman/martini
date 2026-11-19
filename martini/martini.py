@@ -1442,7 +1442,23 @@ class Martini(_BaseMartini):
         return
 
     def add_noise(self) -> None:
-        """Insert noise into the data cube."""
+        """
+        Insert noise into the data cube.
+
+        The units of the noise realization determine when it should be added. Noise
+        with units of flux density per unit area (e.g. Jy/arcsec^2, or the current units
+        of the data cube before beam convolution) is added before
+        :meth:`~martini.martini.Martini.convolve_beam` and is then convolved with the
+        beam. Noise with units of flux density per beam (e.g. Jy/beam) is treated as
+        already convolved with the beam and is added after
+        :meth:`~martini.martini.Martini.convolve_beam`.
+
+        Raises
+        ------
+        ValueError
+            If noise per unit area is added after beam convolution, or noise per beam is
+            added before beam convolution.
+        """
         if self.noise is None:
             warn("Skipping noise, no noise object provided to Martini.")
             return
@@ -1454,17 +1470,26 @@ class Martini(_BaseMartini):
             )
             return
 
+        cube_convolved = self._datacube.current_units.is_equivalent(U.Jy / U.beam)
         with self._logger.step("Adding noise...", "Noise added", quiet=self.quiet):
             noise_cube = self.noise.generate(self._datacube, self.beam)
-            if noise_cube.unit != self._datacube.current_units:
-                # e.g. noise models returning Jy/beam (converted in place to avoid
-                # copies of the noise cube):
-                beam_area_equivalencies = U.beam_angular_area(self.beam.area)
-                noise_cube = _to_unit_in_place(
-                    noise_cube,
-                    U.Jy * U.arcsec**-2,
-                    equivalencies=beam_area_equivalencies,
+            noise_convolved = noise_cube.unit.is_equivalent(U.Jy / U.beam)
+            if noise_convolved and not cube_convolved:
+                raise ValueError(
+                    f"Noise in units of {noise_cube.unit} is treated as already "
+                    "convolved with the beam, so it must be added after the beam "
+                    "convolution: call `add_noise` after `convolve_beam`."
                 )
+            if cube_convolved and not noise_convolved:
+                raise ValueError(
+                    f"Noise in units of {noise_cube.unit} is treated as not yet "
+                    "convolved with the beam, so it must be added before the beam "
+                    "convolution: call `add_noise` before `convolve_beam`."
+                )
+            if noise_cube.unit != self._datacube.current_units:
+                # a single scaling (no equivalency needed between per-beam units, and
+                # only the pixel area between per-area units), done in place to avoid
+                # copies of the noise cube:
                 noise_cube = _to_unit_in_place(
                     noise_cube,
                     self._datacube.current_units,
@@ -1472,9 +1497,10 @@ class Martini(_BaseMartini):
                 )
             self._datacube._array += noise_cube
         if not self.quiet:
+            when = "after" if cube_convolved else "before"
             self._logger.message(
-                f"Noise cube RMS: {np.std(noise_cube):.2e} (before beam convolution).",
-                "Data cube RMS after noise addition (before beam convolution): "
+                f"Noise cube RMS: {np.std(noise_cube):.2e} ({when} beam convolution).",
+                f"Data cube RMS after noise addition ({when} beam convolution): "
                 f"{np.std(self._datacube._array):.2e}",
                 extra_indent=1,
             )
