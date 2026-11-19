@@ -55,7 +55,6 @@ class _BaseSpectrum(metaclass=ABCMeta):
 
     spec_dtype: type
     _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
-    _jit_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
 
     def __init__(self, spec_dtype: type = np.float64) -> None:
         self.spec_dtype = spec_dtype
@@ -366,13 +365,8 @@ class GaussianSpectrum(_BaseSpectrum):
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))
             sigma_val = np.asarray(sigma.to_value(U.km / U.s))
 
-            if self._jit_enabled:
-                with numba_threads(ncpu):
-                    raw_spectrum = _gaussian_numba_kernel(
-                        a_val, b_val, vmids_val, sigma_val, self.spec_dtype
-                    )
-            else:
-                raw_spectrum = _gaussian_numba_kernel.py_func(
+            with numba_threads(ncpu):
+                raw_spectrum = _gaussian_numba_kernel(
                     a_val, b_val, vmids_val, sigma_val, self.spec_dtype
                 )
             return raw_spectrum * U.dimensionless_unscaled
@@ -581,13 +575,8 @@ class DiracDeltaSpectrum(_BaseSpectrum):
             a_val = np.asarray(a.to_value(U.km / U.s))
             b_val = np.asarray(b.to_value(U.km / U.s))
             vmids_val = np.asarray(vmids.to_value(U.km / U.s))
-            if self._jit_enabled:
-                with numba_threads(ncpu):
-                    raw_spectrum = _diracdelta_numba_kernel(
-                        a_val, b_val, vmids_val, self.spec_dtype
-                    )
-            else:
-                raw_spectrum = _diracdelta_numba_kernel.py_func(
+            with numba_threads(ncpu):
+                raw_spectrum = _diracdelta_numba_kernel(
                     a_val, b_val, vmids_val, self.spec_dtype
                 )
             return raw_spectrum * U.dimensionless_unscaled

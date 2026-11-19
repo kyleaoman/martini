@@ -13,6 +13,7 @@ from martini.sph_kernels import (
     _WendlandC6Kernel,
     DiracDeltaKernel,
     _AdaptiveKernel,
+    _compile_scalar_integral,
     WendlandC2Kernel,
     GaussianKernel,
     CubicSplineKernel,
@@ -358,3 +359,60 @@ class TestAdaptiveKernels:
             kernel().eval_kernel(eval_at, np.ones(eval_at.shape)),
             kernel().kernels[0].eval_kernel(eval_at, np.ones(eval_at.shape)),
         )
+
+
+class TestCompiledKernels:
+    """Test the compiled (scalar) kernel integrals used to insert sources in cubes."""
+
+    @pytest.mark.parametrize(
+        "kernel",
+        (
+            _WendlandC2Kernel(),
+            _WendlandC6Kernel(),
+            _CubicSplineKernel(),
+            _GaussianKernel(),
+            _GaussianKernel(truncate=6.0),
+            DiracDeltaKernel(),
+            _QuarticSplineKernel(),
+        ),
+    )
+    def test_matches_vectorized(self, kernel):
+        """Check that compiled kernel integrals match the vectorized implementations."""
+        rng = np.random.default_rng(0)
+        n = 2000
+        h = rng.uniform(0.5, 8, n)
+        dx = rng.uniform(-1.2, 1.2, n) * h
+        dy = rng.uniform(-1.2, 1.2, n) * h
+        # particle at pixel centre, and just inside/outside the kernel support:
+        dx[:5] = (0, 0.999999, 1.000001, 0.4999, 0.5001) * h[:5]
+        dy[:5] = 0
+        expected = kernel._kernel_integral(
+            U.Quantity(np.vstack((dx, dy)), U.pix), h * U.pix
+        )
+        expected = np.asarray(getattr(expected, "value", expected), dtype=np.float64)
+        integral = _compile_scalar_integral(kernel._scalar_kernel_integral)
+        p0, p1 = kernel._numba_params()
+        result = np.array(
+            [integral(*args, p0, p1) for args in zip(dx, dy, h)], dtype=np.float64
+        )
+        assert np.count_nonzero(expected) > 0
+        assert np.allclose(result, expected, rtol=1e-10, atol=1e-12 * expected.max())
+
+    def test_compiled_once(self):
+        """Check that each kernel integral is compiled once and shared."""
+        integrals = GaussianKernel()  # adaptive, uses _GaussianKernel twice
+        compiled = [
+            _compile_scalar_integral(K._scalar_kernel_integral)
+            for K in integrals.kernels
+        ]
+        assert compiled[0] is compiled[2]
+        assert compiled[0] is not compiled[1]
+
+    def test_kernel_arrays_unavailable(self):
+        """Check that kernels without a compiled implementation are flagged."""
+
+        class CustomKernel(_GaussianKernel):
+            _scalar_kernel_integral = None
+
+        assert CustomKernel()._numba_kernel_arrays() is None
+        assert _AdaptiveKernel((CustomKernel(),))._numba_kernel_arrays() is None

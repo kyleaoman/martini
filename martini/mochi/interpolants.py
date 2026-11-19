@@ -1,17 +1,20 @@
 """Interpolant functions to render particle properties onto a grid."""
 
+import itertools
 from scipy.spatial import distance, KDTree
 from martini._grid_search import (
-    build_tree,
     find_grid_intersections,
     FindGridIntersectionsResult,
 )
 from astropy import units as U
 import numpy as np
 from functools import partial
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 from collections.abc import Iterable
 from martini.sph_kernels import _BaseSPHKernel
+
+if TYPE_CHECKING:
+    from martini.mochi.cell_grid import CellGrid
 
 
 def _eval_kernel(
@@ -285,6 +288,66 @@ def _get_out_of_bound_particles(
     return mask_out_of_bound
 
 
+def _tree_grid_intersections(
+    cell_centres: np.ndarray, coords: np.ndarray, radii: np.ndarray
+) -> FindGridIntersectionsResult:
+    """
+    Search for cell centres within variable radii of coordinates, using a KDTree.
+
+    Unlike :func:`~martini._grid_search.find_grid_intersections`, the cell centres can
+    be arbitrary (e.g. an adaptive grid), at the cost of speed and memory.
+
+    Parameters
+    ----------
+    cell_centres : ~numpy.ndarray
+        Coordinates of cell centres, with one column per dimension.
+
+    coords : ~numpy.ndarray
+        Coordinates to search around for cells, with one column per dimension.
+
+    radii : ~numpy.ndarray
+        Search radii around the ``coords``.
+
+    Returns
+    -------
+    ~martini._grid_search.FindGridIntersectionsResult
+        The matches, in the same layout as returned by
+        :func:`~martini._grid_search.find_grid_intersections`.
+    """
+    candidate_lists = KDTree(
+        cell_centres, leafsize=16, compact_nodes=True, balanced_tree=True
+    ).query_ball_point(x=coords, r=radii, p=2.0, return_sorted=False)
+    data_counts = np.array([len(lst) for lst in candidate_lists], dtype=np.int64)
+    if np.sum(data_counts) == 0:
+        return FindGridIntersectionsResult(
+            intersections=np.empty(0),
+            distances=np.empty(0),
+            cell_indices=np.empty(0),
+            strides=np.empty((0, 2)),
+        )
+    flat_cell_indices = np.fromiter(
+        itertools.chain.from_iterable(candidate_lists), dtype=np.int64
+    )
+    del candidate_lists
+    flat_data_indices = np.repeat(np.arange(len(coords), dtype=np.int32), data_counts)
+    del data_counts
+    sort_idx = np.argsort(flat_cell_indices, kind="stable")
+    sorted_cell_indices = flat_cell_indices[sort_idx]
+    del flat_cell_indices
+    cell_indices, split_indices, counts = np.unique(
+        sorted_cell_indices, return_index=True, return_counts=True
+    )
+    strides = np.column_stack((split_indices, split_indices + counts))
+    intersections = flat_data_indices[sort_idx]
+    distances = coords[intersections] - cell_centres[sorted_cell_indices]  # vectors
+    return FindGridIntersectionsResult(
+        intersections=intersections,
+        distances=distances,
+        cell_indices=cell_indices,
+        strides=strides,
+    )
+
+
 def particle_scatter(
     main_loop: Callable,  # fill in arg & return types
     positions: U.Quantity[U.pix],
@@ -294,9 +357,7 @@ def particle_scatter(
     temperatures: U.Quantity[U.km**2 / U.s**2],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
-    field_positions: U.Quantity[U.pix],
-    d_volume: U.Quantity[U.pix**3],
-    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
+    cell_grid: "CellGrid",
     *,
     kernel_cache_resolution: int = 256,
 ) -> dict[str, U.Quantity]:
@@ -334,15 +395,13 @@ def particle_scatter(
         :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`. Its ``size_in_fwhm``
         gives the radii of compact support in units of ``smoothing_lengths``.
 
-    field_positions : ~numpy.ndarray
-        Positions at which to interpolate fields, implicitly with units of pixels.
-
-    d_volume : ~astropy.units.Quantity
-        Rectilinear volume element size for ``field_positions`` with units of pixels
-        cubed.
-
-    distortion_corrections : ~astropy.units.Quantity
-        Dimensionless spherical distortion corrections to ``d_volume``.
+    cell_grid : ~martini.mochi.cell_grid.CellGrid
+        The grid of cells onto which to interpolate fields. Its ``field_positions``
+        (cell centres, with units of pixels), ``field_volumes`` (rectilinear cell
+        volumes, with units of pixels cubed) and ``field_distortion_corrections``
+        (dimensionless spherical distortion corrections to the volumes) are used. If
+        its ``uniform_grid`` is not ``None`` (cells form a uniform grid), a fast search
+        for the cells within reach of each particle is used.
 
     kernel_cache_resolution : int
         Number of intervals on which to sample the kernel for fast lookup.
@@ -352,6 +411,9 @@ def particle_scatter(
     dict
         Contains the interpolated fields.
     """
+    field_positions = cell_grid.field_positions
+    d_volume = cell_grid.field_volumes
+    distortion_corrections = cell_grid.field_distortion_corrections
     assert kernel.size_in_fwhm is not None
     size_in_fwhm = np.asarray(kernel.size_in_fwhm)
     support_radii = smoothing_lengths * size_in_fwhm
@@ -375,10 +437,20 @@ def particle_scatter(
         distortion_corrections = np.ones(n_pos) * distortion_corrections
     assert field_positions.unit == positions.unit
     assert field_positions.unit == smoothing_lengths.unit
-    tree = build_tree(field_positions.value)
-    gs = find_grid_intersections(
-        tree, field_positions.value, positions.value, support_radii.value
-    )
+    if cell_grid.uniform_grid is not None:
+        # uniform grid: fast search, in grid units (cell centres at integer coordinates)
+        grid_shape, cell_size = cell_grid.uniform_grid
+        gs = find_grid_intersections(
+            grid_shape,
+            (positions.value + 0.5) / cell_size - 0.5,
+            support_radii.value / cell_size,
+        )
+        if gs.distances is not None and gs.distances.size > 0:
+            gs.distances[...] *= cell_size  # back to pixels
+    else:
+        gs = _tree_grid_intersections(
+            field_positions.value, positions.value, support_radii.value
+        )
     array_results = main_loop(
         masses.value,
         masses_HI.value,
@@ -476,9 +548,7 @@ def voronoi_mesh(
     temperatures: U.Quantity[U.km**2 / U.s**2],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
-    field_positions: U.Quantity[U.pix],
-    d_volume: U.Quantity[U.pix**3],
-    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
+    cell_grid: "CellGrid",
     **kwargs: int,
 ) -> dict[str, U.Quantity]:
     """
@@ -512,21 +582,20 @@ def voronoi_mesh(
     kernel : _BaseSPHKernel
         Unused.
 
-    field_positions : ~numpy.ndarray
-        Positions at which to interpolate fields, implicitly with units of pixels.
-
-    d_volume : ~astropy.units.Quantity
-        Rectilinear volume element size for ``field_positions`` with units of pixels
-        cubed.
-
-    distortion_corrections : ~astropy.units.Quantity
-        Dimensionless spherical distortion corrections to ``d_volume``.
+    cell_grid : ~martini.mochi.cell_grid.CellGrid
+        The grid of cells onto which to interpolate fields. Its ``field_positions``
+        (cell centres, with units of pixels), ``field_volumes`` (rectilinear cell
+        volumes, with units of pixels cubed) and ``field_distortion_corrections``
+        (dimensionless spherical distortion corrections to the volumes) are used.
 
     Returns
     -------
     dict
         Contains the interpolated fields.
     """
+    field_positions = cell_grid.field_positions
+    d_volume = cell_grid.field_volumes
+    distortion_corrections = cell_grid.field_distortion_corrections
     masses *= U.dimensionless_unscaled
     if velocities.ndim != 1:
         # more than one dimension of velocity is given, use radial velocity
@@ -649,9 +718,7 @@ def particle_in_cell(
     temperatures: U.Quantity[U.km**2 / U.s**2],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
-    field_positions: U.Quantity[U.pix],
-    d_volume: U.Quantity[U.pix**3],
-    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
+    cell_grid: "CellGrid",
     **kwargs: int,
 ) -> dict[str, U.Quantity]:
     """
@@ -690,22 +757,20 @@ def particle_in_cell(
     kernel : _BaseSPHKernel
         Unused.
 
-    field_positions : ~numpy.ndarray
-        Positions at which to interpolate fields (cell centres), implicitly with units of
-        pixels.
-
-    d_volume : ~astropy.units.Quantity
-        Rectilinear volume element size for ``field_positions`` with units of pixels
-        cubed. Cells are cubic, with side lengths the cube root of this volume.
-
-    distortion_corrections : ~astropy.units.Quantity
-        Dimensionless spherical distortion corrections to ``d_volume``.
+    cell_grid : ~martini.mochi.cell_grid.CellGrid
+        The grid of cells onto which to interpolate fields. Its ``field_positions``
+        (cell centres, with units of pixels), ``field_volumes`` (rectilinear cell
+        volumes, with units of pixels cubed) and ``field_distortion_corrections``
+        (dimensionless spherical distortion corrections to the volumes) are used.
 
     Returns
     -------
     dict
         Contains the interpolated fields.
     """
+    field_positions = cell_grid.field_positions
+    d_volume = cell_grid.field_volumes
+    distortion_corrections = cell_grid.field_distortion_corrections
     if velocities.ndim != 1:
         # more than one dimension of velocity is given, use radial velocity
         velocities = velocities[:, 0]
@@ -765,9 +830,7 @@ def manual_sph(
     temperatures: U.Quantity[U.km**2 / U.s**2],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
-    field_positions: U.Quantity[U.pix],
-    d_volume: U.Quantity[U.pix**3],
-    distortion_corrections: U.Quantity[U.dimensionless_unscaled],
+    cell_grid: "CellGrid",
     **kwargs: int,
 ) -> dict[str, U.Quantity]:
     """
@@ -804,23 +867,20 @@ def manual_sph(
         :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`. Its ``size_in_fwhm``
         gives the radii of compact support in units of ``smoothing_lengths``.
 
-    field_positions : ~numpy.ndarray
-        Positions at which to interpolate fields, implicitly with units of pixels.
-
-    d_volume : ~astropy.units.Quantity
-        Rectilinear volume element size for ``field_positions`` with units of pixels
-        cubed.
-
-    distortion_corrections : ~astropy.units.Quantity
-        Dimensionless spherical distortion corrections to ``d_volume``. Used to convert
-        SPH densities (per unit rectilinear volume) to densities per unit corrected
-        volume.
+    cell_grid : ~martini.mochi.cell_grid.CellGrid
+        The grid of cells onto which to interpolate fields. Its ``field_positions``
+        (cell centres, with units of pixels), ``field_volumes`` (rectilinear cell
+        volumes, with units of pixels cubed) and ``field_distortion_corrections``
+        (dimensionless spherical distortion corrections to the volumes) are used.
 
     Returns
     -------
     dict
         Contains the interpolated fields.
     """
+    field_positions = cell_grid.field_positions
+    d_volume = cell_grid.field_volumes
+    distortion_corrections = cell_grid.field_distortion_corrections
     masses *= U.dimensionless_unscaled
     n_part, n_dim = positions.shape
     if velocities.ndim != 1:

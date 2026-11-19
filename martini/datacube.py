@@ -815,9 +815,7 @@ class DataCube(object):
         if (self.padx == 0) and (self.pady == 0):
             return
         if self._cube_data is not None:
-            self._cube_data = self._cube_data[
-                self.padx : -self.padx, self.pady : -self.pady, ...
-            ]
+            self._cube_data = self._cube_data[self.pad_mask]
         retract_crpix = [self.padx, self.pady, 0]
         if self.stokes_axis:
             retract_crpix.append(0)

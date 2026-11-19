@@ -8,8 +8,8 @@ spatial information) is desired.
 
 import subprocess
 import os
+import contextlib
 from tqdm.auto import tqdm
-from datetime import datetime
 from scipy.signal import fftconvolve
 import numpy as np
 import astropy.units as U
@@ -18,6 +18,7 @@ from astropy.time import Time
 from astropy.coordinates import Angle
 from astropy import __version__ as astropy_version
 from .__version__ import __version__ as martini_version
+import warnings
 from warnings import warn
 from martini.beams import _BaseBeam
 from martini.datacube import DataCube, _GlobalProfileDataCube
@@ -25,9 +26,29 @@ from martini.sources import SPHSource
 from martini.sph_kernels import DiracDeltaKernel, _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from martini.noise import _BaseNoise
-from martini._grid_search import build_tree, find_grid_intersections
-from martini._util import NUMBA_AVAILABLE, numba_threads
+from martini._grid_search import (
+    count_grid_intersections,
+    find_grid_intersections,
+    FindGridIntersectionsResult,
+    _balanced_blocks,
+)
+from martini.sph_kernels import ScalarKernelIntegral
+from martini._util import (
+    NUMBA_AVAILABLE,
+    numba_threads,
+    resolve_ncpu,
+    _to_unit_in_place,
+)
+from martini._logging import _ProgressLogger
 from typing import TYPE_CHECKING
+
+if NUMBA_AVAILABLE:
+    from numba import njit
+    from numba.core.errors import NumbaExperimentalFeatureWarning
+if TYPE_CHECKING or not NUMBA_AVAILABLE:
+    prange = range  # pragma: no cover
+else:
+    from numba import prange
 
 if TYPE_CHECKING:
     import h5py
@@ -46,72 +67,134 @@ else:
     martini_version = martini_version + "_commit_" + gc.strip().decode()
 
 
+def _insert_weighted_spectra_loop(
+    cube: np.ndarray,
+    spectra: np.ndarray,
+    intersections: np.ndarray,
+    cell_indices: np.ndarray,
+    strides: np.ndarray,
+    coords: np.ndarray,
+    h: np.ndarray,
+    kernel_slot: np.ndarray,
+    kernel_integrals: tuple[ScalarKernelIntegral, ...],
+    kernel_params: np.ndarray,
+    block_edges: np.ndarray,
+) -> None:
+    """
+    Add the kernel-weighted spectra of particles into the pixels that they overlap.
+
+    Kernel weights are evaluated on the fly from the particle positions and are not
+    stored. Each pixel is visited by one thread only, so the writes are thread safe.
+
+    The compiled kernel integrals (``_scalar_kernel_integral`` of the kernel classes in
+    martini.sph_kernels, compiled by ``_compile_scalar_integral``) are passed into the
+    compiled loops as numba "first-class functions". This lets each particle use its own
+    kernel (for adaptive kernels) without hard-coding the available kernels here.
+
+    Parameters
+    ----------
+    cube : ~numpy.ndarray
+        The data cube array, shape ``(nx, ny, n_channels)``, modified in place.
+
+    spectra : ~numpy.ndarray
+        The spectra of the particles, shape ``(N, n_channels)``.
+
+    intersections : ~numpy.ndarray
+        Particle-pixel overlaps grouped by pixel, see
+        :func:`~martini._grid_search.find_grid_intersections`.
+
+    cell_indices : ~numpy.ndarray
+        The (flattened) index of each pixel with overlaps.
+
+    strides : ~numpy.ndarray
+        The range of ``intersections`` for each pixel.
+
+    coords : ~numpy.ndarray
+        Particle positions in pixel units, shape ``(N, 2)``.
+
+    h : ~numpy.ndarray
+        Rescaled smoothing lengths of the particles in pixels.
+
+    kernel_slot : ~numpy.ndarray
+        For each particle, the entry of ``kernel_integrals`` and ``kernel_params`` to
+        use.
+
+    kernel_integrals : tuple
+        Table of compiled kernel integrals.
+
+    kernel_params : ~numpy.ndarray
+        Table of kernel parameters, shape ``(n_kernels, 2)``.
+
+    block_edges : ~numpy.ndarray
+        Pixels are processed in parallel in blocks ``block_edges[b]:block_edges[b + 1]``
+        (indices into ``cell_indices``).
+    """
+    ny = cube.shape[1]
+    n_channels = cube.shape[2]
+    for b in prange(block_edges.size - 1):
+        for c in range(block_edges[b], block_edges[b + 1]):
+            i = cell_indices[c] // ny
+            j = cell_indices[c] - i * ny
+            for m in range(strides[c, 0], strides[c, 1]):
+                p = intersections[m]
+                slot = kernel_slot[p]
+                w = kernel_integrals[slot](
+                    coords[p, 0] - i,
+                    coords[p, 1] - j,
+                    h[p],
+                    kernel_params[slot, 0],
+                    kernel_params[slot, 1],
+                )
+                if w != 0:
+                    for k in range(n_channels):
+                        cube[i, j, k] += w * spectra[p, k]
+
+
 if NUMBA_AVAILABLE:
-    import numba
+    _insert_weighted_spectra_loop = njit(parallel=True, cache=True)(
+        _insert_weighted_spectra_loop
+    )
 
-    @numba.njit(parallel=True)
-    def _weighted_sum_and_insert_in_cube_numba(
-        cube_array: np.ndarray,
-        spectra: np.ndarray,
-        weights: np.ndarray,
-        flat_cube_indices: np.ndarray,
-        strides: np.ndarray,
-        intersections: np.ndarray,
-    ) -> None:
-        """
-        Optimally evaluate weighted combination of spectra and write to datacube array.
 
-        This :mod:`numba` accelerated implementation is much faster than other
-        implementations tested (e.g. vectorized, parallel with :mod:`multiprocess`, etc.).
-        Since it writes directly into an output array, it is only thread safe if no two
-        threads can ever write to the same output index. :mod:`martini` is structured
-        as a loop over pixels where each pixel is visited one or zero times, so this
-        condition is satisfied.
+def _plan_segments(mem_estimate: np.ndarray, allowance: float) -> list[slice]:
+    """
+    Divide particles into contiguous batches that each fit within a memory allowance.
 
-        As required by :mod:`numba`, the arguments are raw arrays. Unit checking is
-        therefore the responsibility of the calling function.
+    Parameters
+    ----------
+    mem_estimate : ~numpy.ndarray
+        Estimated memory required to process each particle.
 
-        Parameters
-        ----------
-        cube_array : ~numpy.ndarray
-            The output data cube, as a raw array (can be a view of
-            :class:`~astropy.units.Quantity`).
+    allowance : float
+        Memory available to process each batch, in the same units as
+        ``mem_estimate``.
 
-        spectra : ~numpy.ndarray
-            The array of spectra, one row per particle, as a raw array (can be a view of
-            :class:`~astropy.units.Quantity`).
+    Returns
+    -------
+    list
+        List of :class:`slice` objects selecting the particles in each batch.
 
-        weights : ~numpy.ndarray
-            The 1D array of weights, one per particle-pixel match, grouped by pixel, as
-            a raw array (can be a view of :class:`~astropy.units.Quantity`).
-
-        flat_cube_indices : ~numpy.ndarray
-            The 1D array of pixel indices, one per pixel, in the same order as the pixel-
-            groups in the ``weights``. These are unpacked into array locations similar
-            to `~numpy.unravel_index`.
-
-        strides : ~numpy.ndarray
-            The 2D array of strides (start and end locations) that select the ``weights``
-            and ``intersections`` for each pixel. Each row defines a stride and has length
-            2.
-
-        intersections : ~numpy.ndarray
-            The 1D array of particle-pixel matches, grouped by pixel. Each entry therefore
-            serves as an index into the ``spectra`` array, the corresponding pixel is
-            identified by the ``flat_cube_indices``. Groups within this array
-            corresponding to individual pixels are selected using a row from ``strides``.
-        """
-        dec_dim = cube_array.shape[1]
-        spec_dim = cube_array.shape[2]
-        for i in numba.prange(len(flat_cube_indices)):  # type: ignore[attr-defined]
-            flat_index = flat_cube_indices[i]
-            ra_index = flat_index // dec_dim
-            dec_index = flat_index % dec_dim
-            for j in range(strides[i, 0], strides[i, 1]):
-                for k in range(spec_dim):
-                    cube_array[ra_index, dec_index, k] += (
-                        weights[j] * spectra[intersections[j], k]
-                    )
+    Raises
+    ------
+    ValueError
+        If any single particle needs more memory than the allowance.
+    """
+    if np.any(mem_estimate > allowance):
+        raise ValueError("Memory allowance insufficient for a single particle.")
+    # Should always have a particle if we get here, but make very sure so we don't
+    # enter an infinite loop:
+    assert len(mem_estimate) > 0, (
+        "Particles processing in batches but no particles present, this is an error."
+    )
+    segments = []
+    segment_start = 0
+    while segment_start < len(mem_estimate):
+        cumsum = np.cumsum(mem_estimate[segment_start:])
+        segment_length = np.searchsorted(cumsum, allowance, side="right")
+        segment_end = segment_start + int(segment_length)
+        segments.append(slice(segment_start, segment_end))
+        segment_start = segment_end
+    return segments
 
 
 class _BaseMartini:
@@ -185,7 +268,8 @@ class _BaseMartini:
     spectral_model: _BaseSpectrum
     quiet: bool
     _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
-    _jit_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
+    # name of the object the source is inserted into, for log messages:
+    _target_name: str = "data cube"
 
     def __init__(
         self,
@@ -200,11 +284,13 @@ class _BaseMartini:
         _prune_kwargs: dict = {},
     ) -> None:
         self.quiet = quiet
+        self._logger = _ProgressLogger()
         self.source = source
         self._datacube = datacube
         self.beam = beam
         self.noise = noise
         self.sph_kernel = sph_kernel
+        self.sph_kernel._logger = self._logger
         self.spectral_model = spectral_model
 
         # Estimate memory for main allocations.
@@ -217,11 +303,11 @@ class _BaseMartini:
         #   - skycoords         (N, 6)
         #   - spectralcoords    (N, 1)
         #   - pixcoords         (N, 3)
-        #   Total 19 * N * 64B
+        #   Total 19 * N * 8B (64-bit floats)
         self.baseline_mem_estimate = (
             np.prod(self._datacube.datacube_shape)
             * np.dtype(self._datacube.cube_dtype).itemsize
-            + 19 * self.source.npart * 64
+            + 19 * self.source.npart * 8
         ) / 1024**3  # GB
 
         if self.beam is not None:
@@ -249,7 +335,6 @@ class _BaseMartini:
         spatial: bool = True,
         spectral: bool = True,
         mass: bool = True,
-        obj_type_str: str = "data cube",
     ) -> None:
         """
         Identify and remove particles that cannot contribute to the DataCube.
@@ -266,58 +351,188 @@ class _BaseMartini:
             If ``True``, prune particles that fall outside the spectral bandwidth.
         mass : bool
             If ``True``, prune particles that have zero HI mass.
-        obj_type_str : str
-            String describing the object to be pruned for messages.
         """
-        if not self.quiet:
-            print(
+        with self._logger.step(
+            f"Pruning particles that will not contribute to {self._target_name}...",
+            "Pruned particles",
+            quiet=self.quiet,
+        ):
+            self._logger.message(
                 f"Source module contained {self.source.npart} particles with total HI"
-                f" mass of {self.source.mHI_g.sum() << U.Msun:.2e}."
+                f" mass of {self.source.mHI_g.sum() << U.Msun:.2e}.",
+                quiet=self.quiet,
             )
-        spectrum_half_width = self.spectral_model.half_width(self.source) / np.max(
-            np.abs(np.diff(self._datacube.velocity_channel_edges))
-        )
-        spatial_reject_conditions = (
-            (
+            spectrum_half_width = self.spectral_model.half_width(self.source) / np.max(
+                np.abs(np.diff(self._datacube.velocity_channel_edges))
+            )
+            spatial_reject_conditions = (
                 (
-                    self.source.pixcoords[:2] + self.sph_kernel.sm_ranges[np.newaxis]
-                    < 0 * U.pix
-                ).any(axis=0),
-                self.source.pixcoords[0] - self.sph_kernel.sm_ranges
-                > (self._datacube.n_px_x + self._datacube.padx * 2) * U.pix,
-                self.source.pixcoords[1] - self.sph_kernel.sm_ranges
-                > (self._datacube.n_px_y + self._datacube.pady * 2) * U.pix,
-                np.isnan(self.source.pixcoords[:2]).any(axis=0),
+                    (
+                        self.source.pixcoords[:2]
+                        + self.sph_kernel.sm_ranges[np.newaxis]
+                        < 0 * U.pix
+                    ).any(axis=0),
+                    self.source.pixcoords[0] - self.sph_kernel.sm_ranges
+                    > (self._datacube.n_px_x + self._datacube.padx * 2) * U.pix,
+                    self.source.pixcoords[1] - self.sph_kernel.sm_ranges
+                    > (self._datacube.n_px_y + self._datacube.pady * 2) * U.pix,
+                    np.isnan(self.source.pixcoords[:2]).any(axis=0),
+                )
+                if spatial
+                else tuple()
             )
-            if spatial
-            else tuple()
-        )
-        spectral_reject_conditions = (
-            (
-                self.source.pixcoords[2] + 4 * spectrum_half_width * U.pix < 0 * U.pix,
-                self.source.pixcoords[2] - 4 * spectrum_half_width * U.pix
-                > self._datacube.n_channels * U.pix,
+            spectral_reject_conditions = (
+                (
+                    self.source.pixcoords[2] + 4 * spectrum_half_width * U.pix
+                    < 0 * U.pix,
+                    self.source.pixcoords[2] - 4 * spectrum_half_width * U.pix
+                    > self._datacube.n_channels * U.pix,
+                )
+                if spectral
+                else tuple()
             )
-            if spectral
-            else tuple()
-        )
-        mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
-        accept_mask = np.logical_not(
-            np.logical_or.reduce(
-                spatial_reject_conditions
-                + spectral_reject_conditions
-                + mass_reject_conditions
+            mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
+            accept_mask = np.logical_not(
+                np.logical_or.reduce(
+                    spatial_reject_conditions
+                    + spectral_reject_conditions
+                    + mass_reject_conditions
+                )
             )
-        )
-        self.source.apply_mask(accept_mask)
-        self.sph_kernel._apply_mask(accept_mask)
-        if not self.quiet:
-            print(
-                f"Pruned particles that will not contribute to {obj_type_str}, "
+            self.source.apply_mask(accept_mask)
+            self.sph_kernel._apply_mask(accept_mask)
+            self._logger.message(
                 f"{self.source.npart} particles remaining with total HI mass of "
-                f"{self.source.mHI_g.sum() << U.Msun:.2e}."
+                f"{self.source.mHI_g.sum() << U.Msun:.2e}.",
+                quiet=self.quiet,
             )
         return
+
+    def _count_px_hits(self, sm_ranges: np.ndarray, ncpu: int) -> np.ndarray:
+        """
+        Count the pixels overlapped by each particle's smoothing kernel.
+
+        Parameters
+        ----------
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of the particles, in pixels.
+
+        ncpu : int
+            Number of threads to use.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            Number of pixels overlapped by each particle.
+        """
+        return count_grid_intersections(
+            self._datacube.datacube_shape[:2],
+            self.source.pixcoords[:2].to_value(U.pix).T,
+            sm_ranges,
+            ncpu=ncpu,
+        )
+
+    def _find_px_hits(
+        self,
+        segment: slice,
+        sm_ranges: np.ndarray,
+        ncpu: int,
+        return_distances: bool = True,
+    ) -> FindGridIntersectionsResult:
+        """
+        Find the pixels overlapped by the smoothing kernels of a batch of particles.
+
+        Parameters
+        ----------
+        segment : slice
+            Selects the batch of particles.
+
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of all particles, in pixels.
+
+        ncpu : int
+            Number of threads to use.
+
+        return_distances : bool
+            If ``False``, offsets between particles and pixel centres are not returned.
+
+        Returns
+        -------
+        ~martini._grid_search.FindGridIntersectionsResult
+            The particle-pixel overlaps.
+        """
+        return find_grid_intersections(
+            self._datacube.datacube_shape[:2],
+            self.source.pixcoords[:2, segment].to_value(U.pix).T,
+            sm_ranges[segment],
+            ncpu=ncpu,
+            dist_dtype=self.spectral_model.spec_dtype,
+            return_distances=return_distances,
+        )
+
+    def _insert_weighted_spectra(
+        self,
+        spectra: np.ndarray,
+        gs: FindGridIntersectionsResult,
+        segment: slice,
+        kernel_arrays: tuple[
+            np.ndarray, tuple[ScalarKernelIntegral, ...], np.ndarray, np.ndarray
+        ],
+        ncpu: int,
+    ) -> None:
+        """
+        Evaluate kernel weights on the fly and add weighted spectra into the cube.
+
+        Uses compiled kernel integrals, so that the weights are never stored.
+
+        Parameters
+        ----------
+        spectra : ~numpy.ndarray
+            The spectra of the particles in the batch, as a raw array.
+
+        gs : ~martini._grid_search.FindGridIntersectionsResult
+            The particle-pixel overlaps of the particles in the batch.
+
+        segment : slice
+            Selects the batch of particles.
+
+        kernel_arrays : tuple
+            Kernel description, see
+            :meth:`~martini.sph_kernels._BaseSPHKernel._numba_kernel_arrays`.
+
+        ncpu : int
+            Number of threads to use.
+        """
+        if gs.intersections.size == 0:
+            return
+        cube_view = (
+            self._datacube._array[:, :, :, 0].value
+            if self._datacube.stokes_axis
+            else self._datacube._array.value
+        )
+        kernel_slot, kernel_integrals, kernel_params, h = kernel_arrays
+        hits_per_px = gs.strides[:, 1] - gs.strides[:, 0]
+        with numba_threads(ncpu), warnings.catch_warnings():
+            # compiled kernel integrals are passed to compiled code as numba
+            # "first-class functions", flagged as an experimental feature:
+            if NUMBA_AVAILABLE:
+                warnings.simplefilter("ignore", NumbaExperimentalFeatureWarning)
+            _insert_weighted_spectra_loop(
+                cube_view,
+                spectra,
+                gs.intersections,
+                gs.cell_indices,
+                gs.strides,
+                np.ascontiguousarray(
+                    self.source.pixcoords[:2, segment].to_value(U.pix).T,
+                    dtype=np.float64,
+                ),
+                h[segment],
+                kernel_slot[segment],
+                kernel_integrals,
+                kernel_params,
+                _balanced_blocks(hits_per_px, 8 * ncpu),
+            )
 
     def _weighted_sum_and_insert_in_cube(
         self,
@@ -335,11 +550,10 @@ class _BaseMartini:
         Given the pre-computed particle spectra, the kernel weights for their
         contributions to each pixel the information needed to map each weighted spectrum
         to the pixels where it contributes, this function sums up the contributions and
-        fills the target datacube array. Normally this should use a :mod:`numba`
-        accelerated implementation but a serial fallback is also provided in case
-        :mod:`numba` is not installed. Since the :mod:`numba` implementation is the
-        default and that must deal with raw arrays (not :class:`~astropy.units.Quantity`
-        arrays), this function expects bare arrays; the calling function is responsible
+        fills the target datacube array. This serial implementation is a fallback used
+        when :mod:`numba` is unavailable or disabled (otherwise kernel weights are
+        evaluated on the fly in compiled code). This function expects bare arrays (not
+        :class:`~astropy.units.Quantity` arrays); the calling function is responsible
         for checking units.
 
         Parameters
@@ -369,21 +583,16 @@ class _BaseMartini:
             corresponding to individual pixels are selected using a row from ``strides``.
 
         ncpu : int
-            Number of threads to use in main source insertion loop. Using more than one
-            thread requires the :mod:`numba` module. Can be set to ``-1`` to use as many
-            threads as available cores. Currently speedup from multiple cores is limited,
-            see full documentation for details.
+            Requested number of threads. This implementation is serial, a warning is
+            issued if more than one thread is requested without :mod:`numba`.
 
         progressbar : bool, optional
-            A progress bar is shown by default if supported (usually not supported when
-            :mod:`numba` is installed). If :class:`~martini.martini.Martini` was
-            initialised with ``quiet`` set to ``True``, progress bars are switched off
-            unless explicitly turned on.
+            If ``True``, show a progress bar.
 
         Returns
         -------
         int
-            The number of cores actually used.
+            The number of cores actually used (always ``1``).
         """
         cube_view = (
             self._datacube._array[:, :, :, 0].value
@@ -392,29 +601,6 @@ class _BaseMartini:
         )
         dec_dim = cube_view.shape[1]
         total_elements = len(flat_cube_indices)
-
-        if self._numba_enabled:
-            if self._jit_enabled:
-                with numba_threads(ncpu):
-                    _weighted_sum_and_insert_in_cube_numba(
-                        cube_view,
-                        spectra,
-                        weights,
-                        flat_cube_indices,
-                        strides,
-                        intersections,
-                    )
-                return ncpu
-            else:
-                _weighted_sum_and_insert_in_cube_numba.py_func(
-                    cube_view,
-                    spectra,
-                    weights,
-                    flat_cube_indices,
-                    strides,
-                    intersections,
-                )
-                return 1
 
         if ncpu != 1:
             warn("Parallelization not available without 'numba'.", RuntimeWarning)
@@ -437,6 +623,60 @@ class _BaseMartini:
             cube_view[ra_index, dec_index, :] += np.sum(w_sub * spec_sub, axis=0)
         return ncpu
 
+    def _insertion_mem_estimate(
+        self, px_hits: np.ndarray, sm_ranges: np.ndarray, weight_and_insert: bool
+    ) -> tuple[np.ndarray, float]:
+        """
+        Estimate the memory needed to insert the source in the cube.
+
+        Estimates memory (bytes), with s the size of an element of the spectra and d=2
+        the number of spatial dimensions:
+
+        - Per particle-pixel overlap, the index of the particle (4B), grouped by pixel.
+          If the kernel weights are evaluated on the fly, that's all. Otherwise:
+
+          - The offset vector between the particle and pixel centre (``d*s``).
+          - While evaluating weights, memory use comes mostly in chunks of ``s`` per
+            overlap. How many such chunks are allocated depends on the kernel
+            function, but is not wildly different. The ``WendlandC2`` kernel uses ~17
+            for instance, but is among the most efficient. Allow for 24 chunks.
+
+        - Per particle, the spectrum ``(n_channels * s)`` and an entry in the list of
+          candidate particles for each pixel row that it may overlap (4B).
+        - Per batch of particles, a fixed overhead of up to 24B per pixel (pixels with
+          overlaps and the corresponding ranges of overlaps).
+
+        Parameters
+        ----------
+        px_hits : ~numpy.ndarray
+            Number of pixels overlapped by each particle.
+
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of the particles, in pixels.
+
+        weight_and_insert : bool
+            ``True`` if kernel weights are evaluated on the fly while inserting spectra
+            (so not stored).
+
+        Returns
+        -------
+        tuple
+            The memory needed for each particle, and the fixed memory needed for each
+            batch of particles, in GB.
+        """
+        spec_itemsize = np.dtype(self.spectral_model.spec_dtype).itemsize
+        mem_per_hit = (
+            4 if weight_and_insert else 4 + 2 * spec_itemsize + 24 * spec_itemsize
+        )
+        nx = self._datacube.datacube_shape[0]
+        mem_estimate = (
+            px_hits * mem_per_hit
+            + self._datacube.n_channels * spec_itemsize
+            + 4 * np.minimum(2 * sm_ranges + 3, nx)
+        ) / 1024**3  # GB
+        segment_overhead_mem_estimate = 24 * self._datacube.current_n_px / 1024**3  # GB
+        return mem_estimate, segment_overhead_mem_estimate
+
     def _insert_source_in_cube(
         self,
         skip_validation: bool = False,
@@ -448,6 +688,11 @@ class _BaseMartini:
     ) -> None:
         """
         Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
+
+        With numba, kernel weights are evaluated on the fly in compiled code while
+        inserting the weighted spectra into the cube (the weights are never stored).
+        Without numba, weights are evaluated with numpy and stored, then used to insert
+        spectra.
 
         Parameters
         ----------
@@ -476,8 +721,8 @@ class _BaseMartini:
             pixels in the cube. The particles can be processed in batches to mitigate
             this, but this slows down the code. The memory limit set here (in GB) will
             trigger batching if estimated memory usage is expected to exceed it. This is
-            a "soft" limit since some allocation outside of direct control (e.g. internal
-            in :mod:`scipy`) cannot be exactly predicted.
+            a "soft" limit since some allocations (e.g. temporary arrays when evaluating
+            the SPH kernel) cannot be exactly predicted.
 
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
@@ -493,212 +738,181 @@ class _BaseMartini:
                 f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
                 f" `mem_lim_GB` when calling `insert_source_in_cube`."
             )
-
+        ncpu = resolve_ncpu(ncpu)
         quiet = self.quiet if quiet is None else quiet
-        if not quiet:
-            insert_source_start_time = datetime.now()
 
-        if progressbar and self._numba_enabled:
+        weight_and_insert = self._numba_enabled
+        kernel_arrays = None
+        if weight_and_insert:
+            kernel_arrays = self.sph_kernel._numba_kernel_arrays()
+            if kernel_arrays is None:
+                raise ValueError(
+                    f"The SPH kernel {type(self.sph_kernel).__name__} has no compiled "
+                    "kernel integral (`_scalar_kernel_integral`), which is required when "
+                    "'numba' is available. See the kernels in `martini.sph_kernels` for "
+                    "examples."
+                )
+        if progressbar and weight_and_insert:
             warn(
                 "'numba'-accelerated 'martini' does not support progress bar (but it "
                 "will be pretty fast anyway!).",
                 RuntimeWarning,
             )
-        if self._numba_enabled:
+        if weight_and_insert:
             progressbar = False
         elif progressbar is None:
             progressbar = not quiet
 
-        self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=quiet)
+        log = self._logger
+        with log.step(
+            f"Inserting source in {self._target_name}...",
+            f"Source inserted in {self._target_name}",
+            quiet=quiet,
+        ):
+            self.sph_kernel._confirm_validation(noraise=skip_validation, quiet=quiet)
 
-        ij_pxs = np.flip(
-            np.mgrid[
-                : float(self._datacube.datacube_shape[1]),
-                : float(self._datacube.datacube_shape[0]),
-            ].T.reshape(-1, 2),
-            1,
-        )
-        if not quiet:
-            print("Building pixel grid KDTree...")
-            tree_build_start_time = datetime.now()
-        tree = build_tree(ij_pxs)
-        if not quiet:
-            print(f"Built KDTree, took {datetime.now() - tree_build_start_time}.")
-        clipped_sm_ranges = np.clip(
-            self.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
-        )
-        estimated_px_hits = np.clip(
-            np.pi * clipped_sm_ranges**2, 0, self._datacube.current_n_px
-        )
-        # Estimate memory for tree query. At peak:
-        # - 64B per list (once for each entry in estimated_px_hits).
-        # - 8B (pointer) + 28B (integer) = 36B for each estimated_px_hits.
-        # - Internally C++ vectors are used for storage which over-allocate when resized
-        #   in steps of a factor of 2. In practice seems like a factor of 1.5 allows for
-        #   this.
-        # When finished:
-        # - 4B ints to store each px_hit
-        # - 2*4B floats to store distances
-        tree_peak_mem_estimate = 1.5 * (64 + 36 * estimated_px_hits) / 1024**3  # GB
-        tree_completed_mem_estimate = (4 + 8) * estimated_px_hits / 1024**3  # GB
-        # Estimate memory for spectra and weights evaluation:
-        # - The spectra (product of shape times size of an element).
-        # - Memory use comes mostly in chunks of 4B * estimated_px_hits.
-        # - How many such chunks are allocated depends on the kernel function, but is
-        #   not wildly different. The WendlandC2 kernel uses ~17 for instance, but is
-        #   among the most efficient. Allow for 24 chunks.
-        # - The kernel functions could be individually optimized to perform more
-        #   operations in-place in the future.
-        spectra_mem_estimate = (
-            self._datacube.n_channels
-            * np.ones(self.source.npart)
-            * np.dtype(self.spectral_model.spec_dtype).itemsize
-        ) / 1024**3  # GB
-        weights_mem_estimate = 24 * 4 * estimated_px_hits / 1024**3  # GB
-        tree_dominates = np.sum(tree_peak_mem_estimate) > np.sum(
-            weights_mem_estimate
-        ) + np.sum(tree_completed_mem_estimate) + np.sum(
-            spectra_mem_estimate
-        )  # only dominates if <~2 hits/particle
-        single_batch_peak_mem_estimate = (
-            np.max(
-                (
-                    np.sum(tree_peak_mem_estimate),
-                    np.sum(spectra_mem_estimate)
-                    + np.sum(weights_mem_estimate)
-                    + np.sum(tree_completed_mem_estimate),
+            clipped_sm_ranges = np.clip(
+                self.sph_kernel.sm_ranges.to_value(U.pix), np.sqrt(2) / 2, np.inf
+            )
+            with log.step(
+                "Counting particle-pixel overlaps...", "Counted overlaps", quiet=quiet
+            ) as step:
+                px_hits = self._count_px_hits(clipped_sm_ranges, ncpu)
+                step.end = f"Counted {np.sum(px_hits)} particle-pixel overlaps"
+            mem_estimate, segment_overhead_mem_estimate = self._insertion_mem_estimate(
+                px_hits, clipped_sm_ranges, weight_and_insert
+            )
+            single_batch_peak_mem_estimate = (
+                np.sum(mem_estimate)
+                + segment_overhead_mem_estimate
+                + self.baseline_mem_estimate
+            )
+            if single_batch_peak_mem_estimate > mem_lim_GB:
+                warn(
+                    f"Requested memory limit ({mem_lim_GB}GB) is insufficient to process "
+                    "all particles at once (estimated memory required: "
+                    f"{single_batch_peak_mem_estimate:.1f}GB). Processing in batches "
+                    "instead, this could take longer. Increase `mem_lim_GB` when calling "
+                    "`insert_source_in_cube` if possible.",
+                    RuntimeWarning,
                 )
-            )
-            + self.baseline_mem_estimate
-        )
-        if single_batch_peak_mem_estimate > mem_lim_GB:
-            warn(
-                f"Requested memory limit ({mem_lim_GB}GB) is insufficient to process all "
-                "particles at once (estimated memory required: "
-                f"{single_batch_peak_mem_estimate:.1f}GB). Processing in batches instead,"
-                " this could take longer. Increase `mem_lim_GB` when calling "
-                "`insert_source_in_cube` if possible.",
-                RuntimeWarning,
-            )
-            segment_mem_allowance = mem_lim_GB - self.baseline_mem_estimate
-            segments = []
-            mem_estimate = (
-                tree_peak_mem_estimate
-                if tree_dominates
-                else tree_completed_mem_estimate
-                + weights_mem_estimate
-                + spectra_mem_estimate
-            )
-            if np.any(mem_estimate > segment_mem_allowance):
-                raise RuntimeError(
-                    f"Requested memory limit ({mem_lim_GB}GB) minus the estimated "
-                    f"baseline memory ({self.baseline_mem_estimate}GB, e.g. to store"
-                    " particle data) leaves insufficient memory for "
-                    "`insert_source_in_cube`, even when particles are processed in "
-                    "batches. Increase `mem_lim_GB` when calling `insert_source_in_cube`."
+                segment_mem_allowance = (
+                    mem_lim_GB
+                    - self.baseline_mem_estimate
+                    - segment_overhead_mem_estimate
                 )
-            # Should always have a particle if we get here, but make very sure so we don't
-            # enter an infinite loop:
-            assert len(mem_estimate) > 0, (
-                "Particles processing in batches but no particles present, this is "
-                "an error."
-            )
-            segment_start = 0
-            while segment_start < len(mem_estimate):
-                cumsum = np.cumsum(mem_estimate[segment_start:])
-                segment_length = np.searchsorted(
-                    cumsum, segment_mem_allowance, side="right"
+                try:
+                    segments = _plan_segments(mem_estimate, segment_mem_allowance)
+                except ValueError as e:
+                    raise RuntimeError(
+                        f"Requested memory limit ({mem_lim_GB}GB) minus the estimated "
+                        f"baseline memory ({self.baseline_mem_estimate}GB, e.g. to store"
+                        " particle data) leaves insufficient memory for "
+                        "`insert_source_in_cube`, even when particles are processed in "
+                        "batches. Increase `mem_lim_GB` when calling "
+                        "`insert_source_in_cube`."
+                    ) from e
+            else:
+                segments = [slice(None)]
+            for i, segment in enumerate(segments, 1):
+                group: contextlib.AbstractContextManager = (
+                    log.step(
+                        f"Processing particle group {i} of {len(segments)}...",
+                        f"Processed particle group {i} of {len(segments)}",
+                        quiet=quiet,
+                    )
+                    if len(segments) > 1
+                    else contextlib.nullcontext()
                 )
-                segment_end = segment_start + int(segment_length)
-                segments.append(slice(segment_start, segment_end))
-                segment_start = segment_end
-            log_prefix = "  "
-        else:
-            segments = [slice(None)]
-            log_prefix = ""
-        for i, segment in enumerate(segments, 1):
-            if not quiet:
-                if len(segments) > 1:
-                    print(f"Processing particle group {i} of {len(segments)}...")
-                print(f"{log_prefix}Indexing particle-pixel overlaps...")
-                grid_search_start_time = datetime.now()
-            pixcoords = self.source.pixcoords[:2, segment].to_value(U.pix).T
-            sm_ranges = clipped_sm_ranges[segment]
-            gs = find_grid_intersections(
-                tree,
-                ij_pxs,
-                pixcoords,
-                sm_ranges,
-                ncpu=ncpu,
-                dist_dtype=self.spectral_model.spec_dtype,
-            )
-            if not quiet:
-                print(
-                    f"{log_prefix}Indexed particle-pixel overlaps, took "
-                    f"{datetime.now() - grid_search_start_time} on {ncpu} cores."
+                with group:
+                    with log.step(
+                        "Indexing particle-pixel overlaps...",
+                        "Indexed particle-pixel overlaps",
+                        quiet=quiet,
+                    ) as step:
+                        gs = self._find_px_hits(
+                            segment,
+                            clipped_sm_ranges,
+                            ncpu,
+                            return_distances=not weight_and_insert,
+                        )
+                        step.annotation = f"on {ncpu} cores"
+                    if not weight_and_insert:
+                        with log.step(
+                            "Evaluating kernel weights...",
+                            "Evaluated kernel weights",
+                            quiet=quiet,
+                        ):
+                            segment_start = (
+                                0 if segment.start is None else segment.start
+                            )
+                            assert gs.distances is not None
+                            weights = self.sph_kernel._px_weight(
+                                U.Quantity(gs.distances.T, U.pix, copy=False),
+                                mask=segment_start + gs.intersections,
+                            )
+                    with log.step(
+                        "Evaluating pixel spectra...",
+                        "Evaluated pixel spectra",
+                        quiet=quiet,
+                    ) as step:
+                        spectra = self.spectral_model._eval_spectra(
+                            self.source, self._datacube, ncpu=ncpu, mask=segment
+                        )
+                        step.annotation = f"on {ncpu} cores"
+                    with log.step(
+                        "Evaluating kernel weights and reducing pixel spectra into "
+                        "cube..."
+                        if weight_and_insert
+                        else "Reducing pixel spectra into cube...",
+                        "Reduced pixel spectra into cube",
+                        quiet=quiet,
+                    ) as step:
+                        if weight_and_insert:
+                            assert kernel_arrays is not None
+                            assert (
+                                self._datacube.current_units == spectra.unit * U.pix**-2
+                            )
+                            self._insert_weighted_spectra(
+                                spectra.value, gs, segment, kernel_arrays, ncpu
+                            )
+                            insert_used_ncpu = ncpu
+                        else:
+                            assert (
+                                self._datacube.current_units
+                                == spectra.unit * weights.unit
+                            )
+                            insert_used_ncpu = self._weighted_sum_and_insert_in_cube(
+                                spectra.value,
+                                weights.value,
+                                gs.cell_indices,
+                                gs.strides,
+                                gs.intersections,
+                                ncpu=ncpu,
+                                progressbar=progressbar,
+                            )
+                        step.annotation = f"on {insert_used_ncpu} cores"
+            with log.step(
+                "Converting cube to Jy/arcsec^2...", "Converted cube", quiet=quiet
+            ):
+                self._datacube._array = _to_unit_in_place(
+                    self._datacube._array,
+                    U.Jy / U.arcsec**2,
+                    equivalencies=[self._datacube.arcsec2_to_pix],
                 )
-            if not quiet:
-                print(f"{log_prefix}Evaluating kernel weights...")
-                weights_start_time = datetime.now()
-            segment_start = 0 if segment.start is None else segment.start
-            weights = self.sph_kernel._px_weight(
-                U.Quantity(gs.distances.T, U.pix, copy=False),
-                mask=segment_start + gs.intersections,
-            )
-            if not quiet:
-                print(
-                    f"{log_prefix}Evaluated kernel weights, took "
-                    f"{datetime.now() - weights_start_time}."
-                )
-
-            if not quiet:
-                print(f"{log_prefix}Evaluating pixel spectra...")
-                spectra_start_time = datetime.now()
-            spectra = self.spectral_model._eval_spectra(
-                self.source, self._datacube, ncpu=ncpu, mask=segment
-            )
-            if not quiet:
-                print(
-                    f"{log_prefix}Evaluated pixel spectra, took "
-                    f"{datetime.now() - spectra_start_time} on {ncpu} cores."
-                )
-            if not quiet:
-                print(f"{log_prefix}Reducing pixel spectra into cube...")
-                px_spectra_start_time = datetime.now()
-            assert self._datacube.current_units == spectra.unit * weights.unit
-            insert_used_ncpu = self._weighted_sum_and_insert_in_cube(
-                spectra.value,
-                weights.value,
-                gs.cell_indices,
-                gs.strides,
-                gs.intersections,
-                ncpu=ncpu,
-                progressbar=progressbar,
-            )
-            if not quiet:
-                print(
-                    f"{log_prefix}Reduced pixel spectra into cube, took "
-                    f"{datetime.now() - px_spectra_start_time} on {insert_used_ncpu} "
-                    "cores."
-                )
-        self._datacube._array = self._datacube._array.to(
-            U.Jy / U.arcsec**2, equivalencies=[self._datacube.arcsec2_to_pix]
-        )
         if not quiet and not _no_summary:
-            inserted_flux_density = np.sum(
-                self._datacube._array[self._datacube.pad_mask]
-                * self._datacube.px_size**2
+            # sum over (views of) the cube first, then apply scalar factors, to avoid
+            # allocating cube-sized temporary arrays:
+            cube_no_pad = self._datacube._array[self._datacube.pad_mask]
+            inserted_flux_density = (
+                np.sum(cube_no_pad) * self._datacube.px_size**2
             ).to(U.Jy)
             inserted_mass = (
                 2.36e5
                 * U.Msun
                 * self.source.distance.to_value(U.Mpc) ** 2
                 * np.sum(
-                    (
-                        self._datacube._array[self._datacube.pad_mask]
-                        * self._datacube.px_size**2
-                    )
-                    .sum((0, 1))
+                    (cube_no_pad.sum((0, 1)) * self._datacube.px_size**2)
                     .squeeze()
                     .to_value(U.Jy)
                     * np.abs(
@@ -708,18 +922,17 @@ class _BaseMartini:
                     )
                 )
             )
-            print(
-                f"Source inserted, took {datetime.now() - insert_source_start_time}.",
-                f"  Flux density in cube: {inserted_flux_density:.2e}",
-                f"  Mass in cube (assuming distance {self.source.distance:.2f} and a"
-                f" spatially resolved source):"
+            log.message(
+                f"Flux density in cube: {inserted_flux_density:.2e}",
+                f"Mass in cube (assuming distance {self.source.distance:.2f} and a"
+                " spatially resolved source):"
                 f" {inserted_mass:.2e}",
-                f"    [{inserted_mass / self.source.input_mass * 100 << 1:.0f}%"
-                f" of initial source mass]",
-                f"  Maximum pixel: {self._datacube._array.max():.2e}",
-                "  Median non-zero pixel:"
+                f"  [{inserted_mass / self.source.input_mass * 100 << 1:.0f}%"
+                " of initial source mass]",
+                f"Maximum pixel: {self._datacube._array.max():.2e}",
+                "Median non-zero pixel:"
                 f" {np.median(self._datacube._array[self._datacube._array > 0]):.2e}",
-                sep="\n",
+                extra_indent=1,
             )
         return
 
@@ -1178,8 +1391,8 @@ class Martini(_BaseMartini):
             pixels in the cube. The particles can be processed in batches to mitigate
             this, but this slows down the code. The memory limit set here (in GB) will
             trigger batching if estimated memory usage is expected to exceed it. This is
-            a "soft" limit since some allocation outside of direct control (e.g. internal
-            in :mod:`scipy`) cannot be exactly predicted.
+            a "soft" limit since some allocations (e.g. temporary arrays when evaluating
+            the SPH kernel) cannot be exactly predicted.
         """
         super()._insert_source_in_cube(
             skip_validation=skip_validation,
@@ -1206,32 +1419,51 @@ class Martini(_BaseMartini):
                 " by martini with a smaller beam?)"
             )
 
-        unit = self._datacube.current_units
-        assert self.beam.kernel is not None  # placate mypy
-        for spatial_slice in self._datacube.spatial_slices:
-            # use a view to force in-place modification
-            spatial_slice[...] = (
-                fftconvolve(spatial_slice, self.beam.kernel, mode="same") * unit
+        with self._logger.step(
+            "Convolving beam...", "Beam convolved", quiet=self.quiet
+        ):
+            unit = self._datacube.current_units
+            assert self.beam.kernel is not None  # placate mypy
+            for spatial_slice in self._datacube.spatial_slices:
+                # use a view to force in-place modification
+                spatial_slice[...] = (
+                    fftconvolve(spatial_slice, self.beam.kernel, mode="same") * unit
+                )
+            self._datacube.drop_pad()
+            self._datacube._array = _to_unit_in_place(
+                self._datacube._array,
+                U.Jy * U.beam**-1,
+                equivalencies=U.beam_angular_area(self.beam.area),
             )
-        self._datacube.drop_pad()
-        self._datacube._array = self._datacube._array.to(
-            U.Jy * U.beam**-1,
-            equivalencies=U.beam_angular_area(self.beam.area),
-        )
         if not self.quiet:
-            print(
-                "Beam convolved.",
-                "  Data cube RMS after beam convolution:"
+            self._logger.message(
+                "Data cube RMS after beam convolution:"
                 f" {np.std(self._datacube._array):.2e}",
-                f"  Maximum pixel: {self._datacube._array.max():.2e}",
-                "  Median non-zero pixel:"
+                f"Maximum pixel: {self._datacube._array.max():.2e}",
+                "Median non-zero pixel:"
                 f" {np.median(self._datacube._array[self._datacube._array > 0]):.2e}",
-                sep="\n",
+                extra_indent=1,
             )
         return
 
     def add_noise(self) -> None:
-        """Insert noise into the data cube."""
+        """
+        Insert noise into the data cube.
+
+        The units of the noise realization determine when it should be added. Noise
+        with units of flux density per unit area (e.g. Jy/arcsec^2, or the current units
+        of the data cube before beam convolution) is added before
+        :meth:`~martini.martini.Martini.convolve_beam` and is then convolved with the
+        beam. Noise with units of flux density per beam (e.g. Jy/beam) is treated as
+        already convolved with the beam and is added after
+        :meth:`~martini.martini.Martini.convolve_beam`.
+
+        Raises
+        ------
+        ValueError
+            If noise per unit area is added after beam convolution, or noise per beam is
+            added before beam convolution.
+        """
         if self.noise is None:
             warn("Skipping noise, no noise object provided to Martini.")
             return
@@ -1243,26 +1475,39 @@ class Martini(_BaseMartini):
             )
             return
 
-        # this unit conversion means noise can be added before or after source insertion:
-        noise_cube = (
-            self.noise.generate(self._datacube, self.beam)
-            .to(
-                U.Jy * U.arcsec**-2,
-                equivalencies=U.beam_angular_area(self.beam.area),
-            )
-            .to(
-                self._datacube.current_units,
-                equivalencies=[self._datacube.arcsec2_to_pix],
-            )
-        )
-        self._datacube._array += noise_cube
+        cube_convolved = self._datacube.current_units.is_equivalent(U.Jy / U.beam)
+        with self._logger.step("Adding noise...", "Noise added", quiet=self.quiet):
+            noise_cube = self.noise.generate(self._datacube, self.beam)
+            noise_convolved = noise_cube.unit.is_equivalent(U.Jy / U.beam)
+            if noise_convolved and not cube_convolved:
+                raise ValueError(
+                    f"Noise in units of {noise_cube.unit} is treated as already "
+                    "convolved with the beam, so it must be added after the beam "
+                    "convolution: call `add_noise` after `convolve_beam`."
+                )
+            if cube_convolved and not noise_convolved:
+                raise ValueError(
+                    f"Noise in units of {noise_cube.unit} is treated as not yet "
+                    "convolved with the beam, so it must be added before the beam "
+                    "convolution: call `add_noise` before `convolve_beam`."
+                )
+            if noise_cube.unit != self._datacube.current_units:
+                # a single scaling (no equivalency needed between per-beam units, and
+                # only the pixel area between per-area units), done in place to avoid
+                # copies of the noise cube:
+                noise_cube = _to_unit_in_place(
+                    noise_cube,
+                    self._datacube.current_units,
+                    equivalencies=[self._datacube.arcsec2_to_pix],
+                )
+            self._datacube._array += noise_cube
         if not self.quiet:
-            print(
-                "Noise added.",
-                f"  Noise cube RMS: {np.std(noise_cube):.2e} (before beam convolution).",
-                "  Data cube RMS after noise addition (before beam convolution): "
+            when = "after" if cube_convolved else "before"
+            self._logger.message(
+                f"Noise cube RMS: {np.std(noise_cube):.2e} ({when} beam convolution).",
+                f"Data cube RMS after noise addition ({when} beam convolution): "
                 f"{np.std(self._datacube._array):.2e}",
-                sep="\n",
+                extra_indent=1,
             )
         return
 
@@ -1292,83 +1537,97 @@ class Martini(_BaseMartini):
             Typecode or data-type to which the array is cast. Should be supported
             by fits. Default to not do data type conversion.
         """
-        self._datacube.drop_pad()
+        with self._logger.step(
+            "Writing data cube to FITS file...",
+            "Wrote FITS file",
+            quiet=self.quiet,
+        ) as step:
+            self._datacube.drop_pad()
 
-        filename = str(filename)
-        filename = filename + ".fits" if "fits" not in filename.split(".") else filename
+            filename = str(filename)
+            filename = (
+                filename + ".fits" if "fits" not in filename.split(".") else filename
+            )
+            step.end = f"Wrote FITS file {filename}"
 
-        wcs_header = self._datacube.wcs.to_header()
-        wcs_header.rename_keyword("WCSAXES", "NAXIS")
+            wcs_header = self._datacube.wcs.to_header()
+            wcs_header.rename_keyword("WCSAXES", "NAXIS")
 
-        header = fits.Header()
-        header.append(("SIMPLE", "T"))
-        header.append(("BITPIX", 16))
-        header.append(("NAXIS", wcs_header["NAXIS"]))
-        header.append(("NAXIS1", self._datacube.n_px_x))
-        header.append(("NAXIS2", self._datacube.n_px_y))
-        header.append(("NAXIS3", self._datacube.n_channels))
-        if self._datacube.stokes_axis:
-            header.append(("NAXIS4", 1))
-        header.append(("EXTEND", "T"))
-        header.append(("CDELT1", wcs_header["CDELT1"]))
-        header.append(("CRPIX1", wcs_header["CRPIX1"]))
-        header.append(("CRVAL1", wcs_header["CRVAL1"]))
-        header.append(("CTYPE1", wcs_header["CTYPE1"]))
-        header.append(("CUNIT1", wcs_header["CUNIT1"]))
-        header.append(("CDELT2", wcs_header["CDELT2"]))
-        header.append(("CRPIX2", wcs_header["CRPIX2"]))
-        header.append(("CRVAL2", wcs_header["CRVAL2"]))
-        header.append(("CTYPE2", wcs_header["CTYPE2"]))
-        header.append(("CUNIT2", wcs_header["CUNIT2"]))
-        header.append(("CDELT3", wcs_header["CDELT3"]))
-        header.append(("CRPIX3", wcs_header["CRPIX3"]))
-        header.append(("CRVAL3", wcs_header["CRVAL3"]))
-        header.append(("CTYPE3", wcs_header["CTYPE3"]))
-        header.append(("CUNIT3", wcs_header["CUNIT3"]))
-        if self._datacube.stokes_axis:
-            header.append(("CDELT4", wcs_header["CDELT4"]))
-            header.append(("CRPIX4", wcs_header["CRPIX4"]))
-            header.append(("CRVAL4", wcs_header["CRVAL4"]))
-            header.append(("CTYPE4", wcs_header["CTYPE4"]))
-            header.append(("CUNIT4", "PAR"))
-        header.append(("EPOCH", 2000))
-        header.append(("INSTRUME", "MARTINI", martini_version))
-        header.append(("BSCALE", 1.0))
-        header.append(("BZERO", 0.0))
-        datacube_array_units = self._datacube.current_units
-        header.append(
-            ("DATAMAX", np.max(self._datacube._array.to_value(datacube_array_units)))
-        )
-        header.append(
-            ("DATAMIN", np.min(self._datacube._array.to_value(datacube_array_units)))
-        )
-        header.append(("ORIGIN", "astropy v" + astropy_version))
-        # long names break fits format, don't let the user set this
-        if len(obj_name) > 16:
-            warn("obj_name longer than 16 characters, truncating", RuntimeWarning)
-            obj_name = obj_name[:16]
-        header.append(("OBJECT", obj_name))
-        if self.beam is not None:
-            header.append(("BPA", self.beam.bpa.to_value(U.deg)))
-        header.append(("OBSERVER", "K. Oman"))
-        header.append(("BUNIT", datacube_array_units.to_string("fits")))
-        header.append(("DATE-OBS", Time.now().to_value("fits")))
-        header.append(("MJD-OBS", Time.now().to_value("mjd")))
-        if self.beam is not None:
-            header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
-            header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
-        header.append(("BTYPE", "Intensity"))
-        header.append(("SPECSYS", wcs_header["SPECSYS"]))
-        header.append(("RESTFRQ", wcs_header["RESTFRQ"]))
+            header = fits.Header()
+            header.append(("SIMPLE", "T"))
+            header.append(("BITPIX", 16))
+            header.append(("NAXIS", wcs_header["NAXIS"]))
+            header.append(("NAXIS1", self._datacube.n_px_x))
+            header.append(("NAXIS2", self._datacube.n_px_y))
+            header.append(("NAXIS3", self._datacube.n_channels))
+            if self._datacube.stokes_axis:
+                header.append(("NAXIS4", 1))
+            header.append(("EXTEND", "T"))
+            header.append(("CDELT1", wcs_header["CDELT1"]))
+            header.append(("CRPIX1", wcs_header["CRPIX1"]))
+            header.append(("CRVAL1", wcs_header["CRVAL1"]))
+            header.append(("CTYPE1", wcs_header["CTYPE1"]))
+            header.append(("CUNIT1", wcs_header["CUNIT1"]))
+            header.append(("CDELT2", wcs_header["CDELT2"]))
+            header.append(("CRPIX2", wcs_header["CRPIX2"]))
+            header.append(("CRVAL2", wcs_header["CRVAL2"]))
+            header.append(("CTYPE2", wcs_header["CTYPE2"]))
+            header.append(("CUNIT2", wcs_header["CUNIT2"]))
+            header.append(("CDELT3", wcs_header["CDELT3"]))
+            header.append(("CRPIX3", wcs_header["CRPIX3"]))
+            header.append(("CRVAL3", wcs_header["CRVAL3"]))
+            header.append(("CTYPE3", wcs_header["CTYPE3"]))
+            header.append(("CUNIT3", wcs_header["CUNIT3"]))
+            if self._datacube.stokes_axis:
+                header.append(("CDELT4", wcs_header["CDELT4"]))
+                header.append(("CRPIX4", wcs_header["CRPIX4"]))
+                header.append(("CRVAL4", wcs_header["CRVAL4"]))
+                header.append(("CTYPE4", wcs_header["CTYPE4"]))
+                header.append(("CUNIT4", "PAR"))
+            header.append(("EPOCH", 2000))
+            header.append(("INSTRUME", "MARTINI", martini_version))
+            header.append(("BSCALE", 1.0))
+            header.append(("BZERO", 0.0))
+            datacube_array_units = self._datacube.current_units
+            header.append(
+                (
+                    "DATAMAX",
+                    np.max(self._datacube._array.to_value(datacube_array_units)),
+                )
+            )
+            header.append(
+                (
+                    "DATAMIN",
+                    np.min(self._datacube._array.to_value(datacube_array_units)),
+                )
+            )
+            header.append(("ORIGIN", "astropy v" + astropy_version))
+            # long names break fits format, don't let the user set this
+            if len(obj_name) > 16:
+                warn("obj_name longer than 16 characters, truncating", RuntimeWarning)
+                obj_name = obj_name[:16]
+            header.append(("OBJECT", obj_name))
+            if self.beam is not None:
+                header.append(("BPA", self.beam.bpa.to_value(U.deg)))
+            header.append(("OBSERVER", "K. Oman"))
+            header.append(("BUNIT", datacube_array_units.to_string("fits")))
+            header.append(("DATE-OBS", Time.now().to_value("fits")))
+            header.append(("MJD-OBS", Time.now().to_value("mjd")))
+            if self.beam is not None:
+                header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
+                header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
+            header.append(("BTYPE", "Intensity"))
+            header.append(("SPECSYS", wcs_header["SPECSYS"]))
+            header.append(("RESTFRQ", wcs_header["RESTFRQ"]))
 
-        # flip axes to write
-        data = self._datacube._array.to_value(datacube_array_units).T
-        if dtype is not None:
-            data = data.astype(dtype, copy=False)
-        hdu = fits.PrimaryHDU(header=header, data=data)
-        hdu.writeto(filename, overwrite=overwrite)
+            # flip axes to write
+            data = self._datacube._array.to_value(datacube_array_units).T
+            if dtype is not None:
+                data = data.astype(dtype, copy=False)
+            hdu = fits.PrimaryHDU(header=header, data=data)
+            hdu.writeto(filename, overwrite=overwrite)
 
-        return
+            return
 
     def write_beam_fits(
         self,
@@ -1395,64 +1654,76 @@ class Martini(_BaseMartini):
         ValueError
             If :class:`~martini.martini.Martini` was initialized without a ``beam``.
         """
-        if self.beam is None:
-            raise ValueError("Martini.write_beam_fits: Called with beam set to 'None'.")
-        assert self.beam.kernel is not None
+        with self._logger.step(
+            "Writing beam image to FITS file...",
+            "Wrote FITS file",
+            quiet=self.quiet,
+        ) as step:
+            if self.beam is None:
+                raise ValueError(
+                    "Martini.write_beam_fits: Called with beam set to 'None'."
+                )
+            assert self.beam.kernel is not None
 
-        filename = filename if filename[-5:] == ".fits" else filename + ".fits"
+            filename = filename if filename[-5:] == ".fits" else filename + ".fits"
+            step.end = f"Wrote FITS file {filename}"
 
-        wcs_header = self._datacube.wcs.to_header()
+            wcs_header = self._datacube.wcs.to_header()
 
-        beam_kernel_units = self.beam.kernel.unit
-        header = fits.Header()
-        header.append(("SIMPLE", "T"))
-        header.append(("BITPIX", 16))
-        header.append(("NAXIS", 3))
-        header.append(("NAXIS1", self.beam.kernel.shape[0]))
-        header.append(("NAXIS2", self.beam.kernel.shape[1]))
-        header.append(("NAXIS3", 1))
-        header.append(("EXTEND", "T"))
-        header.append(("BSCALE", 1.0))
-        header.append(("BZERO", 0.0))
-        # this is 1/arcsec^2, is this right?
-        header.append(("BUNIT", beam_kernel_units.to_string("fits")))
-        header.append(("CRPIX1", self.beam.kernel.shape[0] // 2 + 1))
-        header.append(("CDELT1", wcs_header["CDELT1"]))
-        header.append(("CRVAL1", wcs_header["CRVAL1"]))
-        header.append(("CTYPE1", wcs_header["CTYPE1"]))
-        header.append(("CUNIT1", wcs_header["CUNIT1"]))
-        header.append(("CRPIX2", self.beam.kernel.shape[1] // 2 + 1))
-        header.append(("CDELT2", wcs_header["CDELT2"]))
-        header.append(("CRVAL2", wcs_header["CRVAL2"]))
-        header.append(("CTYPE2", wcs_header["CTYPE2"]))
-        header.append(("CUNIT2", wcs_header["CUNIT2"]))
-        header.append(("CRPIX3", 1))
-        header.append(("CDELT3", wcs_header["CDELT3"]))
-        header.append(("CRVAL3", wcs_header["CRVAL3"]))
-        header.append(("CTYPE3", wcs_header["CTYPE3"]))
-        header.append(("CUNIT3", wcs_header["CUNIT3"]))
-        header.append(("SPECSYS", wcs_header["SPECSYS"]))
-        header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
-        header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
-        header.append(("BPA", self.beam.bpa.to_value(U.deg)))
-        header.append(("BTYPE", "beam    "))
-        header.append(("EPOCH", 2000))
-        header.append(("OBSERVER", "K. Oman"))
-        # long names break fits format
-        header.append(("OBJECT", "MOCKBEAM"))
-        header.append(("INSTRUME", "MARTINI", martini_version))
-        header.append(("DATAMAX", np.max(self.beam.kernel.to_value(beam_kernel_units))))
-        header.append(("DATAMIN", np.min(self.beam.kernel.to_value(beam_kernel_units))))
-        header.append(("ORIGIN", "astropy v" + astropy_version))
+            beam_kernel_units = self.beam.kernel.unit
+            header = fits.Header()
+            header.append(("SIMPLE", "T"))
+            header.append(("BITPIX", 16))
+            header.append(("NAXIS", 3))
+            header.append(("NAXIS1", self.beam.kernel.shape[0]))
+            header.append(("NAXIS2", self.beam.kernel.shape[1]))
+            header.append(("NAXIS3", 1))
+            header.append(("EXTEND", "T"))
+            header.append(("BSCALE", 1.0))
+            header.append(("BZERO", 0.0))
+            # this is 1/arcsec^2, is this right?
+            header.append(("BUNIT", beam_kernel_units.to_string("fits")))
+            header.append(("CRPIX1", self.beam.kernel.shape[0] // 2 + 1))
+            header.append(("CDELT1", wcs_header["CDELT1"]))
+            header.append(("CRVAL1", wcs_header["CRVAL1"]))
+            header.append(("CTYPE1", wcs_header["CTYPE1"]))
+            header.append(("CUNIT1", wcs_header["CUNIT1"]))
+            header.append(("CRPIX2", self.beam.kernel.shape[1] // 2 + 1))
+            header.append(("CDELT2", wcs_header["CDELT2"]))
+            header.append(("CRVAL2", wcs_header["CRVAL2"]))
+            header.append(("CTYPE2", wcs_header["CTYPE2"]))
+            header.append(("CUNIT2", wcs_header["CUNIT2"]))
+            header.append(("CRPIX3", 1))
+            header.append(("CDELT3", wcs_header["CDELT3"]))
+            header.append(("CRVAL3", wcs_header["CRVAL3"]))
+            header.append(("CTYPE3", wcs_header["CTYPE3"]))
+            header.append(("CUNIT3", wcs_header["CUNIT3"]))
+            header.append(("SPECSYS", wcs_header["SPECSYS"]))
+            header.append(("BMAJ", self.beam.bmaj.to_value(U.deg)))
+            header.append(("BMIN", self.beam.bmin.to_value(U.deg)))
+            header.append(("BPA", self.beam.bpa.to_value(U.deg)))
+            header.append(("BTYPE", "beam    "))
+            header.append(("EPOCH", 2000))
+            header.append(("OBSERVER", "K. Oman"))
+            # long names break fits format
+            header.append(("OBJECT", "MOCKBEAM"))
+            header.append(("INSTRUME", "MARTINI", martini_version))
+            header.append(
+                ("DATAMAX", np.max(self.beam.kernel.to_value(beam_kernel_units)))
+            )
+            header.append(
+                ("DATAMIN", np.min(self.beam.kernel.to_value(beam_kernel_units)))
+            )
+            header.append(("ORIGIN", "astropy v" + astropy_version))
 
-        # flip axes to write
-        hdu = fits.PrimaryHDU(
-            header=header,
-            data=self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis].T,
-        )
-        hdu.writeto(filename, overwrite=True)
+            # flip axes to write
+            hdu = fits.PrimaryHDU(
+                header=header,
+                data=self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis].T,
+            )
+            hdu.writeto(filename, overwrite=True)
 
-        return
+            return
 
     def write_hdf5(
         self,
@@ -1484,170 +1755,182 @@ class Martini(_BaseMartini):
             case pixel coordinates can still be reconstructed from FITS-style
             keywords stored in the FluxCube attributes.
         """
-        import h5py
+        with self._logger.step(
+            "Writing data cube to HDF5 file...",
+            "Wrote HDF5 file",
+            quiet=self.quiet,
+        ) as step:
+            import h5py
 
-        self._datacube.drop_pad()
+            self._datacube.drop_pad()
 
-        filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
+            filename = filename if filename[-5:] == ".hdf5" else filename + ".hdf5"
+            step.end = f"Wrote HDF5 file {filename}"
 
-        wcs_header = self._datacube.wcs.to_header()
+            wcs_header = self._datacube.wcs.to_header()
 
-        mode = "w" if overwrite else "x"
-        driver = "core" if memmap else None
-        h5_kwargs = {"backing_store": False} if memmap else {}
-        f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
-        datacube_array_units = self._datacube.current_units
-        f["FluxCube"] = self._datacube._array.to_value(datacube_array_units).squeeze()
-        c = f["FluxCube"]
-        origin = 0  # index from 0 like numpy, not from 1
-        if not compact:
-            # voxel centre coordinates:
-            xgrid, ygrid, vgrid = np.meshgrid(
-                np.arange(self._datacube.datacube_shape[0]),
-                np.arange(self._datacube.datacube_shape[1]),
-                np.arange(self._datacube.datacube_shape[2]),
-                indexing="ij",
-            )
-            cgrid = (
-                np.vstack(
-                    (
-                        xgrid.flatten(),
-                        ygrid.flatten(),
-                        vgrid.flatten(),
-                        np.zeros(vgrid.shape).flatten(),
-                    )
-                ).T
-                if self._datacube.stokes_axis
-                else np.vstack(
-                    (
-                        xgrid.flatten(),
-                        ygrid.flatten(),
-                        vgrid.flatten(),
-                    )
-                ).T
-            )
-            wgrid = self._datacube.wcs.all_pix2world(cgrid, origin)
-            grid_shape = self._datacube.datacube_shape[:3]
-            ragrid = wgrid[:, 0].reshape(grid_shape)
-            decgrid = wgrid[:, 1].reshape(grid_shape)
-            chgrid = wgrid[:, 2].reshape(grid_shape)
-            f["RA"] = ragrid
-            f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
-            f["Dec"] = decgrid
-            f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
-            f["channel_mids"] = chgrid
-            f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
-            # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
-            xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
-                np.arange(self._datacube.datacube_shape[0] + 1) - 0.5,
-                np.arange(self._datacube.datacube_shape[1] + 1) - 0.5,
-                np.arange(self._datacube.datacube_shape[2] + 1) - 0.5,
-                indexing="ij",
-            )
-            cgrid_vertices = (
-                np.vstack(
-                    (
-                        xgrid_vertices.flatten(),
-                        ygrid_vertices.flatten(),
-                        vgrid_vertices.flatten(),
-                        np.zeros(vgrid_vertices.shape).flatten(),
-                    )
-                ).T
-                if self._datacube.stokes_axis
-                else np.vstack(
-                    (
-                        xgrid_vertices.flatten(),
-                        ygrid_vertices.flatten(),
-                        vgrid_vertices.flatten(),
-                    )
-                ).T
-            )
-            wgrid_vertices = self._datacube.wcs.all_pix2world(cgrid_vertices, origin)
-            vertices_grid_shape = [
-                shape_i + 1 for shape_i in self._datacube.datacube_shape[:3]
-            ]
-            ragrid_vertices = wgrid_vertices[:, 0].reshape(vertices_grid_shape)
-            decgrid_vertices = wgrid_vertices[:, 1].reshape(vertices_grid_shape)
-            chgrid_vertices = wgrid_vertices[:, 2].reshape(vertices_grid_shape)
-            f["RA_vertices"] = ragrid_vertices
-            f["RA_vertices"].attrs["Unit"] = wcs_header["CUNIT1"]
-            f["Dec_vertices"] = decgrid_vertices
-            f["Dec_vertices"].attrs["Unit"] = wcs_header["CUNIT2"]
-            f["channel_vertices"] = chgrid_vertices
-            f["channel_vertices"].attrs["Unit"] = wcs_header["CUNIT3"]
-            # channels:
-            for dataset_name in (
-                "velocity_channel_mids",
-                "velocity_channel_edges",
-                "frequency_channel_mids",
-                "frequency_channel_edges",
-            ):
-                f[dataset_name] = getattr(self._datacube, dataset_name)
-                f[dataset_name].attrs["Unit"] = str(
-                    getattr(self._datacube, dataset_name).unit
+            mode = "w" if overwrite else "x"
+            driver = "core" if memmap else None
+            h5_kwargs = {"backing_store": False} if memmap else {}
+            f = h5py.File(filename, mode, driver=driver, **h5_kwargs)
+            datacube_array_units = self._datacube.current_units
+            f["FluxCube"] = self._datacube._array.to_value(
+                datacube_array_units
+            ).squeeze()
+            c = f["FluxCube"]
+            origin = 0  # index from 0 like numpy, not from 1
+            if not compact:
+                # voxel centre coordinates:
+                xgrid, ygrid, vgrid = np.meshgrid(
+                    np.arange(self._datacube.datacube_shape[0]),
+                    np.arange(self._datacube.datacube_shape[1]),
+                    np.arange(self._datacube.datacube_shape[2]),
+                    indexing="ij",
                 )
-        c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
-        c.attrs["FluxCubeUnit"] = str(self._datacube.current_units)
-        c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
-        c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
-        c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
-        c.attrs["RAUnit"] = wcs_header["CUNIT1"]
-        c.attrs["RAProjType"] = wcs_header["CTYPE1"]
-        c.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
-        c.attrs["Dec0_in_px"] = wcs_header["CRPIX2"] - 1
-        c.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
-        c.attrs["DecUnit"] = wcs_header["CUNIT2"]
-        c.attrs["DecProjType"] = wcs_header["CTYPE2"]
-        c.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
-        c.attrs["V0_in_px"] = wcs_header["CRPIX3"] - 1
-        c.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
-        c.attrs["VUnit"] = wcs_header["CUNIT3"]
-        c.attrs["VProjType"] = wcs_header["CTYPE3"]
-        c.attrs["SpecSys"] = wcs_header["SPECSYS"]
-        if self.beam is not None:
-            c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
-            c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
-            c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
-        c.attrs["DateCreated"] = str(Time.now())
-        c.attrs["MartiniVersion"] = martini_version
-        c.attrs["AstropyVersion"] = astropy_version
-        if self.beam is not None:
-            if self.beam.kernel is None:
-                raise ValueError(
-                    "Martini.write_hdf5: Called with beam present but beam kernel"
-                    " uninitialized."
+                cgrid = (
+                    np.vstack(
+                        (
+                            xgrid.flatten(),
+                            ygrid.flatten(),
+                            vgrid.flatten(),
+                            np.zeros(vgrid.shape).flatten(),
+                        )
+                    ).T
+                    if self._datacube.stokes_axis
+                    else np.vstack(
+                        (
+                            xgrid.flatten(),
+                            ygrid.flatten(),
+                            vgrid.flatten(),
+                        )
+                    ).T
                 )
-            beam_kernel_units = self.beam.kernel.unit
-            f["Beam"] = self.beam.kernel.to_value(beam_kernel_units)[..., np.newaxis]
-            b = f["Beam"]
-            b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
-            b.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
-            b.attrs["RA0_in_px"] = self.beam.kernel.shape[0] // 2
-            b.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
-            b.attrs["RAUnit"] = wcs_header["CUNIT1"]
-            b.attrs["RAProjType"] = wcs_header["CTYPE1"]
-            b.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
-            b.attrs["Dec0_in_px"] = self.beam.kernel.shape[1] // 2
-            b.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
-            b.attrs["DecUnit"] = wcs_header["CUNIT2"]
-            b.attrs["DecProjType"] = wcs_header["CTYPE2"]
-            b.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
-            b.attrs["V0_in_px"] = 0
-            b.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
-            b.attrs["VUnit"] = wcs_header["CUNIT3"]
-            b.attrs["VProjType"] = wcs_header["CTYPE3"]
-            b.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
-            b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
-            b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
-            b.attrs["DateCreated"] = str(Time.now())
-            b.attrs["MartiniVersion"] = martini_version
-            b.attrs["AstropyVersion"] = astropy_version
+                wgrid = self._datacube.wcs.all_pix2world(cgrid, origin)
+                grid_shape = self._datacube.datacube_shape[:3]
+                ragrid = wgrid[:, 0].reshape(grid_shape)
+                decgrid = wgrid[:, 1].reshape(grid_shape)
+                chgrid = wgrid[:, 2].reshape(grid_shape)
+                f["RA"] = ragrid
+                f["RA"].attrs["Unit"] = wcs_header["CUNIT1"]
+                f["Dec"] = decgrid
+                f["Dec"].attrs["Unit"] = wcs_header["CUNIT2"]
+                f["channel_mids"] = chgrid
+                f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
+                # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
+                xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
+                    np.arange(self._datacube.datacube_shape[0] + 1) - 0.5,
+                    np.arange(self._datacube.datacube_shape[1] + 1) - 0.5,
+                    np.arange(self._datacube.datacube_shape[2] + 1) - 0.5,
+                    indexing="ij",
+                )
+                cgrid_vertices = (
+                    np.vstack(
+                        (
+                            xgrid_vertices.flatten(),
+                            ygrid_vertices.flatten(),
+                            vgrid_vertices.flatten(),
+                            np.zeros(vgrid_vertices.shape).flatten(),
+                        )
+                    ).T
+                    if self._datacube.stokes_axis
+                    else np.vstack(
+                        (
+                            xgrid_vertices.flatten(),
+                            ygrid_vertices.flatten(),
+                            vgrid_vertices.flatten(),
+                        )
+                    ).T
+                )
+                wgrid_vertices = self._datacube.wcs.all_pix2world(
+                    cgrid_vertices, origin
+                )
+                vertices_grid_shape = [
+                    shape_i + 1 for shape_i in self._datacube.datacube_shape[:3]
+                ]
+                ragrid_vertices = wgrid_vertices[:, 0].reshape(vertices_grid_shape)
+                decgrid_vertices = wgrid_vertices[:, 1].reshape(vertices_grid_shape)
+                chgrid_vertices = wgrid_vertices[:, 2].reshape(vertices_grid_shape)
+                f["RA_vertices"] = ragrid_vertices
+                f["RA_vertices"].attrs["Unit"] = wcs_header["CUNIT1"]
+                f["Dec_vertices"] = decgrid_vertices
+                f["Dec_vertices"].attrs["Unit"] = wcs_header["CUNIT2"]
+                f["channel_vertices"] = chgrid_vertices
+                f["channel_vertices"].attrs["Unit"] = wcs_header["CUNIT3"]
+                # channels:
+                for dataset_name in (
+                    "velocity_channel_mids",
+                    "velocity_channel_edges",
+                    "frequency_channel_mids",
+                    "frequency_channel_edges",
+                ):
+                    f[dataset_name] = getattr(self._datacube, dataset_name)
+                    f[dataset_name].attrs["Unit"] = str(
+                        getattr(self._datacube, dataset_name).unit
+                    )
+            c.attrs["AxisOrder"] = "(RA,Dec,Channels)"
+            c.attrs["FluxCubeUnit"] = str(self._datacube.current_units)
+            c.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+            c.attrs["RA0_in_px"] = wcs_header["CRPIX1"] - 1
+            c.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+            c.attrs["RAUnit"] = wcs_header["CUNIT1"]
+            c.attrs["RAProjType"] = wcs_header["CTYPE1"]
+            c.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+            c.attrs["Dec0_in_px"] = wcs_header["CRPIX2"] - 1
+            c.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+            c.attrs["DecUnit"] = wcs_header["CUNIT2"]
+            c.attrs["DecProjType"] = wcs_header["CTYPE2"]
+            c.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+            c.attrs["V0_in_px"] = wcs_header["CRPIX3"] - 1
+            c.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+            c.attrs["VUnit"] = wcs_header["CUNIT3"]
+            c.attrs["VProjType"] = wcs_header["CTYPE3"]
+            c.attrs["SpecSys"] = wcs_header["SPECSYS"]
+            if self.beam is not None:
+                c.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+                c.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+                c.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
+            c.attrs["DateCreated"] = str(Time.now())
+            c.attrs["MartiniVersion"] = martini_version
+            c.attrs["AstropyVersion"] = astropy_version
+            if self.beam is not None:
+                if self.beam.kernel is None:
+                    raise ValueError(
+                        "Martini.write_hdf5: Called with beam present but beam kernel"
+                        " uninitialized."
+                    )
+                beam_kernel_units = self.beam.kernel.unit
+                f["Beam"] = self.beam.kernel.to_value(beam_kernel_units)[
+                    ..., np.newaxis
+                ]
+                b = f["Beam"]
+                b.attrs["BeamUnit"] = self.beam.kernel.unit.to_string("fits")
+                b.attrs["deltaRA_in_RAUnit"] = wcs_header["CDELT1"]
+                b.attrs["RA0_in_px"] = self.beam.kernel.shape[0] // 2
+                b.attrs["RA0_in_RAUnit"] = wcs_header["CRVAL1"]
+                b.attrs["RAUnit"] = wcs_header["CUNIT1"]
+                b.attrs["RAProjType"] = wcs_header["CTYPE1"]
+                b.attrs["deltaDec_in_DecUnit"] = wcs_header["CDELT2"]
+                b.attrs["Dec0_in_px"] = self.beam.kernel.shape[1] // 2
+                b.attrs["Dec0_in_DecUnit"] = wcs_header["CRVAL2"]
+                b.attrs["DecUnit"] = wcs_header["CUNIT2"]
+                b.attrs["DecProjType"] = wcs_header["CTYPE2"]
+                b.attrs["deltaV_in_VUnit"] = wcs_header["CDELT3"]
+                b.attrs["V0_in_px"] = 0
+                b.attrs["V0_in_VUnit"] = wcs_header["CRVAL3"]
+                b.attrs["VUnit"] = wcs_header["CUNIT3"]
+                b.attrs["VProjType"] = wcs_header["CTYPE3"]
+                b.attrs["BeamPA"] = self.beam.bpa.to_value(U.deg)
+                b.attrs["BeamMajor_in_deg"] = self.beam.bmaj.to_value(U.deg)
+                b.attrs["BeamMinor_in_deg"] = self.beam.bmin.to_value(U.deg)
+                b.attrs["DateCreated"] = str(Time.now())
+                b.attrs["MartiniVersion"] = martini_version
+                b.attrs["AstropyVersion"] = astropy_version
 
-        if memmap:
-            return f
-        else:
-            f.close()
-            return None
+            if memmap:
+                return f
+            else:
+                f.close()
+                return None
 
 
 class GlobalProfile(_BaseMartini):
@@ -1785,6 +2068,8 @@ class GlobalProfile(_BaseMartini):
         M.insert_source_in_spectrum()
     """
 
+    _target_name = "spectrum"
+
     @U.quantity_input
     def __init__(
         self,
@@ -1811,7 +2096,6 @@ class GlobalProfile(_BaseMartini):
                 "spatial": False,
                 "spectral": True,
                 "mass": True,
-                "obj_type_str": "spectrum",
             },
             quiet=quiet,
         )
@@ -1819,8 +2103,82 @@ class GlobalProfile(_BaseMartini):
 
         return
 
+    def _count_px_hits(self, sm_ranges: np.ndarray, ncpu: int) -> np.ndarray:
+        """
+        Count the pixels overlapped by each particle's smoothing kernel.
+
+        For :class:`~martini.martini.GlobalProfile` every particle is assumed to
+        overlap the (single) pixel, so no search is needed.
+
+        Parameters
+        ----------
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of the particles, in pixels (unused).
+
+        ncpu : int
+            Number of threads to use (unused).
+
+        Returns
+        -------
+        ~numpy.ndarray
+            Number of pixels overlapped by each particle.
+        """
+        return np.ones(self.source.npart, dtype=np.int64)
+
+    def _find_px_hits(
+        self,
+        segment: slice,
+        sm_ranges: np.ndarray,
+        ncpu: int,
+        return_distances: bool = True,
+    ) -> FindGridIntersectionsResult:
+        """
+        Find the pixels overlapped by the smoothing kernels of a batch of particles.
+
+        For :class:`~martini.martini.GlobalProfile` every particle is treated as
+        overlapping the single pixel at zero offset. Their line of sight velocities
+        are still correctly projected.
+
+        Parameters
+        ----------
+        segment : slice
+            Selects the batch of particles.
+
+        sm_ranges : ~numpy.ndarray
+            Smoothing kernel ranges of all particles, in pixels (unused).
+
+        ncpu : int
+            Number of threads to use (unused).
+
+        return_distances : bool
+            If ``False``, offsets between particles and pixel centres are not returned.
+
+        Returns
+        -------
+        ~martini._grid_search.FindGridIntersectionsResult
+            The particle-pixel overlaps.
+        """
+        n = len(range(self.source.npart)[segment])
+        if n == 0:
+            return FindGridIntersectionsResult(
+                intersections=np.empty(0),
+                distances=np.empty(0) if return_distances else None,
+                cell_indices=np.empty(0),
+                strides=np.empty((0, 2)),
+            )
+        return FindGridIntersectionsResult(
+            intersections=np.arange(n, dtype=np.int32),
+            distances=(
+                np.zeros((n, 2), dtype=self.spectral_model.spec_dtype)
+                if return_distances
+                else None
+            ),
+            cell_indices=np.zeros(1, dtype=np.int64),
+            strides=np.array([[0, n]], dtype=np.int64),
+        )
+
     def insert_source_in_spectrum(
-        self, mem_lim_GB: float = 4.0, quiet: bool = False
+        self, mem_lim_GB: float = 4.0, quiet: bool | None = None
     ) -> None:
         """
         Populate the :class:`~martini.datacube.DataCube` with flux from source particles.
@@ -1838,13 +2196,14 @@ class GlobalProfile(_BaseMartini):
             pixels in the cube. The particles can be processed in batches to mitigate
             this, but this slows down the code. The memory limit set here (in GB) will
             trigger batching if estimated memory usage is expected to exceed it. This is
-            a "soft" limit since some allocation outside of direct control (e.g. internal
-            in :mod:`scipy`) cannot be exactly predicted.
+            a "soft" limit since some allocations (e.g. temporary arrays when evaluating
+            the SPH kernel) cannot be exactly predicted.
 
         quiet : bool, optional
             If ``True``, suppress output to stdout. If specified, takes precedence over
             ``quiet`` parameter of class.
         """
+        quiet = self.quiet if quiet is None else quiet
         # skip_validation=True: all particles can contribute their kernel to the pixel;
         # ncpu=1 since we have 1 pixel and source insertion is parallel over pixels;
         # no progressbar since there's only 1 pixel of progress;
@@ -1866,7 +2225,7 @@ class GlobalProfile(_BaseMartini):
             )
             * U.pix**2
         ).to(U.Jy)
-        if not self.quiet:
+        if not quiet:
             # Need a slightly different calculation for a completely unresolved source.
             inserted_flux_density = self.spectrum.sum()
             inserted_mass = (
@@ -1876,14 +2235,13 @@ class GlobalProfile(_BaseMartini):
                 * inserted_flux_density.to_value(U.Jy)
                 * self._datacube.channel_width.to_value(U.km / U.s)
             )
-            print(
-                "Source inserted.",
-                f"  Flux density in spectrum: {inserted_flux_density:.2e}",
-                f"  Mass in spectrum (assuming distance {self.source.distance:.2f}):"
+            self._logger.message(
+                f"Flux density in spectrum: {inserted_flux_density:.2e}",
+                f"Mass in spectrum (assuming distance {self.source.distance:.2f}):"
                 f" {inserted_mass:.2e}",
-                f"    [{inserted_mass / self.source.input_mass * 100:.0f}%"
-                f" of initial source mass]",
-                sep="\n",
+                f"  [{inserted_mass / self.source.input_mass * 100:.0f}%"
+                " of initial source mass]",
+                extra_indent=1,
             )
 
     @property

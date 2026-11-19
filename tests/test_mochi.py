@@ -13,6 +13,7 @@ from martini.mochi._dtypes import CELL_DTYPE
 import pytest
 import numpy as np
 import itertools
+from types import SimpleNamespace
 from test_martini import check_mass_accuracy
 from test_sph_kernels import simple_kernels
 
@@ -29,6 +30,22 @@ refinement_strategies = (
 )
 interpolant_ids = ("sph", "mfm", "voronoi_mesh", "manual_sph", "particle_in_cell")
 spectral_models = (GaussianSpectrum, DiracDeltaSpectrum)
+
+
+class _ArbitraryCellGrid(CellGrid):
+    """A uniform cell grid that does not identify itself as one, for testing."""
+
+    @property
+    def uniform_grid(self) -> None:
+        """
+        Do not describe the grid as uniform.
+
+        Returns
+        -------
+        None
+            Always ``None``.
+        """
+        return None
 
 
 class TestAdaptiveCellGridUtils:
@@ -359,6 +376,37 @@ class TestAdaptiveCellGrid:
         assert fields["velocities"].unit.is_equivalent(U.km / U.s)
         assert fields["temperatures"].unit.is_equivalent(U.km**2 / U.s**2)
 
+    @pytest.mark.parametrize(
+        "interpolant", (module_interpolants.sph, module_interpolants.mfm)
+    )
+    @pytest.mark.parametrize("grid_shape", (None, (8, 8, 8)))
+    def test_uniform_grid_search(
+        self, many_particle_source, dc_zeros, interpolant, grid_shape
+    ):
+        """Check the uniform grid search matches the search for arbitrary cells."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges()
+        grid = CellGrid(source, datacube, grid_shape=grid_shape)
+        if grid_shape is not None:
+            assert grid.cell_size != 1  # check the mapping to grid units
+        grid.init_particle_locations(source, sph_kernel)
+        assert grid.uniform_grid is not None
+        grid.interpolate_fields(source, sph_kernel, interpolant)  # uniform search
+        # the same cells, without the uniform grid description (arbitrary cells):
+        arbitrary = _ArbitraryCellGrid(source, datacube, grid_shape=grid_shape)
+        arbitrary.init_particle_locations(source, sph_kernel)
+        arbitrary.interpolate_fields(source, sph_kernel, interpolant)
+        fields = grid.interpolated_fields
+        assert fields.keys() == arbitrary.interpolated_fields.keys()
+        for key in fields.keys():
+            assert np.any(fields[key] != 0)
+            assert U.allclose(fields[key], arbitrary.interpolated_fields[key])
+
     def eval_radiative_transfer(self):
         """TBD."""
         raise NotImplementedError
@@ -439,9 +487,12 @@ class TestParticleInCell:
             temperatures=np.array([100, 300, 500]) * U.km**2 / U.s**2,
             masses=np.array([1, 3, 5]) * U.Msun,
             kernel=DiracDeltaKernel(),
-            field_positions=field_positions,
-            d_volume=np.ones(n_pos) * U.pix**3,
-            distortion_corrections=distortion_corrections,
+            cell_grid=SimpleNamespace(  # any object providing the cells will do
+                field_positions=field_positions,
+                field_volumes=np.ones(n_pos) * U.pix**3,
+                field_distortion_corrections=distortion_corrections,
+                uniform_grid=None,
+            ),
         )
         expected_densities = np.zeros(n_pos) * U.Msun / U.pix**3
         expected_densities[0] = 2.0 * U.Msun / (1 * U.pix**3 * 2)

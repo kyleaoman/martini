@@ -13,10 +13,18 @@ class _BaseNoise(object):
     Abstract base class to inherit for classes implementing a noise model.
 
     Classes inheriting from :class:`~martini.noise._BaseNoise` must implement a
-    method :meth:`~martini.noise._BaseNoise.generate` which receives one argument,
-    a :class:`~martini.datacube.DataCube` instance. This method
+    method :meth:`~martini.noise._BaseNoise.generate` which receives two arguments,
+    a :class:`~martini.datacube.DataCube` instance and a beam instance. This method
     should return an :class:`~astropy.units.Quantity` array with the same shape as the
-    datacube array, and units of Jy (or compatible).
+    datacube array. The units of the noise determine how it is used:
+
+    - Flux density per unit area (e.g. Jy/arcsec^2): noise that will be convolved with
+      the beam, added to the data cube before beam convolution.
+    - Flux density per beam (e.g. Jy/beam): noise that is already convolved with the
+      beam, added to the data cube after beam convolution.
+
+    Returning the current units of the data cube (``datacube.current_units``) avoids a
+    unit conversion of the noise cube when it is added to the data cube.
 
     Parameters
     ----------
@@ -38,10 +46,7 @@ class _BaseNoise(object):
         return
 
     @abstractmethod
-    @U.quantity_input
-    def generate(
-        self, datacube: DataCube, beam: _BaseBeam
-    ) -> U.Quantity[U.Jy * U.arcsec**-2]:
+    def generate(self, datacube: DataCube, beam: _BaseBeam) -> U.Quantity:
         """
         Abstract method; create a cube containing noise.
 
@@ -65,8 +70,9 @@ class _BaseNoise(object):
         Returns
         -------
         ~astropy.units.Quantity
-            :class:`~astropy.units.Quantity`, with dimensions of flux density.
-            Noise realization with size matching the
+            :class:`~astropy.units.Quantity`, with dimensions of flux density per unit
+            area (noise to be convolved with the beam) or per beam (noise already
+            convolved with the beam). Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
         """
         pass  # pragma: no cover
@@ -109,15 +115,13 @@ class GaussianNoise(_BaseNoise):
 
         return
 
-    @U.quantity_input
-    def generate(
-        self, datacube: DataCube, beam: _BaseBeam
-    ) -> U.Quantity[U.Jy / U.beam]:
+    def generate(self, datacube: DataCube, beam: _BaseBeam) -> U.Quantity:
         """
         Create a cube containing Gaussian noise.
 
-        Some numpy functions such as :func:`numpy.random.normal` strip units, so need to
-        handle them explicitly.
+        The noise is generated in the current units of the data cube (so that it can be
+        added to the data cube without converting units). It is noise to be convolved
+        with the beam, so the data cube must not already be convolved with the beam.
 
         Parameters
         ----------
@@ -136,10 +140,21 @@ class GaussianNoise(_BaseNoise):
         Returns
         -------
         ~astropy.units.Quantity
-            :class:`~astropy.units.Quantity`, with dimensions of flux density.
+            :class:`~astropy.units.Quantity`, in the current units of the data cube.
             Noise realization with size matching the
             :attr:`~martini.datacube.DataCube._array`.
+
+        Raises
+        ------
+        ValueError
+            If the data cube is already convolved with the beam.
         """
+        if datacube.current_units.is_equivalent(U.Jy / U.beam):
+            raise ValueError(
+                "GaussianNoise generates noise to be convolved with the beam, but the "
+                "data cube is already convolved with the beam: add noise before "
+                "convolving the beam."
+            )
         sig_maj = (beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
             U.dimensionless_unscaled
         )
@@ -151,13 +166,14 @@ class GaussianNoise(_BaseNoise):
         # for an elliptical beam beam_std = sqrt(beam_std_maj * beam_std_min)
         # Approximation turns out to be low by ~ 10%, correct for this:
         rms = self.target_rms * 2.19568 * np.sqrt(np.pi * sig_maj * sig_min)
-        rms_unit = rms.unit
-        return U.Quantity(
-            datacube.cube_dtype(rms.to_value(rms_unit))
-            * self.rng.standard_normal(
-                size=datacube.datacube_shape,
-                dtype=datacube.cube_dtype,
-            ),
-            rms_unit,
-            copy=False,
+        # Convert the rms (rather than the noise cube) to the units of the data cube:
+        beam_area_equivalencies = U.beam_angular_area(beam.area)
+        rms = rms.to(U.Jy * U.arcsec**-2, equivalencies=beam_area_equivalencies).to(
+            datacube.current_units,
+            equivalencies=beam_area_equivalencies + [datacube.arcsec2_to_pix],
         )
+        noise = self.rng.standard_normal(
+            size=datacube.datacube_shape, dtype=datacube.cube_dtype
+        )
+        noise *= datacube.cube_dtype(rms.value)  # in place to avoid a copy
+        return U.Quantity(noise, rms.unit, copy=False)

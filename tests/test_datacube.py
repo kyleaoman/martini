@@ -174,6 +174,16 @@ class TestDataCube:
         dc_zeros.add_pad(pad)
         assert dc_zeros._array[dc_zeros.pad_mask].shape == initial_shape
 
+    @pytest.mark.parametrize("pad", ((2, 0), (0, 3)))
+    def test_drop_pad_one_axis(self, dc_random, pad):
+        """Check that padding only one axis is dropped without losing data."""
+        initial = dc_random._array.copy()
+        dc_random.add_pad(pad)
+        assert dc_random._array.shape != initial.shape
+        dc_random.drop_pad()
+        assert dc_random._array.shape == initial.shape
+        assert U.allclose(dc_random._array, initial)
+
     def test_drop_pad_already_dropped(self, dc_zeros):
         """Check that dropping already dropped pad gives no change."""
         assert dc_zeros.padx == 0

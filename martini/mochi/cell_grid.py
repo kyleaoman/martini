@@ -95,6 +95,7 @@ class CellGrid:
     cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled]
     cell_centres: U.Quantity[U.pix]
     grid_shape: tuple[int, int, int]
+    cell_size: float
 
     def __init__(
         self,
@@ -135,6 +136,7 @@ class CellGrid:
         )
         self.init_cell_centres()
         self.grid_shape = full_grid_shape
+        self.cell_size = size
         self.init_cell_volumes()
         self.init_cell_distances(source, datacube)
         self.init_cell_distortion_corrections(source, datacube)
@@ -314,6 +316,59 @@ class CellGrid:
         )
         return
 
+    @property
+    def field_positions(self) -> U.Quantity[U.pix]:
+        """
+        Centre coordinates of the cells onto which fields are interpolated.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Cell centre coordinates, with units of pixels.
+        """
+        return self.cell_centres
+
+    @property
+    def field_volumes(self) -> U.Quantity[U.pix**3]:
+        """
+        Rectilinear volumes of the cells onto which fields are interpolated.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Cell volumes, with units of pixels cubed.
+        """
+        return self.cell_volumes
+
+    @property
+    def field_distortion_corrections(self) -> U.Quantity[U.dimensionless_unscaled]:
+        """
+        Spherical distortion corrections to the volumes of the cells.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Dimensionless distortion corrections to the cell volumes.
+        """
+        return self.cell_distortion_corrections
+
+    @property
+    def uniform_grid(self) -> tuple[tuple[int, int, int], float] | None:
+        """
+        Describe the uniform grid of cells onto which fields are interpolated.
+
+        Interpolants can use this to search for cells efficiently. The cells are ordered
+        as in an array of shape ``grid_shape`` (C-order), with centres at
+        ``(index + 0.5) * cell_size - 0.5`` (pixels) along each axis.
+
+        Returns
+        -------
+        tuple or None
+            The shape of the grid and the size of the cells in pixels, ``(grid_shape,
+            cell_size)``, or ``None`` if the cells are not a uniform grid.
+        """
+        return self.grid_shape, self.cell_size
+
     def interpolate_fields(
         self,
         source: SPHSource,
@@ -323,7 +378,9 @@ class CellGrid:
         """
         Interpolate particle-carried fields onto the grid.
 
-        ??.
+        The interpolant receives this cell grid (``cell_grid`` argument) and uses its
+        ``field_positions``, ``field_volumes``, ``field_distortion_corrections`` and
+        ``uniform_grid``.
 
         Parameters
         ----------
@@ -338,52 +395,6 @@ class CellGrid:
             grid. E.g. :func:`~martini.mochi.interpolants.sph` or
             :func:`~martini.mochi.interpolants.mfm` found in the
             :mod:`~martini.mochi.interpolants` module.
-        """
-        return self._interpolate_fields(
-            source,
-            sph_kernel,
-            interpolant,
-            self.cell_centres,
-            self.cell_volumes,
-            self.cell_distortion_corrections,
-        )
-
-    def _interpolate_fields(
-        self,
-        source: SPHSource,
-        sph_kernel: _BaseSPHKernel,
-        interpolant: Callable,  # fill in arg & return types
-        cell_centres: U.Quantity[U.pix],
-        cell_volumes: U.Quantity[U.pix**3],
-        cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled],
-    ) -> None:
-        """
-        Interpolate particle-carried fields onto the grid.
-
-        ??.
-
-        Parameters
-        ----------
-        source : ~martini.sources.sph_source.SPHSource
-            The source module with the gas particle or cell properties for interpolation.
-
-        sph_kernel : _BaseSPHKernel
-            The module specifying the SPH kernel.
-
-        interpolant : Callable
-            Function that interpolates the gas particle (or gas cell) properties onto the
-            grid. E.g. :func:`~martini.mochi.interpolants.sph` or
-            :func:`~martini.mochi.interpolants.mfm` found in the
-            :mod:`~martini.mochi.interpolants` module.
-
-        cell_centres : ~astropy.units.Quantity
-            Centre coordinates of cells to use in interpolation, with units of pixels.
-
-        cell_volumes : ~astropy.units.Quantity
-            Rectilinear cell volumes to use in interpolation, with units of pixels cubed.
-
-        cell_distortion_corrections : ~astropy.units.Quantity
-            Dimensionless spherical distortion corrections to the cell volumes.
         """
         if source.skycoords is None:
             raise RuntimeError(
@@ -392,9 +403,7 @@ class CellGrid:
         self.interpolated_fields = interpolant(
             positions=self.positions,
             smoothing_lengths=sph_kernel.sm_lengths,
-            field_positions=cell_centres,
-            d_volume=cell_volumes,
-            distortion_corrections=cell_distortion_corrections,
+            cell_grid=self,
             kernel=sph_kernel,
             velocities=source.skycoords.radial_velocity,
             masses_HI=source.mHI_g,
@@ -515,36 +524,50 @@ class AdaptiveCellGrid(CellGrid):
         self.init_cell_distances(source, datacube, prefix="adaptive")
         self.init_cell_distortion_corrections(source, datacube, prefix="adaptive")
 
-    def interpolate_fields(
-        self,
-        source: SPHSource,
-        sph_kernel: _BaseSPHKernel,
-        interpolant: Callable,  # fill in arg & return types
-    ) -> None:
+    @property
+    def field_positions(self) -> U.Quantity[U.pix]:
         """
-        Interpolate particle-carried fields onto the grid.
+        Centre coordinates of the adaptive cells onto which fields are interpolated.
 
-        ??.
-
-        Parameters
-        ----------
-        source : ~martini.sources.sph_source.SPHSource
-            The source module with the gas particle or cell properties for interpolation.
-
-        sph_kernel : _BaseSPHKernel
-            The module specifying the SPH kernel.
-
-        interpolant : Callable
-            Function that interpolates the gas particle (or gas cell) properties onto the
-            grid. E.g. :func:`~martini.mochi.interpolants.sph` or
-            :func:`~martini.mochi.interpolants.mfm` found in the
-            :mod:`~martini.mochi.interpolants` module.
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Cell centre coordinates, with units of pixels.
         """
-        return self._interpolate_fields(
-            source,
-            sph_kernel,
-            interpolant,
-            self.adaptive_cell_centres,
-            self.adaptive_cell_volumes,
-            self.adaptive_cell_distortion_corrections,
-        )
+        return self.adaptive_cell_centres
+
+    @property
+    def field_volumes(self) -> U.Quantity[U.pix**3]:
+        """
+        Rectilinear volumes of the adaptive cells onto which fields are interpolated.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Cell volumes, with units of pixels cubed.
+        """
+        return self.adaptive_cell_volumes
+
+    @property
+    def field_distortion_corrections(self) -> U.Quantity[U.dimensionless_unscaled]:
+        """
+        Spherical distortion corrections to the volumes of the adaptive cells.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Dimensionless distortion corrections to the cell volumes.
+        """
+        return self.adaptive_cell_distortion_corrections
+
+    @property
+    def uniform_grid(self) -> None:
+        """
+        Describe the grid of cells onto which fields are interpolated.
+
+        Returns
+        -------
+        None
+            Adaptive cells do not form a uniform grid.
+        """
+        return None
