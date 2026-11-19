@@ -3,6 +3,7 @@
 import math
 import numpy as np
 import contextlib
+from collections.abc import Sequence
 from typing import NamedTuple, TYPE_CHECKING
 from martini._util import NUMBA_AVAILABLE, numba_threads
 
@@ -502,7 +503,7 @@ def _balanced_blocks(weights: np.ndarray, n_blocks: int) -> np.ndarray:
 
 
 def _prepare_inputs(
-    grid_shape: tuple[int, ...],
+    grid_shape: Sequence[int],
     coords: np.ndarray,
     radii: np.ndarray,
 ) -> tuple[tuple[int, ...], np.ndarray, np.ndarray]:
@@ -511,7 +512,7 @@ def _prepare_inputs(
 
     Parameters
     ----------
-    grid_shape : tuple
+    grid_shape : tuple or list
         Number of pixels or cells along each axis (length 2 or 3).
 
     coords : ~numpy.ndarray
@@ -563,7 +564,7 @@ def _threads(ncpu: int) -> contextlib.AbstractContextManager:
 
 
 def count_grid_intersections(
-    grid_shape: tuple[int, ...],
+    grid_shape: Sequence[int],
     coords: np.ndarray,
     radii: np.ndarray,
     ncpu: int = 1,
@@ -592,7 +593,7 @@ def count_grid_intersections(
 
     Parameters
     ----------
-    grid_shape : tuple
+    grid_shape : tuple or list
         Number of cells along each axis (length 2 or 3). In :mod:`martini` this is the
         spatial (2D) shape of the data cube (including any padding).
 
@@ -623,7 +624,7 @@ def count_grid_intersections(
 
 
 def find_grid_intersections(
-    grid_shape: tuple[int, ...],
+    grid_shape: Sequence[int],
     coords: np.ndarray,
     radii: np.ndarray,
     ncpu: int = 1,
@@ -648,7 +649,7 @@ def find_grid_intersections(
 
     Parameters
     ----------
-    grid_shape : tuple
+    grid_shape : tuple or list
         Number of cells along each axis (length 2 or 3). In :mod:`martini` this is the
         spatial (2D) shape of the data cube (including any padding).
 

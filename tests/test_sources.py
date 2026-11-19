@@ -33,7 +33,7 @@ from conftest import sps_sourcegen
 class TestSourceUtilities:
     """Test the utility functions related to manipulating source objects."""
 
-    def test_L_align(self):
+    def test_L_align(self, tmp_path_factory):
         """Test that we produce expected rotation matrices, including saving to file."""
         # set up 4 particles in x-y plane rotating right-handed about zhat
         _xyz = np.array([[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]])
@@ -72,13 +72,9 @@ class TestSourceUtilities:
             np.array([0, 1, 0]),
         )
         # finally check that saving to file works
-        testfile = "testsaverot.npy"
-        try:
-            rotmat = L_align(xyz, vxyz, m, saverot=testfile)
-            saved_rotmat = np.load(testfile)
-        finally:
-            if os.path.exists(testfile):
-                os.remove(testfile)
+        testfile = str(tmp_path_factory.mktemp("rotation") / "rotmat.npy")
+        rotmat = L_align(xyz, vxyz, m, saverot=testfile)
+        saved_rotmat = np.load(testfile)
         assert np.allclose(rotmat, saved_rotmat)
 
     def test_translate(self):
@@ -226,6 +222,11 @@ class TestSPHSource:
         with pytest.raises(ValueError, match="must have matching shapes"):
             SPHSource(
                 xyz_g=row_coords, vxyz_g=col_vels, mHI_g=mHI_g, distance=3 * U.Mpc
+            )
+        wrong_coords = np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) * U.kpc
+        with pytest.raises(RuntimeError, match="incorrect coordinate shape"):
+            SPHSource(
+                xyz_g=wrong_coords, vxyz_g=col_vels, mHI_g=mHI_g, distance=3 * U.Mpc
             )
 
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
@@ -376,6 +377,82 @@ class TestSPHSource:
             source.pixcoords,
             expected_coords,
             atol=1e-4 * U.pix,
+        )
+
+    def test_init_los_pixcoords(self):
+        """Check pseudo-pixel coordinates obtained from distance offsets along the LoS."""
+        # set distance so that 1kpc = 1arcsec
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        # line up particles at 1kpc intervals along the LoS centred on the source distance
+        source = SPHSource(
+            distance=distance,
+            T_g=np.ones(5) * 1e4 * U.K,
+            mHI_g=np.ones(5) * 1e4 * U.Msun,
+            xyz_g=U.Quantity(
+                np.vstack(
+                    (
+                        np.linspace(-2, 2, 5),
+                        np.zeros(5),
+                        np.zeros(5),
+                    )
+                ).T,
+                U.kpc,
+            ),
+            vxyz_g=np.zeros((5, 3)) * U.km / U.s,
+            hsm_g=np.ones(5) * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=5,
+            n_px_y=5,
+            n_channels=5,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+        )
+        expected_coords = np.arange(5) * U.pix
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        assert U.allclose(
+            source.los_distance_pixcoords,
+            expected_coords,
+            atol=1e-4 * U.pix,
+        )
+
+    def test_init_los_pixcoords_log_spacing(self):
+        """Check that pseudo-pixel coordinates along the LoS are log-spaced."""
+        distance = 3 * U.Mpc
+        px_size = 1 * U.deg
+        # particles at distances such that pixels are locally cubic:
+        distances = distance * np.exp(np.arange(-2, 3) * px_size.to_value(U.rad))
+        source = SPHSource(
+            distance=distance,
+            T_g=np.ones(5) * 1e4 * U.K,
+            mHI_g=np.ones(5) * 1e4 * U.Msun,
+            xyz_g=U.Quantity(
+                np.vstack(
+                    (
+                        (distances - distance).to_value(U.kpc),
+                        np.zeros(5),
+                        np.zeros(5),
+                    )
+                ).T,
+                U.kpc,
+            ),
+            vxyz_g=np.zeros((5, 3)) * U.km / U.s,
+            hsm_g=np.ones(5) * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=5,
+            n_px_y=5,
+            n_channels=5,
+            px_size=px_size,
+            channel_width=1 * U.km / U.s,
+        )
+        source._init_skycoords()
+        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        assert U.allclose(
+            source.los_distance_pixcoords,
+            np.arange(5) * U.pix,
+            atol=1e-6 * U.pix,
         )
 
     @pytest.mark.parametrize("ra", (0 * U.deg, 30 * U.deg, -30 * U.deg))
@@ -545,7 +622,7 @@ class TestSPHSource:
                 s.coordinates_g.differentials["s"].get_d_xyz(), expected_vels
             )
 
-    def test_save_current_rotation(self, s):
+    def test_save_current_rotation(self, s, tmp_path_factory):
         """Check that current rotation state can be output to file."""
         assert np.allclose(s.current_rotation, np.eye(3))
         angle = np.pi / 4
@@ -559,16 +636,12 @@ class TestSPHSource:
             )
         )
         s.rotate(rotation)
-        testfile = "testrotmat.npy"
-        try:
-            s.save_current_rotation(testfile)
-            saved_rotmat = np.loadtxt(testfile)
-        finally:
-            if os.path.exists(testfile):
-                os.remove(testfile)
+        testfile = str(tmp_path_factory.mktemp("rotation") / "rotmat.npy")
+        s.save_current_rotation(testfile)
+        saved_rotmat = np.loadtxt(testfile)
         assert np.allclose(saved_rotmat, rotation.as_matrix())
 
-    def test_save_and_load_affine_transforms(self, s):
+    def test_save_and_load_affine_transforms(self, s, tmp_path_factory):
         """Check that we can reproduce coordinate transformations from a saved file."""
         s_copy = SPHSource(
             T_g=s.T_g,
@@ -603,13 +676,9 @@ class TestSPHSource:
         s.translate(np.array([2, 5, 9]) * U.kpc)
         assert not np.allclose(s._coordinate_affine_transform, np.eye(4))
         assert not np.allclose(s._velocity_affine_transform, np.eye(4))
-        testfile = "affine.npy"
-        try:
-            s.save_current_affine_transformations(testfile)
-            s_copy.load_affine_transformations(testfile)
-        finally:
-            if os.path.exists(testfile):
-                os.remove(testfile)
+        testfile = str(tmp_path_factory.mktemp("affine") / "affine.npy")
+        s.save_current_affine_transformations(testfile)
+        s_copy.load_affine_transformations(testfile)
         assert U.allclose(
             s.coordinates_g.get_xyz(),
             s_copy.coordinates_g.get_xyz(),
@@ -619,34 +688,28 @@ class TestSPHSource:
             s_copy.coordinates_g.differentials["s"].get_d_xyz(),
         )
 
-    def test_invalid_load_affine_transformations(self, s):
+    def test_invalid_load_affine_transformations(self, s, tmp_path_factory):
         """
         Check that we reject an inconsistent set of affine transformations.
 
         The rotation part of the matrices must match.
         """
-        testfile = "bad_affine.npy"
-        try:
-            np.save(
-                testfile,
-                np.array(
-                    [
-                        np.eye(4),
-                        np.array(
-                            [[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-                        ),
-                    ]
-                ),
-            )
-            with pytest.raises(
-                ValueError,
-                match="Rotation portion of position and velocity affine transforms do not"
-                " match",
-            ):
-                s.load_affine_transformations(testfile)
-        finally:
-            if os.path.exists(testfile):
-                os.remove(testfile)
+        testfile = str(tmp_path_factory.mktemp("affine") / "bad_affine.npy")
+        np.save(
+            testfile,
+            np.array(
+                [
+                    np.eye(4),
+                    np.array([[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]),
+                ]
+            ),
+        )
+        with pytest.raises(
+            ValueError,
+            match="Rotation portion of position and velocity affine transforms do not"
+            " match",
+        ):
+            s.load_affine_transformations(testfile)
 
 
 @pytest.mark.parametrize("source_fixture", ("s", "combined_source"))
@@ -678,7 +741,7 @@ class TestPreview:
         )
 
     @pytest.mark.parametrize("ext", ("pdf", "png"))
-    def test_preview_save(self, source_fixture, request, ext):
+    def test_preview_save(self, source_fixture, request, ext, tmp_path_factory):
         """Check that we can output pdf and png preview images."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -689,12 +752,8 @@ class TestPreview:
         matplotlib.use("Agg")
 
         source = request.getfixturevalue(source_fixture)
-        testfile = f"preview.{ext}"
-        try:
-            plt.close(source.preview(save=testfile))
-        finally:
-            if os.path.exists(testfile):
-                os.remove(testfile)
+        testfile = str(tmp_path_factory.mktemp("preview") / f"preview.{ext}")
+        plt.close(source.preview(save=testfile))
 
 
 class TestEagleSource:
@@ -841,7 +900,7 @@ class TestTNGSource:
                 if os.path.isfile(file_to_cleanup):
                     os.remove(file_to_cleanup)
 
-    def test_TNGSource_with_minisnap(self):
+    def test_TNGSource_with_minisnap(self, tmp_path_factory):
         """Test that we can initialize a TNGSource from a mini snapshot."""
         import os
         from martini.sources.tng_source import cutout_file
@@ -858,8 +917,7 @@ class TestTNGSource:
         simulation = "TNG100-1"
         snapshot = 98  # a mini snapshot
         subhalo_id = 270239
-        api_key = "b71135524a8c29fabe36a08e92b7120c"
-        cutout_dir = "examples"
+        cutout_dir = str(tmp_path_factory.mktemp("tng_cutouts"))
         with pytest.warns(UserWarning, match="NeutralHydrogenAbundance not available"):
             try:
                 # happy enough if we don't crash creating the source:
@@ -890,15 +948,6 @@ class TestTNGSource:
                     assert "CenterOfMass" not in f["PartType0"].keys()
             except HTTPError:
                 pytest.xfail("Failed, but due to TNG server issue.")
-            finally:
-                files_to_cleanup = (
-                    f"{cutout_dir}/martini-cutout-grnr-TNG100-1-98-17227.npy",
-                    f"{cutout_dir}/martini-cutout-grnr-TNG100-1-98-270239.npy",
-                    f"{cutout_dir}/martini-cutout-TNG100-1-98-110.hdf5",
-                )
-                for file_to_cleanup in files_to_cleanup:
-                    if os.path.isfile(file_to_cleanup):
-                        os.remove(file_to_cleanup)
 
 
 class TestFIRESource:
@@ -1075,8 +1124,9 @@ class TestCombinedSource:
                 ]
             )
 
-    def test_unsupported_operations(self, combined_source):
+    def test_unsupported_operations(self, combined_source, tmp_path_factory):
         """Check that unsupported function calls raise."""
+        tp = tmp_path_factory.mktemp("transforms")
         with pytest.raises(NotImplementedError, match="Rotate individual sources"):
             combined_source.rotate(Rotation.from_matrix(np.eye(3)))
         with pytest.raises(NotImplementedError, match="Translate individual sources"):
@@ -1086,19 +1136,11 @@ class TestCombinedSource:
         with pytest.raises(NotImplementedError, match="Current rotation not available"):
             combined_source.current_rotation
         with pytest.raises(NotImplementedError, match="Cannot save rotation"):
-            try:
-                combined_source.save_current_rotation("rot.npy")
-            finally:
-                if os.path.isfile("rot.npy"):
-                    os.remove("rot.npy")
+            combined_source.save_current_rotation(str(tp / "rot.npy"))
         with pytest.raises(NotImplementedError, match="Cannot save affine"):
-            try:
-                combined_source.save_current_affine_transformations("aff.npy")
-            finally:
-                if os.path.isfile("aff.npy"):
-                    os.remove("aff.npy")
+            combined_source.save_current_affine_transformations(str(tp / "aff.npy"))
         with pytest.raises(NotImplementedError, match="Cannot load affine"):
-            combined_source.load_affine_transformations("aff.npy")
+            combined_source.load_affine_transformations(str(tp / "aff.npy"))
 
     def test_mask_uninitialized_props(self, combined_source, dc_zeros):
         """Test that masking applies to both combined and contained sources."""

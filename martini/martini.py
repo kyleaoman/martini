@@ -305,7 +305,7 @@ class _BaseMartini:
         #   - pixcoords         (N, 3)
         #   Total 19 * N * 8B (64-bit floats)
         self.baseline_mem_estimate = (
-            np.prod(self._datacube.current_shape)
+            np.prod(self._datacube.datacube_shape)
             * np.dtype(self._datacube.cube_dtype).itemsize
             + 19 * self.source.npart * 8
         ) / 1024**3  # GB
@@ -315,7 +315,12 @@ class _BaseMartini:
             self._datacube.add_pad(self.beam.needs_pad())
 
         self.source._init_skycoords()
-        self.source._init_pixcoords(self._datacube)  # after datacube is padded
+        self.source._init_pixcoords(
+            self._datacube,
+            los_distance_pixcoords=getattr(
+                self, "_REQUIRES_LOS_DISTANCE_PIXCOORDS", False
+            ),
+        )  # after datacube is padded
 
         self.sph_kernel._init_sm_lengths(source=self.source, datacube=self._datacube)
         self.sph_kernel._init_sm_ranges()
@@ -421,7 +426,7 @@ class _BaseMartini:
             Number of pixels overlapped by each particle.
         """
         return count_grid_intersections(
-            self._datacube.current_shape[:2],
+            self._datacube.datacube_shape[:2],
             self.source.pixcoords[:2].to_value(U.pix).T,
             sm_ranges,
             ncpu=ncpu,
@@ -457,7 +462,7 @@ class _BaseMartini:
             The particle-pixel overlaps.
         """
         return find_grid_intersections(
-            self._datacube.current_shape[:2],
+            self._datacube.datacube_shape[:2],
             self.source.pixcoords[:2, segment].to_value(U.pix).T,
             sm_ranges[segment],
             ncpu=ncpu,
@@ -663,7 +668,7 @@ class _BaseMartini:
         mem_per_hit = (
             4 if weight_and_insert else 4 + 2 * spec_itemsize + 24 * spec_itemsize
         )
-        nx = self._datacube.current_shape[0]
+        nx = self._datacube.datacube_shape[0]
         mem_estimate = (
             px_hits * mem_per_hit
             + self._datacube.n_channels * spec_itemsize
@@ -1777,9 +1782,9 @@ class Martini(_BaseMartini):
             if not compact:
                 # voxel centre coordinates:
                 xgrid, ygrid, vgrid = np.meshgrid(
-                    np.arange(self._datacube.current_shape[0]),
-                    np.arange(self._datacube.current_shape[1]),
-                    np.arange(self._datacube.current_shape[2]),
+                    np.arange(self._datacube.datacube_shape[0]),
+                    np.arange(self._datacube.datacube_shape[1]),
+                    np.arange(self._datacube.datacube_shape[2]),
                     indexing="ij",
                 )
                 cgrid = (
@@ -1801,11 +1806,7 @@ class Martini(_BaseMartini):
                     ).T
                 )
                 wgrid = self._datacube.wcs.all_pix2world(cgrid, origin)
-                grid_shape = (
-                    self.datacube.n_px_x,
-                    self.datacube.n_px_y,
-                    self.datacube.n_channels,
-                )
+                grid_shape = self._datacube.datacube_shape[:3]
                 ragrid = wgrid[:, 0].reshape(grid_shape)
                 decgrid = wgrid[:, 1].reshape(grid_shape)
                 chgrid = wgrid[:, 2].reshape(grid_shape)
@@ -1817,9 +1818,9 @@ class Martini(_BaseMartini):
                 f["channel_mids"].attrs["Unit"] = wcs_header["CUNIT3"]
                 # voxel vertex coordinates (for e.g. pyplot.pcolormesh):
                 xgrid_vertices, ygrid_vertices, vgrid_vertices = np.meshgrid(
-                    np.arange(self._datacube.current_shape[0] + 1) - 0.5,
-                    np.arange(self._datacube.current_shape[1] + 1) - 0.5,
-                    np.arange(self._datacube.current_shape[2] + 1) - 0.5,
+                    np.arange(self._datacube.datacube_shape[0] + 1) - 0.5,
+                    np.arange(self._datacube.datacube_shape[1] + 1) - 0.5,
+                    np.arange(self._datacube.datacube_shape[2] + 1) - 0.5,
                     indexing="ij",
                 )
                 cgrid_vertices = (
@@ -1843,11 +1844,9 @@ class Martini(_BaseMartini):
                 wgrid_vertices = self._datacube.wcs.all_pix2world(
                     cgrid_vertices, origin
                 )
-                vertices_grid_shape = (
-                    self.datacube.n_px_x + 1,
-                    self.datacube.n_px_y + 1,
-                    self.datacube.n_channels + 1,
-                )
+                vertices_grid_shape = [
+                    shape_i + 1 for shape_i in self._datacube.datacube_shape[:3]
+                ]
                 ragrid_vertices = wgrid_vertices[:, 0].reshape(vertices_grid_shape)
                 decgrid_vertices = wgrid_vertices[:, 1].reshape(vertices_grid_shape)
                 chgrid_vertices = wgrid_vertices[:, 2].reshape(vertices_grid_shape)
