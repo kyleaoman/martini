@@ -1455,18 +1455,21 @@ class Martini(_BaseMartini):
             return
 
         with self._logger.step("Adding noise...", "Noise added", quiet=self.quiet):
-            # this unit conversion means noise can be added before or after source
-            # insertion (converted in place to avoid copies of the noise cube):
-            noise_cube = _to_unit_in_place(
-                self.noise.generate(self._datacube, self.beam),
-                U.Jy * U.arcsec**-2,
-                equivalencies=U.beam_angular_area(self.beam.area),
-            )
-            noise_cube = _to_unit_in_place(
-                noise_cube,
-                self._datacube.current_units,
-                equivalencies=[self._datacube.arcsec2_to_pix],
-            )
+            noise_cube = self.noise.generate(self._datacube, self.beam)
+            if noise_cube.unit != self._datacube.current_units:
+                # e.g. noise models returning Jy/beam (converted in place to avoid
+                # copies of the noise cube):
+                beam_area_equivalencies = U.beam_angular_area(self.beam.area)
+                noise_cube = _to_unit_in_place(
+                    noise_cube,
+                    U.Jy * U.arcsec**-2,
+                    equivalencies=beam_area_equivalencies,
+                )
+                noise_cube = _to_unit_in_place(
+                    noise_cube,
+                    self._datacube.current_units,
+                    equivalencies=[self._datacube.arcsec2_to_pix],
+                )
             self._datacube._array += noise_cube
         if not self.quiet:
             self._logger.message(

@@ -92,3 +92,77 @@ class TestNoise:
 
         assert noise_generator.seed is not None
         assert U.allclose(noise1, noise2)
+
+
+class _JyPerBeamNoise(GaussianNoise):
+    """Gaussian noise returned in Jy/beam, as a user-defined noise model might do."""
+
+    def generate(self, datacube, beam):
+        """
+        Create a cube containing Gaussian noise in units of Jy/beam.
+
+        Parameters
+        ----------
+        datacube : ~martini.datacube.DataCube
+            The data cube.
+
+        beam : ~martini.beams._BaseBeam
+            The beam.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Noise realization in Jy/beam.
+        """
+        noise = super().generate(datacube, beam)
+        return noise.to(
+            U.Jy * U.arcsec**-2, equivalencies=[datacube.arcsec2_to_pix]
+        ).to(U.Jy * U.beam**-1, equivalencies=U.beam_angular_area(beam.area))
+
+
+class TestNoiseUnits:
+    """Test that noise is generated in, or converted to, the data cube's units."""
+
+    def test_generated_in_cube_units(self):
+        """Check noise is generated in the cube's units, matching the Jy/beam noise."""
+        rms = 1.0 * U.Jy * U.beam**-1
+        seed = 3
+        datacube = DataCube(
+            n_px_x=32,
+            n_px_y=32,
+            n_channels=8,
+            px_size=15 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+        )
+        beam = GaussianBeam()
+        beam.init_kernel(datacube)
+        noise = GaussianNoise(rms=rms, seed=seed).generate(datacube, beam)
+        assert noise.unit == datacube.current_units
+        # expected: noise drawn in Jy/beam (pre-convolution rms), then converted:
+        sig_maj = (beam.bmaj / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
+            U.dimensionless_unscaled
+        )
+        sig_min = (beam.bmin / 2 / np.sqrt(2 * np.log(2)) / datacube.px_size).to_value(
+            U.dimensionless_unscaled
+        )
+        rms_pre = rms * 2.19568 * np.sqrt(np.pi * sig_maj * sig_min)
+        expected = rms_pre * np.random.default_rng(seed).standard_normal(
+            size=datacube._array.shape, dtype=datacube.cube_dtype
+        )
+        expected = expected.to(
+            U.Jy * U.arcsec**-2, equivalencies=U.beam_angular_area(beam.area)
+        ).to(datacube.current_units, equivalencies=[datacube.arcsec2_to_pix])
+        assert U.allclose(noise, expected)
+
+    def test_other_units_converted(self, m_init):
+        """Check that noise models returning Jy/beam give the same data cube."""
+        rms = m_init.noise.target_rms
+        initial = m_init.datacube._array.copy()
+        m_init.noise = GaussianNoise(rms=rms, seed=5)
+        m_init.add_noise()
+        expected = m_init.datacube._array.copy()
+        m_init.datacube._array[...] = initial
+        m_init.noise = _JyPerBeamNoise(rms=rms, seed=5)
+        m_init.add_noise()
+        assert m_init.datacube._array.unit == expected.unit
+        assert U.allclose(m_init.datacube._array, expected)

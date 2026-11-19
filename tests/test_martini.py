@@ -321,16 +321,9 @@ class TestMartini:
         expected_noise = m_init.noise.generate(m_init.datacube, m_init.beam)
         m_init.noise.reset_rng()
         m_init.add_noise()
-        assert U.allclose(
-            m_init.datacube._array,
-            expected_noise.to(
-                U.Jy * U.arcsec**-2,
-                equivalencies=U.beam_angular_area(m_init.beam.area),
-            ).to(
-                m_init.datacube._array.unit,
-                equivalencies=[m_init.datacube.arcsec2_to_pix],
-            ),
-        )
+        # noise is generated in the units of the data cube:
+        assert expected_noise.unit == m_init.datacube._array.unit
+        assert U.allclose(m_init.datacube._array, expected_noise)
 
     @pytest.mark.parametrize(
         ("ra_off", "ra_in"),
