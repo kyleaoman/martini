@@ -68,7 +68,7 @@ jobs:
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
       run: |
-        pytest
+        pytest -n 2
 
   tests-and-coverage:
     needs: lint
@@ -89,7 +89,7 @@ jobs:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
         NUMBA_DISABLE_JIT: "1"
       run: |
-        pytest --cov=./ --cov-report=xml
+        pytest -n 2 --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       env:
