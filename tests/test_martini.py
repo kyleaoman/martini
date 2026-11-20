@@ -517,6 +517,123 @@ class TestMartini:
         kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
         assert set(kept) == set(np.flatnonzero(expect_particle))
 
+    @pytest.mark.parametrize(
+        ("los_off", "los_in"),
+        (
+            (0 * U.kpc, True),
+            (3 * U.kpc, True),
+            (9 * U.kpc, False),
+            (-3 * U.kpc, True),
+            (-9 * U.kpc, False),
+        ),
+    )
+    @pytest.mark.parametrize("los_distance", (True, False))
+    def test_prune_los_distance(
+        self, los_off, los_in, los_distance, single_particle_source
+    ):
+        """
+        Test pruning particles along the line-of-sight distance axis.
+
+        Check that a particle offset by a specific line-of-sight distance is
+        inside/outside the cube as expected. The line-of-sight extent of the cube matches
+        its (padded) extent in RA.
+        """
+
+        class _LOSDistanceMartini(_BaseMartini):
+            _REQUIRES_LOS_DISTANCE_PIXCOORDS = True
+
+        expect_particle = los_in if los_distance else True
+        # set distance so that 1kpc = 1arcsec, pixels are locally cubic so this is also
+        # (approximately) 1px along the line of sight
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        source = single_particle_source(
+            distance=distance,
+            xyz_g=U.Quantity([[los_off.to_value(U.kpc), 0, 0]], U.kpc),
+        )
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        # pad size will be 5, so datacube is 12x12 pixels
+        beam = GaussianBeam(bmaj=1 * U.arcsec, bmin=1 * U.arcsec, truncate=4)
+        kwargs = {
+            "source": source,
+            "datacube": datacube,
+            "beam": beam,
+            "noise": None,
+            "sph_kernel": _CubicSplineKernel(),
+            "spectral_model": GaussianSpectrum(sigma=1 * U.km / U.s),
+            "_prune_kwargs": {
+                "spatial": True,
+                "spectral": False,
+                "mass": False,
+                "los_distance": los_distance,
+            },
+        }
+        # if more than 1px (datacube) + 5px (pad) + ~1.4px (sm_range) then expect to prune
+        if not expect_particle:
+            with pytest.raises(
+                RuntimeError,
+                match="No non-zero mHI source particles in target region.",
+            ):
+                _LOSDistanceMartini(**kwargs)
+        else:
+            assert _LOSDistanceMartini(**kwargs).source.npart == 1
+
+    def test_prune_nothing_preserves_shape(self, many_particle_source):
+        """Check that pruning with no active conditions leaves array shapes unchanged."""
+        source = many_particle_source()
+        npart = source.npart
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.vsys,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=_CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            _prune_kwargs={"spatial": False, "spectral": False, "mass": False},
+        )
+        assert m.source.npart == npart
+        assert m.source.mHI_g.shape == (npart,)
+        assert m.source.pixcoords.shape == (3, npart)
+        assert m.sph_kernel.sm_ranges.shape == (npart,)
+
+    def test_prune_los_distance_requires_los_pixcoords(self, single_particle_source):
+        """Check that pruning in line-of-sight distance needs those pixel coordinates."""
+        source = single_particle_source()
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.vsys,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        with pytest.raises(ValueError, match="requires source.los_distance_pixcoords"):
+            _BaseMartini(
+                source=source,
+                datacube=datacube,
+                sph_kernel=_CubicSplineKernel(),
+                spectral_model=GaussianSpectrum(),
+                _prune_kwargs={"los_distance": True},
+            )
+
     def test_prune_nan(self, single_particle_source):
         """
         Check that particles with nan coordinates are removed.

@@ -669,17 +669,20 @@ class CombinedSource(SPHSource):
         return self._pixcoords
 
     @property
-    def los_distance_pixcoords(self) -> U.Quantity[U.pix]:
+    def los_distance_pixcoords(self) -> U.Quantity[U.pix] | None:
         """
         Get the combined pixel-scale distance offsets from all of the combined sources.
 
         Returns
         -------
-        ~astropy.units.Quantity
+        ~astropy.units.Quantity or None
             :class:`~astropy.units.Quantity`, with dimensions of pixels. LoS distance
-            offsets from source distance in pixel units.
+            offsets from source distance in pixel units. ``None`` if these have not been
+            initialized for the combined sources.
         """
         if self._los_distance_pixcoords is None:
+            if any(source.los_distance_pixcoords is None for source in self.sources):
+                return None
             self._los_distance_pixcoords = np.concatenate(
                 [
                     np.atleast_1d(source.los_distance_pixcoords)

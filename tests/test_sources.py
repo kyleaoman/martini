@@ -1297,13 +1297,20 @@ class TestCombinedSource:
     def test_los_distance_pixcoords(self, combined_source, dc_zeros):
         """Check that LoS pixel coordinates are combined from the contained sources."""
         combined_source._init_skycoords()
+        combined_source._init_pixcoords(dc_zeros)
+        assert combined_source.los_distance_pixcoords is None
         combined_source._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
+        assert combined_source.los_distance_pixcoords.shape == (combined_source.npart,)
         assert U.allclose(
             combined_source.los_distance_pixcoords,
             np.concatenate(
                 [source.los_distance_pixcoords for source in combined_source.sources]
             ),
         )
+        mask = np.ones(combined_source.npart, dtype=bool)
+        mask[::2] = False
+        combined_source.apply_mask(mask)
+        assert combined_source.los_distance_pixcoords.shape == (combined_source.npart,)
 
     @pytest.mark.parametrize(
         "field, unit", [("T_g", U.K), ("mHI_g", U.Msun), ("hsm_g", U.kpc)]

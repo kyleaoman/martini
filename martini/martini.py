@@ -337,6 +337,7 @@ class _BaseMartini:
         spatial: bool = True,
         spectral: bool = True,
         mass: bool = True,
+        los_distance: bool = False,
     ) -> None:
         """
         Identify and remove particles that cannot contribute to the DataCube.
@@ -353,7 +354,16 @@ class _BaseMartini:
             If ``True``, prune particles that fall outside the spectral bandwidth.
         mass : bool
             If ``True``, prune particles that have zero HI mass.
+        los_distance : bool
+            If ``True``, prune particles that fall outside the line-of-sight distance
+            extent of the region. Requires ``source.los_distance_pixcoords``.
         """
+        if los_distance and self.source.los_distance_pixcoords is None:
+            raise ValueError(
+                "Pruning along the line-of-sight distance axis requires "
+                "'source.los_distance_pixcoords', set '_REQUIRES_LOS_DISTANCE_PIXCOORDS' "
+                "class attribute to 'True' to initialize them."
+            )
         with self._logger.step(
             f"Pruning particles that will not contribute to {self._target_name}...",
             "Pruned particles",
@@ -393,11 +403,22 @@ class _BaseMartini:
                 if spectral
                 else tuple()
             )
+            los_distance_reject_conditions = (
+                (
+                    self.source.los_distance_pixcoords + self.sph_kernel.sm_ranges
+                    < 0 * U.pix,
+                    self.source.los_distance_pixcoords - self.sph_kernel.sm_ranges
+                    > (self._datacube.n_px_x + self._datacube.padx * 2) * U.pix,
+                )
+                if los_distance
+                else tuple()
+            )
             mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
             accept_mask = np.logical_not(
                 np.logical_or.reduce(
                     (np.zeros(self.source.npart, dtype=bool),)
                     + spatial_reject_conditions
+                    + los_distance_reject_conditions
                     + spectral_reject_conditions
                     + mass_reject_conditions
                 )
