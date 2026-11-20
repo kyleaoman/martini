@@ -77,6 +77,39 @@ class TestSourceUtilities:
         saved_rotmat = np.load(testfile)
         assert np.allclose(rotmat, saved_rotmat)
 
+    @pytest.mark.parametrize(
+        ("shape", "match"),
+        (
+            ((3,), "ndim != 2"),
+            ((3, 3), r"shape \(3, 3\)"),
+            ((4, 5), "one dim must be 3"),
+        ),
+    )
+    def test_L_align_bad_shape(self, shape, match):
+        """Check that we refuse to guess the coordinate axis for ambiguous input."""
+        xyz = np.ones(shape) * U.kpc
+        vxyz = np.ones(shape) * U.km / U.s
+        m = np.ones(shape[-1]) * U.Msun
+        with pytest.raises(ValueError, match=match):
+            L_align(xyz, vxyz, m)
+
+    def test_L_align_bad_Laxis(self):
+        """Check that we reject an invalid axis to align with."""
+        xyz = np.array([[1, 0, 0], [0, 1, 0]]) * U.kpc
+        vxyz = np.array([[0, 1, 0], [-1, 0, 0]]) * U.km / U.s
+        m = np.ones(2) * U.Msun
+        with pytest.raises(ValueError, match="Laxis must be one of"):
+            L_align(xyz, vxyz, m, Laxis="w")
+
+    def test_L_align_degenerate(self):
+        """Check that we raise if L is exactly along the arbitrary reference vector."""
+        # L = r x v = (1, 1, 1) exactly
+        xyz = np.array([[1, -1, 0]]) * U.kpc
+        vxyz = np.array([[0, 1, -1]]) * U.km / U.s
+        m = np.ones(1) * U.Msun
+        with pytest.raises(RuntimeError, match="exactly aligned"):
+            L_align(xyz, vxyz, m)
+
     def test_translate(self):
         """Check that cartesian representation transforms correctly."""
         setattr(CartesianRepresentation, "translate", translate)

@@ -111,24 +111,22 @@ class _BaseBeam(object):
             Data cube to use, cube size is required for pixel size, position &
             velocity centroids.
         """
-        self.px_size = datacube.px_size
+        px_size = datacube.px_size  # local variable placates mypy
+        self.px_size = px_size
         self.vel = datacube.spectral_centre
         self.ra = datacube.ra
         self.dec = datacube.dec
         if (self.bmaj is None) or (self.bmin is None) or (self.bpa is None):
             self.init_beam_header()
         npx_x, npx_y = self.kernel_size_px()
-        if self.px_size is not None:
-            px_size_unit = self.px_size.unit
-        else:
-            raise RuntimeError("Beam pixel size not initialized.")
-        px_edges_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 1) * self.px_size
-        px_edges_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 1) * self.px_size
+        px_size_unit = px_size.unit
+        px_edges_x = np.arange(-npx_x - 0.5, npx_x + 0.50001, 1) * px_size
+        px_edges_y = np.arange(-npx_y - 0.5, npx_y + 0.50001, 1) * px_size
         # Elliptical Gaussian has no analytic surface integral in cartesian coordinates
         # and other beam shapes presumably much worse, so let's make a spline interpolator
         # based on a fine sampling of the beam function and integrate that.
-        fine_sample_x = np.arange(-npx_x - 0.5, npx_x + 0.501, 0.1) * self.px_size
-        fine_sample_y = np.arange(-npx_y - 0.5, npx_y + 0.501, 0.1) * self.px_size
+        fine_sample_x = np.arange(-npx_x - 0.5, npx_x + 0.501, 0.1) * px_size
+        fine_sample_y = np.arange(-npx_y - 0.5, npx_y + 0.501, 0.1) * px_size
         # set meshgrid indexing to avoid unintentional transpose
         rbs = scipy.interpolate.RectBivariateSpline(
             fine_sample_x.to_value(px_size_unit),

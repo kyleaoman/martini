@@ -14,7 +14,8 @@ from astropy.coordinates import (
     CartesianDifferential,
 )
 from martini.sources.sph_source import SPHSource
-from ..datacube import HIfreq, DataCube
+from ..datacube import DataCube
+from .._util import HIfreq
 from ..L_coords import L_coords
 from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING

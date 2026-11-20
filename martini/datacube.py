@@ -10,16 +10,12 @@ from astropy.wcs.wcs import WCS
 from astropy.coordinates import ICRS, SpectralCoord
 import warnings
 from astropy.coordinates import frame_transform_graph
+from ._util import HIfreq
 
 if TYPE_CHECKING:
     from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
-
-try:
-    from typing import Self
-except ImportError:
     from typing_extensions import Self
 
-HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
 _supported_specsys = frame_transform_graph.get_names()
 
 
@@ -284,7 +280,7 @@ class DataCube(object):
         self._cube_data = value
 
     @classmethod
-    def from_wcs(cls, input_wcs: WCS, specsys: str | None = None) -> Self:
+    def from_wcs(cls, input_wcs: WCS, specsys: str | None = None) -> "Self":
         """
         Create a DataCube from a World Coordinate System (WCS).
 
@@ -656,7 +652,7 @@ class DataCube(object):
             Index of the Stokes' axis (or ``None`` if it is not present).
         """
         for index, axis_type in enumerate(self.wcs.get_axis_types()):
-            if axis_type == "stokes":
+            if axis_type["coordinate_type"] == "stokes":
                 return index
         return None  # not found
 
@@ -823,7 +819,7 @@ class DataCube(object):
         self.padx, self.pady = 0, 0
         return
 
-    def copy(self) -> Self:
+    def copy(self) -> "Self":
         """
         Produce a copy of the :class:`~martini.datacube.DataCube`.
 
@@ -918,7 +914,7 @@ class DataCube(object):
         return
 
     @classmethod
-    def load_state(cls, filename: str) -> Self:
+    def load_state(cls, filename: str) -> "Self":
         """
         Initialize a :class:`~martini.datacube.DataCube` from a state saved.
 

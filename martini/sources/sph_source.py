@@ -23,7 +23,8 @@ from ._extra_cartesian_transforms import (
     affine_transform,
     affine_transform_d,
 )
-from ..datacube import HIfreq, DataCube
+from .._util import HIfreq
+from ..datacube import DataCube
 from ..L_coords import L_coords
 
 if TYPE_CHECKING:

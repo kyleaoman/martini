@@ -81,6 +81,27 @@ class TestDataCube:
         assert len(list(dc_zeros.spatial_slices)) == dc_zeros.n_channels
         assert len(list(dc_zeros.spectra)) == dc_zeros.n_px_x * dc_zeros.n_px_y
 
+    def test_stokes_index(self, dc_zeros):
+        """Check that we locate the Stokes' axis, if present."""
+        if dc_zeros.stokes_axis:
+            assert dc_zeros._stokes_index == 3
+        else:
+            assert dc_zeros._stokes_index is None
+
+    @pytest.mark.parametrize("stokes_axis", (True, False))
+    def test_iterators_single_channel(self, stokes_axis):
+        """Check that iterators only drop the Stokes' axis, not other length-1 axes."""
+        dc = DataCube(
+            n_px_x=2,
+            n_px_y=3,
+            n_channels=1,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            stokes_axis=stokes_axis,
+        )
+        assert [s.shape for s in dc.spatial_slices] == [(2, 3)]
+        assert [s.shape for s in dc.spectra] == [(1,)] * 6
+
     def test_freq_channels(self, dc_zeros):
         """Check that frequency channels match WCS."""
         spec_unit = U.Unit(dc_zeros.wcs.wcs.cunit[dc_zeros.wcs.wcs.spec], format="fits")

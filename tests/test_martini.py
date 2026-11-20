@@ -350,6 +350,59 @@ class TestMartini:
         assert expected_noise.unit == m_init.datacube._array.unit
         assert U.allclose(m_init.datacube._array, expected_noise)
 
+    def test_add_noise_without_noise(self, m_init):
+        """Check that adding noise is skipped (with a warning) without a noise model."""
+        m_init.noise = None
+        with pytest.warns(UserWarning, match="Skipping noise, no noise object"):
+            m_init.add_noise()
+        assert m_init.datacube._array.sum() == 0
+
+    def test_add_noise_without_beam(self, m_init):
+        """Check that adding noise is skipped (with a warning) without a beam."""
+        m_init.beam = None
+        with pytest.warns(UserWarning, match="Skipping noise, no beam object"):
+            m_init.add_noise()
+        assert m_init.datacube._array.sum() == 0
+
+    def test_convolve_beam_insufficient_padding(self, m_init):
+        """Check that we refuse to convolve if the padding is too small for the beam."""
+        m_init._datacube.drop_pad()
+        with pytest.raises(ValueError, match="datacube padding insufficient"):
+            m_init.convolve_beam()
+
+    def test_write_fits_long_obj_name(self, m_init, tmp_path):
+        """Check that an object name too long for the FITS header is truncated."""
+        filename = tmp_path / "cube.fits"
+        with pytest.warns(RuntimeWarning, match="obj_name longer than 16 characters"):
+            m_init.write_fits(filename, obj_name="a_very_long_object_name")
+        with fits.open(filename) as f:
+            assert f[0].header["OBJECT"] == "a_very_long_obje"
+
+    def test_write_beam_fits_without_beam(self, m_init, tmp_path):
+        """Check that writing the beam fails if there is no beam."""
+        m_init.beam = None
+        with pytest.raises(ValueError, match="Called with beam set to 'None'"):
+            m_init.write_beam_fits(tmp_path / "beam.fits")
+
+    def test_write_hdf5_uninitialized_beam(self, m_init, tmp_path):
+        """Check that writing hdf5 fails if the beam kernel is uninitialized."""
+        pytest.importorskip("h5py", reason="h5py (optional dependency) not available.")
+        m_init.beam.kernel = None
+        with pytest.raises(ValueError, match="beam kernel uninitialized"):
+            m_init.write_hdf5(str(tmp_path / "cube.hdf5"))
+
+    def test_write_hdf5_memmap(self, m_init, tmp_path):
+        """Check that writing hdf5 with ``memmap=True`` returns the open file."""
+        h5py = pytest.importorskip(
+            "h5py", reason="h5py (optional dependency) not available."
+        )
+        f = m_init.write_hdf5(str(tmp_path / "cube.hdf5"), memmap=True)
+        try:
+            assert isinstance(f, h5py.File)
+            assert f["FluxCube"].shape == m_init.datacube._array.shape
+        finally:
+            f.close()
+
     @pytest.mark.parametrize(
         ("ra_off", "ra_in"),
         (
@@ -544,7 +597,7 @@ class TestMartini:
         m._datacube._allocate_cube()
         assert m.datacube._array.shape == expected_shape
 
-    def test_preview(self, m_init):
+    def test_preview(self, m_init, tmp_path):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -566,6 +619,9 @@ class TestMartini:
                 title="test",
             )
         )
+        # saving to file
+        plt.close(m_init.preview(save=tmp_path / "preview.png"))
+        assert (tmp_path / "preview.png").exists()
 
     def test_preview_warning_ra_dec(self, m_init):
         """Check that we warn if the datacube is too big in RA."""
@@ -1259,7 +1315,39 @@ class TestGlobalProfile:
         m.channel_edges.to(expected_units)
         m.channel_mids.to(expected_units)
 
-    def test_view_spectrum(self, gp):
+    def test_frequency_and_velocity_channels(self, gp):
+        """Check that channels are available in both frequency and velocity units."""
+        for attr in (
+            "frequency_channel_edges",
+            "frequency_channel_mids",
+            "velocity_channel_edges",
+            "velocity_channel_mids",
+        ):
+            assert U.allclose(getattr(gp, attr), getattr(gp._datacube, attr))
+        assert gp.frequency_channel_edges.unit.is_equivalent(U.Hz)
+        assert gp.velocity_channel_edges.unit.is_equivalent(U.km / U.s)
+        assert gp.frequency_channel_edges.size == gp.frequency_channel_mids.size + 1
+        assert U.allclose(
+            gp.velocity_channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
+            gp.frequency_channel_mids,
+        )
+
+    def test_spectrum_inserts_source(self, single_particle_source):
+        """Check that accessing the spectrum inserts the source if not yet done."""
+        source = single_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(),
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            quiet=True,
+        )
+        assert not hasattr(m, "_spectrum")
+        assert m.spectrum.sum() > 0
+        assert hasattr(m, "_spectrum")
+
+    def test_view_spectrum(self, gp, tmp_path):
         """Simply check that plotting spectrum runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -1273,6 +1361,13 @@ class TestGlobalProfile:
         plt.close(gp.plot_spectrum())
         # with non-default arguments
         plt.close(gp.plot_spectrum(title="test", show_vsys=False))
+        # in frequency units
+        plt.close(gp.plot_spectrum(channels="frequency"))
+        # saving to file
+        plt.close(gp.plot_spectrum(save=tmp_path / "spectrum.png"))
+        assert (tmp_path / "spectrum.png").exists()
+        with pytest.raises(ValueError, match="must be 'velocity' or 'frequency'"):
+            gp.plot_spectrum(channels="wavelength")
 
 
 class TestMartiniWithDataCubeFromWCS:

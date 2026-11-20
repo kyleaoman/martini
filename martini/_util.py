@@ -20,6 +20,8 @@ if not NUMBA_AVAILABLE:
         RuntimeWarning,
     )
 
+HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
+
 
 def resolve_ncpu(ncpu: int) -> int:
     """

@@ -38,6 +38,7 @@ from martini._util import (
     numba_threads,
     resolve_ncpu,
     _to_unit_in_place,
+    HIfreq,
 )
 from martini._logging import _ProgressLogger
 from typing import TYPE_CHECKING
@@ -2327,7 +2328,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.velocity_channel_edges
         martini.martini.GlobalProfile.frequency_channel_mids
         """
-        return self._datacube.channel_edges
+        return self._datacube.frequency_channel_edges
 
     @property
     @U.quantity_input
@@ -2347,7 +2348,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.velocity_channel_edges
         martini.martini.GlobalProfile.frequency_channel_edges
         """
-        return self._datacube.channel_mids
+        return self._datacube.frequency_channel_mids
 
     @property
     @U.quantity_input
@@ -2367,7 +2368,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.frequency_channel_mids
         martini.martini.GlobalProfile.frequency_channel_edges
         """
-        return self._datacube.channel_edges
+        return self._datacube.velocity_channel_edges
 
     @property
     @U.quantity_input
@@ -2387,7 +2388,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.frequency_channel_mids
         martini.martini.GlobalProfile.frequency_channel_edges
         """
-        return self._datacube.channel_mids
+        return self._datacube.velocity_channel_mids
 
     @property
     @U.quantity_input
@@ -2473,7 +2474,7 @@ class GlobalProfile(_BaseMartini):
         )
         if show_vsys:
             ax.axvline(
-                self.source.vsys.to_value(xunit),
+                self.source.vsys.to_value(xunit, equivalencies=U.doppler_radio(HIfreq)),
                 linestyle="dotted",
                 lw=1.5,
                 color="black",

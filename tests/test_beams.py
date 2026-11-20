@@ -86,3 +86,40 @@ class TestGaussianBeam:
         bmin = None
         b = GaussianBeam(bmaj=bmaj, bmin=bmin)
         assert b.bmin == b.bmaj
+
+
+class TestBaseBeam:
+    """Test generic beam functionality."""
+
+    def test_needs_pad_uninitialized(self):
+        """Check that requesting the padding before initializing the kernel raises."""
+        with pytest.raises(RuntimeError, match="Beam kernel not initialized."):
+            GaussianBeam().needs_pad()
+
+    def test_deferred_beam_header(self):
+        """Check that the beam header is initialized with the kernel if not set."""
+
+        class DeferredGaussianBeam(GaussianBeam):
+            """A beam with header initialized only when the kernel is initialized."""
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.bmaj = self.bmin = self.bpa = None
+
+            def init_beam_header(self) -> None:
+                self.bmaj = self.bmin = 15 * U.arcsec
+                self.bpa = 0 * U.deg
+
+        d = DataCube(
+            n_px_x=1,
+            n_px_y=1,
+            n_channels=1,
+            px_size=5 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+        )
+        b = DeferredGaussianBeam()
+        b.init_kernel(d)
+        reference = GaussianBeam(bmaj=15 * U.arcsec)
+        reference.init_kernel(d)
+        assert b.bmaj == reference.bmaj
+        assert U.allclose(b.kernel, reference.kernel)
