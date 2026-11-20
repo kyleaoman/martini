@@ -1,6 +1,7 @@
 """Test the functionality of the main martini module."""
 
 import re
+import itertools
 import pytest
 import warnings
 import numpy as np
@@ -8,6 +9,7 @@ from martini.martini import Martini, GlobalProfile, _BaseMartini, _plan_segments
 from martini.datacube import DataCube, HIfreq
 from martini._grid_search import FindGridIntersectionsResult
 import martini._util
+import martini.martini
 from martini._util import resolve_ncpu
 from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels, recommended_kernels
@@ -265,6 +267,42 @@ class TestMartini:
                 dtype = np.float64
             assert f[0].data.dtype.type == dtype
 
+    @pytest.mark.parametrize("dtype", (None, np.float32, np.int32, np.uint8, np.uint16))
+    def test_fits_streamed_matches_astropy(
+        self, dc_random, dtype, single_particle_source, tmp_path, monkeypatch
+    ):
+        """Check that streamed FITS output is identical to writing without streaming."""
+        source = single_particle_source()
+        m = Martini(
+            source=source,
+            datacube=dc_random,
+            beam=GaussianBeam(),
+            noise=None,
+            spectral_model=GaussianSpectrum(),
+            sph_kernel=_CubicSplineKernel(),
+            quiet=True,
+        )
+        m.write_fits(tmp_path / "streamed.fits", dtype=dtype)
+        # without native FITS types, everything is written without streaming:
+        monkeypatch.setattr(martini.martini, "_FITS_BITPIX", {})
+        m.write_fits(tmp_path / "astropy.fits", dtype=dtype)
+        diff = fits.FITSDiff(
+            str(tmp_path / "streamed.fits"),
+            str(tmp_path / "astropy.fits"),
+            ignore_keywords=["DATE-OBS", "MJD-OBS"],
+        )
+        assert diff.identical, diff.report()
+
+    def test_fits_overwrite(self, m_init, tmp_path):
+        """Check that existing FITS files are only replaced if requested."""
+        filename = tmp_path / "cube.fits"
+        m_init.write_fits(filename)
+        m_init.write_fits(filename, overwrite=True)
+        with fits.open(filename) as f:
+            assert len(f) == 1  # replaced, not appended to
+        with pytest.raises(OSError, match="already exists"):
+            m_init.write_fits(filename, overwrite=False)
+
     def test_convolve_beam(self, single_particle_source):
         """Check that beam convolution gives result matching manual calculation."""
         source = single_particle_source()
@@ -403,85 +441,52 @@ class TestMartini:
         finally:
             f.close()
 
-    @pytest.mark.parametrize(
-        ("ra_off", "ra_in"),
-        (
-            (0 * U.arcsec, True),
-            (3 * U.arcsec, True),
-            (9 * U.arcsec, False),
-            (-3 * U.arcsec, True),
-            (-9 * U.arcsec, False),
-        ),
-    )
-    @pytest.mark.parametrize(
-        ("dec_off", "dec_in"),
-        (
-            (0 * U.arcsec, True),
-            (3 * U.arcsec, True),
-            (9 * U.arcsec, False),
-            (-3 * U.arcsec, True),
-            (-9 * U.arcsec, False),
-        ),
-    )
-    @pytest.mark.parametrize(
-        ("v_off", "v_in"),
-        (
-            (0 * U.km / U.s, True),
-            (3 * U.km / U.s, True),
-            (7 * U.km / U.s, False),
-            (-3 * U.km / U.s, True),
-            (-7 * U.km / U.s, False),
-        ),
-    )
-    @pytest.mark.parametrize(("mass_off", "mass_in"), ((0, False), (1, True)))
     @pytest.mark.parametrize("spatial", (True, False))
     @pytest.mark.parametrize("spectral", (True, False))
     @pytest.mark.parametrize("mass", (True, False))
-    def test_prune_particles(
-        self,
-        ra_off,
-        ra_in,
-        dec_off,
-        dec_in,
-        v_off,
-        v_in,
-        mass_off,
-        mass_in,
-        single_particle_source,
-        spatial,
-        spectral,
-        mass,
-    ):
+    def test_prune_particles(self, many_particle_source, spatial, spectral, mass):
         """
         Test pruning particles unused in the creation of the mock.
 
-        Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
-        the cube as expected.
+        Check that particles offset by specific sets of (RA, Dec, v) are inside/outside
+        the cube as expected. All combinations of offsets are tested at once, with one
+        particle per combination.
         """
-        if spatial and spectral and mass:
-            expect_particle = all((ra_in, dec_in, v_in, mass_in))
-        elif spatial and spectral and not mass:
-            expect_particle = all((ra_in, dec_in, v_in))
-        elif spatial and not spectral and mass:
-            expect_particle = all((ra_in, dec_in, mass_in))
-        elif spatial and not spectral and not mass:
-            expect_particle = all((ra_in, dec_in))
-        elif not spatial and spectral and mass:
-            expect_particle = all((v_in, mass_in))
-        elif not spatial and spectral and not mass:
-            expect_particle = v_in
-        elif not spectral and not spatial and mass:
-            expect_particle = mass_in
-        elif not spectral and not spatial and not mass:
-            expect_particle = True
-        # set distance so that 1kpc = 1arcsec
+        # (offset, expected inside) along each axis
+        ra_offs = ((0, True), (3, True), (9, False), (-3, True), (-9, False))  # arcsec
+        dec_offs = ((0, True), (3, True), (9, False), (-3, True), (-9, False))  # arcsec
+        v_offs = ((0, True), (3, True), (7, False), (-3, True), (-7, False))  # km/s
+        mass_offs = ((0, False), (1, True))
+        combinations = list(itertools.product(ra_offs, dec_offs, v_offs, mass_offs))
+        # one (offsets, expected inside) pair of arrays per axis, one entry per particle
+        (ra_off, ra_in), (dec_off, dec_in), (v_off, v_in), (mass_off, mass_in) = (
+            (
+                np.array([off for off, _ in axis]),
+                np.array([inside for _, inside in axis]),
+            )
+            for axis in zip(*combinations)
+        )
+        expect_particle = np.ones(len(combinations), dtype=bool)
+        if spatial:
+            expect_particle &= ra_in & dec_in
+        if spectral:
+            expect_particle &= v_in
+        if mass:
+            expect_particle &= mass_in
+        # set distance so that 1kpc = 1arcsec, then for a source at (RA, Dec) = (0, 0)
+        # y and z offsets in kpc are RA and Dec offsets in arcsec, and vx is along the
+        # line of sight (x = 0 so that the Hubble flow doesn't contribute)
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
-        source = single_particle_source(
+        source = many_particle_source(
             distance=distance,
-            ra=ra_off,
-            dec=dec_off,
-            vpeculiar=v_off,
-            mHI_g=mass_off * np.ones(1) * 1.0e4 * U.Msun,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+            xyz_g=np.column_stack((np.zeros(ra_off.size), ra_off, dec_off)) * U.kpc,
+            vxyz_g=np.column_stack((v_off, np.zeros((v_off.size, 2)))) * U.km / U.s,
+            mHI_g=mass_off * 1.0e4 * U.Msun,
+            # label particles with their index to find which are kept
+            T_g=(1.0e4 + np.arange(ra_off.size)) * U.K,
+            hsm_g=np.ones(ra_off.size) * U.kpc,
         )
         datacube = DataCube(
             n_px_x=2,
@@ -498,25 +503,19 @@ class TestMartini:
         sph_kernel = _CubicSplineKernel()
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
         # need to use _BaseMartini below to manipulate _prune_kwargs
-        kwargs = {
-            "source": source,
-            "datacube": datacube,
-            "beam": beam,
-            "noise": None,
-            "sph_kernel": sph_kernel,
-            "spectral_model": spectral_model,
-            "_prune_kwargs": {"spatial": spatial, "spectral": spectral, "mass": mass},
-        }
         # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
-        if not expect_particle:
-            with pytest.raises(
-                RuntimeError,
-                match="No non-zero mHI source particles in target region.",
-            ):
-                _BaseMartini(**kwargs)
-        else:
-            assert _BaseMartini(**kwargs).source.npart == 1
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=None,
+            sph_kernel=sph_kernel,
+            spectral_model=spectral_model,
+            _prune_kwargs={"spatial": spatial, "spectral": spectral, "mass": mass},
+        )
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == set(np.flatnonzero(expect_particle))
 
     def test_prune_nan(self, single_particle_source):
         """

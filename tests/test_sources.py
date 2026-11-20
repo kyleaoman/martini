@@ -27,7 +27,7 @@ from astropy.coordinates import (
     FK5,
 )
 from martini.__version__ import __version__
-from conftest import sps_sourcegen
+from conftest import sps_sourcegen, TNG_SERVER_ERRORS
 
 
 class TestSourceUtilities:
@@ -803,6 +803,7 @@ class TestEagleSource:
             in nb_content
         )
 
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not os.path.isdir("examples/RefL0025N0376"),
         reason="sample data not locally available",
@@ -847,6 +848,7 @@ class TestSimbaSource:
             in nb_content
         )
 
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not os.path.isfile("examples/m25n512_151.hdf5")
         or not os.path.isfile("examples/snap_m25n512_151.hdf5"),
@@ -891,6 +893,7 @@ class TestTNGSource:
             in nb_content
         )
 
+    @pytest.mark.slow
     def test_tng_notebook(self):
         """Check that the TNG example notebook runs."""
         pytest.importorskip(
@@ -913,10 +916,8 @@ class TestTNGSource:
         try:
             result = nbr.execute()
             if result.error is not None:
-                if "HTTPError" in result.error.summary and (
-                    "500 Server Error" in result.error.summary
-                    or "503 Server Error" in result.error.summary
-                    or "403 Client Error" in result.error.summary
+                if "HTTPError" in result.error.summary and any(
+                    error in result.error.summary for error in TNG_SERVER_ERRORS
                 ):
                     pytest.xfail("Notebook failed, but due to TNG server issue.")
                 else:
@@ -933,6 +934,7 @@ class TestTNGSource:
                 if os.path.isfile(file_to_cleanup):
                     os.remove(file_to_cleanup)
 
+    @pytest.mark.slow
     def test_TNGSource_with_minisnap(self, tmp_path_factory):
         """Test that we can initialize a TNGSource from a mini snapshot."""
         import os
@@ -997,6 +999,7 @@ class TestFIRESource:
             in nb_content
         )
 
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not os.path.isfile("examples/m11e_res7100/output/snapshot_600.hdf5"),
         reason="sample data not locally available",

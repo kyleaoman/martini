@@ -3,6 +3,7 @@
 import os
 from martini.__version__ import __version__
 import pytest
+from conftest import TNG_SERVER_ERRORS
 
 
 class TestExamples:
@@ -19,6 +20,7 @@ class TestExamples:
             in nb_content
         )
 
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not os.path.isfile("examples/NGC_2841_NA_CUBE_THINGS.FITS"),
         reason="sample data not locally available",
@@ -47,7 +49,12 @@ class TestExamples:
         try:
             result = nbr.execute()
             if result.error is not None:
-                raise NotebookFailedException(result)
+                if "HTTPError" in result.error.summary and any(
+                    error in result.error.summary for error in TNG_SERVER_ERRORS
+                ):
+                    pytest.xfail("Notebook failed, but due to TNG server issue.")
+                else:
+                    raise NotebookFailedException(result)
         finally:
             for file_to_cleanup in files_to_cleanup:
                 if os.path.isfile(file_to_cleanup):

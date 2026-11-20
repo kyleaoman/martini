@@ -67,8 +67,9 @@ jobs:
     - name: Test with pytest
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+      # loadgroup hands out tests one at a time, spreading slow tests across workers
       run: |
-        pytest -n auto
+        pytest -n auto --dist loadgroup
 
   tests-and-coverage:
     needs: lint
@@ -88,7 +89,7 @@ jobs:
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
       run: |
-        pytest -n auto --cov=./ --cov-report=
+        pytest -n auto --dist loadgroup --cov=./ --cov-report=
     - name: Test numba-compiled code with JIT disabled for coverage
       # coverage can't see inside JIT-compiled functions, so re-run the tests that
       # exercise them with JIT disabled; must cover every module with @njit code

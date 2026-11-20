@@ -22,6 +22,76 @@ if TYPE_CHECKING:
 
 np.random.seed(0)
 
+# HTTP errors from the TNG web API that indicate a server issue rather than a test failure
+TNG_SERVER_ERRORS = (
+    "500 Server Error",
+    "502 Server Error",
+    "503 Server Error",
+    "504 Server Error",
+    "403 Client Error",
+)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """
+    Register custom markers.
+
+    Parameters
+    ----------
+    config : ~pytest.Config
+        The pytest configuration.
+    """
+    config.addinivalue_line(
+        "markers",
+        "slow: slow test moved to the front of the test order to spread across workers"
+        " with ``pytest -n auto --dist loadgroup``",
+    )
+
+
+def _will_be_skipped(item: pytest.Item) -> bool:
+    """
+    Check whether a test is unconditionally skipped by its markers.
+
+    Only ``skip`` markers and ``skipif`` markers with boolean conditions are considered.
+
+    Parameters
+    ----------
+    item : ~pytest.Item
+        The test item.
+
+    Returns
+    -------
+    bool
+        ``True`` if the test will be skipped.
+    """
+    if item.get_closest_marker("skip") is not None:
+        return True
+    return any(
+        any(condition is True for condition in mark.args)
+        for mark in item.iter_markers("skipif")
+    )
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """
+    Move non-skipped slow tests to the front of the test order.
+
+    With ``pytest -n auto --dist loadgroup`` tests are handed out to workers one at a
+    time in order, so this spreads slow tests across workers instead of leaving them to
+    run last. Slow tests that will be skipped are left in place.
+
+    Parameters
+    ----------
+    items : list
+        The collected test items, sorted in place.
+    """
+    items.sort(
+        key=lambda item: (
+            item.get_closest_marker("slow") is None or _will_be_skipped(item)
+        )
+    )
+
 
 def sps_sourcegen(
     T_g: U.Quantity[U.K] = np.ones(1) * 1.0e4 * U.K,
