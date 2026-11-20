@@ -39,6 +39,7 @@ from martini._util import (
     resolve_ncpu,
     _to_unit_in_place,
     HIfreq,
+    _FITS_BITPIX,
 )
 from martini._logging import _ProgressLogger
 from typing import TYPE_CHECKING
@@ -395,7 +396,8 @@ class _BaseMartini:
             mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
             accept_mask = np.logical_not(
                 np.logical_or.reduce(
-                    spatial_reject_conditions
+                    (np.zeros(self.source.npart, dtype=bool),)
+                    + spatial_reject_conditions
                     + spectral_reject_conditions
                     + mass_reject_conditions
                 )
@@ -1536,7 +1538,9 @@ class Martini(_BaseMartini):
 
         dtype : str or dtype
             Typecode or data-type to which the array is cast. Should be supported
-            by fits. Default to not do data type conversion.
+            by fits. Types not stored natively in FITS (e.g. unsigned integers other
+            than ``uint8``) are converted by :mod:`astropy`, which needs more memory.
+            Default to not do data type conversion.
         """
         with self._logger.step(
             "Writing data cube to FITS file...",
@@ -1623,10 +1627,28 @@ class Martini(_BaseMartini):
 
             # flip axes to write
             data = self._datacube._array.to_value(datacube_array_units).T
-            if dtype is not None:
-                data = data.astype(dtype, copy=False)
-            hdu = fits.PrimaryHDU(header=header, data=data)
-            hdu.writeto(filename, overwrite=overwrite)
+            out_dtype = np.dtype(dtype) if dtype is not None else data.dtype
+            if out_dtype.name not in _FITS_BITPIX:
+                # let astropy handle conversion
+                hdu = fits.PrimaryHDU(
+                    header=header, data=data.astype(out_dtype, copy=False)
+                )
+                hdu.writeto(filename, overwrite=overwrite)
+                return
+            # Avoid byteswapping entire array in-place twice by streaming:
+            header = fits.PrimaryHDU(header=header, data=data).header.copy()
+            header["BITPIX"] = _FITS_BITPIX[out_dtype.name]
+            if os.path.exists(filename):
+                if not overwrite:
+                    raise OSError(
+                        f"File {filename} exists. To overwrite set 'overwrite=True'."
+                    )
+                os.remove(filename)
+            slab = np.empty(data.shape[-2:], dtype=out_dtype.newbyteorder(">"))
+            with fits.StreamingHDU(filename, header) as shdu:
+                for index in np.ndindex(data.shape[:-2]):
+                    slab[...] = data[index]
+                    shdu.write(slab)
 
             return
 

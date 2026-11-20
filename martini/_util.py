@@ -20,7 +20,18 @@ if not NUMBA_AVAILABLE:
         RuntimeWarning,
     )
 
+# HI line transition frequency:
 HIfreq: U.Quantity[U.Hz] = 1.420405751e9 * U.Hz
+
+# dtypes where we can use streaming to speed up FITS writes:
+_FITS_BITPIX = {
+    "uint8": 8,
+    "int16": 16,
+    "int32": 32,
+    "int64": 64,
+    "float32": -32,
+    "float64": -64,
+}
 
 
 def resolve_ncpu(ncpu: int) -> int:
