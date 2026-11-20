@@ -531,6 +531,18 @@ class TestSPHSource:
             s.coordinates_g.differentials["s"].get_d_xyz(),
         )
 
+    def test_apply_mask_pixcoords(self, s, dc_zeros):
+        """Check that pixel coordinates, including along the line of sight, are masked."""
+        s._init_skycoords()
+        s._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
+        pixcoords_before = s.pixcoords
+        los_distance_pixcoords_before = s.los_distance_pixcoords
+        mask = np.zeros(s.npart, dtype=bool)
+        mask[::3] = True
+        s.apply_mask(mask)
+        assert U.allclose(s.pixcoords, pixcoords_before[:, mask])
+        assert U.allclose(s.los_distance_pixcoords, los_distance_pixcoords_before[mask])
+
     def test_apply_badmask(self, s):
         """Check that bad masks are rejected."""
         with pytest.raises(
@@ -1200,8 +1212,9 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         assert combined_source.skycoords.size == initial_npart // 2
         assert combined_source.spectralcoords.size == initial_npart // 2
-        combined_source._init_pixcoords(dc_zeros)
+        combined_source._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
         assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        assert combined_source.los_distance_pixcoords.size == initial_npart // 2
         for i in range(2):
             assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
             assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
@@ -1231,8 +1244,9 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         combined_source.skycoords
         combined_source.spectralcoords
-        combined_source._init_pixcoords(dc_zeros)
+        combined_source._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
         combined_source.pixcoords
+        combined_source.los_distance_pixcoords
         assert combined_source._T_g is not None
         assert combined_source._mHI_g is not None
         assert combined_source._hsm_g is not None
@@ -1240,6 +1254,7 @@ class TestCombinedSource:
         assert combined_source._skycoords is not None
         assert combined_source._spectralcoords is not None
         assert combined_source._pixcoords is not None
+        assert combined_source._los_distance_pixcoords is not None
         combined_source.apply_mask(mask)
         assert combined_source.npart == initial_npart // 2
         assert combined_source.T_g.size == initial_npart // 2
@@ -1249,6 +1264,7 @@ class TestCombinedSource:
         assert combined_source.skycoords.size == initial_npart // 2
         assert combined_source.spectralcoords.size == initial_npart // 2
         assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        assert combined_source.los_distance_pixcoords.size == initial_npart // 2
         for i in range(2):
             assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
             assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
@@ -1264,6 +1280,30 @@ class TestCombinedSource:
             assert (
                 combined_source.sources[i].pixcoords.shape[1] == initial_npart_s[i] // 2
             )
+
+    def test_mask_selects_particles(self, combined_source):
+        """Check that each contained source is masked with its own part of the mask."""
+        # label particles with their index in the combined source
+        combined_source.T_g = np.arange(combined_source.npart) * U.K
+        mask = np.zeros(combined_source.npart, dtype=bool)
+        mask[[0, 1, combined_source.npart - 1]] = True
+        combined_source.apply_mask(mask)
+        assert U.allclose(combined_source.T_g, np.flatnonzero(mask) * U.K)
+        assert U.allclose(
+            np.concatenate([source.T_g for source in combined_source.sources]),
+            np.flatnonzero(mask) * U.K,
+        )
+
+    def test_los_distance_pixcoords(self, combined_source, dc_zeros):
+        """Check that LoS pixel coordinates are combined from the contained sources."""
+        combined_source._init_skycoords()
+        combined_source._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
+        assert U.allclose(
+            combined_source.los_distance_pixcoords,
+            np.concatenate(
+                [source.los_distance_pixcoords for source in combined_source.sources]
+            ),
+        )
 
     @pytest.mark.parametrize(
         "field, unit", [("T_g", U.K), ("mHI_g", U.Msun), ("hsm_g", U.kpc)]

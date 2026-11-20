@@ -681,7 +681,10 @@ class CombinedSource(SPHSource):
         """
         if self._los_distance_pixcoords is None:
             self._los_distance_pixcoords = np.concatenate(
-                [np.atleast_1d(source.pixcoords) for source in self.sources]
+                [
+                    np.atleast_1d(source.los_distance_pixcoords)
+                    for source in self.sources
+                ]
             )
         return self._los_distance_pixcoords
 
@@ -699,7 +702,9 @@ class CombinedSource(SPHSource):
         count = 0
         # check that the mask is the right size here
         for source in self.sources:
-            source.apply_mask(mask[count : count + source.npart])
+            source_npart = source.npart  # changes when mask is applied
+            source.apply_mask(mask[count : count + source_npart])
+            count += source_npart
         if self._T_g is not None:
             self._T_g = self._T_g[mask]
         if self._mHI_g is not None:
