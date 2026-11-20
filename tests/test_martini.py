@@ -1,6 +1,7 @@
 """Test the functionality of the main martini module."""
 
 import re
+import itertools
 import pytest
 import warnings
 import numpy as np
@@ -8,6 +9,7 @@ from martini.martini import Martini, GlobalProfile, _BaseMartini, _plan_segments
 from martini.datacube import DataCube, HIfreq
 from martini._grid_search import FindGridIntersectionsResult
 import martini._util
+import martini.martini
 from martini._util import resolve_ncpu
 from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels, recommended_kernels
@@ -265,6 +267,42 @@ class TestMartini:
                 dtype = np.float64
             assert f[0].data.dtype.type == dtype
 
+    @pytest.mark.parametrize("dtype", (None, np.float32, np.int32, np.uint8, np.uint16))
+    def test_fits_streamed_matches_astropy(
+        self, dc_random, dtype, single_particle_source, tmp_path, monkeypatch
+    ):
+        """Check that streamed FITS output is identical to writing without streaming."""
+        source = single_particle_source()
+        m = Martini(
+            source=source,
+            datacube=dc_random,
+            beam=GaussianBeam(),
+            noise=None,
+            spectral_model=GaussianSpectrum(),
+            sph_kernel=_CubicSplineKernel(),
+            quiet=True,
+        )
+        m.write_fits(tmp_path / "streamed.fits", dtype=dtype)
+        # without native FITS types, everything is written without streaming:
+        monkeypatch.setattr(martini.martini, "_FITS_BITPIX", {})
+        m.write_fits(tmp_path / "astropy.fits", dtype=dtype)
+        diff = fits.FITSDiff(
+            str(tmp_path / "streamed.fits"),
+            str(tmp_path / "astropy.fits"),
+            ignore_keywords=["DATE-OBS", "MJD-OBS"],
+        )
+        assert diff.identical, diff.report()
+
+    def test_fits_overwrite(self, m_init, tmp_path):
+        """Check that existing FITS files are only replaced if requested."""
+        filename = tmp_path / "cube.fits"
+        m_init.write_fits(filename)
+        m_init.write_fits(filename, overwrite=True)
+        with fits.open(filename) as f:
+            assert len(f) == 1  # replaced, not appended to
+        with pytest.raises(OSError, match="To overwrite set"):
+            m_init.write_fits(filename, overwrite=False)
+
     def test_convolve_beam(self, single_particle_source):
         """Check that beam convolution gives result matching manual calculation."""
         source = single_particle_source()
@@ -350,85 +388,105 @@ class TestMartini:
         assert expected_noise.unit == m_init.datacube._array.unit
         assert U.allclose(m_init.datacube._array, expected_noise)
 
-    @pytest.mark.parametrize(
-        ("ra_off", "ra_in"),
-        (
-            (0 * U.arcsec, True),
-            (3 * U.arcsec, True),
-            (9 * U.arcsec, False),
-            (-3 * U.arcsec, True),
-            (-9 * U.arcsec, False),
-        ),
-    )
-    @pytest.mark.parametrize(
-        ("dec_off", "dec_in"),
-        (
-            (0 * U.arcsec, True),
-            (3 * U.arcsec, True),
-            (9 * U.arcsec, False),
-            (-3 * U.arcsec, True),
-            (-9 * U.arcsec, False),
-        ),
-    )
-    @pytest.mark.parametrize(
-        ("v_off", "v_in"),
-        (
-            (0 * U.km / U.s, True),
-            (3 * U.km / U.s, True),
-            (7 * U.km / U.s, False),
-            (-3 * U.km / U.s, True),
-            (-7 * U.km / U.s, False),
-        ),
-    )
-    @pytest.mark.parametrize(("mass_off", "mass_in"), ((0, False), (1, True)))
+    def test_add_noise_without_noise(self, m_init):
+        """Check that adding noise is skipped (with a warning) without a noise model."""
+        m_init.noise = None
+        with pytest.warns(UserWarning, match="Skipping noise, no noise object"):
+            m_init.add_noise()
+        assert m_init.datacube._array.sum() == 0
+
+    def test_add_noise_without_beam(self, m_init):
+        """Check that adding noise is skipped (with a warning) without a beam."""
+        m_init.beam = None
+        with pytest.warns(UserWarning, match="Skipping noise, no beam object"):
+            m_init.add_noise()
+        assert m_init.datacube._array.sum() == 0
+
+    def test_convolve_beam_insufficient_padding(self, m_init):
+        """Check that we refuse to convolve if the padding is too small for the beam."""
+        m_init._datacube.drop_pad()
+        with pytest.raises(ValueError, match="datacube padding insufficient"):
+            m_init.convolve_beam()
+
+    def test_write_fits_long_obj_name(self, m_init, tmp_path):
+        """Check that an object name too long for the FITS header is truncated."""
+        filename = tmp_path / "cube.fits"
+        with pytest.warns(RuntimeWarning, match="obj_name longer than 16 characters"):
+            m_init.write_fits(filename, obj_name="a_very_long_object_name")
+        with fits.open(filename) as f:
+            assert f[0].header["OBJECT"] == "a_very_long_obje"
+
+    def test_write_beam_fits_without_beam(self, m_init, tmp_path):
+        """Check that writing the beam fails if there is no beam."""
+        m_init.beam = None
+        with pytest.raises(ValueError, match="Called with beam set to 'None'"):
+            m_init.write_beam_fits(tmp_path / "beam.fits")
+
+    def test_write_hdf5_uninitialized_beam(self, m_init, tmp_path):
+        """Check that writing hdf5 fails if the beam kernel is uninitialized."""
+        pytest.importorskip("h5py", reason="h5py (optional dependency) not available.")
+        m_init.beam.kernel = None
+        with pytest.raises(ValueError, match="beam kernel uninitialized"):
+            m_init.write_hdf5(str(tmp_path / "cube.hdf5"))
+
+    def test_write_hdf5_memmap(self, m_init, tmp_path):
+        """Check that writing hdf5 with ``memmap=True`` returns the open file."""
+        h5py = pytest.importorskip(
+            "h5py", reason="h5py (optional dependency) not available."
+        )
+        f = m_init.write_hdf5(str(tmp_path / "cube.hdf5"), memmap=True)
+        try:
+            assert isinstance(f, h5py.File)
+            assert f["FluxCube"].shape == m_init.datacube._array.shape
+        finally:
+            f.close()
+
     @pytest.mark.parametrize("spatial", (True, False))
     @pytest.mark.parametrize("spectral", (True, False))
     @pytest.mark.parametrize("mass", (True, False))
-    def test_prune_particles(
-        self,
-        ra_off,
-        ra_in,
-        dec_off,
-        dec_in,
-        v_off,
-        v_in,
-        mass_off,
-        mass_in,
-        single_particle_source,
-        spatial,
-        spectral,
-        mass,
-    ):
+    def test_prune_particles(self, many_particle_source, spatial, spectral, mass):
         """
         Test pruning particles unused in the creation of the mock.
 
-        Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
-        the cube as expected.
+        Check that particles offset by specific sets of (RA, Dec, v) are inside/outside
+        the cube as expected. All combinations of offsets are tested at once, with one
+        particle per combination.
         """
-        if spatial and spectral and mass:
-            expect_particle = all((ra_in, dec_in, v_in, mass_in))
-        elif spatial and spectral and not mass:
-            expect_particle = all((ra_in, dec_in, v_in))
-        elif spatial and not spectral and mass:
-            expect_particle = all((ra_in, dec_in, mass_in))
-        elif spatial and not spectral and not mass:
-            expect_particle = all((ra_in, dec_in))
-        elif not spatial and spectral and mass:
-            expect_particle = all((v_in, mass_in))
-        elif not spatial and spectral and not mass:
-            expect_particle = v_in
-        elif not spectral and not spatial and mass:
-            expect_particle = mass_in
-        elif not spectral and not spatial and not mass:
-            expect_particle = True
-        # set distance so that 1kpc = 1arcsec
+        # (offset, expected inside) along each axis
+        ra_offs = ((0, True), (3, True), (9, False), (-3, True), (-9, False))  # arcsec
+        dec_offs = ((0, True), (3, True), (9, False), (-3, True), (-9, False))  # arcsec
+        v_offs = ((0, True), (3, True), (7, False), (-3, True), (-7, False))  # km/s
+        mass_offs = ((0, False), (1, True))
+        combinations = list(itertools.product(ra_offs, dec_offs, v_offs, mass_offs))
+        # one (offsets, expected inside) pair of arrays per axis, one entry per particle
+        (ra_off, ra_in), (dec_off, dec_in), (v_off, v_in), (mass_off, mass_in) = (
+            (
+                np.array([off for off, _ in axis]),
+                np.array([inside for _, inside in axis]),
+            )
+            for axis in zip(*combinations)
+        )
+        expect_particle = np.ones(len(combinations), dtype=bool)
+        if spatial:
+            expect_particle &= ra_in & dec_in
+        if spectral:
+            expect_particle &= v_in
+        if mass:
+            expect_particle &= mass_in
+        # set distance so that 1kpc = 1arcsec, then for a source at (RA, Dec) = (0, 0)
+        # y and z offsets in kpc are RA and Dec offsets in arcsec, and vx is along the
+        # line of sight (x = 0 so that the Hubble flow doesn't contribute)
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
-        source = single_particle_source(
+        source = many_particle_source(
             distance=distance,
-            ra=ra_off,
-            dec=dec_off,
-            vpeculiar=v_off,
-            mHI_g=mass_off * np.ones(1) * 1.0e4 * U.Msun,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+            xyz_g=np.column_stack((np.zeros(ra_off.size), ra_off, dec_off)) * U.kpc,
+            vxyz_g=np.column_stack((v_off, np.zeros((v_off.size, 2)))) * U.km / U.s,
+            mHI_g=mass_off * 1.0e4 * U.Msun,
+            # label particles with their index to find which are kept
+            T_g=(1.0e4 + np.arange(ra_off.size)) * U.K,
+            hsm_g=np.ones(ra_off.size) * U.kpc,
         )
         datacube = DataCube(
             n_px_x=2,
@@ -445,25 +503,19 @@ class TestMartini:
         sph_kernel = _CubicSplineKernel()
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
         # need to use _BaseMartini below to manipulate _prune_kwargs
-        kwargs = {
-            "source": source,
-            "datacube": datacube,
-            "beam": beam,
-            "noise": None,
-            "sph_kernel": sph_kernel,
-            "spectral_model": spectral_model,
-            "_prune_kwargs": {"spatial": spatial, "spectral": spectral, "mass": mass},
-        }
         # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
         # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
-        if not expect_particle:
-            with pytest.raises(
-                RuntimeError,
-                match="No non-zero mHI source particles in target region.",
-            ):
-                _BaseMartini(**kwargs)
-        else:
-            assert _BaseMartini(**kwargs).source.npart == 1
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=None,
+            sph_kernel=sph_kernel,
+            spectral_model=spectral_model,
+            _prune_kwargs={"spatial": spatial, "spectral": spectral, "mass": mass},
+        )
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == set(np.flatnonzero(expect_particle))
 
     def test_prune_nan(self, single_particle_source):
         """
@@ -544,7 +596,7 @@ class TestMartini:
         m._datacube._allocate_cube()
         assert m.datacube._array.shape == expected_shape
 
-    def test_preview(self, m_init):
+    def test_preview(self, m_init, tmp_path):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -566,6 +618,9 @@ class TestMartini:
                 title="test",
             )
         )
+        # saving to file
+        plt.close(m_init.preview(save=tmp_path / "preview.png"))
+        assert (tmp_path / "preview.png").exists()
 
     def test_preview_warning_ra_dec(self, m_init):
         """Check that we warn if the datacube is too big in RA."""
@@ -1259,7 +1314,39 @@ class TestGlobalProfile:
         m.channel_edges.to(expected_units)
         m.channel_mids.to(expected_units)
 
-    def test_view_spectrum(self, gp):
+    def test_frequency_and_velocity_channels(self, gp):
+        """Check that channels are available in both frequency and velocity units."""
+        for attr in (
+            "frequency_channel_edges",
+            "frequency_channel_mids",
+            "velocity_channel_edges",
+            "velocity_channel_mids",
+        ):
+            assert U.allclose(getattr(gp, attr), getattr(gp._datacube, attr))
+        assert gp.frequency_channel_edges.unit.is_equivalent(U.Hz)
+        assert gp.velocity_channel_edges.unit.is_equivalent(U.km / U.s)
+        assert gp.frequency_channel_edges.size == gp.frequency_channel_mids.size + 1
+        assert U.allclose(
+            gp.velocity_channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
+            gp.frequency_channel_mids,
+        )
+
+    def test_spectrum_inserts_source(self, single_particle_source):
+        """Check that accessing the spectrum inserts the source if not yet done."""
+        source = single_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(),
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            quiet=True,
+        )
+        assert not hasattr(m, "_spectrum")
+        assert m.spectrum.sum() > 0
+        assert hasattr(m, "_spectrum")
+
+    def test_view_spectrum(self, gp, tmp_path):
         """Simply check that plotting spectrum runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -1273,6 +1360,13 @@ class TestGlobalProfile:
         plt.close(gp.plot_spectrum())
         # with non-default arguments
         plt.close(gp.plot_spectrum(title="test", show_vsys=False))
+        # in frequency units
+        plt.close(gp.plot_spectrum(channels="frequency"))
+        # saving to file
+        plt.close(gp.plot_spectrum(save=tmp_path / "spectrum.png"))
+        assert (tmp_path / "spectrum.png").exists()
+        with pytest.raises(ValueError, match="must be 'velocity' or 'frequency'"):
+            gp.plot_spectrum(channels="wavelength")
 
 
 class TestMartiniWithDataCubeFromWCS:
