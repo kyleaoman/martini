@@ -300,7 +300,7 @@ class TestMartini:
         m_init.write_fits(filename, overwrite=True)
         with fits.open(filename) as f:
             assert len(f) == 1  # replaced, not appended to
-        with pytest.raises(OSError, match="already exists"):
+        with pytest.raises(OSError, match="To overwrite set"):
             m_init.write_fits(filename, overwrite=False)
 
     def test_convolve_beam(self, single_particle_source):
