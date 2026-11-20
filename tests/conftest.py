@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Generator, Callable
 from astropy import units as U
 from astropy import wcs
 from astropy.coordinates import ICRS
-from martini.martini import Martini, GlobalProfile
+from martini.martini import Martini, GlobalProfile, _BaseMartini
 from martini.datacube import DataCube, HIfreq
 from martini.beams import GaussianBeam
 from martini.noise import GaussianNoise
 from martini.sources import SPHSource, CombinedSource
 from martini.spectral_models import GaussianSpectrum
-from martini.sph_kernels import _GaussianKernel
+from martini.sph_kernels import _GaussianKernel, _CubicSplineKernel
 
 if TYPE_CHECKING:
     from astropy.coordinates.builtin_frames.baseradec import BaseRADecFrame
@@ -489,6 +489,80 @@ def cross_sourcegen(
     )
 
 
+def prune_test_cubegen(prune_kwargs: dict) -> tuple[int, int, U.Quantity]:
+    """
+    Create a datacube from a source designed to test particle pruning.
+
+    The source particles are placed on a grid of sky positions, velocities and masses.
+    Along each sky axis there are particles inside the cube, particles centred just
+    outside the cube whose kernels overlap its edge pixels, and particles far outside the
+    cube. In velocity there are particles inside the band, particles centred just
+    outside the band whose spectra overlap its edge channels, and particles so far
+    outside the band that their spectra are exactly zero in the band. Each combination
+    appears with zero and non-zero HI mass.
+
+    Parameters
+    ----------
+    prune_kwargs : dict
+        Arguments passed through to
+        :meth:`~martini.martini._BaseMartini._prune_particles`.
+
+    Returns
+    -------
+    n : int
+        Number of particles in the source before pruning.
+
+    npart : int
+        Number of particles remaining after pruning.
+
+    cube : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of flux density per solid
+        angle. The datacube array after source insertion.
+    """
+    # 1px is about 0.145kpc at 3Mpc so the cube spans about +/-2.3kpc and the kernel
+    # radius is about 2.9px, the band spans +/-64km/s and sigma is 1.75 channels with
+    # pruning beyond 4 sigma from the band edges
+    sky_offsets = (-4, -2.5, 0, 2.5, 4) * U.kpc
+    v_offsets = (-1000, -78, 0, 78, 1000) * U.km / U.s
+    masses = (0, 1.0e6) * U.Msun
+    y, z, vx, mHI_g = (
+        g.flatten()
+        for g in np.meshgrid(sky_offsets, sky_offsets, v_offsets, masses, indexing="ij")
+    )
+    n = mHI_g.size
+    source = SPHSource(
+        xyz_g=U.Quantity([np.zeros(n) * U.kpc, y, z]).T,
+        vxyz_g=U.Quantity([vx, np.zeros(n) * U.km / U.s, np.zeros(n) * U.km / U.s]).T,
+        T_g=np.ones(n) * 1.0e4 * U.K,
+        hsm_g=np.ones(n) * 0.3 * U.kpc,
+        mHI_g=mHI_g,
+        distance=3 * U.Mpc,
+        ra=0 * U.deg,
+        dec=0 * U.deg,
+    )
+    datacube = DataCube(
+        n_px_x=32,
+        n_px_y=32,
+        n_channels=32,
+        px_size=10 * U.arcsec,
+        channel_width=4 * U.km / U.s,
+        spectral_centre=source.vsys,
+        ra=0 * U.deg,
+        dec=0 * U.deg,
+    )
+    m = _BaseMartini(
+        source=source,
+        datacube=datacube,
+        sph_kernel=_CubicSplineKernel(),
+        spectral_model=GaussianSpectrum(sigma=7 * U.km / U.s),
+        quiet=True,
+        _prune_kwargs=prune_kwargs,
+    )
+    npart = m.source.npart
+    m._insert_source_in_cube(skip_validation=True)
+    return n, npart, m._datacube._array
+
+
 @pytest.fixture(scope="function", params=[True, False])
 def m(request: FixtureRequest) -> Generator[Martini, None, None]:
     """
@@ -859,6 +933,24 @@ def cross_source() -> Generator[
         The :class:`~martini.sources.sph_source.SPHSource` instance.
     """
     yield cross_sourcegen
+
+
+@pytest.fixture(scope="function")
+def prune_test_cube() -> Generator[
+    Callable[[dict], tuple[int, int, U.Quantity]],
+    None,
+    None,
+]:
+    """
+    Create a datacube from a source designed to test particle pruning.
+
+    Yields
+    ------
+    Callable
+        Function taking arguments for the pruning function and returning the number of
+        particles before and after pruning, and the datacube array.
+    """
+    yield prune_test_cubegen
 
 
 @pytest.fixture(scope="function")

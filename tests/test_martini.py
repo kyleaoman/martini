@@ -625,7 +625,9 @@ class TestMartini:
             ra=0 * U.deg,
             dec=0 * U.deg,
         )
-        with pytest.raises(ValueError, match="requires source.los_distance_pixcoords"):
+        with pytest.raises(
+            ValueError, match="requires 'source.los_distance_pixcoords'"
+        ):
             _BaseMartini(
                 source=source,
                 datacube=datacube,
@@ -683,6 +685,47 @@ class TestMartini:
             spectral_model=DiracDeltaSpectrum(),
         )
         assert m.source.pixcoords.shape == (3, 1)
+
+    @pytest.mark.parametrize(
+        "prune_kwargs",
+        (
+            {"spatial": True, "spectral": False, "mass": False},
+            {"spatial": False, "spectral": True, "mass": False},
+            {"spatial": False, "spectral": False, "mass": True},
+            {"spatial": True, "spectral": True, "mass": True},
+        ),
+    )
+    def test_prune_does_not_change_cube(self, prune_kwargs, prune_test_cube):
+        """
+        Check that pruning particles does not change the resulting datacube.
+
+        Pruning is just done to remove unnecessary work downsteam, it should have no
+        influence on the actual result.
+
+        The test source (see ``prune_test_cubegen`` in ``conftest.py``) has particles
+        inside, overlapping the edges of, and far outside the cube both on the sky and in
+        velocity, each with zero and non-zero HI mass. The kernel has compact support,
+        so the cubes should agree with and without pruning. Check that the pruning
+        conditions actually remove some particles, and that some particles survive
+        including some that overlap the edges of the cube.
+        """
+        n, npart_pruned, cube_pruned = prune_test_cube(prune_kwargs)
+        _, npart_unpruned, cube_unpruned = prune_test_cube(
+            {"spatial": False, "spectral": False, "mass": False}
+        )
+        assert npart_unpruned == n
+        assert 0 < npart_pruned < n
+        # particles overlapping the edges must survive and contribute there
+        for edge in (
+            cube_pruned[0],
+            cube_pruned[-1],
+            cube_pruned[:, 0],
+            cube_pruned[:, -1],
+            cube_pruned[:, :, 0],
+            cube_pruned[:, :, -1],
+        ):
+            assert edge.sum() > 0
+        assert U.allclose(cube_pruned, cube_unpruned)
 
     def test_reset(self, m_nn):
         """Check that resetting martini instance zeros out datacube."""
