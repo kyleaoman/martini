@@ -139,14 +139,17 @@ class _BaseBeam(object):
         )
         # rbs.integral only evaluates a point at a time, resort to np.vectorize
         xgrid, ygrid = np.meshgrid(
-            px_edges_x.to_value(px_size_unit), px_edges_y.to_value(px_size_unit)
+            px_edges_x.to_value(px_size_unit),
+            px_edges_y.to_value(px_size_unit),
+            indexing="ij",
         )
         # f_kernel is in px_size_unit ** -2, xgrid and ygrid are in px_size_unit so 2D
-        # integral is dimensionless:
+        # integral is dimensionless. The kernel is indexed (x, y) like the datacube, and
+        # flipped along x since RA offsets increase towards decreasing pixel x:
         self.kernel = (
             np.vectorize(rbs.integral)(
-                xgrid[1:, :-1], xgrid[1:, 1:], ygrid[:-1, 1:], ygrid[1:, 1:]
-            )
+                xgrid[:-1, :-1], xgrid[1:, 1:], ygrid[:-1, :-1], ygrid[1:, 1:]
+            )[::-1, :]
             * U.dimensionless_unscaled
         )
 

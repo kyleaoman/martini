@@ -272,6 +272,11 @@ class _BaseMartini:
     _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
     # name of the object the source is inserted into, for log messages:
     _target_name: str = "data cube"
+    # The DataCube has no line-of-sight distance (z) axis. Subclasses that need particle
+    # coordinates along it set the number of pixels along it (_n_px_z) before calling
+    # _BaseMartini.__init__. The z axis is not padded: there is no beam along it and
+    # particles beyond it should not contribute.
+    _n_px_z: int | None = None
 
     def __init__(
         self,
@@ -318,10 +323,7 @@ class _BaseMartini:
 
         self.source._init_skycoords()
         self.source._init_pixcoords(
-            self._datacube,
-            los_distance_pixcoords=getattr(
-                self, "_REQUIRES_LOS_DISTANCE_PIXCOORDS", False
-            ),
+            self._datacube, n_px_z=self._n_px_z
         )  # after datacube is padded
 
         self.sph_kernel._init_sm_lengths(source=self.source, datacube=self._datacube)
@@ -337,6 +339,7 @@ class _BaseMartini:
         spatial: bool = True,
         spectral: bool = True,
         mass: bool = True,
+        los_distance: bool = False,
     ) -> None:
         """
         Identify and remove particles that cannot contribute to the DataCube.
@@ -353,7 +356,15 @@ class _BaseMartini:
             If ``True``, prune particles that fall outside the spectral bandwidth.
         mass : bool
             If ``True``, prune particles that have zero HI mass.
+        los_distance : bool
+            If ``True``, prune particles that fall outside the line-of-sight distance
+            extent of the region. Requires ``_n_px_z`` to be set.
         """
+        if los_distance and self.source.los_distance_pixcoords is None:
+            raise ValueError(
+                "Pruning along the line-of-sight distance axis requires '_n_px_z' (the "
+                "number of pixels along the line-of-sight distance axis) to be set."
+            )
         with self._logger.step(
             f"Pruning particles that will not contribute to {self._target_name}...",
             "Pruned particles",
@@ -393,11 +404,21 @@ class _BaseMartini:
                 if spectral
                 else tuple()
             )
+            los_distance_reject_conditions: tuple[np.ndarray, ...] = tuple()
+            if los_distance:
+                assert self._n_px_z is not None  # placate mypy
+                los_distance_reject_conditions = (
+                    self.source.los_distance_pixcoords + self.sph_kernel.sm_ranges
+                    < 0 * U.pix,
+                    self.source.los_distance_pixcoords - self.sph_kernel.sm_ranges
+                    > self._n_px_z * U.pix,
+                )
             mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
             accept_mask = np.logical_not(
                 np.logical_or.reduce(
                     (np.zeros(self.source.npart, dtype=bool),)
                     + spatial_reject_conditions
+                    + los_distance_reject_conditions
                     + spectral_reject_conditions
                     + mass_reject_conditions
                 )
