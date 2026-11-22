@@ -590,6 +590,62 @@ class TestMartini:
         else:
             assert _LOSDistanceMartini(**kwargs).source.npart == 1
 
+    @pytest.mark.parametrize(("z_px", "z_in"), ((-0.4, True), (-0.8, False)))
+    def test_prune_los_distance_dirac_delta(self, single_particle_source, z_px, z_in):
+        """
+        Check LoS pruning of Dirac-delta particles near the edge of the LoS extent.
+
+        A Dirac-delta particle within half a pixel of the edge of the LoS extent belongs
+        to the edge cell and must survive pruning, although its smoothing length is much
+        smaller than a pixel.
+        """
+
+        class _LOSDistanceMartini(_BaseMartini):
+            _n_px_z = 6  # centred at 2.5px
+
+        # set distance so that 1kpc = 1arcsec, pixels are locally cubic so this is also
+        # (approximately) 1px along the line of sight
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        source = single_particle_source(
+            distance=distance,
+            xyz_g=U.Quantity([[z_px - 2.5, 0, 0]], U.kpc),
+            hsm_g=np.ones(1) * 1.0e-3 * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.vsys,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        kwargs = {
+            "source": source,
+            "datacube": datacube,
+            "sph_kernel": DiracDeltaKernel(),
+            "spectral_model": GaussianSpectrum(sigma=1 * U.km / U.s),
+            "_prune_kwargs": {
+                "spatial": False,
+                "spectral": False,
+                "mass": False,
+                "los_distance": True,
+            },
+        }
+        if z_in:
+            m = _LOSDistanceMartini(**kwargs)
+            assert m.source.npart == 1
+            assert U.isclose(
+                m.source.los_distance_pixcoords[0], z_px * U.pix, atol=1e-3 * U.pix
+            )
+        else:
+            with pytest.raises(
+                RuntimeError,
+                match="No non-zero mHI source particles in target region.",
+            ):
+                _LOSDistanceMartini(**kwargs)
+
     def test_prune_nothing_preserves_shape(self, many_particle_source):
         """Check that pruning with no active conditions leaves array shapes unchanged."""
         source = many_particle_source()
@@ -637,6 +693,156 @@ class TestMartini:
                 spectral_model=GaussianSpectrum(),
                 _prune_kwargs={"los_distance": True},
             )
+
+    @pytest.mark.parametrize("numba_on", (True, False))
+    @pytest.mark.parametrize(
+        ("pixcoords", "expected_px"),
+        (
+            ((1.5, 1.5), (2, 2)),  # corner
+            ((1.5, 1.25), (2, 1)),  # edge along x
+            ((1.25, 1.5), (1, 2)),  # edge along y
+            ((-0.5, 1.25), (0, 1)),  # lower edge of the cube
+            ((1.25, 1.25), (1, 1)),  # control, not on a boundary
+        ),
+    )
+    def test_dirac_delta_pixel_boundaries(
+        self, single_particle_source, pixcoords, expected_px, numba_on
+    ):
+        """
+        Check that a Dirac-delta particle on a pixel boundary is inserted in one pixel.
+
+        Particles exactly on a pixel edge or corner were previously assigned to none of
+        the pixels sharing it, and lost.
+        """
+        source = single_particle_source(hsm_g=np.ones(1) * 1.0e-3 * U.kpc)
+        datacube = DataCube(
+            n_px_x=4,
+            n_px_y=4,
+            n_channels=8,
+            px_size=10 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=GaussianSpectrum(sigma=4 * U.km / U.s),
+            quiet=True,
+        )
+        m._numba_enabled = numba_on
+        m.source.pixcoords[0] = pixcoords[0] * U.pix
+        m.source.pixcoords[1] = pixcoords[1] * U.pix
+        m._insert_source_in_cube(skip_validation=True)
+        mom0 = m._datacube._array.sum(axis=2)
+        assert [tuple(px) for px in np.argwhere(mom0 > 0)] == [expected_px]
+
+    @pytest.mark.parametrize("x_px", (-0.4, 3.4))
+    def test_dirac_delta_near_cube_edge_not_pruned(self, single_particle_source, x_px):
+        """
+        Check that Dirac-delta particles inside edge pixels of the cube are not pruned.
+
+        A Dirac-delta particle within half a pixel of the outer edge of the cube
+        contributes to the edge pixel and must survive spatial pruning, although its
+        smoothing length is much smaller than a pixel.
+        """
+        px_size = 10 * U.arcsec
+        distance = 3 * U.Mpc
+        px_kpc = (px_size * distance).to_value(U.kpc, U.dimensionless_angles())
+        source = single_particle_source(
+            xyz_g=U.Quantity([[0, -(x_px - 1.5) * px_kpc, -0.25 * px_kpc]], U.kpc),
+            hsm_g=np.ones(1) * 1.0e-3 * U.kpc,
+            distance=distance,
+        )
+        datacube = DataCube(
+            n_px_x=4,
+            n_px_y=4,
+            n_channels=8,
+            px_size=px_size,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=GaussianSpectrum(sigma=4 * U.km / U.s),
+            quiet=True,
+        )
+        assert m.source.npart == 1
+        assert U.isclose(m.source.pixcoords[0, 0], x_px * U.pix, atol=1e-3 * U.pix)
+        m._insert_source_in_cube(skip_validation=True)
+        mom0 = m._datacube._array.sum(axis=2)
+        assert [tuple(px) for px in np.argwhere(mom0 > 0)] == [(round(x_px), 1)]
+
+    def test_prune_keeps_kernels_touching_region(self):
+        """
+        Check that pruning keeps exactly the particles with kernels touching the region.
+
+        Pixel (or cell) centres are at integer coordinates, so the region spans -0.5 to
+        n - 0.5 along each axis. Particles with kernels just touching the outer edge of
+        an edge pixel along each axis (RA, Dec and LoS distance) must be kept, those
+        just missing it pruned.
+        """
+
+        class _LOSDistanceMartini(_BaseMartini):
+            _n_px_z = 8
+
+        r = 0.3  # kernel range in pixels
+        eps = 1.0e-6
+        # cube is 4px in RA, 6px in Dec and 8px in LoS distance, centred at
+        # (1.5, 2.5, 3.5); offset one coordinate at a time to touch or miss an edge
+        centre = (1.5, 2.5, 3.5)
+        edges = ((-0.5, 3.5), (-0.5, 5.5), (-0.5, 7.5))
+        positions, expect_kept = [centre], [True]
+        for axis, (low, high) in enumerate(edges):
+            for coord, kept in (
+                (low - r, True),
+                (low - r - eps, False),
+                (high + r, True),
+                (high + r + eps, False),
+            ):
+                position = list(centre)
+                position[axis] = coord
+                positions.append(tuple(position))
+                expect_kept.append(kept)
+        n = len(positions)
+        source = SPHSource(
+            xyz_g=np.zeros((n, 3)) * U.kpc,
+            vxyz_g=np.zeros((n, 3)) * U.km / U.s,
+            T_g=(1.0e4 + np.arange(n)) * U.K,  # label particles to identify survivors
+            hsm_g=np.ones(n) * U.kpc,
+            mHI_g=np.ones(n) * 1.0e6 * U.Msun,
+            distance=3 * U.Mpc,
+        )
+        datacube = DataCube(
+            n_px_x=4,
+            n_px_y=6,
+            n_channels=2,
+            px_size=10 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            spectral_centre=source.vsys,
+        )
+        m = _LOSDistanceMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=_CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            quiet=True,
+            _prune_kwargs={"spatial": False, "spectral": False, "mass": False},
+        )
+        x, y, z = np.array(positions).T
+        m.source.pixcoords[0] = x * U.pix
+        m.source.pixcoords[1] = y * U.pix
+        m.source.los_distance_pixcoords = z * U.pix
+        m.sph_kernel.sm_ranges = np.ones(n) * r * U.pix
+        m._prune_particles(spatial=True, spectral=False, mass=False, los_distance=True)
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == set(np.flatnonzero(expect_kept))
 
     def test_prune_nan(self, single_particle_source):
         """

@@ -442,6 +442,36 @@ class TestCompiledKernels:
         assert np.count_nonzero(expected) > 0
         assert np.allclose(result, expected, rtol=1e-10, atol=1e-12 * expected.max())
 
+    @pytest.mark.parametrize("compiled", (True, False))
+    def test_dirac_delta_pixel_boundaries(self, compiled):
+        """
+        Check that a Dirac-delta particle on a pixel boundary is assigned to one pixel.
+
+        Pixels are half-open intervals ``[-0.5, 0.5)`` in the offset from the pixel
+        centre to the particle, so a particle on an edge or corner shared by several
+        pixels is assigned to exactly one of them.
+        """
+        kernel = DiracDeltaKernel()
+        cases = (
+            (((0.5, 0.2), (-0.5, 0.2)), 1),  # edge along x
+            (((0.2, 0.5), (0.2, -0.5)), 1),  # edge along y
+            (((0.5, 0.5), (0.5, -0.5), (-0.5, 0.5), (-0.5, -0.5)), 3),  # corner
+        )
+        for offsets, assigned in cases:
+            dx, dy = np.array(offsets).T
+            if compiled:
+                integral = _compile_scalar_integral(kernel._scalar_kernel_integral)
+                weights = np.array(
+                    [integral(x, y, 0.1, 0.0, 0.0) for x, y in zip(dx, dy)]
+                )
+            else:
+                weights = kernel._kernel_integral(
+                    U.Quantity(np.vstack((dx, dy)), U.pix),
+                    np.full(dx.size, 0.1) * U.pix,
+                ).value
+            assert weights.sum() == 1
+            assert weights[assigned] == 1
+
     def test_compiled_once(self):
         """Check that each kernel integral is compiled once and shared."""
         integrals = GaussianKernel()  # adaptive, uses _GaussianKernel twice
