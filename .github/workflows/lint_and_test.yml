@@ -67,8 +67,9 @@ jobs:
     - name: Test with pytest
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+      # loadgroup hands out tests one at a time, spreading slow tests across workers
       run: |
-        pytest -n 2
+        pytest -n auto --dist loadgroup
 
   tests-and-coverage:
     needs: lint
@@ -84,12 +85,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest
         pip install -e .[all,testing]
-    - name: Test with pytest including coverage report
+    - name: Test with pytest including coverage
       env:
         TNG_API_KEY: ${{ secrets.TNG_API_KEY }}
+      run: |
+        pytest -n auto --dist loadgroup --cov=./ --cov-report=
+    - name: Test numba-compiled code with JIT disabled for coverage
+      # coverage can't see inside JIT-compiled functions, so re-run the tests that
+      # exercise them with JIT disabled; must cover every module with @njit code
+      env:
         NUMBA_DISABLE_JIT: "1"
       run: |
-        pytest -n 2 --cov=./ --cov-report=xml
+        pytest -n auto --cov=./ --cov-append --cov-report=xml \
+          tests/test_grid_search.py \
+          tests/test_sph_kernels.py \
+          tests/test_spectral_models.py \
+          tests/test_util.py \
+          "tests/test_martini.py::TestParallel" \
+          "tests/test_martini.py::TestBatched"
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       env:

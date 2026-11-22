@@ -38,6 +38,8 @@ from martini._util import (
     numba_threads,
     resolve_ncpu,
     _to_unit_in_place,
+    HIfreq,
+    _FITS_BITPIX,
 )
 from martini._logging import _ProgressLogger
 from typing import TYPE_CHECKING
@@ -270,6 +272,11 @@ class _BaseMartini:
     _numba_enabled: bool = NUMBA_AVAILABLE  # enables switching off in tests
     # name of the object the source is inserted into, for log messages:
     _target_name: str = "data cube"
+    # The DataCube has no line-of-sight distance (z) axis. Subclasses that need particle
+    # coordinates along it set the number of pixels along it (_n_px_z) before calling
+    # _BaseMartini.__init__. The z axis is not padded: there is no beam along it and
+    # particles beyond it should not contribute.
+    _n_px_z: int | None = None
 
     def __init__(
         self,
@@ -316,10 +323,7 @@ class _BaseMartini:
 
         self.source._init_skycoords()
         self.source._init_pixcoords(
-            self._datacube,
-            los_distance_pixcoords=getattr(
-                self, "_REQUIRES_LOS_DISTANCE_PIXCOORDS", False
-            ),
+            self._datacube, n_px_z=self._n_px_z
         )  # after datacube is padded
 
         self.sph_kernel._init_sm_lengths(source=self.source, datacube=self._datacube)
@@ -335,6 +339,7 @@ class _BaseMartini:
         spatial: bool = True,
         spectral: bool = True,
         mass: bool = True,
+        los_distance: bool = False,
     ) -> None:
         """
         Identify and remove particles that cannot contribute to the DataCube.
@@ -351,7 +356,15 @@ class _BaseMartini:
             If ``True``, prune particles that fall outside the spectral bandwidth.
         mass : bool
             If ``True``, prune particles that have zero HI mass.
+        los_distance : bool
+            If ``True``, prune particles that fall outside the line-of-sight distance
+            extent of the region. Requires ``_n_px_z`` to be set.
         """
+        if los_distance and self.source.los_distance_pixcoords is None:
+            raise ValueError(
+                "Pruning along the line-of-sight distance axis requires '_n_px_z' (the "
+                "number of pixels along the line-of-sight distance axis) to be set."
+            )
         with self._logger.step(
             f"Pruning particles that will not contribute to {self._target_name}...",
             "Pruned particles",
@@ -365,17 +378,21 @@ class _BaseMartini:
             spectrum_half_width = self.spectral_model.half_width(self.source) / np.max(
                 np.abs(np.diff(self._datacube.velocity_channel_edges))
             )
+            # Pixel (or cell) centres are at integer coordinates, so the region spans
+            # -0.5 to n - 0.5 along each axis. Keep any particle with a kernel that could
+            # touch the region, including particles inside the edge pixels with
+            # kernels smaller than a pixel.
             spatial_reject_conditions = (
                 (
                     (
                         self.source.pixcoords[:2]
                         + self.sph_kernel.sm_ranges[np.newaxis]
-                        < 0 * U.pix
+                        < -0.5 * U.pix
                     ).any(axis=0),
                     self.source.pixcoords[0] - self.sph_kernel.sm_ranges
-                    > (self._datacube.n_px_x + self._datacube.padx * 2) * U.pix,
+                    > (self._datacube.n_px_x + self._datacube.padx * 2 - 0.5) * U.pix,
                     self.source.pixcoords[1] - self.sph_kernel.sm_ranges
-                    > (self._datacube.n_px_y + self._datacube.pady * 2) * U.pix,
+                    > (self._datacube.n_px_y + self._datacube.pady * 2 - 0.5) * U.pix,
                     np.isnan(self.source.pixcoords[:2]).any(axis=0),
                 )
                 if spatial
@@ -391,10 +408,21 @@ class _BaseMartini:
                 if spectral
                 else tuple()
             )
+            los_distance_reject_conditions: tuple[np.ndarray, ...] = tuple()
+            if los_distance:
+                assert self._n_px_z is not None  # placate mypy
+                los_distance_reject_conditions = (
+                    self.source.los_distance_pixcoords + self.sph_kernel.sm_ranges
+                    < -0.5 * U.pix,
+                    self.source.los_distance_pixcoords - self.sph_kernel.sm_ranges
+                    > (self._n_px_z - 0.5) * U.pix,
+                )
             mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
             accept_mask = np.logical_not(
                 np.logical_or.reduce(
-                    spatial_reject_conditions
+                    (np.zeros(self.source.npart, dtype=bool),)
+                    + spatial_reject_conditions
+                    + los_distance_reject_conditions
                     + spectral_reject_conditions
                     + mass_reject_conditions
                 )
@@ -1535,7 +1563,9 @@ class Martini(_BaseMartini):
 
         dtype : str or dtype
             Typecode or data-type to which the array is cast. Should be supported
-            by fits. Default to not do data type conversion.
+            by fits. Types not stored natively in FITS (e.g. unsigned integers other
+            than ``uint8``) are converted by :mod:`astropy`, which needs more memory.
+            Default to not do data type conversion.
         """
         with self._logger.step(
             "Writing data cube to FITS file...",
@@ -1622,10 +1652,28 @@ class Martini(_BaseMartini):
 
             # flip axes to write
             data = self._datacube._array.to_value(datacube_array_units).T
-            if dtype is not None:
-                data = data.astype(dtype, copy=False)
-            hdu = fits.PrimaryHDU(header=header, data=data)
-            hdu.writeto(filename, overwrite=overwrite)
+            out_dtype = np.dtype(dtype) if dtype is not None else data.dtype
+            if out_dtype.name not in _FITS_BITPIX:
+                # let astropy handle conversion
+                hdu = fits.PrimaryHDU(
+                    header=header, data=data.astype(out_dtype, copy=False)
+                )
+                hdu.writeto(filename, overwrite=overwrite)
+                return
+            # Avoid byteswapping entire array in-place twice by streaming:
+            header = fits.PrimaryHDU(header=header, data=data).header.copy()
+            header["BITPIX"] = _FITS_BITPIX[out_dtype.name]
+            if os.path.exists(filename):
+                if not overwrite:
+                    raise OSError(
+                        f"File {filename} exists. To overwrite set 'overwrite=True'."
+                    )
+                os.remove(filename)
+            slab = np.empty(data.shape[-2:], dtype=out_dtype.newbyteorder(">"))
+            with fits.StreamingHDU(filename, header) as shdu:
+                for index in np.ndindex(data.shape[:-2]):
+                    slab[...] = data[index]
+                    shdu.write(slab)
 
             return
 
@@ -2327,7 +2375,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.velocity_channel_edges
         martini.martini.GlobalProfile.frequency_channel_mids
         """
-        return self._datacube.channel_edges
+        return self._datacube.frequency_channel_edges
 
     @property
     @U.quantity_input
@@ -2347,7 +2395,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.velocity_channel_edges
         martini.martini.GlobalProfile.frequency_channel_edges
         """
-        return self._datacube.channel_mids
+        return self._datacube.frequency_channel_mids
 
     @property
     @U.quantity_input
@@ -2367,7 +2415,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.frequency_channel_mids
         martini.martini.GlobalProfile.frequency_channel_edges
         """
-        return self._datacube.channel_edges
+        return self._datacube.velocity_channel_edges
 
     @property
     @U.quantity_input
@@ -2387,7 +2435,7 @@ class GlobalProfile(_BaseMartini):
         martini.martini.GlobalProfile.frequency_channel_mids
         martini.martini.GlobalProfile.frequency_channel_edges
         """
-        return self._datacube.channel_mids
+        return self._datacube.velocity_channel_mids
 
     @property
     @U.quantity_input
@@ -2473,7 +2521,7 @@ class GlobalProfile(_BaseMartini):
         )
         if show_vsys:
             ax.axvline(
-                self.source.vsys.to_value(xunit),
+                self.source.vsys.to_value(xunit, equivalencies=U.doppler_radio(HIfreq)),
                 linestyle="dotted",
                 lw=1.5,
                 color="black",

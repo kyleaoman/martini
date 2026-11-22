@@ -278,6 +278,31 @@ class TestSPHKernels:
             else:
                 m.sph_kernel._confirm_validation(quiet=True)  # should not raise
 
+    @pytest.mark.parametrize("kernel", fwhm_kernels)
+    def test_eval_kernel_units(self, kernel):
+        """Check that ``eval_kernel`` handles inputs with (mixed) units."""
+        k = kernel()
+        expected = k.eval_kernel(0.5, 1.0) / (2 * U.kpc) ** 3
+        assert U.isclose(k.eval_kernel(1 * U.kpc, 2 * U.kpc), expected)
+        assert U.isclose(k.eval_kernel(1000 * U.pc, 2 * U.kpc), expected)
+        assert U.allclose(
+            k.eval_kernel(np.array([1, 1]) * U.kpc, 2 * U.kpc), [expected] * 2
+        )
+
+    @pytest.mark.parametrize("kernel", simple_kernels)
+    def test_scalar_kernel_function(self, kernel):
+        """Check that the kernel function accepts scalar input."""
+        k = kernel()
+        for q in (0.0, 0.1, 0.5, 0.9, 1.5):
+            assert np.isclose(k.kernel(q), k.kernel(np.array([q]))[0])
+
+    def test_dirac_delta_kernel_function(self):
+        """Check that the dirac-delta kernel function is infinite at 0, else 0."""
+        assert np.array_equal(
+            DiracDeltaKernel().kernel(np.array([0.0, 0.5, 1.0])),
+            np.array([np.inf, 0.0, 0.0]),
+        )
+
 
 class TestAdaptiveKernels:
     """Test functionality of adaptive SPH kernel modules."""
@@ -332,6 +357,25 @@ class TestAdaptiveKernels:
         k = GaussianKernel(truncate=3.0)
         k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
         assert all(k.kernel_indices == np.array([0, 2, 2, 1]))
+
+    def test_no_valid_kernel(
+        self, adaptive_kernel_test_source, adaptive_kernel_test_datacube
+    ):
+        """
+        Check that validation fails if any particle has no valid kernel.
+
+        The smallest smoothing length (0.1 kpc) is too small for a cubic spline kernel
+        and there is no fallback kernel available.
+        """
+        source = adaptive_kernel_test_source()
+        source._init_skycoords()
+        k = _AdaptiveKernel((_CubicSplineKernel(),))
+        k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
+        assert all(k.kernel_indices == np.array([0, 0, -1, -1]))
+        with pytest.raises(RuntimeError, match="no kernel candidate"):
+            k._confirm_validation(quiet=True)
+        # no error with noraise
+        k._confirm_validation(noraise=True, quiet=True)
 
     @pytest.mark.parametrize("kernel", recommended_kernels)
     def test_raw_kernel_function(self, kernel):
@@ -397,6 +441,36 @@ class TestCompiledKernels:
         )
         assert np.count_nonzero(expected) > 0
         assert np.allclose(result, expected, rtol=1e-10, atol=1e-12 * expected.max())
+
+    @pytest.mark.parametrize("compiled", (True, False))
+    def test_dirac_delta_pixel_boundaries(self, compiled):
+        """
+        Check that a Dirac-delta particle on a pixel boundary is assigned to one pixel.
+
+        Pixels are half-open intervals ``[-0.5, 0.5)`` in the offset from the pixel
+        centre to the particle, so a particle on an edge or corner shared by several
+        pixels is assigned to exactly one of them.
+        """
+        kernel = DiracDeltaKernel()
+        cases = (
+            (((0.5, 0.2), (-0.5, 0.2)), 1),  # edge along x
+            (((0.2, 0.5), (0.2, -0.5)), 1),  # edge along y
+            (((0.5, 0.5), (0.5, -0.5), (-0.5, 0.5), (-0.5, -0.5)), 3),  # corner
+        )
+        for offsets, assigned in cases:
+            dx, dy = np.array(offsets).T
+            if compiled:
+                integral = _compile_scalar_integral(kernel._scalar_kernel_integral)
+                weights = np.array(
+                    [integral(x, y, 0.1, 0.0, 0.0) for x, y in zip(dx, dy)]
+                )
+            else:
+                weights = kernel._kernel_integral(
+                    U.Quantity(np.vstack((dx, dy)), U.pix),
+                    np.full(dx.size, 0.1) * U.pix,
+                ).value
+            assert weights.sum() == 1
+            assert weights[assigned] == 1
 
     def test_compiled_once(self):
         """Check that each kernel integral is compiled once and shared."""

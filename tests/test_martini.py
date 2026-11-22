@@ -1,6 +1,7 @@
 """Test the functionality of the main martini module."""
 
 import re
+import itertools
 import pytest
 import warnings
 import numpy as np
@@ -8,17 +9,20 @@ from martini.martini import Martini, GlobalProfile, _BaseMartini, _plan_segments
 from martini.datacube import DataCube, HIfreq
 from martini._grid_search import FindGridIntersectionsResult
 import martini._util
+import martini.martini
 from martini._util import resolve_ncpu
 from martini.beams import GaussianBeam
 from test_sph_kernels import simple_kernels, recommended_kernels
+from test_beams import OffsetBeam
 from martini.sph_kernels import _CubicSplineKernel, _GaussianKernel, DiracDeltaKernel
 from martini.spectral_models import DiracDeltaSpectrum, GaussianSpectrum
 from martini.sources import SPHSource, CombinedSource
 from astropy import units as U
 from astropy.io import fits
 from astropy import wcs
-from astropy.coordinates import FK5, ICRS
+from astropy.coordinates import FK5, ICRS, SkyCoord
 from scipy.signal import fftconvolve
+from scipy.spatial.transform import Rotation
 
 
 def check_mass_accuracy(m, out_mode, out_dir):
@@ -265,6 +269,42 @@ class TestMartini:
                 dtype = np.float64
             assert f[0].data.dtype.type == dtype
 
+    @pytest.mark.parametrize("dtype", (None, np.float32, np.int32, np.uint8, np.uint16))
+    def test_fits_streamed_matches_astropy(
+        self, dc_random, dtype, single_particle_source, tmp_path, monkeypatch
+    ):
+        """Check that streamed FITS output is identical to writing without streaming."""
+        source = single_particle_source()
+        m = Martini(
+            source=source,
+            datacube=dc_random,
+            beam=GaussianBeam(),
+            noise=None,
+            spectral_model=GaussianSpectrum(),
+            sph_kernel=_CubicSplineKernel(),
+            quiet=True,
+        )
+        m.write_fits(tmp_path / "streamed.fits", dtype=dtype)
+        # without native FITS types, everything is written without streaming:
+        monkeypatch.setattr(martini.martini, "_FITS_BITPIX", {})
+        m.write_fits(tmp_path / "astropy.fits", dtype=dtype)
+        diff = fits.FITSDiff(
+            str(tmp_path / "streamed.fits"),
+            str(tmp_path / "astropy.fits"),
+            ignore_keywords=["DATE-OBS", "MJD-OBS"],
+        )
+        assert diff.identical, diff.report()
+
+    def test_fits_overwrite(self, m_init, tmp_path):
+        """Check that existing FITS files are only replaced if requested."""
+        filename = tmp_path / "cube.fits"
+        m_init.write_fits(filename)
+        m_init.write_fits(filename, overwrite=True)
+        with fits.open(filename) as f:
+            assert len(f) == 1  # replaced, not appended to
+        with pytest.raises(OSError, match="To overwrite set"):
+            m_init.write_fits(filename, overwrite=False)
+
     def test_convolve_beam(self, single_particle_source):
         """Check that beam convolution gives result matching manual calculation."""
         source = single_particle_source()
@@ -350,85 +390,105 @@ class TestMartini:
         assert expected_noise.unit == m_init.datacube._array.unit
         assert U.allclose(m_init.datacube._array, expected_noise)
 
-    @pytest.mark.parametrize(
-        ("ra_off", "ra_in"),
-        (
-            (0 * U.arcsec, True),
-            (3 * U.arcsec, True),
-            (9 * U.arcsec, False),
-            (-3 * U.arcsec, True),
-            (-9 * U.arcsec, False),
-        ),
-    )
-    @pytest.mark.parametrize(
-        ("dec_off", "dec_in"),
-        (
-            (0 * U.arcsec, True),
-            (3 * U.arcsec, True),
-            (9 * U.arcsec, False),
-            (-3 * U.arcsec, True),
-            (-9 * U.arcsec, False),
-        ),
-    )
-    @pytest.mark.parametrize(
-        ("v_off", "v_in"),
-        (
-            (0 * U.km / U.s, True),
-            (3 * U.km / U.s, True),
-            (7 * U.km / U.s, False),
-            (-3 * U.km / U.s, True),
-            (-7 * U.km / U.s, False),
-        ),
-    )
-    @pytest.mark.parametrize(("mass_off", "mass_in"), ((0, False), (1, True)))
+    def test_add_noise_without_noise(self, m_init):
+        """Check that adding noise is skipped (with a warning) without a noise model."""
+        m_init.noise = None
+        with pytest.warns(UserWarning, match="Skipping noise, no noise object"):
+            m_init.add_noise()
+        assert m_init.datacube._array.sum() == 0
+
+    def test_add_noise_without_beam(self, m_init):
+        """Check that adding noise is skipped (with a warning) without a beam."""
+        m_init.beam = None
+        with pytest.warns(UserWarning, match="Skipping noise, no beam object"):
+            m_init.add_noise()
+        assert m_init.datacube._array.sum() == 0
+
+    def test_convolve_beam_insufficient_padding(self, m_init):
+        """Check that we refuse to convolve if the padding is too small for the beam."""
+        m_init._datacube.drop_pad()
+        with pytest.raises(ValueError, match="datacube padding insufficient"):
+            m_init.convolve_beam()
+
+    def test_write_fits_long_obj_name(self, m_init, tmp_path):
+        """Check that an object name too long for the FITS header is truncated."""
+        filename = tmp_path / "cube.fits"
+        with pytest.warns(RuntimeWarning, match="obj_name longer than 16 characters"):
+            m_init.write_fits(filename, obj_name="a_very_long_object_name")
+        with fits.open(filename) as f:
+            assert f[0].header["OBJECT"] == "a_very_long_obje"
+
+    def test_write_beam_fits_without_beam(self, m_init, tmp_path):
+        """Check that writing the beam fails if there is no beam."""
+        m_init.beam = None
+        with pytest.raises(ValueError, match="Called with beam set to 'None'"):
+            m_init.write_beam_fits(tmp_path / "beam.fits")
+
+    def test_write_hdf5_uninitialized_beam(self, m_init, tmp_path):
+        """Check that writing hdf5 fails if the beam kernel is uninitialized."""
+        pytest.importorskip("h5py", reason="h5py (optional dependency) not available.")
+        m_init.beam.kernel = None
+        with pytest.raises(ValueError, match="beam kernel uninitialized"):
+            m_init.write_hdf5(str(tmp_path / "cube.hdf5"))
+
+    def test_write_hdf5_memmap(self, m_init, tmp_path):
+        """Check that writing hdf5 with ``memmap=True`` returns the open file."""
+        h5py = pytest.importorskip(
+            "h5py", reason="h5py (optional dependency) not available."
+        )
+        f = m_init.write_hdf5(str(tmp_path / "cube.hdf5"), memmap=True)
+        try:
+            assert isinstance(f, h5py.File)
+            assert f["FluxCube"].shape == m_init.datacube._array.shape
+        finally:
+            f.close()
+
     @pytest.mark.parametrize("spatial", (True, False))
     @pytest.mark.parametrize("spectral", (True, False))
     @pytest.mark.parametrize("mass", (True, False))
-    def test_prune_particles(
-        self,
-        ra_off,
-        ra_in,
-        dec_off,
-        dec_in,
-        v_off,
-        v_in,
-        mass_off,
-        mass_in,
-        single_particle_source,
-        spatial,
-        spectral,
-        mass,
-    ):
+    def test_prune_particles(self, many_particle_source, spatial, spectral, mass):
         """
         Test pruning particles unused in the creation of the mock.
 
-        Check that a particle offset by a specific set of (RA, Dec, v) is inside/outside
-        the cube as expected.
+        Check that particles offset by specific sets of (RA, Dec, v) are inside/outside
+        the cube as expected. All combinations of offsets are tested at once, with one
+        particle per combination.
         """
-        if spatial and spectral and mass:
-            expect_particle = all((ra_in, dec_in, v_in, mass_in))
-        elif spatial and spectral and not mass:
-            expect_particle = all((ra_in, dec_in, v_in))
-        elif spatial and not spectral and mass:
-            expect_particle = all((ra_in, dec_in, mass_in))
-        elif spatial and not spectral and not mass:
-            expect_particle = all((ra_in, dec_in))
-        elif not spatial and spectral and mass:
-            expect_particle = all((v_in, mass_in))
-        elif not spatial and spectral and not mass:
-            expect_particle = v_in
-        elif not spectral and not spatial and mass:
-            expect_particle = mass_in
-        elif not spectral and not spatial and not mass:
-            expect_particle = True
-        # set distance so that 1kpc = 1arcsec
+        # (offset, expected inside) along each axis
+        ra_offs = ((0, True), (3, True), (9, False), (-3, True), (-9, False))  # arcsec
+        dec_offs = ((0, True), (3, True), (9, False), (-3, True), (-9, False))  # arcsec
+        v_offs = ((0, True), (3, True), (7, False), (-3, True), (-7, False))  # km/s
+        mass_offs = ((0, False), (1, True))
+        combinations = list(itertools.product(ra_offs, dec_offs, v_offs, mass_offs))
+        # one (offsets, expected inside) pair of arrays per axis, one entry per particle
+        (ra_off, ra_in), (dec_off, dec_in), (v_off, v_in), (mass_off, mass_in) = (
+            (
+                np.array([off for off, _ in axis]),
+                np.array([inside for _, inside in axis]),
+            )
+            for axis in zip(*combinations)
+        )
+        expect_particle = np.ones(len(combinations), dtype=bool)
+        if spatial:
+            expect_particle &= ra_in & dec_in
+        if spectral:
+            expect_particle &= v_in
+        if mass:
+            expect_particle &= mass_in
+        # set distance so that 1kpc = 1arcsec, then for a source at (RA, Dec) = (0, 0)
+        # y and z offsets in kpc are RA and Dec offsets in arcsec, and vx is along the
+        # line of sight (x = 0 so that the Hubble flow doesn't contribute)
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
-        source = single_particle_source(
+        source = many_particle_source(
             distance=distance,
-            ra=ra_off,
-            dec=dec_off,
-            vpeculiar=v_off,
-            mHI_g=mass_off * np.ones(1) * 1.0e4 * U.Msun,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+            xyz_g=np.column_stack((np.zeros(ra_off.size), ra_off, dec_off)) * U.kpc,
+            vxyz_g=np.column_stack((v_off, np.zeros((v_off.size, 2)))) * U.km / U.s,
+            mHI_g=mass_off * 1.0e4 * U.Msun,
+            # label particles with their index to find which are kept
+            T_g=(1.0e4 + np.arange(ra_off.size)) * U.K,
+            hsm_g=np.ones(ra_off.size) * U.kpc,
         )
         datacube = DataCube(
             n_px_x=2,
@@ -445,25 +505,344 @@ class TestMartini:
         sph_kernel = _CubicSplineKernel()
         spectral_model = GaussianSpectrum(sigma=1 * U.km / U.s)
         # need to use _BaseMartini below to manipulate _prune_kwargs
+        # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
+        # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            beam=beam,
+            noise=None,
+            sph_kernel=sph_kernel,
+            spectral_model=spectral_model,
+            _prune_kwargs={"spatial": spatial, "spectral": spectral, "mass": mass},
+        )
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == set(np.flatnonzero(expect_particle))
+
+    @pytest.mark.parametrize(
+        ("los_off", "los_in"),
+        (
+            (0 * U.kpc, True),
+            (3 * U.kpc, True),
+            (5 * U.kpc, False),
+            (9 * U.kpc, False),
+            (-3 * U.kpc, True),
+            (-5 * U.kpc, False),
+            (-9 * U.kpc, False),
+        ),
+    )
+    @pytest.mark.parametrize("los_distance", (True, False))
+    def test_prune_los_distance(
+        self, los_off, los_in, los_distance, single_particle_source
+    ):
+        """
+        Test pruning particles along the line-of-sight distance axis.
+
+        Check that a particle offset by a specific line-of-sight distance is
+        inside/outside the cube as expected. The line-of-sight extent of the cube is
+        independent of its (padded) extent in RA and Dec.
+        """
+
+        class _LOSDistanceMartini(_BaseMartini):
+            _n_px_z = 6
+
+        expect_particle = los_in if los_distance else True
+        # set distance so that 1kpc = 1arcsec, pixels are locally cubic so this is also
+        # (approximately) 1px along the line of sight
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        source = single_particle_source(
+            distance=distance,
+            xyz_g=U.Quantity([[los_off.to_value(U.kpc), 0, 0]], U.kpc),
+        )
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.distance * source.h * 100 * U.km / U.s / U.Mpc,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        # pad size will be 5, so datacube is 12x12 pixels
+        beam = GaussianBeam(bmaj=1 * U.arcsec, bmin=1 * U.arcsec, truncate=4)
         kwargs = {
             "source": source,
             "datacube": datacube,
             "beam": beam,
             "noise": None,
-            "sph_kernel": sph_kernel,
-            "spectral_model": spectral_model,
-            "_prune_kwargs": {"spatial": spatial, "spectral": spectral, "mass": mass},
+            "sph_kernel": _CubicSplineKernel(),
+            "spectral_model": GaussianSpectrum(sigma=1 * U.km / U.s),
+            "_prune_kwargs": {
+                "spatial": True,
+                "spectral": False,
+                "mass": False,
+                "los_distance": los_distance,
+            },
         }
-        # if more than 1px (datacube) + 5px (pad) + 2px (sm_range) then expect to prune
-        # if more than 1px (datacube) + 4px (4*spectrum_half_width) then expect to prune
+        # if more than 3px (datacube) + ~1.4px (sm_range) then expect to prune
         if not expect_particle:
             with pytest.raises(
                 RuntimeError,
                 match="No non-zero mHI source particles in target region.",
             ):
-                _BaseMartini(**kwargs)
+                _LOSDistanceMartini(**kwargs)
         else:
-            assert _BaseMartini(**kwargs).source.npart == 1
+            assert _LOSDistanceMartini(**kwargs).source.npart == 1
+
+    @pytest.mark.parametrize(("z_px", "z_in"), ((-0.4, True), (-0.8, False)))
+    def test_prune_los_distance_dirac_delta(self, single_particle_source, z_px, z_in):
+        """
+        Check LoS pruning of Dirac-delta particles near the edge of the LoS extent.
+
+        A Dirac-delta particle within half a pixel of the edge of the LoS extent belongs
+        to the edge cell and must survive pruning, although its smoothing length is much
+        smaller than a pixel.
+        """
+
+        class _LOSDistanceMartini(_BaseMartini):
+            _n_px_z = 6  # centred at 2.5px
+
+        # set distance so that 1kpc = 1arcsec, pixels are locally cubic so this is also
+        # (approximately) 1px along the line of sight
+        distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
+        source = single_particle_source(
+            distance=distance,
+            xyz_g=U.Quantity([[z_px - 2.5, 0, 0]], U.kpc),
+            hsm_g=np.ones(1) * 1.0e-3 * U.kpc,
+        )
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.vsys,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        kwargs = {
+            "source": source,
+            "datacube": datacube,
+            "sph_kernel": DiracDeltaKernel(),
+            "spectral_model": GaussianSpectrum(sigma=1 * U.km / U.s),
+            "_prune_kwargs": {
+                "spatial": False,
+                "spectral": False,
+                "mass": False,
+                "los_distance": True,
+            },
+        }
+        if z_in:
+            m = _LOSDistanceMartini(**kwargs)
+            assert m.source.npart == 1
+            assert U.isclose(
+                m.source.los_distance_pixcoords[0], z_px * U.pix, atol=1e-3 * U.pix
+            )
+        else:
+            with pytest.raises(
+                RuntimeError,
+                match="No non-zero mHI source particles in target region.",
+            ):
+                _LOSDistanceMartini(**kwargs)
+
+    def test_prune_nothing_preserves_shape(self, many_particle_source):
+        """Check that pruning with no active conditions leaves array shapes unchanged."""
+        source = many_particle_source()
+        npart = source.npart
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.vsys,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=_CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            _prune_kwargs={"spatial": False, "spectral": False, "mass": False},
+        )
+        assert m.source.npart == npart
+        assert m.source.mHI_g.shape == (npart,)
+        assert m.source.pixcoords.shape == (3, npart)
+        assert m.sph_kernel.sm_ranges.shape == (npart,)
+
+    def test_prune_los_distance_requires_n_px_z(self, single_particle_source):
+        """Check that pruning in line-of-sight distance needs a line-of-sight depth."""
+        source = single_particle_source()
+        datacube = DataCube(
+            n_px_x=2,
+            n_px_y=2,
+            n_channels=2,
+            spectral_centre=source.vsys,
+            px_size=1 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        with pytest.raises(ValueError, match="requires '_n_px_z'"):
+            _BaseMartini(
+                source=source,
+                datacube=datacube,
+                sph_kernel=_CubicSplineKernel(),
+                spectral_model=GaussianSpectrum(),
+                _prune_kwargs={"los_distance": True},
+            )
+
+    @pytest.mark.parametrize("numba_on", (True, False))
+    @pytest.mark.parametrize(
+        ("pixcoords", "expected_px"),
+        (
+            ((1.5, 1.5), (2, 2)),  # corner
+            ((1.5, 1.25), (2, 1)),  # edge along x
+            ((1.25, 1.5), (1, 2)),  # edge along y
+            ((-0.5, 1.25), (0, 1)),  # lower edge of the cube
+            ((1.25, 1.25), (1, 1)),  # control, not on a boundary
+        ),
+    )
+    def test_dirac_delta_pixel_boundaries(
+        self, single_particle_source, pixcoords, expected_px, numba_on
+    ):
+        """
+        Check that a Dirac-delta particle on a pixel boundary is inserted in one pixel.
+
+        Particles exactly on a pixel edge or corner were previously assigned to none of
+        the pixels sharing it, and lost.
+        """
+        source = single_particle_source(hsm_g=np.ones(1) * 1.0e-3 * U.kpc)
+        datacube = DataCube(
+            n_px_x=4,
+            n_px_y=4,
+            n_channels=8,
+            px_size=10 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=GaussianSpectrum(sigma=4 * U.km / U.s),
+            quiet=True,
+        )
+        m._numba_enabled = numba_on
+        m.source.pixcoords[0] = pixcoords[0] * U.pix
+        m.source.pixcoords[1] = pixcoords[1] * U.pix
+        m._insert_source_in_cube(skip_validation=True)
+        mom0 = m._datacube._array.sum(axis=2)
+        assert [tuple(px) for px in np.argwhere(mom0 > 0)] == [expected_px]
+
+    @pytest.mark.parametrize("x_px", (-0.4, 3.4))
+    def test_dirac_delta_near_cube_edge_not_pruned(self, single_particle_source, x_px):
+        """
+        Check that Dirac-delta particles inside edge pixels of the cube are not pruned.
+
+        A Dirac-delta particle within half a pixel of the outer edge of the cube
+        contributes to the edge pixel and must survive spatial pruning, although its
+        smoothing length is much smaller than a pixel.
+        """
+        px_size = 10 * U.arcsec
+        distance = 3 * U.Mpc
+        px_kpc = (px_size * distance).to_value(U.kpc, U.dimensionless_angles())
+        source = single_particle_source(
+            xyz_g=U.Quantity([[0, -(x_px - 1.5) * px_kpc, -0.25 * px_kpc]], U.kpc),
+            hsm_g=np.ones(1) * 1.0e-3 * U.kpc,
+            distance=distance,
+        )
+        datacube = DataCube(
+            n_px_x=4,
+            n_px_y=4,
+            n_channels=8,
+            px_size=px_size,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            ra=0 * U.deg,
+            dec=0 * U.deg,
+        )
+        m = _BaseMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=GaussianSpectrum(sigma=4 * U.km / U.s),
+            quiet=True,
+        )
+        assert m.source.npart == 1
+        assert U.isclose(m.source.pixcoords[0, 0], x_px * U.pix, atol=1e-3 * U.pix)
+        m._insert_source_in_cube(skip_validation=True)
+        mom0 = m._datacube._array.sum(axis=2)
+        assert [tuple(px) for px in np.argwhere(mom0 > 0)] == [(round(x_px), 1)]
+
+    def test_prune_keeps_kernels_touching_region(self):
+        """
+        Check that pruning keeps exactly the particles with kernels touching the region.
+
+        Pixel (or cell) centres are at integer coordinates, so the region spans -0.5 to
+        n - 0.5 along each axis. Particles with kernels just touching the outer edge of
+        an edge pixel along each axis (RA, Dec and LoS distance) must be kept, those
+        just missing it pruned.
+        """
+
+        class _LOSDistanceMartini(_BaseMartini):
+            _n_px_z = 8
+
+        r = 0.3  # kernel range in pixels
+        eps = 1.0e-6
+        # cube is 4px in RA, 6px in Dec and 8px in LoS distance, centred at
+        # (1.5, 2.5, 3.5); offset one coordinate at a time to touch or miss an edge
+        centre = (1.5, 2.5, 3.5)
+        edges = ((-0.5, 3.5), (-0.5, 5.5), (-0.5, 7.5))
+        positions, expect_kept = [centre], [True]
+        for axis, (low, high) in enumerate(edges):
+            for coord, kept in (
+                (low - r, True),
+                (low - r - eps, False),
+                (high + r, True),
+                (high + r + eps, False),
+            ):
+                position = list(centre)
+                position[axis] = coord
+                positions.append(tuple(position))
+                expect_kept.append(kept)
+        n = len(positions)
+        source = SPHSource(
+            xyz_g=np.zeros((n, 3)) * U.kpc,
+            vxyz_g=np.zeros((n, 3)) * U.km / U.s,
+            T_g=(1.0e4 + np.arange(n)) * U.K,  # label particles to identify survivors
+            hsm_g=np.ones(n) * U.kpc,
+            mHI_g=np.ones(n) * 1.0e6 * U.Msun,
+            distance=3 * U.Mpc,
+        )
+        datacube = DataCube(
+            n_px_x=4,
+            n_px_y=6,
+            n_channels=2,
+            px_size=10 * U.arcsec,
+            channel_width=1 * U.km / U.s,
+            spectral_centre=source.vsys,
+        )
+        m = _LOSDistanceMartini(
+            source=source,
+            datacube=datacube,
+            sph_kernel=_CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            quiet=True,
+            _prune_kwargs={"spatial": False, "spectral": False, "mass": False},
+        )
+        x, y, z = np.array(positions).T
+        m.source.pixcoords[0] = x * U.pix
+        m.source.pixcoords[1] = y * U.pix
+        m.source.los_distance_pixcoords = z * U.pix
+        m.sph_kernel.sm_ranges = np.ones(n) * r * U.pix
+        m._prune_particles(spatial=True, spectral=False, mass=False, los_distance=True)
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == set(np.flatnonzero(expect_kept))
 
     def test_prune_nan(self, single_particle_source):
         """
@@ -515,6 +894,245 @@ class TestMartini:
         )
         assert m.source.pixcoords.shape == (3, 1)
 
+    @pytest.mark.parametrize(
+        ("prune_kwargs", "expected_npart"),
+        (
+            # 5 RA x 5 Dec x 5 velocity x 2 mass offsets, of which 3 RA, 3 Dec and 3
+            # velocity offsets are close enough to the cube to survive pruning
+            ({"spatial": True, "spectral": False, "mass": False}, 3 * 3 * 5 * 2),
+            ({"spatial": False, "spectral": True, "mass": False}, 5 * 5 * 3 * 2),
+            ({"spatial": False, "spectral": False, "mass": True}, 5 * 5 * 5 * 1),
+            ({"spatial": True, "spectral": True, "mass": True}, 3 * 3 * 3 * 1),
+        ),
+    )
+    def test_prune_does_not_change_cube(
+        self, prune_kwargs, expected_npart, prune_test_cube
+    ):
+        """
+        Check that pruning particles does not change the resulting datacube.
+
+        Pruning is just done to remove unnecessary work downsteam, it should have no
+        influence on the actual result.
+
+        The test source (see ``prune_test_cubegen`` in ``conftest.py``) has particles
+        inside, overlapping the edges of, and far outside the cube both on the sky and in
+        velocity, each with zero and non-zero HI mass. The kernel has compact support,
+        so the cubes should agree with and without pruning. Check that the pruning
+        conditions remove exactly the particles that cannot contribute, and that some
+        particles survive including some that overlap the edges of the cube.
+        """
+        n, npart_pruned, cube_pruned = prune_test_cube(prune_kwargs)
+        _, npart_unpruned, cube_unpruned = prune_test_cube(
+            {"spatial": False, "spectral": False, "mass": False}
+        )
+        assert npart_unpruned == n
+        assert npart_pruned == expected_npart
+        # particles overlapping the edges must survive and contribute there
+        for edge in (
+            cube_pruned[0],
+            cube_pruned[-1],
+            cube_pruned[:, 0],
+            cube_pruned[:, -1],
+            cube_pruned[:, :, 0],
+            cube_pruned[:, :, -1],
+        ):
+            assert edge.sum() > 0
+        assert U.allclose(cube_pruned, cube_unpruned)
+
+    def test_xy_independence(self):
+        """
+        Check that the x (RA) and y (Dec) axes are handled independently.
+
+        Create a non-square cube with a non-square beam kernel (so the padding differs
+        along x and y) and an asymmetric source. Then rotate the source by 90deg about
+        the line of sight, swap the cube and kernel dimensions and rotate the beam
+        position angle by 90deg. The TAN projection is symmetric under rotation about
+        the tangent point, so the second cube should be the first rotated by 90deg.
+        """
+
+        class SizedGaussianBeam(GaussianBeam):
+            """A Gaussian beam with a given kernel size."""
+
+            def __init__(self, size_px, **kwargs):
+                super().__init__(**kwargs)
+                self.size_px = size_px
+
+            def kernel_size_px(self):
+                return self.size_px
+
+        def make_cube(rotate):
+            # an asymmetric "L" of particles in the plane of the sky (y-z)
+            y = np.array([0.0, 0.4, 0.8, 1.2, 0.0, 0.0])
+            z = np.array([0.0, 0.0, 0.0, 0.0, 0.5, 1.0])
+            n = y.size
+            source = SPHSource(
+                xyz_g=U.Quantity([np.zeros(n), y, z], U.kpc).T,
+                vxyz_g=U.Quantity(
+                    [np.linspace(-20, 20, n), np.zeros(n), np.zeros(n)], U.km / U.s
+                ).T,
+                T_g=np.ones(n) * 1.0e4 * U.K,
+                hsm_g=np.ones(n) * 0.2 * U.kpc,
+                mHI_g=np.ones(n) * 1.0e6 * U.Msun,
+                distance=3 * U.Mpc,
+                ra=0 * U.deg,
+                dec=0 * U.deg,
+            )
+            if rotate:
+                source.rotate(Rotation.from_euler("x", 90, degrees=True))
+            n_px = (24, 16) if rotate else (16, 24)
+            datacube = DataCube(
+                n_px_x=n_px[0],
+                n_px_y=n_px[1],
+                n_channels=8,
+                px_size=10 * U.arcsec,
+                channel_width=8 * U.km / U.s,
+                spectral_centre=source.vsys,
+                ra=0 * U.deg,
+                dec=0 * U.deg,
+            )
+            beam = SizedGaussianBeam(
+                (7, 4) if rotate else (4, 7),
+                bmaj=30 * U.arcsec,
+                bmin=15 * U.arcsec,
+                bpa=(90 if rotate else 0) * U.deg,
+            )
+            m = Martini(
+                source=source,
+                datacube=datacube,
+                beam=beam,
+                sph_kernel=_CubicSplineKernel(),
+                spectral_model=GaussianSpectrum(sigma=10 * U.km / U.s),
+                quiet=True,
+            )
+            pad = (m.datacube.padx, m.datacube.pady)
+            m.insert_source_in_cube(skip_validation=True)
+            m.convolve_beam()
+            return pad, m.datacube._array
+
+        pad, cube = make_cube(rotate=False)
+        pad_rotated, cube_rotated = make_cube(rotate=True)
+        assert pad == (4, 7)
+        assert pad_rotated == (7, 4)
+        assert cube.shape == (16, 24, 8)
+        assert cube.max() > 0
+        assert U.allclose(
+            np.rot90(cube, k=3, axes=(0, 1)),
+            cube_rotated,
+            rtol=1e-6,
+            atol=1e-9 * cube.max(),
+        )
+
+    @pytest.mark.parametrize("bpa", (0 * U.deg, 45 * U.deg, 90 * U.deg, 135 * U.deg))
+    def test_beam_position_angle_on_sky(self, bpa):
+        """
+        Check that the beam convolved into the cube has the expected orientation.
+
+        A point source is convolved with an elliptical beam in a non-square cube, and the
+        orientation of the resulting image is measured on the sky using the WCS.
+        """
+        source = SPHSource(
+            xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,  # avoid landing on a pixel edge
+            vxyz_g=np.zeros((1, 3)) * U.km / U.s,
+            T_g=np.ones(1) * 1.0e4 * U.K,
+            hsm_g=np.ones(1) * 1.0e-3 * U.kpc,
+            mHI_g=np.ones(1) * 1.0e8 * U.Msun,
+            distance=3 * U.Mpc,
+            ra=10 * U.deg,
+            dec=20 * U.deg,
+        )
+        datacube = DataCube(
+            n_px_x=80,
+            n_px_y=60,
+            n_channels=5,
+            px_size=1 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+        )
+        m = Martini(
+            source=source,
+            datacube=datacube,
+            beam=GaussianBeam(
+                bmaj=20 * U.arcsec, bmin=5 * U.arcsec, bpa=bpa, truncate=3
+            ),
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=GaussianSpectrum(sigma=4 * U.km / U.s),
+            quiet=True,
+        )
+        m.insert_source_in_cube(skip_validation=True)
+        m.convolve_beam()
+        mom0 = np.clip(m.datacube._array.sum(axis=2).value, 0, None)
+        i, j = np.meshgrid(
+            np.arange(mom0.shape[0]), np.arange(mom0.shape[1]), indexing="ij"
+        )
+        ra, dec = m.datacube.wcs.celestial.wcs_pix2world(i.ravel(), j.ravel(), 0)
+        east, north = SkyCoord(source.ra, source.dec).spherical_offsets_to(
+            SkyCoord(ra * U.deg, dec * U.deg)
+        )
+        # orientation of the major axis from the second moments of the image
+        cov = np.cov(
+            np.vstack((east.to_value(U.arcsec), north.to_value(U.arcsec))),
+            aweights=mom0.ravel(),
+        )
+        major_axis = np.linalg.eigh(cov)[1][:, -1]
+        measured_pa = np.arctan2(major_axis[0], major_axis[1]) * U.rad
+        # position angle is only defined modulo 180deg
+        offset = (measured_pa - bpa + 90 * U.deg) % (180 * U.deg) - 90 * U.deg
+        assert np.abs(offset) < 1 * U.deg
+
+    def test_asymmetric_beam_orientation_on_sky(self):
+        """
+        Check the orientation on the sky of a beam that is not symmetric.
+
+        A Gaussian beam is symmetric, so a beam flipped along both axes goes undetected.
+        Convolve a point source with a beam offset to the North-East of its centre and
+        check where the flux lands on the sky using the WCS.
+        """
+        source = SPHSource(
+            xyz_g=np.ones((1, 3)) * 1.0e-3 * U.kpc,  # avoid landing on a pixel edge
+            vxyz_g=np.zeros((1, 3)) * U.km / U.s,
+            T_g=np.ones(1) * 1.0e4 * U.K,
+            hsm_g=np.ones(1) * 1.0e-3 * U.kpc,
+            mHI_g=np.ones(1) * 1.0e8 * U.Msun,
+            distance=3 * U.Mpc,
+            ra=10 * U.deg,
+            dec=20 * U.deg,
+        )
+        datacube = DataCube(
+            n_px_x=40,
+            n_px_y=30,
+            n_channels=5,
+            px_size=1 * U.arcsec,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            ra=source.ra,
+            dec=source.dec,
+        )
+        m = Martini(
+            source=source,
+            datacube=datacube,
+            beam=OffsetBeam(bmaj=3 * U.arcsec),
+            sph_kernel=DiracDeltaKernel(),
+            spectral_model=GaussianSpectrum(sigma=4 * U.km / U.s),
+            quiet=True,
+        )
+        m.insert_source_in_cube(skip_validation=True)
+        m.convolve_beam()
+        mom0 = np.clip(m.datacube._array.sum(axis=2).value, 0, None)
+        i, j = np.meshgrid(
+            np.arange(mom0.shape[0]), np.arange(mom0.shape[1]), indexing="ij"
+        )
+        ra, dec = m.datacube.wcs.celestial.wcs_pix2world(
+            np.average(i, weights=mom0), np.average(j, weights=mom0), 0
+        )
+        east, north = SkyCoord(source.ra, source.dec).spherical_offsets_to(
+            SkyCoord(ra * U.deg, dec * U.deg)
+        )
+        # the point source is deposited in the nearest pixel, allow for that offset
+        assert np.abs(east - OffsetBeam.offset_east) < 1 * U.arcsec
+        assert np.abs(north - OffsetBeam.offset_north) < 1 * U.arcsec
+
     def test_reset(self, m_nn):
         """Check that resetting martini instance zeros out datacube."""
         cube_array = m_nn.datacube._array
@@ -544,7 +1162,7 @@ class TestMartini:
         m._datacube._allocate_cube()
         assert m.datacube._array.shape == expected_shape
 
-    def test_preview(self, m_init):
+    def test_preview(self, m_init, tmp_path):
         """Simply check that the preview visualisation runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -566,6 +1184,9 @@ class TestMartini:
                 title="test",
             )
         )
+        # saving to file
+        plt.close(m_init.preview(save=tmp_path / "preview.png"))
+        assert (tmp_path / "preview.png").exists()
 
     def test_preview_warning_ra_dec(self, m_init):
         """Check that we warn if the datacube is too big in RA."""
@@ -1259,7 +1880,39 @@ class TestGlobalProfile:
         m.channel_edges.to(expected_units)
         m.channel_mids.to(expected_units)
 
-    def test_view_spectrum(self, gp):
+    def test_frequency_and_velocity_channels(self, gp):
+        """Check that channels are available in both frequency and velocity units."""
+        for attr in (
+            "frequency_channel_edges",
+            "frequency_channel_mids",
+            "velocity_channel_edges",
+            "velocity_channel_mids",
+        ):
+            assert U.allclose(getattr(gp, attr), getattr(gp._datacube, attr))
+        assert gp.frequency_channel_edges.unit.is_equivalent(U.Hz)
+        assert gp.velocity_channel_edges.unit.is_equivalent(U.km / U.s)
+        assert gp.frequency_channel_edges.size == gp.frequency_channel_mids.size + 1
+        assert U.allclose(
+            gp.velocity_channel_mids.to(U.Hz, equivalencies=U.doppler_radio(HIfreq)),
+            gp.frequency_channel_mids,
+        )
+
+    def test_spectrum_inserts_source(self, single_particle_source):
+        """Check that accessing the spectrum inserts the source if not yet done."""
+        source = single_particle_source()
+        m = GlobalProfile(
+            source=source,
+            spectral_model=GaussianSpectrum(),
+            n_channels=16,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+            quiet=True,
+        )
+        assert not hasattr(m, "_spectrum")
+        assert m.spectrum.sum() > 0
+        assert hasattr(m, "_spectrum")
+
+    def test_view_spectrum(self, gp, tmp_path):
         """Simply check that plotting spectrum runs without error."""
         pytest.importorskip(
             "matplotlib", reason="matplotlib (optional dependency) not available."
@@ -1273,6 +1926,13 @@ class TestGlobalProfile:
         plt.close(gp.plot_spectrum())
         # with non-default arguments
         plt.close(gp.plot_spectrum(title="test", show_vsys=False))
+        # in frequency units
+        plt.close(gp.plot_spectrum(channels="frequency"))
+        # saving to file
+        plt.close(gp.plot_spectrum(save=tmp_path / "spectrum.png"))
+        assert (tmp_path / "spectrum.png").exists()
+        with pytest.raises(ValueError, match="must be 'velocity' or 'frequency'"):
+            gp.plot_spectrum(channels="wavelength")
 
 
 class TestMartiniWithDataCubeFromWCS:

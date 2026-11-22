@@ -14,7 +14,8 @@ from astropy.coordinates import (
     CartesianDifferential,
 )
 from martini.sources.sph_source import SPHSource
-from ..datacube import HIfreq, DataCube
+from ..datacube import DataCube
+from .._util import HIfreq
 from ..L_coords import L_coords
 from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
@@ -207,7 +208,10 @@ class CombinedSource(SPHSource):
             source._init_skycoords(_reset=_reset)
 
     def _init_pixcoords(
-        self, datacube: DataCube, origin: int = 0, los_distance_pixcoords: bool = False
+        self,
+        datacube: DataCube,
+        origin: int = 0,
+        n_px_z: int | None = None,
     ) -> None:
         """
         Initialize pixel coordinates of the particles.
@@ -222,16 +226,17 @@ class CombinedSource(SPHSource):
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
 
-        los_distance_pixcoords : bool
-            If ``True`` particle locations along the line-of-sight distance axis are
-            evaluated using the same pixel scale as for RA and Dec and stored as
-            ``self.los_distance_pixcoords``.
+        n_px_z : int, optional
+            Number of pixels along the line-of-sight distance axis. If given, particle
+            locations along this axis are evaluated using the same (local) pixel scale as
+            for RA and Dec and stored as ``self.los_distance_pixcoords``. The coordinate
+            is logarithmic in distance, such that pixels are locally cubic.
         """
         for source in self.sources:
             source._init_pixcoords(
                 datacube=datacube,
                 origin=origin,
-                los_distance_pixcoords=los_distance_pixcoords,
+                n_px_z=n_px_z,
             )
 
     @property
@@ -668,19 +673,25 @@ class CombinedSource(SPHSource):
         return self._pixcoords
 
     @property
-    def los_distance_pixcoords(self) -> U.Quantity[U.pix]:
+    def los_distance_pixcoords(self) -> U.Quantity[U.pix] | None:
         """
         Get the combined pixel-scale distance offsets from all of the combined sources.
 
         Returns
         -------
-        ~astropy.units.Quantity
+        ~astropy.units.Quantity or None
             :class:`~astropy.units.Quantity`, with dimensions of pixels. LoS distance
-            offsets from source distance in pixel units.
+            offsets from source distance in pixel units. ``None`` if these have not been
+            initialized for the combined sources.
         """
         if self._los_distance_pixcoords is None:
+            if any(source.los_distance_pixcoords is None for source in self.sources):
+                return None
             self._los_distance_pixcoords = np.concatenate(
-                [np.atleast_1d(source.pixcoords) for source in self.sources]
+                [
+                    np.atleast_1d(source.los_distance_pixcoords)
+                    for source in self.sources
+                ]
             )
         return self._los_distance_pixcoords
 
@@ -698,7 +709,9 @@ class CombinedSource(SPHSource):
         count = 0
         # check that the mask is the right size here
         for source in self.sources:
-            source.apply_mask(mask[count : count + source.npart])
+            source_npart = source.npart  # changes when mask is applied
+            source.apply_mask(mask[count : count + source_npart])
+            count += source_npart
         if self._T_g is not None:
             self._T_g = self._T_g[mask]
         if self._mHI_g is not None:

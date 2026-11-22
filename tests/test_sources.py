@@ -27,7 +27,7 @@ from astropy.coordinates import (
     FK5,
 )
 from martini.__version__ import __version__
-from conftest import sps_sourcegen
+from conftest import sps_sourcegen, TNG_SERVER_ERRORS
 
 
 class TestSourceUtilities:
@@ -76,6 +76,39 @@ class TestSourceUtilities:
         rotmat = L_align(xyz, vxyz, m, saverot=testfile)
         saved_rotmat = np.load(testfile)
         assert np.allclose(rotmat, saved_rotmat)
+
+    @pytest.mark.parametrize(
+        ("shape", "match"),
+        (
+            ((3,), "ndim != 2"),
+            ((3, 3), r"shape \(3, 3\)"),
+            ((4, 5), "one dim must be 3"),
+        ),
+    )
+    def test_L_align_bad_shape(self, shape, match):
+        """Check that we refuse to guess the coordinate axis for ambiguous input."""
+        xyz = np.ones(shape) * U.kpc
+        vxyz = np.ones(shape) * U.km / U.s
+        m = np.ones(shape[-1]) * U.Msun
+        with pytest.raises(ValueError, match=match):
+            L_align(xyz, vxyz, m)
+
+    def test_L_align_bad_Laxis(self):
+        """Check that we reject an invalid axis to align with."""
+        xyz = np.array([[1, 0, 0], [0, 1, 0]]) * U.kpc
+        vxyz = np.array([[0, 1, 0], [-1, 0, 0]]) * U.km / U.s
+        m = np.ones(2) * U.Msun
+        with pytest.raises(ValueError, match="Laxis must be one of"):
+            L_align(xyz, vxyz, m, Laxis="w")
+
+    def test_L_align_degenerate(self):
+        """Check that we raise if L is exactly along the arbitrary reference vector."""
+        # L = r x v = (1, 1, 1) exactly
+        xyz = np.array([[1, -1, 0]]) * U.kpc
+        vxyz = np.array([[0, 1, -1]]) * U.km / U.s
+        m = np.ones(1) * U.Msun
+        with pytest.raises(RuntimeError, match="exactly aligned"):
+            L_align(xyz, vxyz, m)
 
     def test_translate(self):
         """Check that cartesian representation transforms correctly."""
@@ -380,7 +413,12 @@ class TestSPHSource:
         )
 
     def test_init_los_pixcoords(self):
-        """Check pseudo-pixel coordinates obtained from distance offsets along the LoS."""
+        """
+        Check pseudo-pixel coordinates obtained from distance offsets along the LoS.
+
+        The datacube width and height (and padding) differ from the LoS depth, the LoS
+        coordinates should depend only on the LoS depth.
+        """
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         # line up particles at 1kpc intervals along the LoS centred on the source distance
@@ -402,15 +440,16 @@ class TestSPHSource:
             hsm_g=np.ones(5) * U.kpc,
         )
         datacube = DataCube(
-            n_px_x=5,
-            n_px_y=5,
+            n_px_x=8,
+            n_px_y=12,
             n_channels=5,
             px_size=1 * U.arcsec,
             channel_width=1 * U.km / U.s,
         )
+        datacube.add_pad((3, 1))
         expected_coords = np.arange(5) * U.pix
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=5)
         assert U.allclose(
             source.los_distance_pixcoords,
             expected_coords,
@@ -448,7 +487,7 @@ class TestSPHSource:
             channel_width=1 * U.km / U.s,
         )
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=5)
         assert U.allclose(
             source.los_distance_pixcoords,
             np.arange(5) * U.pix,
@@ -497,6 +536,18 @@ class TestSPHSource:
             particles_before["coordinates_g"].differentials["s"].get_d_xyz()[:, mask],
             s.coordinates_g.differentials["s"].get_d_xyz(),
         )
+
+    def test_apply_mask_pixcoords(self, s, dc_zeros):
+        """Check that pixel coordinates, including along the line of sight, are masked."""
+        s._init_skycoords()
+        s._init_pixcoords(dc_zeros, n_px_z=8)
+        pixcoords_before = s.pixcoords
+        los_distance_pixcoords_before = s.los_distance_pixcoords
+        mask = np.zeros(s.npart, dtype=bool)
+        mask[::3] = True
+        s.apply_mask(mask)
+        assert U.allclose(s.pixcoords, pixcoords_before[:, mask])
+        assert U.allclose(s.los_distance_pixcoords, los_distance_pixcoords_before[mask])
 
     def test_apply_badmask(self, s):
         """Check that bad masks are rejected."""
@@ -770,6 +821,7 @@ class TestEagleSource:
             in nb_content
         )
 
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not os.path.isdir("examples/RefL0025N0376"),
         reason="sample data not locally available",
@@ -814,6 +866,7 @@ class TestSimbaSource:
             in nb_content
         )
 
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not os.path.isfile("examples/m25n512_151.hdf5")
         or not os.path.isfile("examples/snap_m25n512_151.hdf5"),
@@ -858,6 +911,7 @@ class TestTNGSource:
             in nb_content
         )
 
+    @pytest.mark.slow
     def test_tng_notebook(self):
         """Check that the TNG example notebook runs."""
         pytest.importorskip(
@@ -880,10 +934,8 @@ class TestTNGSource:
         try:
             result = nbr.execute()
             if result.error is not None:
-                if "HTTPError" in result.error.summary and (
-                    "500 Server Error" in result.error.summary
-                    or "503 Server Error" in result.error.summary
-                    or "403 Client Error" in result.error.summary
+                if "HTTPError" in result.error.summary and any(
+                    error in result.error.summary for error in TNG_SERVER_ERRORS
                 ):
                     pytest.xfail("Notebook failed, but due to TNG server issue.")
                 else:
@@ -900,6 +952,7 @@ class TestTNGSource:
                 if os.path.isfile(file_to_cleanup):
                     os.remove(file_to_cleanup)
 
+    @pytest.mark.slow
     def test_TNGSource_with_minisnap(self, tmp_path_factory):
         """Test that we can initialize a TNGSource from a mini snapshot."""
         import os
@@ -964,6 +1017,7 @@ class TestFIRESource:
             in nb_content
         )
 
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not os.path.isfile("examples/m11e_res7100/output/snapshot_600.hdf5"),
         reason="sample data not locally available",
@@ -1164,8 +1218,9 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         assert combined_source.skycoords.size == initial_npart // 2
         assert combined_source.spectralcoords.size == initial_npart // 2
-        combined_source._init_pixcoords(dc_zeros)
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
         assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        assert combined_source.los_distance_pixcoords.size == initial_npart // 2
         for i in range(2):
             assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
             assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
@@ -1195,8 +1250,9 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         combined_source.skycoords
         combined_source.spectralcoords
-        combined_source._init_pixcoords(dc_zeros)
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
         combined_source.pixcoords
+        combined_source.los_distance_pixcoords
         assert combined_source._T_g is not None
         assert combined_source._mHI_g is not None
         assert combined_source._hsm_g is not None
@@ -1204,6 +1260,7 @@ class TestCombinedSource:
         assert combined_source._skycoords is not None
         assert combined_source._spectralcoords is not None
         assert combined_source._pixcoords is not None
+        assert combined_source._los_distance_pixcoords is not None
         combined_source.apply_mask(mask)
         assert combined_source.npart == initial_npart // 2
         assert combined_source.T_g.size == initial_npart // 2
@@ -1213,6 +1270,7 @@ class TestCombinedSource:
         assert combined_source.skycoords.size == initial_npart // 2
         assert combined_source.spectralcoords.size == initial_npart // 2
         assert combined_source.pixcoords.shape[1] == initial_npart // 2
+        assert combined_source.los_distance_pixcoords.size == initial_npart // 2
         for i in range(2):
             assert combined_source.sources[i].T_g.size == initial_npart_s[i] // 2
             assert combined_source.sources[i].mHI_g.size == initial_npart_s[i] // 2
@@ -1228,6 +1286,37 @@ class TestCombinedSource:
             assert (
                 combined_source.sources[i].pixcoords.shape[1] == initial_npart_s[i] // 2
             )
+
+    def test_mask_selects_particles(self, combined_source):
+        """Check that each contained source is masked with its own part of the mask."""
+        # label particles with their index in the combined source
+        combined_source.T_g = np.arange(combined_source.npart) * U.K
+        mask = np.zeros(combined_source.npart, dtype=bool)
+        mask[[0, 1, combined_source.npart - 1]] = True
+        combined_source.apply_mask(mask)
+        assert U.allclose(combined_source.T_g, np.flatnonzero(mask) * U.K)
+        assert U.allclose(
+            np.concatenate([source.T_g for source in combined_source.sources]),
+            np.flatnonzero(mask) * U.K,
+        )
+
+    def test_los_distance_pixcoords(self, combined_source, dc_zeros):
+        """Check that LoS pixel coordinates are combined from the contained sources."""
+        combined_source._init_skycoords()
+        combined_source._init_pixcoords(dc_zeros)
+        assert combined_source.los_distance_pixcoords is None
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
+        assert combined_source.los_distance_pixcoords.shape == (combined_source.npart,)
+        assert U.allclose(
+            combined_source.los_distance_pixcoords,
+            np.concatenate(
+                [source.los_distance_pixcoords for source in combined_source.sources]
+            ),
+        )
+        mask = np.ones(combined_source.npart, dtype=bool)
+        mask[::2] = False
+        combined_source.apply_mask(mask)
+        assert combined_source.los_distance_pixcoords.shape == (combined_source.npart,)
 
     @pytest.mark.parametrize(
         "field, unit", [("T_g", U.K), ("mHI_g", U.Msun), ("hsm_g", U.kpc)]

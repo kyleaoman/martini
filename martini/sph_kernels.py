@@ -433,15 +433,16 @@ class _BaseSPHKernel(object):
 
         Returns
         -------
-        ~numpy.ndarray
-            Kernel value at position(s) ``r``.
+        ~numpy.ndarray or ~astropy.units.Quantity
+            Kernel value at position(s) ``r``, with units of inverse volume if ``h`` has
+            units.
         """
-        q = np.array(r / h / self._rescale)
+        q = r / h / self._rescale
         if isinstance(q, U.Quantity):
             q = q.to_value(U.dimensionless_unscaled)
+        q = np.asarray(q)
         scalar_input = q.ndim == 0
-        W = self.kernel(q)
-        W /= np.power(h * self._rescale, 3)
+        W = self.kernel(q) / np.power(h * self._rescale, 3)
         if scalar_input:
             return W.item()
         else:
@@ -1508,7 +1509,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         float
             Kernel integral over the pixel area, per unit pixel area.
         """
-        return 1.0 if (abs(dx) < 0.5 and abs(dy) < 0.5) else 0.0
+        # Pixels are half-open intervals so that a particle exactly on a pixel boundary
+        # is assigned to exactly one pixel.
+        return 1.0 if (-0.5 <= dx < 0.5 and -0.5 <= dy < 0.5) else 0.0
 
     def __init__(self, size_in_fwhm: float = 1.0) -> None:
         super().__init__()
@@ -1570,9 +1573,11 @@ class DiracDeltaKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Kernel integral over the pixel area.
         """
+        # Pixels are half-open intervals so that a particle exactly on a pixel boundary
+        # is assigned to exactly one pixel.
         return U.Quantity(
             np.where(
-                (np.abs(dij) < 0.5 * U.pix).all(axis=0),
+                np.logical_and(dij >= -0.5 * U.pix, dij < 0.5 * U.pix).all(axis=0),
                 np.array(1, dtype=dij.dtype),
                 np.array(0, dij.dtype),
             ),
@@ -1970,11 +1975,8 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Kernel value at positions ``q``.
         """
-        W: np.ndarray
-        if hasattr(q, "shape"):
-            W = np.zeros(q.shape)
-        else:
-            W = np.zeros(1)
+        q = np.asarray(q)
+        W = np.zeros(q.shape)
         mask1 = q < 0.2
         W[mask1] = (
             np.power(1 - q[mask1], 4)
@@ -1986,8 +1988,6 @@ class _QuarticSplineKernel(_BaseSPHKernel):
         mask3 = np.logical_and(q >= 0.6, q < 1)
         W[mask3] = np.power(1 - q[mask3], 4)
         W *= 15625 / 512 / np.pi
-        if not hasattr(q, "shape"):
-            W = W.squeeze()
         return W
 
     @U.quantity_input
