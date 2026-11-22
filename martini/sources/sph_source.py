@@ -331,7 +331,10 @@ class SPHSource(object):
         return
 
     def _init_pixcoords(
-        self, datacube: DataCube, origin: int = 0, los_distance_pixcoords: bool = False
+        self,
+        datacube: DataCube,
+        origin: int = 0,
+        n_px_z: int | None = None,
     ) -> None:
         """
         Initialize pixel coordinates of the particles.
@@ -344,11 +347,11 @@ class SPHSource(object):
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
 
-        los_distance_pixcoords : bool
-            If ``True`` particle locations along the line-of-sight distance axis are
-            evaluated using the same (local) pixel scale as for RA and Dec and stored as
-            ``self.los_distance_pixcoords``. The coordinate is logarithmic in distance,
-            such that pixels are locally cubic.
+        n_px_z : int, optional
+            Number of pixels along the line-of-sight distance axis. If given, particle
+            locations along this axis are evaluated using the same (local) pixel scale as
+            for RA and Dec and stored as ``self.los_distance_pixcoords``. The coordinate
+            is logarithmic in distance, such that pixels are locally cubic.
         """
         assert self.skycoords is not None, (
             "Initialize source.skycoords before calling _init_pixcoords."
@@ -372,19 +375,14 @@ class SPHSource(object):
             )
             * U.pix
         )
-        if los_distance_pixcoords:
+        if n_px_z is not None:
             distances = skycoords_df_frame.distance
-            # The LoS depth is assumed equal to the width and height of the datacube at
-            # the source distance. They must be equal. This should be refactored later.
-            # assert datacube.n_px_x == datacube.n_px_y
-            # assert datacube.padx == datacube.pady
             # The source distance is at the centre of the LoS axis. Pixels are locally
             # cubic: at distance d the LoS pixel depth is px_size * d, like the width and
             # height, so the LoS coordinate is logarithmic in distance.
             self.los_distance_pixcoords = (
                 origin
-                + datacube.padx
-                + (datacube.n_px_x - 1) / 2
+                + (n_px_z - 1) / 2
                 + np.log((distances / self.distance).to_value(U.dimensionless_unscaled))
                 / datacube.px_size.to_value(U.rad)
             ) * U.pix

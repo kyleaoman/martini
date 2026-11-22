@@ -413,7 +413,12 @@ class TestSPHSource:
         )
 
     def test_init_los_pixcoords(self):
-        """Check pseudo-pixel coordinates obtained from distance offsets along the LoS."""
+        """
+        Check pseudo-pixel coordinates obtained from distance offsets along the LoS.
+
+        The datacube width and height (and padding) differ from the LoS depth, the LoS
+        coordinates should depend only on the LoS depth.
+        """
         # set distance so that 1kpc = 1arcsec
         distance = (1 * U.kpc / 1 / U.arcsec).to(U.Mpc, U.dimensionless_angles())
         # line up particles at 1kpc intervals along the LoS centred on the source distance
@@ -435,15 +440,16 @@ class TestSPHSource:
             hsm_g=np.ones(5) * U.kpc,
         )
         datacube = DataCube(
-            n_px_x=5,
-            n_px_y=5,
+            n_px_x=8,
+            n_px_y=12,
             n_channels=5,
             px_size=1 * U.arcsec,
             channel_width=1 * U.km / U.s,
         )
+        datacube.add_pad((3, 1))
         expected_coords = np.arange(5) * U.pix
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=5)
         assert U.allclose(
             source.los_distance_pixcoords,
             expected_coords,
@@ -481,7 +487,7 @@ class TestSPHSource:
             channel_width=1 * U.km / U.s,
         )
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=5)
         assert U.allclose(
             source.los_distance_pixcoords,
             np.arange(5) * U.pix,
@@ -534,7 +540,7 @@ class TestSPHSource:
     def test_apply_mask_pixcoords(self, s, dc_zeros):
         """Check that pixel coordinates, including along the line of sight, are masked."""
         s._init_skycoords()
-        s._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
+        s._init_pixcoords(dc_zeros, n_px_z=8)
         pixcoords_before = s.pixcoords
         los_distance_pixcoords_before = s.los_distance_pixcoords
         mask = np.zeros(s.npart, dtype=bool)
@@ -1212,7 +1218,7 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         assert combined_source.skycoords.size == initial_npart // 2
         assert combined_source.spectralcoords.size == initial_npart // 2
-        combined_source._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
         assert combined_source.pixcoords.shape[1] == initial_npart // 2
         assert combined_source.los_distance_pixcoords.size == initial_npart // 2
         for i in range(2):
@@ -1244,7 +1250,7 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         combined_source.skycoords
         combined_source.spectralcoords
-        combined_source._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
         combined_source.pixcoords
         combined_source.los_distance_pixcoords
         assert combined_source._T_g is not None
@@ -1299,7 +1305,7 @@ class TestCombinedSource:
         combined_source._init_skycoords()
         combined_source._init_pixcoords(dc_zeros)
         assert combined_source.los_distance_pixcoords is None
-        combined_source._init_pixcoords(dc_zeros, los_distance_pixcoords=True)
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
         assert combined_source.los_distance_pixcoords.shape == (combined_source.npart,)
         assert U.allclose(
             combined_source.los_distance_pixcoords,

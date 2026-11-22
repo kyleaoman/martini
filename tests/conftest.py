@@ -499,7 +499,8 @@ def prune_test_cubegen(prune_kwargs: dict) -> tuple[int, int, U.Quantity]:
     cube. In velocity there are particles inside the band, particles centred just
     outside the band whose spectra overlap its edge channels, and particles so far
     outside the band that their spectra are exactly zero in the band. Each combination
-    appears with zero and non-zero HI mass.
+    appears with zero and non-zero HI mass. The cube is not square, so that pruning that
+    confuses the RA and Dec extents of the cube removes particles that contribute.
 
     Parameters
     ----------
@@ -519,15 +520,17 @@ def prune_test_cubegen(prune_kwargs: dict) -> tuple[int, int, U.Quantity]:
         :class:`~astropy.units.Quantity`, with dimensions of flux density per solid
         angle. The datacube array after source insertion.
     """
-    # 1px is about 0.145kpc at 3Mpc so the cube spans about +/-2.3kpc and the kernel
-    # radius is about 2.9px, the band spans +/-64km/s and sigma is 1.75 channels with
-    # pruning beyond 4 sigma from the band edges
-    sky_offsets = (-4, -2.5, 0, 2.5, 4) * U.kpc
+    # 1px is about 0.145kpc at 3Mpc so the cube spans about +/-2.3kpc in RA (source y
+    # axis) and +/-3.5kpc in Dec (source z axis) and the kernel radius is about 2.9px,
+    # the band spans +/-64km/s and sigma is 1.75 channels with pruning beyond 4 sigma
+    # from the band edges
+    y_offsets = (-4, -2.5, 0, 2.5, 4) * U.kpc
+    z_offsets = (-6, -3.75, 0, 3.75, 6) * U.kpc
     v_offsets = (-1000, -78, 0, 78, 1000) * U.km / U.s
     masses = (0, 1.0e6) * U.Msun
     y, z, vx, mHI_g = (
         g.flatten()
-        for g in np.meshgrid(sky_offsets, sky_offsets, v_offsets, masses, indexing="ij")
+        for g in np.meshgrid(y_offsets, z_offsets, v_offsets, masses, indexing="ij")
     )
     n = mHI_g.size
     source = SPHSource(
@@ -542,7 +545,7 @@ def prune_test_cubegen(prune_kwargs: dict) -> tuple[int, int, U.Quantity]:
     )
     datacube = DataCube(
         n_px_x=32,
-        n_px_y=32,
+        n_px_y=48,
         n_channels=32,
         px_size=10 * U.arcsec,
         channel_width=4 * U.km / U.s,

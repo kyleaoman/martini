@@ -208,7 +208,10 @@ class CombinedSource(SPHSource):
             source._init_skycoords(_reset=_reset)
 
     def _init_pixcoords(
-        self, datacube: DataCube, origin: int = 0, los_distance_pixcoords: bool = False
+        self,
+        datacube: DataCube,
+        origin: int = 0,
+        n_px_z: int | None = None,
     ) -> None:
         """
         Initialize pixel coordinates of the particles.
@@ -223,16 +226,17 @@ class CombinedSource(SPHSource):
         origin : int
             Index of the first pixel in the WCS (FITS-style is 1, python-style is 0).
 
-        los_distance_pixcoords : bool
-            If ``True`` particle locations along the line-of-sight distance axis are
-            evaluated using the same pixel scale as for RA and Dec and stored as
-            ``self.los_distance_pixcoords``.
+        n_px_z : int, optional
+            Number of pixels along the line-of-sight distance axis. If given, particle
+            locations along this axis are evaluated using the same (local) pixel scale as
+            for RA and Dec and stored as ``self.los_distance_pixcoords``. The coordinate
+            is logarithmic in distance, such that pixels are locally cubic.
         """
         for source in self.sources:
             source._init_pixcoords(
                 datacube=datacube,
                 origin=origin,
-                los_distance_pixcoords=los_distance_pixcoords,
+                n_px_z=n_px_z,
             )
 
     @property
