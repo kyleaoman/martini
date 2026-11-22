@@ -1509,7 +1509,9 @@ class DiracDeltaKernel(_BaseSPHKernel):
         float
             Kernel integral over the pixel area, per unit pixel area.
         """
-        return 1.0 if (abs(dx) < 0.5 and abs(dy) < 0.5) else 0.0
+        # Pixels are half-open intervals so that a particle exactly on a pixel boundary
+        # is assigned to exactly one pixel.
+        return 1.0 if (-0.5 <= dx < 0.5 and -0.5 <= dy < 0.5) else 0.0
 
     def __init__(self, size_in_fwhm: float = 1.0) -> None:
         super().__init__()
@@ -1571,9 +1573,11 @@ class DiracDeltaKernel(_BaseSPHKernel):
         ~numpy.ndarray
             Kernel integral over the pixel area.
         """
+        # Pixels are half-open intervals so that a particle exactly on a pixel boundary
+        # is assigned to exactly one pixel.
         return U.Quantity(
             np.where(
-                (np.abs(dij) < 0.5 * U.pix).all(axis=0),
+                np.logical_and(dij >= -0.5 * U.pix, dij < 0.5 * U.pix).all(axis=0),
                 np.array(1, dtype=dij.dtype),
                 np.array(0, dij.dtype),
             ),

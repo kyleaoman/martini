@@ -378,17 +378,21 @@ class _BaseMartini:
             spectrum_half_width = self.spectral_model.half_width(self.source) / np.max(
                 np.abs(np.diff(self._datacube.velocity_channel_edges))
             )
+            # Pixel (or cell) centres are at integer coordinates, so the region spans
+            # -0.5 to n - 0.5 along each axis. Keep any particle with a kernel that could
+            # touch the region, including particles inside the edge pixels with
+            # kernels smaller than a pixel.
             spatial_reject_conditions = (
                 (
                     (
                         self.source.pixcoords[:2]
                         + self.sph_kernel.sm_ranges[np.newaxis]
-                        < 0 * U.pix
+                        < -0.5 * U.pix
                     ).any(axis=0),
                     self.source.pixcoords[0] - self.sph_kernel.sm_ranges
-                    > (self._datacube.n_px_x + self._datacube.padx * 2) * U.pix,
+                    > (self._datacube.n_px_x + self._datacube.padx * 2 - 0.5) * U.pix,
                     self.source.pixcoords[1] - self.sph_kernel.sm_ranges
-                    > (self._datacube.n_px_y + self._datacube.pady * 2) * U.pix,
+                    > (self._datacube.n_px_y + self._datacube.pady * 2 - 0.5) * U.pix,
                     np.isnan(self.source.pixcoords[:2]).any(axis=0),
                 )
                 if spatial
@@ -409,9 +413,9 @@ class _BaseMartini:
                 assert self._n_px_z is not None  # placate mypy
                 los_distance_reject_conditions = (
                     self.source.los_distance_pixcoords + self.sph_kernel.sm_ranges
-                    < 0 * U.pix,
+                    < -0.5 * U.pix,
                     self.source.los_distance_pixcoords - self.sph_kernel.sm_ranges
-                    > self._n_px_z * U.pix,
+                    > (self._n_px_z - 0.5) * U.pix,
                 )
             mass_reject_conditions = (self.source.mHI_g == 0,) if mass else tuple()
             accept_mask = np.logical_not(
