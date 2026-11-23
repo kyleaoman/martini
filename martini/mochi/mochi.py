@@ -512,5 +512,7 @@ class Mochi(Martini):
             (0, 1, 2),
             (2, 1, 0),
         )
+        if self._datacube.stokes_axis:
+            datacube_array = datacube_array[..., np.newaxis]
         self._datacube._array = datacube_array
         return
