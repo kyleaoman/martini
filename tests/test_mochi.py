@@ -657,6 +657,89 @@ class TestParticleInCell:
         assert U.allclose(fields["temperatures"], expected_temperatures)
 
 
+class TestVoronoiMesh:
+    """Test interpolation with a Voronoi mesh."""
+
+    def test_grid_edges(self):
+        """
+        Check that particles anywhere inside the grid contribute.
+
+        The grid extends half a cell beyond the outermost cell centres, and includes its
+        lower edges but not its upper edges. Particles nearest to no cell centre must
+        still be assigned to the cell containing them.
+        """
+        field_positions = (
+            np.array(list(itertools.product((0.5, 1.5), repeat=3))) * U.pix
+        )
+        n_pos = len(field_positions)
+        positions = np.vstack(
+            (
+                field_positions.to_value(U.pix),  # one particle at each cell centre
+                [
+                    [0.1, 0.5, 0.5],  # beyond the outermost cell centres, kept
+                    [0.0, 1.5, 1.5],  # on a lower edge of the grid, kept
+                    [1.95, 1.5, 0.5],  # beyond the outermost cell centres, kept
+                    [2.0, 0.5, 1.5],  # on an upper edge of the grid, excluded
+                ],
+            )
+        )
+        masses_HI = np.r_[np.ones(n_pos), 2, 4, 16, 32] * U.Msun
+        n = len(positions)
+        fields = module_interpolants.voronoi_mesh(
+            positions=positions * U.pix,
+            velocities=np.zeros(n) * U.km / U.s,
+            smoothing_lengths=np.ones(n) * U.pix,
+            masses_HI=masses_HI,
+            temperatures=np.ones(n) * U.km**2 / U.s**2,
+            masses=masses_HI,
+            kernel=DiracDeltaKernel(),
+            cell_grid=SimpleNamespace(  # any object providing the cells will do
+                field_positions=field_positions,
+                field_volumes=np.ones(n_pos) * U.pix**3,
+                field_distortion_corrections=np.ones(n_pos) * U.dimensionless_unscaled,
+            ),
+        )
+        assert U.isclose(np.sum(fields["masses_HI"] * U.pix**3), masses_HI[:-1].sum())
+
+    def test_shared_cell(self):
+        """
+        Check a cell shared by several particles nearest to no cell centre.
+
+        Each particle sharing the cell is assigned an equal part of its volume, and the
+        fields in the cell are the means over the particles.
+        """
+        field_positions = (
+            np.array(list(itertools.product((0.5, 1.5), repeat=3))) * U.pix
+        )
+        n_pos = len(field_positions)
+        positions = np.vstack(
+            (
+                field_positions.to_value(U.pix),  # one particle at each cell centre
+                [[0.1, 0.5, 0.5], [0.2, 0.4, 0.5]],  # both in the first cell
+            )
+        )
+        masses_HI = np.r_[np.ones(n_pos), 2, 4] * U.Msun
+        velocities = np.r_[np.ones(n_pos), 4, 7] * U.km / U.s
+        n = len(positions)
+        fields = module_interpolants.voronoi_mesh(
+            positions=positions * U.pix,
+            velocities=velocities,
+            smoothing_lengths=np.ones(n) * U.pix,
+            masses_HI=masses_HI,
+            temperatures=np.ones(n) * U.km**2 / U.s**2,
+            masses=masses_HI,
+            kernel=DiracDeltaKernel(),
+            cell_grid=SimpleNamespace(  # any object providing the cells will do
+                field_positions=field_positions,
+                field_volumes=np.ones(n_pos) * U.pix**3,
+                field_distortion_corrections=np.ones(n_pos) * U.dimensionless_unscaled,
+            ),
+        )
+        assert U.isclose(np.sum(fields["masses_HI"] * U.pix**3), masses_HI.sum())
+        assert U.isclose(fields["masses_HI"][0] * U.pix**3, (1 + 2 + 4) * U.Msun)
+        assert U.isclose(fields["velocities"][0], (1 + 4 + 7) / 3 * U.km / U.s)
+
+
 class TestMochi:
     """Main API test for MOCHI backend."""
 

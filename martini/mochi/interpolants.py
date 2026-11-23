@@ -533,9 +533,11 @@ def _eval_voronoi_field(
         Field interpolated onto the cell grid.
     """
     field_quantity = particle_quantities[nearest_particle_indices]
-    field_quantity[missed_particle_cell_indices] += particle_quantities[
-        missed_particle_mask
-    ]
+    np.add.at(
+        field_quantity,
+        missed_particle_cell_indices,
+        particle_quantities[missed_particle_mask],
+    )
     field_quantity /= field_n_particle
     return field_quantity
 
@@ -605,12 +607,15 @@ def voronoi_mesh(
         field_positions
     )  # nearest neighbor assignment of particles to field pos
 
-    # construct a mask for inbound particles but not assigned to a cell
+    # construct a mask for inbound particles but not assigned to a cell, the grid
+    # extends half a cell beyond the outermost cell centres and includes its lower
+    # edges but not its upper edges (assume box shape for field pos)
+    half_cell_sizes = (
+        np.cbrt(d_volume * np.ones(len(field_positions)))[:, np.newaxis] / 2
+    )
     inbound_particle_mask = np.all(
-        positions > field_positions.min(axis=0), axis=1
-    ) & np.all(
-        positions < field_positions.max(axis=0), axis=1
-    )  # assume box shape for field pos
+        positions >= (field_positions - half_cell_sizes).min(axis=0), axis=1
+    ) & np.all(positions < (field_positions + half_cell_sizes).max(axis=0), axis=1)
     used_particle_mask = np.isin(particle_indices, nearest_particle_indices)
     missed_particle_mask = inbound_particle_mask & ~used_particle_mask
     missed_particle_indices = particle_indices[missed_particle_mask]
@@ -622,7 +627,7 @@ def voronoi_mesh(
     particle_masks[missed_particle_indices, missed_particle_cell_indices] = True
 
     field_n_particle = np.ones(len(field_positions), dtype=np.uint64)
-    field_n_particle[missed_particle_cell_indices] += 1
+    np.add.at(field_n_particle, missed_particle_cell_indices, 1)
 
     particle_volumes = np.einsum(
         "ij,j->i", particle_masks, d_volume * distortion_corrections / field_n_particle
