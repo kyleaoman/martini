@@ -1202,10 +1202,6 @@ class TestCombinedSource:
         initial_npart_s = [combined_source.sources[i].npart for i in range(2)]
         mask = np.ones(combined_source.npart, dtype=bool)
         mask[::2] = False
-        assert combined_source._T_g is None
-        assert combined_source._mHI_g is None
-        assert combined_source._hsm_g is None
-        assert combined_source._coordinates_g is None
         assert combined_source._skycoords is None
         assert combined_source._spectralcoords is None
         assert combined_source._pixcoords is None
@@ -1243,20 +1239,8 @@ class TestCombinedSource:
         initial_npart_s = [combined_source.sources[i].npart for i in range(2)]
         mask = np.ones(combined_source.npart, dtype=bool)
         mask[::2] = False
-        combined_source.T_g
-        combined_source.mHI_g
-        combined_source.hsm_g
-        combined_source.coordinates_g
         combined_source._init_skycoords()
-        combined_source.skycoords
-        combined_source.spectralcoords
         combined_source._init_pixcoords(dc_zeros, n_px_z=8)
-        combined_source.pixcoords
-        combined_source.los_distance_pixcoords
-        assert combined_source._T_g is not None
-        assert combined_source._mHI_g is not None
-        assert combined_source._hsm_g is not None
-        assert combined_source._coordinates_g is not None
         assert combined_source._skycoords is not None
         assert combined_source._spectralcoords is not None
         assert combined_source._pixcoords is not None
@@ -1318,24 +1302,129 @@ class TestCombinedSource:
         combined_source.apply_mask(mask)
         assert combined_source.los_distance_pixcoords.shape == (combined_source.npart,)
 
+    def test_reinit_coords(self, combined_source, dc_zeros):
+        """Check that re-initialized coordinates are combined from the sources again."""
+        combined_source._init_skycoords()
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
+        first_skycoords = combined_source.skycoords
+        first_spectralcoords = combined_source.spectralcoords
+        first_pixcoords = combined_source.pixcoords
+        first_los_distance_pixcoords = combined_source.los_distance_pixcoords
+        combined_source.sources[0].translate(np.array([0, 10, 0]) * U.kpc)
+        combined_source.sources[0].boost(np.array([10, 0, 0]) * U.km / U.s)
+        combined_source._init_skycoords()
+        dc_zeros.add_pad((2, 3))
+        combined_source._init_pixcoords(dc_zeros, n_px_z=10)
+        assert not U.allclose(combined_source.skycoords.ra, first_skycoords.ra)
+        assert U.allclose(
+            combined_source.skycoords.ra,
+            np.concatenate([s.skycoords.ra for s in combined_source.sources]),
+        )
+        assert not U.allclose(
+            combined_source.spectralcoords.radial_velocity,
+            first_spectralcoords.radial_velocity,
+        )
+        assert U.allclose(
+            combined_source.spectralcoords.radial_velocity,
+            np.concatenate(
+                [s.spectralcoords.radial_velocity for s in combined_source.sources]
+            ),
+        )
+        assert not U.allclose(combined_source.pixcoords, first_pixcoords)
+        assert U.allclose(
+            combined_source.pixcoords,
+            np.hstack([s.pixcoords for s in combined_source.sources]),
+        )
+        assert not U.allclose(
+            combined_source.los_distance_pixcoords, first_los_distance_pixcoords
+        )
+        assert U.allclose(
+            combined_source.los_distance_pixcoords,
+            np.concatenate([s.los_distance_pixcoords for s in combined_source.sources]),
+        )
+
+    @pytest.mark.parametrize("masked", (False, True))
+    def test_coords_shared_with_sources(self, combined_source, dc_zeros, masked):
+        """
+        Check that the combined coordinates share memory with those of the sources.
+
+        In-place modifications of the combined coordinates must reach the sources (and
+        vice versa), including after masking.
+        """
+        combined_source._init_skycoords()
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
+        if masked:
+            mask = np.ones(combined_source.npart, dtype=bool)
+            mask[::2] = False
+            combined_source.apply_mask(mask)
+        for source in combined_source.sources:
+            assert np.shares_memory(combined_source.pixcoords, source.pixcoords)
+            assert np.shares_memory(
+                combined_source.los_distance_pixcoords, source.los_distance_pixcoords
+            )
+            assert np.shares_memory(
+                combined_source.skycoords.data.lon, source.skycoords.data.lon
+            )
+            assert np.shares_memory(
+                combined_source.spectralcoords, source.spectralcoords
+            )
+            # the target of the spectral coordinates is indexed consistently:
+            assert U.allclose(
+                source.spectralcoords.radial_velocity, source.skycoords.radial_velocity
+            )
+        combined_source.pixcoords[:2] += 1 * U.pix
+        assert U.allclose(
+            combined_source.pixcoords,
+            np.hstack([source.pixcoords for source in combined_source.sources]),
+        )
+
+    def test_input_fields_follow_sources(self, combined_source):
+        """Check that the combined input fields follow changes to the sources."""
+        # read all combined fields before modifying the sources:
+        for field in ("T_g", "mHI_g", "hsm_g", "coordinates_g"):
+            getattr(combined_source, field)
+        source = combined_source.sources[0]
+        source.translate(np.array([1, 2, 3]) * U.kpc)
+        source.rotate(Rotation.from_euler("x", 30, degrees=True))
+        source.boost(np.array([10, 0, 0]) * U.km / U.s)
+        source.T_g = 2 * source.T_g
+        source.mHI_g = 2 * source.mHI_g
+        source.hsm_g = 2 * source.hsm_g
+        for field in ("T_g", "mHI_g", "hsm_g"):
+            assert U.allclose(
+                getattr(combined_source, field),
+                np.concatenate([getattr(s, field) for s in combined_source.sources]),
+            )
+        assert U.allclose(
+            combined_source.coordinates_g.xyz,
+            np.hstack([s.coordinates_g.xyz for s in combined_source.sources]),
+        )
+        assert U.allclose(
+            combined_source.coordinates_g.differentials["s"].d_xyz,
+            np.hstack(
+                [
+                    s.coordinates_g.differentials["s"].d_xyz
+                    for s in combined_source.sources
+                ]
+            ),
+        )
+
     @pytest.mark.parametrize(
         "field, unit", [("T_g", U.K), ("mHI_g", U.Msun), ("hsm_g", U.kpc)]
     )
     def test_setter(self, combined_source, field, unit):
         """Check that the particle property setters work correctly."""
-        setattr(combined_source, f"_{field}", None)
         for source in combined_source.sources:
             getattr(source, field)[...] = 0 * unit
         with pytest.raises(ValueError, match="Wrong number of elements"):
             setattr(combined_source, field, np.ones(combined_source.npart - 1) * unit)
         setattr(combined_source, field, np.ones(combined_source.npart) * unit)
-        assert getattr(combined_source, f"_{field}") is not None
+        assert (getattr(combined_source, field) != 0).all()
         for source in combined_source.sources:
             assert (getattr(source, field) != 0).all()
 
     def test_coordinates_setter(self, combined_source):
         """Check that the particle coordinate setter works correctly."""
-        combined_source._coordinates_g = None
         for source in combined_source.sources:
             source.coordinates_g.xyz[...] = 0 * U.Mpc
             source.coordinates_g.differentials["s"].d_xyz[...] = 0 * U.km / U.s
@@ -1358,7 +1447,7 @@ class TestCombinedSource:
                 )
             },
         )
-        assert combined_source._coordinates_g is not None
+        assert (combined_source.coordinates_g.xyz != 0).all()
         for source in combined_source.sources:
             assert (source.coordinates_g.xyz != 0).all()
             assert (source.coordinates_g.differentials["s"].d_xyz != 0).all()

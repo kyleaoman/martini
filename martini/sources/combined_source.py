@@ -33,6 +33,33 @@ if TYPE_CHECKING:
     from martplotlib.figure import Figure
 
 
+def _index_spectralcoord(
+    spectralcoord: SpectralCoord, index: slice | np.ndarray
+) -> SpectralCoord:
+    """
+    Index a :class:`~astropy.coordinates.SpectralCoord` and its target consistently.
+
+    Indexing a :class:`~astropy.coordinates.SpectralCoord` does not index its target, so
+    that evaluating e.g. its radial velocity fails.
+
+    Parameters
+    ----------
+    spectralcoord : ~astropy.coordinates.SpectralCoord
+        The spectral coordinates to index.
+
+    index : slice or ~numpy.ndarray
+        The index (e.g. a :class:`slice`, giving a view, or a boolean mask).
+
+    Returns
+    -------
+    ~astropy.coordinates.SpectralCoord
+        The indexed spectral coordinates.
+    """
+    return spectralcoord[index].replicate(
+        target=spectralcoord.target[index], copy=False
+    )
+
+
 class CombinedSource(SPHSource):
     """
     Can combine multiple sources into a single source for a mock observation.
@@ -147,10 +174,6 @@ class CombinedSource(SPHSource):
     _ra: U.Quantity[U.deg] | None
     _dec: U.Quantity[U.deg] | None
     _vsys: U.Quantity[U.km / U.s] | None
-    _T_g: U.Quantity[U.K] | None
-    _mHI_g: U.Quantity[U.Msun] | None
-    _hsm_g: U.Quantity[U.kpc] | None
-    _coordinates_g: CartesianRepresentation | None
     _skycoords: SkyCoord | None
     _spectralcoords: SpectralCoord | None
     _pixcoords: U.Quantity[U.pix] | None
@@ -161,10 +184,6 @@ class CombinedSource(SPHSource):
         self._ra = None
         self._dec = None
         self._vsys = None
-        self._T_g = None
-        self._mHI_g = None
-        self._hsm_g = None
-        self._coordinates_g = None
         self._skycoords = None
         self._spectralcoords = None
         self._pixcoords = None
@@ -196,7 +215,9 @@ class CombinedSource(SPHSource):
         """
         Initialize the sky coordinates of the particles.
 
-        This is just delegated to each of the combined sources.
+        This is delegated to each of the combined sources, then the coordinates are
+        combined. The combined coordinates are stored once, each source holds a view of
+        its part of them.
 
         Parameters
         ----------
@@ -206,6 +227,9 @@ class CombinedSource(SPHSource):
         """
         for source in self.sources:
             source._init_skycoords(_reset=_reset)
+        skycoords = concatenate([source.skycoords for source in self.sources])
+        self.skycoords = skycoords
+        self.spectralcoords = self._combine_spectralcoords(skycoords)
 
     def _init_pixcoords(
         self,
@@ -216,7 +240,9 @@ class CombinedSource(SPHSource):
         """
         Initialize pixel coordinates of the particles.
 
-        This is just delegated to each of the combined sources.
+        This is delegated to each of the combined sources, then the coordinates are
+        combined. The combined coordinates are stored once, each source holds a view of
+        its part of them.
 
         Parameters
         ----------
@@ -238,6 +264,29 @@ class CombinedSource(SPHSource):
                 origin=origin,
                 n_px_z=n_px_z,
             )
+        self.pixcoords = np.hstack([source.pixcoords for source in self.sources])
+        self.los_distance_pixcoords = (
+            None
+            if n_px_z is None
+            else np.concatenate(
+                [
+                    np.atleast_1d(source.los_distance_pixcoords)
+                    for source in self.sources
+                ]
+            )
+        )
+
+    def _source_slices(self) -> list[slice]:
+        """
+        Get the slices of the combined particle arrays belonging to each source.
+
+        Returns
+        -------
+        list
+            One :class:`slice` per source, in the order of ``self.sources``.
+        """
+        edges = np.r_[0, np.cumsum([source.npart for source in self.sources])]
+        return [slice(start, end) for start, end in zip(edges[:-1], edges[1:])]
 
     @property
     @U.quantity_input
@@ -378,20 +427,21 @@ class CombinedSource(SPHSource):
         """
         Get the combined particle temperatures from all of the combined sources.
 
+        The combined temperatures are evaluated from the sources each time they are
+        accessed.
+
         Returns
         -------
         ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of temperature. Particle
             temperatures.
         """
-        if self._T_g is None:
-            self._T_g = np.concatenate(
-                [
-                    np.atleast_1d(source.T_g) if source.T_g is not None else None
-                    for source in self.sources
-                ]
-            )
-        return self._T_g
+        return np.concatenate(
+            [
+                np.atleast_1d(source.T_g) if source.T_g is not None else None
+                for source in self.sources
+            ]
+        )
 
     @T_g.setter
     @U.quantity_input
@@ -404,17 +454,12 @@ class CombinedSource(SPHSource):
         value : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of temperature.
             The temperature values. The values are "unconcatenated" in the order of
-            the ``self.sources`` and assigned to each, in addition to setting
-            ``self._T_g``.
+            the ``self.sources`` and assigned to each.
         """
-        nparts = [s.npart for s in self.sources]
         if value.size != self.npart:
             raise ValueError("Wrong number of elements for T_g.")
-        for s, T_g_fragment in zip(
-            self.sources, np.split(value, np.cumsum(nparts)[:-1])
-        ):
-            s.T_g = T_g_fragment
-        self._T_g = value
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.T_g = value[source_slice]
 
     @property
     @U.quantity_input
@@ -422,16 +467,15 @@ class CombinedSource(SPHSource):
         """
         Get the combined particle HI masses from all of the combined sources.
 
+        The combined HI masses are evaluated from the sources each time they are
+        accessed.
+
         Returns
         -------
         ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of mass. Particle HI masses.
         """
-        if self._mHI_g is None:
-            self._mHI_g = np.concatenate(
-                [np.atleast_1d(source.mHI_g) for source in self.sources]
-            )
-        return self._mHI_g
+        return np.concatenate([np.atleast_1d(source.mHI_g) for source in self.sources])
 
     @mHI_g.setter
     @U.quantity_input
@@ -444,17 +488,12 @@ class CombinedSource(SPHSource):
         value : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of mass.
             The HI mass values. The values are "unconcatenated" in the order of
-            the ``self.sources`` and assigned to each, in addition to setting
-            ``self._mHI_g``.
+            the ``self.sources`` and assigned to each.
         """
-        nparts = [s.npart for s in self.sources]
         if value.size != self.npart:
             raise ValueError("Wrong number of elements for mHI_g.")
-        for s, mHI_g_fragment in zip(
-            self.sources, np.split(value, np.cumsum(nparts)[:-1])
-        ):
-            s.mHI_g = mHI_g_fragment
-        self._mHI_g = value
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.mHI_g = value[source_slice]
 
     @property
     @U.quantity_input
@@ -462,20 +501,21 @@ class CombinedSource(SPHSource):
         """
         Get the combined particle smoothing lengths from all of the combined sources.
 
+        The combined smoothing lengths are evaluated from the sources each time they are
+        accessed.
+
         Returns
         -------
         ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of length. Particle
             smoothing lengths.
         """
-        if self._hsm_g is None:
-            self._hsm_g = np.concatenate(
-                [
-                    np.atleast_1d(source.hsm_g) if source.hsm_g is not None else None
-                    for source in self.sources
-                ]
-            )
-        return self._hsm_g
+        return np.concatenate(
+            [
+                np.atleast_1d(source.hsm_g) if source.hsm_g is not None else None
+                for source in self.sources
+            ]
+        )
 
     @hsm_g.setter
     @U.quantity_input
@@ -488,22 +528,20 @@ class CombinedSource(SPHSource):
         value : ~astropy.units.Quantity
             :class:`~astropy.units.Quantity`, with dimensions of length.
             The smoothing length values. The values are "unconcatenated" in the order of
-            the ``self.sources`` and assigned to each, in addition to setting
-            ``self._hsm_g``.
+            the ``self.sources`` and assigned to each.
         """
-        nparts = [s.npart for s in self.sources]
         if value.size != self.npart:
             raise ValueError("Wrong number of elements for hsm_g.")
-        for s, hsm_g_fragment in zip(
-            self.sources, np.split(value, np.cumsum(nparts)[:-1])
-        ):
-            s.hsm_g = hsm_g_fragment
-        self._hsm_g = value
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.hsm_g = value[source_slice]
 
     @property
     def coordinates_g(self) -> CartesianRepresentation:
         """
         Get the combined particle cartesian coordinates from all of the combined sources.
+
+        The combined coordinates are evaluated from the sources each time they are
+        accessed.
 
         Returns
         -------
@@ -511,29 +549,24 @@ class CombinedSource(SPHSource):
             The combined :class:`~astropy.coordinates.CartesianRepresentation` object
             (including differentials).
         """
-        if self._coordinates_g is None:
-            if ASTROPY_VERSION < Version("7.0.0"):  # pragma: no cover
-                # Neither np.concatenate nor astropy.coordinates.concatenate can handle
-                # this, despite what astropy.coordinates.concatenate docs claim. Do it
-                # "by hand".
-                self._coordinates_g = CartesianRepresentation(
-                    np.hstack([source.coordinates_g.xyz for source in self.sources]),
-                    differentials={
-                        "s": CartesianDifferential(
-                            np.hstack(
-                                [
-                                    source.coordinates_g.differentials["s"].d_xyz
-                                    for source in self.sources
-                                ]
-                            ),
-                        )
-                    },
-                )
-            else:
-                self._coordinates_g = np.concatenate(
-                    [source.coordinates_g for source in self.sources]
-                )
-        return self._coordinates_g
+        if ASTROPY_VERSION < Version("7.0.0"):  # pragma: no cover
+            # Neither np.concatenate nor astropy.coordinates.concatenate can handle
+            # this, despite what astropy.coordinates.concatenate docs claim. Do it
+            # "by hand".
+            return CartesianRepresentation(
+                np.hstack([source.coordinates_g.xyz for source in self.sources]),
+                differentials={
+                    "s": CartesianDifferential(
+                        np.hstack(
+                            [
+                                source.coordinates_g.differentials["s"].d_xyz
+                                for source in self.sources
+                            ]
+                        ),
+                    )
+                },
+            )
+        return np.concatenate([source.coordinates_g for source in self.sources])
 
     @coordinates_g.setter
     def coordinates_g(self, value: CartesianRepresentation) -> None:
@@ -544,16 +577,12 @@ class CombinedSource(SPHSource):
         ----------
         value : ~astropy.coordinates.CartesianRepresentation
             The coordinates, including velocities as differentials. The values are
-            "unconcatenated" in the order of the ``self.sources`` and assigned to each,
-            in addition to setting ``self._coordinates_g``.
+            "unconcatenated" in the order of the ``self.sources`` and assigned to each.
         """
-        nparts = [s.npart for s in self.sources]
         if value.size != self.npart:
             raise ValueError("Wrong number of elements for coordinates_g.")
-        for i, s in enumerate(self.sources):
-            cumul_count = np.r_[0, np.cumsum(nparts)]
-            s.coordinates_g = value[cumul_count[i] : cumul_count[i + 1]]
-        self._coordinates_g = value
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.coordinates_g = value[source_slice]
 
     @property
     def skycoords(self) -> SkyCoord:
@@ -566,9 +595,7 @@ class CombinedSource(SPHSource):
             The combined :class:`~astropy.coordinates.SkyCoord` object.
         """
         if self._skycoords is None:
-            if any([s.skycoords is None for s in self.sources]):
-                raise RuntimeError("Call _init_skycoords before accessing skycoords.")
-            self._skycoords = concatenate([source.skycoords for source in self.sources])
+            raise RuntimeError("Call _init_skycoords before accessing skycoords.")
         return self._skycoords
 
     @skycoords.setter
@@ -579,17 +606,55 @@ class CombinedSource(SPHSource):
         Parameters
         ----------
         value : ~astropy.coordinates.SkyCoord
-            The sky coordinates. The values are "unconcatenated" in the order of the
-            ``self.sources`` and assigned to each, in addition to setting
-            ``self._skycoords``.
+            The sky coordinates. Each of the ``self.sources`` is assigned a view of its
+            part of the values, in order, in addition to setting ``self._skycoords``.
         """
-        nparts = [s.npart for s in self.sources]
         if value.size != self.npart:
             raise ValueError("Wrong number of elements for skycoords.")
-        for i, s in enumerate(self.sources):
-            cumul_count = np.r_[0, np.cumsum(nparts)]
-            s.skycoords = value[cumul_count[i] : cumul_count[i + 1]]
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.skycoords = value[source_slice]
         self._skycoords = value
+
+    def _combine_spectralcoords(self, skycoords: SkyCoord) -> SpectralCoord:
+        """
+        Combine the spectral coordinates of the combined sources.
+
+        Parameters
+        ----------
+        skycoords : ~astropy.coordinates.SkyCoord
+            The combined sky coordinates of the sources.
+
+        Returns
+        -------
+        ~astropy.coordinates.SpectralCoord
+            The combined :class:`~astropy.coordinates.SpectralCoord` object.
+        """
+        # Seems there's a bug in astropy: can't concatenate SkyCoords with either
+        # astropy.coordinates.concatenate nor np.concatenate, so do it "manually".
+        # https://github.com/astropy/astropy/issues/19560
+        origin_skycoord = SkyCoord(
+            x=0 * U.kpc,
+            y=0 * U.kpc,
+            z=0 * U.kpc,
+            v_x=0 * U.km / U.s,
+            v_y=0 * U.km / U.s,
+            v_z=0 * U.km / U.s,
+            representation_type="cartesian",
+            differential_type="cartesian",
+            frame=self.coordinate_frame,
+        )
+        return SpectralCoord(
+            np.concatenate(
+                [
+                    getattr(source.skycoords, "radial_velocity", None)  # placate mypy
+                    for source in self.sources
+                ]
+            ),
+            doppler_convention="radio",
+            doppler_rest=HIfreq,
+            target=skycoords,
+            observer=origin_skycoord,
+        )
 
     @property
     def spectralcoords(self) -> SpectralCoord:
@@ -602,38 +667,7 @@ class CombinedSource(SPHSource):
             The combined :class:`~astropy.coordinates.SpectralCoord` object.
         """
         if self._spectralcoords is None:
-            if any([source.spectralcoords is None for source in self.sources]):
-                raise RuntimeError(
-                    "Call _init_skycoords before accessing spectralcoords."
-                )
-            # Seems there's a bug in astropy: can't concatenate SkyCoords with either
-            # astropy.coordinates.concatenate nor np.concatenate, so do it "manually".
-            # https://github.com/astropy/astropy/issues/19560
-            origin_skycoord = SkyCoord(
-                x=0 * U.kpc,
-                y=0 * U.kpc,
-                z=0 * U.kpc,
-                v_x=0 * U.km / U.s,
-                v_y=0 * U.km / U.s,
-                v_z=0 * U.km / U.s,
-                representation_type="cartesian",
-                differential_type="cartesian",
-                frame=self.coordinate_frame,
-            )
-            self._spectralcoords = SpectralCoord(
-                np.concatenate(
-                    [
-                        getattr(
-                            source.skycoords, "radial_velocity", None
-                        )  # placate mypy
-                        for source in self.sources
-                    ]
-                ),
-                doppler_convention="radio",
-                doppler_rest=HIfreq,
-                target=concatenate([source.skycoords for source in self.sources]),
-                observer=origin_skycoord,
-            )
+            raise RuntimeError("Call _init_skycoords before accessing spectralcoords.")
         return self._spectralcoords
 
     @spectralcoords.setter
@@ -644,16 +678,14 @@ class CombinedSource(SPHSource):
         Parameters
         ----------
         value : ~astropy.coordinates.SpectralCoord
-            The spectral coordinates. The values are "unconcatenated" in the order of the
-            ``self.sources`` and assigned to each, in addition to setting
+            The spectral coordinates. Each of the ``self.sources`` is assigned a view of
+            its part of the values, in order, in addition to setting
             ``self._spectralcoords``.
         """
-        nparts = [s.npart for s in self.sources]
         if value.size != self.npart:
             raise ValueError("Wrong number of elements for spectralcoords.")
-        for i, s in enumerate(self.sources):
-            cumul_count = np.r_[0, np.cumsum(nparts)]
-            s.spectralcoords = value[cumul_count[i] : cumul_count[i + 1]]
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.spectralcoords = _index_spectralcoord(value, source_slice)
         self._spectralcoords = value
 
     @property
@@ -669,8 +701,28 @@ class CombinedSource(SPHSource):
             of particles in pixel coordinates.
         """
         if self._pixcoords is None:
-            self._pixcoords = np.hstack([source.pixcoords for source in self.sources])
+            raise RuntimeError("Call _init_pixcoords before accessing pixcoords.")
         return self._pixcoords
+
+    @pixcoords.setter
+    @U.quantity_input
+    def pixcoords(self, value: U.Quantity[U.pix]) -> None:
+        """
+        Set the particle pixel coordinates.
+
+        Parameters
+        ----------
+        value : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of pixels. The pixel
+            coordinates, with particles along the second axis. Each of the
+            ``self.sources`` is assigned a view of its part of the values, in order, in
+            addition to setting ``self._pixcoords``.
+        """
+        if value.shape[1] != self.npart:
+            raise ValueError("Wrong number of elements for pixcoords.")
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.pixcoords = value[:, source_slice]
+        self._pixcoords = value
 
     @property
     def los_distance_pixcoords(self) -> U.Quantity[U.pix] | None:
@@ -684,16 +736,26 @@ class CombinedSource(SPHSource):
             offsets from source distance in pixel units. ``None`` if these have not been
             initialized for the combined sources.
         """
-        if self._los_distance_pixcoords is None:
-            if any(source.los_distance_pixcoords is None for source in self.sources):
-                return None
-            self._los_distance_pixcoords = np.concatenate(
-                [
-                    np.atleast_1d(source.los_distance_pixcoords)
-                    for source in self.sources
-                ]
-            )
         return self._los_distance_pixcoords
+
+    @los_distance_pixcoords.setter
+    def los_distance_pixcoords(self, value: U.Quantity[U.pix] | None) -> None:
+        """
+        Set the particle pixel-scale distance offsets.
+
+        Parameters
+        ----------
+        value : ~astropy.units.Quantity or None
+            :class:`~astropy.units.Quantity`, with dimensions of pixels. LoS distance
+            offsets from source distance in pixel units. Each of the ``self.sources`` is
+            assigned a view of its part of the values, in order, in addition to setting
+            ``self._los_distance_pixcoords``. If ``None``, all are set to ``None``.
+        """
+        if value is not None and value.size != self.npart:
+            raise ValueError("Wrong number of elements for los_distance_pixcoords.")
+        for s, source_slice in zip(self.sources, self._source_slices()):
+            s.los_distance_pixcoords = None if value is None else value[source_slice]
+        self._los_distance_pixcoords = value
 
     def apply_mask(self, mask: np.ndarray) -> None:
         """
@@ -712,22 +774,15 @@ class CombinedSource(SPHSource):
             source_npart = source.npart  # changes when mask is applied
             source.apply_mask(mask[count : count + source_npart])
             count += source_npart
-        if self._T_g is not None:
-            self._T_g = self._T_g[mask]
-        if self._mHI_g is not None:
-            self._mHI_g = self._mHI_g[mask]
-        if self._hsm_g is not None:
-            self._hsm_g = self._hsm_g[mask]
-        if self._coordinates_g is not None:
-            self._coordinates_g = self._coordinates_g[mask]
+        # mask the combined coordinates and give the sources views of them again:
         if self._skycoords is not None:
-            self._skycoords = self._skycoords[mask]
+            self.skycoords = self._skycoords[mask]
         if self._spectralcoords is not None:
-            self._spectralcoords = self._spectralcoords[mask]
+            self.spectralcoords = _index_spectralcoord(self._spectralcoords, mask)
         if self._pixcoords is not None:
-            self._pixcoords = self._pixcoords[:, mask]
+            self.pixcoords = self._pixcoords[:, mask]
         if self._los_distance_pixcoords is not None:
-            self._los_distance_pixcoords = self._los_distance_pixcoords[mask]
+            self.los_distance_pixcoords = self._los_distance_pixcoords[mask]
 
     def rotate(
         self,
