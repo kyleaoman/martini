@@ -2,6 +2,7 @@
 
 from martini.mochi.mochi import Mochi, _coarse_shape
 from martini.datacube import DataCube
+from martini.sources import SPHSource
 from martini.beams import GaussianBeam
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from martini.sph_kernels import CubicSplineKernel, DiracDeltaKernel
@@ -10,6 +11,7 @@ from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
 from martini.mochi import interpolants as module_interpolants
 from martini.mochi import refinement
 from martini.mochi._dtypes import CELL_DTYPE
+from martini.mochi.radiative_transfer import optically_thin, _los_overlap
 import pytest
 import numpy as np
 import itertools
@@ -186,12 +188,18 @@ class TestAdaptiveCellGridUtils:
 class TestAdaptiveCellGrid:
     """Test functionality of adaptive cell grid class."""
 
+    n_px_z = 12
+    los_region = (1.0, 9.25)
+    grid_shape = (n_px_z, 32, 32)  # 1px cells covering the grid extent and the datacube
+
     def test_init(self, many_particle_source, dc_zeros):
         """Check class initialization."""
         datacube = dc_zeros
         initial_grid_size = 3
         source = many_particle_source()
-        acg = AdaptiveCellGrid(source, datacube, initial_grid_size=initial_grid_size)
+        acg = AdaptiveCellGrid(
+            source, datacube, self.los_region, initial_grid_size=initial_grid_size
+        )
         # insert checks on acg.pix_range
         assert len(acg.initial_cells) == initial_grid_size**3
         # insert checks on cell locations & sizes
@@ -201,11 +209,11 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        acg = AdaptiveCellGrid(source, datacube)
+        acg = AdaptiveCellGrid(source, datacube, self.los_region, self.grid_shape)
         acg.init_particle_locations(source, sph_kernel)
         assert acg.positions.shape == (source.hsm_g.size, 3)
         assert acg.radii.shape == (source.hsm_g.size,)
@@ -217,11 +225,11 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = AdaptiveCellGrid(source, datacube)
+        grid = AdaptiveCellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         grid.eval_grid_refinement(
             source, datacube, refinement.refine_grid_to_half_particle_scale
@@ -233,11 +241,11 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(source, datacube)
+        grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.test_cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
         test_centres = np.array([[0.5, 0.5, 0.5]]) * U.pix
         grid.init_cell_centres(prefix="test")
@@ -248,19 +256,21 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(source, datacube)
+        grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
+        size = datacube.datacube_shape[0]
+        # LoS centre of the cell at the centre of the region (the source distance):
         grid.test_cells = np.array(
-            [(-0.5, -0.5, -0.5, datacube.datacube_shape[0])], dtype=CELL_DTYPE
+            [(self.n_px_z / 2 - 0.5 - size / 2, -0.5, -0.5, size)], dtype=CELL_DTYPE
         )
         grid.init_cell_centres(prefix="test")
         test_volumes = np.array([datacube.datacube_shape[0] ** 3]) * U.pix**3
         grid.init_cell_volumes(prefix="test")
         assert np.allclose(grid.test_cell_volumes, test_volumes, rtol=1e-6)
-        # cell centred on grid centre at dec=0 has no distortion:
+        # cell centred on region centre at dec=0 has no distortion:
         grid.init_cell_distances(source, datacube, prefix="test")
         grid.init_cell_distortion_corrections(source, datacube, prefix="test")
         assert np.allclose(grid.test_cell_distortion_corrections, 1, rtol=1e-6)
@@ -270,15 +280,16 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
-        grid = CellGrid(source, datacube)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
+        grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         centre = datacube.datacube_shape[0] / 2 - 0.5
+        los_centre = self.n_px_z / 2 - 0.5
         offset = 3
-        # unit cells centred on the grid centre and offset along the LoS:
+        # unit cells centred on the region centre and offset along the LoS:
         grid.test_cells = np.array(
             [
-                (centre - 0.5, centre - 0.5, centre - 0.5, 1),
-                (centre + offset - 0.5, centre - 0.5, centre - 0.5, 1),
+                (los_centre - 0.5, centre - 0.5, centre - 0.5, 1),
+                (los_centre + offset - 0.5, centre - 0.5, centre - 0.5, 1),
             ],
             dtype=CELL_DTYPE,
         )
@@ -299,11 +310,11 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(source, datacube)
+        grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         grid.test_cells = np.array(
             [(*(position - 0.5), 1) for position in grid.positions.to_value(U.pix)],
@@ -333,13 +344,14 @@ class TestAdaptiveCellGrid:
             dec=60 * U.deg,
         )
         source = many_particle_source()
-        grid = CellGrid(source, datacube)
+        grid = CellGrid(source, datacube, self.los_region, (self.n_px_z, 16, 16))
         centre = datacube.datacube_shape[0] / 2 - 0.5
+        los_centre = self.n_px_z / 2 - 0.5
         offsets = np.arange(-7, 8)
         sky_pix = np.array([(centre + i, centre + j) for i in offsets for j in offsets])
-        # unit cells along the grid centre along the LoS:
+        # unit cells at the region centre along the LoS:
         grid.test_cells = np.array(
-            [(centre - 0.5, x - 0.5, y - 0.5, 1) for x, y in sky_pix],
+            [(los_centre - 0.5, x - 0.5, y - 0.5, 1) for x, y in sky_pix],
             dtype=CELL_DTYPE,
         )
         grid.init_cell_centres(prefix="test")
@@ -362,11 +374,11 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(source, datacube)
+        grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         grid.interpolate_fields(source, sph_kernel, interpolant)
         fields = grid.interpolated_fields
@@ -379,7 +391,8 @@ class TestAdaptiveCellGrid:
     @pytest.mark.parametrize(
         "interpolant", (module_interpolants.sph, module_interpolants.mfm)
     )
-    @pytest.mark.parametrize("grid_shape", (None, (8, 8, 8)))
+    # (3, 8, 8) cells of 4px cover the 12px LoS and 32x32px datacube exactly
+    @pytest.mark.parametrize("grid_shape", (grid_shape, (3, 8, 8)))
     def test_uniform_grid_search(
         self, many_particle_source, dc_zeros, interpolant, grid_shape
     ):
@@ -387,18 +400,18 @@ class TestAdaptiveCellGrid:
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
-        source._init_pixcoords(datacube, los_distance_pixcoords=True)
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
         sph_kernel._init_sm_ranges()
-        grid = CellGrid(source, datacube, grid_shape=grid_shape)
-        if grid_shape is not None:
+        grid = CellGrid(source, datacube, self.los_region, grid_shape)
+        if grid_shape != self.grid_shape:
             assert grid.cell_size != 1  # check the mapping to grid units
         grid.init_particle_locations(source, sph_kernel)
         assert grid.uniform_grid is not None
         grid.interpolate_fields(source, sph_kernel, interpolant)  # uniform search
         # the same cells, without the uniform grid description (arbitrary cells):
-        arbitrary = _ArbitraryCellGrid(source, datacube, grid_shape=grid_shape)
+        arbitrary = _ArbitraryCellGrid(source, datacube, self.los_region, grid_shape)
         arbitrary.init_particle_locations(source, sph_kernel)
         arbitrary.interpolate_fields(source, sph_kernel, interpolant)
         fields = grid.interpolated_fields
@@ -407,9 +420,148 @@ class TestAdaptiveCellGrid:
             assert np.any(fields[key] != 0)
             assert U.allclose(fields[key], arbitrary.interpolated_fields[key])
 
-    def eval_radiative_transfer(self):
-        """TBD."""
-        raise NotImplementedError
+    @pytest.mark.parametrize(
+        ("grid_shape", "cell_size", "expected_size"),
+        ((grid_shape, None, 1.0), ((6, 16, 16), None, 2.0), ((2, 4, 4), 8.0, 8.0)),
+    )
+    def test_grid_extent(
+        self, many_particle_source, dc_zeros, grid_shape, cell_size, expected_size
+    ):
+        """
+        Check the extent of a grid with a given shape.
+
+        The grid starts at the lower edges of the first pixels along each axis. The cell
+        size covers the datacube on the sky if not given. The source distance is at the
+        centre of the grid along the LoS.
+        """
+        source = many_particle_source()
+        grid = CellGrid(
+            source, dc_zeros, self.los_region, grid_shape, cell_size=cell_size
+        )
+        assert grid.grid_shape == grid_shape
+        assert grid.cell_size == expected_size
+        for axis, n_cells in zip("xyz", grid_shape):
+            assert grid.cells[axis].min() == -0.5
+            high = (grid.cells[axis] + grid.cells["size"]).max()
+            assert high == -0.5 + n_cells * expected_size
+        assert grid.los_extent == grid_shape[0] * expected_size
+        assert grid.uniform_grid == (grid_shape, expected_size)
+        # a cell centred on the grid along the LoS is at the source distance:
+        los_centre = grid.los_extent / 2 - 0.5
+        grid.test_cells = np.array([(los_centre - 0.5, 0, 0, 1)], dtype=CELL_DTYPE)
+        grid.init_cell_centres(prefix="test")
+        grid.init_cell_distances(source, dc_zeros, prefix="test")
+        assert U.isclose(grid.test_cell_distances[0], source.distance)
+
+    @pytest.mark.parametrize(
+        ("lower", "size", "expected"),
+        (
+            (2.0, 1.0, 1.0),  # inside
+            (-3.0, 1.0, 0.0),  # outside, below
+            (12.0, 1.0, 0.0),  # outside, above
+            (0.5, 1.0, 0.5),  # straddling the lower edge
+            (8.75, 1.0, 0.5),  # straddling the upper edge
+            (-1.0, 12.0, 8.25 / 12),  # covering the region and beyond
+        ),
+    )
+    def test_los_overlap(self, lower, size, expected):
+        """Check the fraction of a cell's extent along the LoS within the region."""
+        assert np.isclose(_los_overlap(lower, size, *self.los_region), expected)
+
+    @pytest.mark.parametrize(
+        ("grid_kind", "layer_weights"),
+        (
+            # self.los_region is (1.0, 9.25); layers of 1px start at -0.5, layers of 2px
+            # at -0.5, 1.5, 3.5, ..., layers of 0.5px at -0.5, 0.0, 0.5, ... (so the
+            # lower edge of the region coincides with a layer edge)
+            ("uniform 1px", {0: 0, 1: 0.5, 4: 1, 9: 0.75, 10: 0, 11: 0}),
+            ("adaptive 1px", {0: 0, 1: 0.5, 4: 1, 9: 0.75, 10: 0, 11: 0}),
+            ("uniform 2px", {0: 0.25, 2: 1, 4: 0.875, 5: 0}),
+            ("uniform 0.5px", {2: 0, 3: 1, 19: 0.5, 20: 0}),
+        ),
+    )
+    def test_radiative_transfer_excludes_beyond_region(
+        self, many_particle_source, dc_zeros, grid_kind, layer_weights
+    ):
+        """
+        Check that only the mass within the region along the LoS reaches the cube.
+
+        Fill one layer of cells along the LoS at a time and compare the cube with the
+        region set to the full grid and to ``self.los_region``: layers beyond the region
+        do not contribute, layers straddling an edge contribute the fraction of their mass
+        inside the region. Covers both the case where cell columns map one-to-one onto
+        data cube pixels and the case where cells cover multiple pixels and/or are covered
+        by multiple pixels.
+        """
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
+        if grid_kind == "adaptive 1px":
+            sph_kernel = CubicSplineKernel()
+            sph_kernel._init_sm_lengths(source, datacube)
+            sph_kernel._init_sm_ranges()
+            grid = AdaptiveCellGrid(
+                source,
+                datacube,
+                self.los_region,
+                (self.n_px_z,) + tuple(datacube.datacube_shape[:2]),
+                initial_cell_size=1,
+            )
+            grid.init_particle_locations(source, sph_kernel)
+            # leave the cells unrefined:
+            grid.eval_grid_refinement(
+                source, datacube, lambda cells, positions, radii: cells
+            )
+            cells = grid.adaptive_cells
+        else:
+            grid_shape = {
+                "uniform 1px": self.grid_shape,
+                "uniform 2px": (self.n_px_z // 2, 16, 16),
+                "uniform 0.5px": (2 * self.n_px_z, 64, 64),
+            }[grid_kind]
+            grid = CellGrid(source, datacube, self.los_region, grid_shape)
+            cells = grid.cells
+        layers = np.rint((cells["x"] + 0.5) / cells["size"]).astype(int)
+        mid_channel = datacube.velocity_channel_edges[7:9].mean()
+        full_region = (-0.5, -0.5 + layers.max() * cells["size"].max() + 1e3)
+        for layer, weight in layer_weights.items():
+            n_cells = len(cells)
+            grid.interpolated_fields = {
+                "masses_HI": np.where(layers == layer, 1.0, 0.0) * U.Msun / U.pix**3,
+                "velocities": np.ones(n_cells) * mid_channel.to(U.km / U.s),
+                "temperatures": np.ones(n_cells) * U.km**2 / U.s**2,
+            }
+            grid.los_region = full_region
+            cube_full = optically_thin(grid, datacube, DiracDeltaSpectrum())
+            grid.los_region = self.los_region
+            cube = optically_thin(grid, datacube, DiracDeltaSpectrum())
+            assert cube_full.sum() > 0
+            assert U.allclose(cube, weight * cube_full, atol=0 * cube_full.unit)
+
+    def test_radiative_transfer_cell_size(self, many_particle_source, dc_zeros):
+        """
+        Check that a uniform grid of 2px cells gives the same mass as one of 1px cells.
+
+        Cells larger than a pixel share their mass equally between the pixels that they
+        cover. The cell distances and distortion corrections differ slightly between the
+        grids.
+        """
+        datacube = dc_zeros
+        source = many_particle_source()
+        mid_channel = datacube.velocity_channel_edges[7:9].mean()
+        cubes = []
+        for grid_shape in (self.grid_shape, (self.n_px_z // 2, 16, 16)):
+            grid = CellGrid(source, datacube, self.los_region, grid_shape)
+            n_cells = len(grid.cells)
+            grid.interpolated_fields = {
+                "masses_HI": np.ones(n_cells) * U.Msun / U.pix**3,
+                "velocities": np.ones(n_cells) * mid_channel.to(U.km / U.s),
+                "temperatures": np.ones(n_cells) * U.km**2 / U.s**2,
+            }
+            cubes.append(optically_thin(grid, datacube, DiracDeltaSpectrum()))
+        assert cubes[0].shape == cubes[1].shape
+        assert U.isclose(cubes[1].sum(), cubes[0].sum(), rtol=1e-3)
 
 
 class TestKernelEvaluation:
@@ -508,6 +660,8 @@ class TestParticleInCell:
 class TestMochi:
     """Main API test for MOCHI backend."""
 
+    los_depth = 2.5 * U.kpc  # about 11.5px at 3Mpc for 15arcsec pixels
+
     @pytest.mark.parametrize(
         "shape", [(16, 16), (100, 100), (128, 96), (38, 250), (2, 50), (514, 514)]
     )
@@ -522,6 +676,292 @@ class TestMochi:
         for n, c, p in zip(shape, coarse_shape, pad):
             assert n + 2 * p == c * cell_size
         assert np.prod(np.array(coarse_shape) * cell_size) <= 1.1 * np.prod(shape)
+
+    def test_los_depth_required(self, many_particle_source, dc_zeros):
+        """Check that the depth along the LoS must be given."""
+        with pytest.raises(TypeError, match="los_depth"):
+            Mochi(
+                source=many_particle_source(),
+                datacube=dc_zeros,
+                sph_kernel=CubicSplineKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+                interpolant=module_interpolants.sph,
+            )
+
+    @pytest.mark.parametrize(
+        ("los_depth", "error"),
+        (
+            (0 * U.kpc, ValueError),
+            (-1 * U.kpc, ValueError),
+            (6 * U.Mpc, ValueError),  # twice the source distance
+        ),
+    )
+    def test_invalid_los_depth_raises(
+        self, many_particle_source, dc_zeros, los_depth, error
+    ):
+        """Check that the depth along the LoS must be a positive length within range."""
+        with pytest.raises(error, match="los_depth|line-of-sight depth"):
+            Mochi(
+                source=many_particle_source(distance=3 * U.Mpc),
+                datacube=dc_zeros,
+                sph_kernel=CubicSplineKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+                los_depth=los_depth,
+                interpolant=module_interpolants.sph,
+            )
+
+    def test_los_region(self):
+        """
+        Check the edges of the region along the LoS in pixel coordinates.
+
+        The edges map back to the source distance minus and plus half of the depth. The
+        region is wider on the near side in pixel coordinates (logarithmic in distance).
+        """
+        distance, depth, px_size = 3 * U.Mpc, 500 * U.kpc, 10 * U.arcsec
+        los_lower_bound, los_upper_bound = Mochi._los_region(depth, distance, px_size)
+        px = px_size.to_value(U.rad)
+        assert U.isclose(distance * np.exp(los_lower_bound * px), distance - depth / 2)
+        assert U.isclose(distance * np.exp(los_upper_bound * px), distance + depth / 2)
+        assert -los_lower_bound > los_upper_bound > 0
+        for bad_depth in (0 * U.kpc, -depth, 2 * distance):
+            with pytest.raises(ValueError, match="line-of-sight depth"):
+                Mochi._los_region(bad_depth, distance, px_size)
+
+    def test_prune_particles(self, dc_zeros):
+        """
+        Check that particles are pruned in RA, Dec and LoS distance only.
+
+        Particles that cannot contribute to the region along the LoS or on the sky are
+        pruned. Particles with zero HI mass or outside the spectral bandwidth are not.
+        """
+        # 1px is about 0.22kpc at 3Mpc, so the region is about 2.6kpc deep and (with
+        # padding for the beam) about 9kpc wide on the sky
+        xyz_g = U.Quantity(
+            [
+                [0, 0, 0],  # kept
+                [5, 0, 0],  # beyond the region along the LoS, pruned
+                [-5, 0, 0],  # in front of the region along the LoS, pruned
+                [0, 0, 0],  # zero HI mass, kept
+                [0, 0, 0],  # outside the spectral bandwidth, kept
+                [0, 10, 0],  # outside the region on the sky, pruned
+            ],
+            U.kpc,
+        )
+        expected_kept = {0, 3, 4}
+        n = xyz_g.shape[0]
+        vxyz_g = np.zeros((n, 3)) * U.km / U.s
+        vxyz_g[4, 0] = 1000 * U.km / U.s
+        mHI_g = np.ones(n) * 1.0e4 * U.Msun
+        mHI_g[3] = 0
+        source = SPHSource(
+            xyz_g=xyz_g,
+            vxyz_g=vxyz_g,
+            T_g=(1.0e4 + np.arange(n)) * U.K,  # label particles to identify survivors
+            hsm_g=np.ones(n) * 0.1 * U.kpc,
+            mHI_g=mHI_g,
+            distance=3 * U.Mpc,
+        )
+        m = Mochi(
+            source=source,
+            datacube=dc_zeros,
+            beam=GaussianBeam(),
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            los_depth=self.los_depth,
+            interpolant=module_interpolants.sph,
+            quiet=True,
+        )
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == expected_kept
+
+    # 32px (42px with padding for the beam) and 2.5kpc: coarse cells of 4px need padding
+    # on the sky; 38px (48px) and 4.5kpc: coarse cells of 8px extend the grid (24px)
+    # beyond the symmetric extent of the region (22px) along the LoS
+    @pytest.mark.parametrize(
+        ("n_px", "los_depth"), ((32, los_depth), (38, 4.5 * U.kpc))
+    )
+    @pytest.mark.parametrize("adaptive_grid", (True, False))
+    def test_grid_covers_region(
+        self, many_particle_source, adaptive_grid, n_px, los_depth
+    ):
+        """
+        Check that the cell grid covers the region, symmetrically about the source.
+
+        The extent of the grid along the LoS is set by ``los_depth``, independently of
+        the extent of the datacube on the sky. It is also the extent used to prune
+        particles along the LoS, ``[-0.5, _n_px_z - 0.5]``, centred on the source.
+        """
+        source = many_particle_source()
+        m = Mochi(
+            source=source,
+            datacube=DataCube(
+                n_px_x=n_px,
+                n_px_y=n_px,
+                n_channels=16,
+                channel_width=4 * U.km / U.s,
+                spectral_centre=source.vsys,
+                px_size=15 * U.arcsec,
+            ),
+            beam=GaussianBeam(),
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            los_depth=los_depth,
+            interpolant=module_interpolants.sph,
+            adaptive_grid=adaptive_grid,
+            quiet=True,
+        )
+        grid = m._make_cell_grid()
+        assert isinstance(grid, AdaptiveCellGrid) == adaptive_grid
+        assert grid.los_region == m._los_bounds
+        los_low = grid.cells["x"].min()
+        los_high = (grid.cells["x"] + grid.cells["size"]).max()
+        assert los_low == -0.5
+        assert los_high == m._n_px_z - 0.5
+        # the region is within the grid and maps back to the requested depth:
+        los_centre = (m._n_px_z - 1) / 2
+        lo, hi = m._los_bounds
+        assert los_low <= lo < hi <= los_high
+        px = m.datacube.px_size.to_value(U.rad)
+        assert U.isclose(
+            source.distance * np.exp((lo - los_centre) * px),
+            source.distance - los_depth / 2,
+        )
+        assert U.isclose(
+            source.distance * np.exp((hi - los_centre) * px),
+            source.distance + los_depth / 2,
+        )
+        # the smallest whole number of cells covering the region symmetrically:
+        cell_size = m.initial_cell_size if adaptive_grid else 1
+        assert m._n_px_z - cell_size < 2 * (los_centre - lo) <= m._n_px_z
+        # on the sky the grid covers the (padded) datacube:
+        for axis, n_px in zip("yz", m.datacube.datacube_shape[:2]):
+            assert grid.cells[axis].min() == -0.5
+            assert (grid.cells[axis] + grid.cells["size"]).max() == n_px - 0.5
+
+    # 32px (42px with padding for the beam) and 2.5kpc: coarse cells of 4px need padding
+    # on the sky; 38px (48px) and 4.5kpc: coarse cells of 8px extend the grid (24px)
+    # beyond the symmetric extent of the region (22px) along the LoS
+    @pytest.mark.parametrize(
+        ("n_px", "los_depth"), ((32, los_depth), (38, 4.5 * U.kpc))
+    )
+    @pytest.mark.parametrize("adaptive_grid", (True, False))
+    def test_prune_against_grid(self, adaptive_grid, n_px, los_depth):
+        """
+        Check that particles are pruned against the extent of the cell grid.
+
+        Particles that can only contribute to the parts of the grid beyond the region
+        that contributes to the cube (beyond ``los_depth`` along the LoS, in the padding
+        for the coarse grid on the sky) must be kept: cells straddling the edge of the
+        region need their full density. Particles beyond the grid are pruned.
+        """
+        distance = 3 * U.Mpc
+        px_size = 15 * U.arcsec
+        px_kpc = (px_size * distance).to_value(U.kpc, U.dimensionless_angles())
+
+        datacube_kwargs = {
+            "n_px_x": n_px,
+            "n_px_y": n_px,
+            "n_channels": 16,
+            "channel_width": 4 * U.km / U.s,
+            "spectral_centre": distance * 70 * U.km / U.s / U.Mpc,
+            "px_size": px_size,
+        }
+
+        m_reference = Mochi(
+            source=SPHSource(
+                xyz_g=np.zeros((1, 3)) * U.kpc,
+                vxyz_g=np.zeros((1, 3)) * U.km / U.s,
+                T_g=np.ones(1) * 1.0e4 * U.K,
+                hsm_g=np.ones(1) * 1.0e-3 * U.kpc,
+                mHI_g=np.ones(1) * 1.0e4 * U.Msun,
+                distance=distance,
+            ),
+            datacube=DataCube(**datacube_kwargs),
+            beam=GaussianBeam(),
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            los_depth=los_depth,
+            interpolant=module_interpolants.sph,
+            adaptive_grid=adaptive_grid,
+            quiet=True,
+        )
+        n_px_z = m_reference._n_px_z
+        # distance of the far edge of the grid along the LoS:
+        grid_far = distance * np.exp(n_px_z / 2 * px_size.to_value(U.rad))
+        region_far = distance + los_depth / 2
+        assert grid_far > region_far  # the grid extends beyond the region
+        x_overhang = ((region_far + grid_far) / 2 - distance).to_value(U.kpc)
+        x_beyond = (grid_far - distance).to_value(U.kpc) + 0.05
+        # on the sky the grid extends from -0.5 to n - 0.5 pixels, the source is at the
+        # centre and pixel x increases with decreasing source y
+        n_sky = m_reference.datacube.datacube_shape[0]
+        sky_edge_px = n_sky / 2  # from the centre to the outer edge of the grid
+        coarse_pad = m_reference.datacube.padx - m_reference.beam.needs_pad()[0]
+        y_pad = -(sky_edge_px - coarse_pad / 2) * px_kpc  # in the coarse padding
+        y_beyond = -(sky_edge_px + 0.2) * px_kpc
+        xyz_g = U.Quantity(
+            [
+                [0, 0, 0],  # kept
+                [x_overhang, 0, 0],  # beyond the region, within the grid, kept
+                [x_beyond, 0, 0],  # beyond the grid, pruned
+                [0, y_pad, 0],  # in the coarse padding (if any), kept
+                [0, y_beyond, 0],  # beyond the grid on the sky, pruned
+            ],
+            U.kpc,
+        )
+        n = xyz_g.shape[0]
+        m = Mochi(
+            source=SPHSource(
+                xyz_g=xyz_g,
+                vxyz_g=np.zeros((n, 3)) * U.km / U.s,
+                T_g=(1.0e4 + np.arange(n)) * U.K,  # label particles to identify them
+                hsm_g=np.ones(n) * 1.0e-3 * U.kpc,
+                mHI_g=np.ones(n) * 1.0e4 * U.Msun,
+                distance=distance,
+            ),
+            datacube=DataCube(**datacube_kwargs),
+            beam=GaussianBeam(),
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            los_depth=los_depth,
+            interpolant=module_interpolants.sph,
+            adaptive_grid=adaptive_grid,
+            quiet=True,
+        )
+        assert m._n_px_z == n_px_z
+        if adaptive_grid and n_px == 32:
+            assert coarse_pad > 0  # check that the coarse padding is tested
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == {0, 1, 3}
+
+    def test_pixcoords_match_padded_datacube(self, many_particle_source, dc_zeros):
+        """
+        Check particle pixel coordinates after padding the datacube for the coarse grid.
+
+        The datacube is padded for the coarse grid after the particle pixel coordinates
+        are first evaluated, they must be consistent with the padded datacube.
+        """
+        beam = GaussianBeam()
+        m = Mochi(
+            source=many_particle_source(),
+            datacube=dc_zeros,
+            beam=beam,
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=GaussianSpectrum(),
+            los_depth=self.los_depth,
+            interpolant=module_interpolants.sph,
+            quiet=True,
+        )
+        # the coarse grid needs additional padding in this configuration:
+        assert m.datacube.padx > beam.needs_pad()[0]
+        skycoords = m.source.skycoords.transform_to(m.datacube.coordinate_frame)
+        expected = m.datacube.wcs.celestial.wcs_world2pix(
+            skycoords.ra.to_value(m.datacube.units[0]),
+            skycoords.dec.to_value(m.datacube.units[1]),
+            0,
+        )
+        assert np.allclose(m.source.pixcoords[0].to_value(U.pix), expected[0])
+        assert np.allclose(m.source.pixcoords[1].to_value(U.pix), expected[1])
 
     @pytest.mark.parametrize("n_px", [(15, 16), (16, 15)])
     def test_odd_datacube_raises(self, many_particle_source, n_px):
@@ -539,10 +979,10 @@ class TestMochi:
                 datacube=datacube,
                 sph_kernel=CubicSplineKernel(),
                 spectral_model=DiracDeltaSpectrum(),
+                los_depth=self.los_depth,
                 interpolant=module_interpolants.sph,
             )
 
-    # Testing *all* combinations here is overkill, simplify later.
     @pytest.mark.parametrize("interpolant", interpolants)
     @pytest.mark.parametrize("refinement_strategy", refinement_strategies)
     @pytest.mark.parametrize("spectral_model", spectral_models)
@@ -569,6 +1009,7 @@ class TestMochi:
             noise=None,
             spectral_model=spectral_model,
             sph_kernel=sph_kernel,
+            los_depth=self.los_depth,
             interpolant=interpolant,
             adaptive_grid=adaptive_grid,
             refinement_strategy=refinement_strategy,
@@ -576,7 +1017,7 @@ class TestMochi:
         m.insert_source_in_cube()
 
 
-def check_inserted_mass_accuracy(m):
+def check_inserted_mass_accuracy(m, expected_fraction=1.0):
     """
     Check that mass in cube after source insertion matches input mass by better than 1%.
 
@@ -587,6 +1028,9 @@ def check_inserted_mass_accuracy(m):
     ----------
     m : ~martini.mochi.mochi.Mochi
         The mochi instance to test for accuracy.
+
+    expected_fraction : float, optional
+        The fraction of the input mass expected in the cube.
     """
     # flux in channels
     F = (m.datacube._array * m.datacube.px_size**2).sum((0, 1)).squeeze()  # Jy
@@ -603,7 +1047,7 @@ def check_inserted_mass_accuracy(m):
         * dv.to_value(U.km / U.s)
     ).to(U.Msun)
 
-    assert U.isclose(MHI, m.source.mHI_g.sum(), rtol=1e-2)
+    assert U.isclose(MHI, expected_fraction * m.source.mHI_g.sum(), rtol=1e-2)
 
 
 class TestMochiMassAccuracy:
@@ -644,6 +1088,7 @@ class TestMochiMassAccuracy:
             noise=None,
             spectral_model=spectral_model(),
             sph_kernel=sph_kernel(),
+            los_depth=8 * U.kpc,  # deep enough to contain the particle's kernel
             interpolant=interpolant,
             adaptive_grid=adaptive_grid,
             quiet=True,
@@ -664,8 +1109,13 @@ class TestMochiMassAccuracy:
             m = Mochi(**mochi_kwargs)
         m.insert_source_in_cube()
         if interpolant_name == "voronoi_mesh":
-            # A single Voronoi cell fills the whole grid, including the padded region
-            # that is cropped after beam convolution, so only check after insertion.
-            check_inserted_mass_accuracy(m)
+            # A single Voronoi cell fills the whole grid uniformly, including the padded
+            # region that is cropped after beam convolution, so only check after
+            # insertion. Along the LoS the grid extends beyond the region, and the mass
+            # beyond the region is excluded.
+            los_lo, los_hi = m._los_bounds
+            check_inserted_mass_accuracy(
+                m, expected_fraction=(los_hi - los_lo) / m._n_px_z
+            )
         else:
             check_mass_accuracy(m, out_mode, tmp_path_factory.mktemp("cube"))

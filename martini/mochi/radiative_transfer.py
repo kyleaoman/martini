@@ -7,6 +7,45 @@ from martini.mochi.cell_grid import CellGrid
 import astropy.units as U
 
 
+def _los_overlap(
+    lower_cell_edge: float,
+    cell_size: float,
+    region_lower_bound: float,
+    region_upper_bound: float,
+) -> float:
+    """
+    Evaluate the fraction of a cell's extent along the line of sight inside a region.
+
+    Parameters
+    ----------
+    lower_cell_edge : float
+        Lower edge of the cell along the line of sight, in pixels.
+
+    cell_size : float
+        Size of the cell, in pixels.
+
+    lo : float
+        Lower edge of the region along the line of sight, in pixels.
+
+    hi : float
+        Upper edge of the region along the line of sight, in pixels.
+
+    Returns
+    -------
+    float
+        The fraction of the cell's extent along the line of sight in the interval defined
+        by the region bounds.
+    """
+    return (
+        max(
+            0.0,
+            min(lower_cell_edge + cell_size, region_upper_bound)
+            - max(lower_cell_edge, region_lower_bound),
+        )
+        / cell_size
+    )
+
+
 def calculate_field_spectrum(
     cell_grid: CellGrid,
     datacube: DataCube,
@@ -133,10 +172,12 @@ def optically_thin(
         ),
         cell_grid.adaptive_cell_distances if adaptive else cell_grid.cell_distances,
     )
-    if adaptive:
-        # Each cell's mass is shared equally between the sky-plane (y, z) pixels that it
-        # covers. Cells smaller than a pixel are assigned to the pixel containing them.
-        # Pixel i spans [i - 0.5, i + 0.5) so cell corners offset by 0.5 give pixel edges.
+    # The cell grid may extend beyond the target region to obey constraints on the cell
+    # side length and refinement requirements. Mass in the parts of cells beyond the
+    # target region along the LoS is here, assuming that the density is uniform within
+    # each cell.
+    region_lower_bound, region_upper_bound = cell_grid.los_region
+    if adaptive or cell_grid.cell_size != 1:
         yz_cells = np.column_stack([cells[i] for i in "yz"]) + 0.5
         sizes = cells["size"][:, np.newaxis]
         cells_begin = np.floor(yz_cells).astype(index_type)
@@ -156,13 +197,41 @@ def optically_thin(
                 datacube.datacube_shape[1],
             )
         )
+        cell_los_lower_edge, cell_los_size = cells["x"], cells["size"]
         for i in np.arange(len(cells), dtype=index_type):
+            weight = 1.0
+            if (
+                cell_los_lower_edge[i] < region_lower_bound
+                or cell_los_lower_edge[i] + cell_los_size[i] > region_upper_bound
+            ):
+                weight = _los_overlap(
+                    cell_los_lower_edge[i],
+                    cell_los_size[i],
+                    *cell_grid.los_region,
+                )
+                if weight == 0:
+                    continue
             y_start, z_start = cells_begin[i]
             y_end, z_end = cells_end[i]
-            cube[:, y_start:y_end, z_start:z_end] += field_spectra[:, i, None, None]
+            cube[:, y_start:y_end, z_start:z_end] += (
+                weight * field_spectra[:, i, None, None]
+            )
         cube *= cube_unit
     else:
-        # field_spectra has shape (n_channels, n_cells), cells are ordered with the LoS
-        # axis varying slowest, then sum along the LoS:
-        cube = field_spectra.reshape((-1,) + cell_grid.grid_shape).sum(axis=1)
+        # Cell grid maps one-to-one onto data cube pixels.
+        grid_shape = cell_grid.grid_shape
+        layer_weights = np.array(
+            [
+                _los_overlap(lower, 1.0, *cell_grid.los_region)
+                for lower in cells["x"].reshape(grid_shape)[:, 0, 0]
+            ]
+        )
+        cube = (
+            np.einsum(
+                "czxy,z->cxy",
+                field_spectra.value.reshape((-1,) + grid_shape),
+                layer_weights,
+            )
+            * field_spectra.unit
+        )
     return np.flip(np.moveaxis(cube, 1, 2), axis=2)

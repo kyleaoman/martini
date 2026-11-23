@@ -23,9 +23,9 @@ from martini._unit_conversion import MHI_to_Jy_inplace
 
 
 def _coarse_shape(
-    shape: tuple[int, int],
+    shape: tuple[int, ...],
     max_extra_fraction: float = 0.1,
-) -> tuple[tuple[int, int], int, tuple[int, int]]:
+) -> tuple[tuple[int, ...], int, tuple[int, ...]]:
     """
     Find a coarse grid of power-of-two sized cells aligned with the pixel grid.
 
@@ -39,8 +39,9 @@ def _coarse_shape(
 
     Parameters
     ----------
-    shape : tuple[int, int]
-        Shape of the cube (including any existing padding), with even side lengths.
+    shape : tuple[int, ...]
+        Shape of the region to cover (including any existing padding), with even side
+        lengths.
 
     max_extra_fraction : float, optional
         Maximum fractional increase in the number of pixels covered by the coarse grid,
@@ -48,13 +49,13 @@ def _coarse_shape(
 
     Returns
     -------
-    coarse_shape : tuple[int, int]
+    coarse_shape : tuple[int, ...]
         Number of coarse cells along each axis.
 
     cell_size : int
         Side length of the coarse cells in pixels.
 
-    pad : tuple[int, int]
+    pad : tuple[int, ...]
         Padding (per side) to add to ``shape`` along each axis.
     """
     n_px = np.array(shape)
@@ -66,9 +67,9 @@ def _coarse_shape(
             break
     pad = (grid_px - n_px) // 2
     return (
-        (int(coarse_shape[0]), int(coarse_shape[1])),
+        tuple(int(c) for c in coarse_shape),
         cell_size,
-        (int(pad[0]), int(pad[1])),
+        tuple(int(p) for p in pad),
     )
 
 
@@ -121,6 +122,12 @@ class Mochi(Martini):
         other models is straightforward. See
         :doc:`sub-module documentation </spectral_models/index>`.
 
+    los_depth : ~astropy.units.Quantity
+        :class:`~astropy.units.Quantity`, with dimensions of length. Total depth of the
+        region along the line of sight, centred on the source distance (so it must be
+        less than twice the source distance). Only mass within this region contributes
+        to the data cube.
+
     interpolant : Callable
         Function that interpolates the gas particle (or gas cell) properties onto the
         grid. E.g. :func:`~martini.mochi.interpolants.sph` or
@@ -165,8 +172,10 @@ class Mochi(Martini):
     ??
     """
 
-    _REQUIRES_LOS_DISTANCE_PIXCOORDS = True
+    _n_px_z: int  # always set, see __init__
+    los_depth: U.Quantity[U.kpc]
 
+    @U.quantity_input
     def __init__(
         self,
         *,
@@ -176,6 +185,7 @@ class Mochi(Martini):
         noise: _BaseNoise | None = None,
         sph_kernel: _BaseSPHKernel,
         spectral_model: _BaseSpectrum,
+        los_depth: U.Quantity[U.kpc],
         interpolant: Callable,  # fill in arg & return types
         radiative_transfer: Callable[
             [CellGrid, DataCube, _BaseSpectrum, type], U.Quantity[U.Msun / U.Mpc**2]
@@ -207,6 +217,13 @@ class Mochi(Martini):
                 "The particle_in_cell interpolant ignores the SPH kernel and deposits "
                 "particles as points, use DiracDeltaKernel to make this explicit."
             )
+        self.interpolant = interpolant
+        self.radiative_transfer = radiative_transfer
+        self.refinement_strategy = refinement_strategy
+        self.adaptive_grid = adaptive_grid
+        self.los_depth = los_depth
+        # The cell grid must be known before _BaseMartini.__init__ does pruning.
+        self._init_grid_geometry(source, datacube, beam)
         super().__init__(
             source=source,
             datacube=datacube,
@@ -216,39 +233,206 @@ class Mochi(Martini):
             spectral_model=spectral_model,
             quiet=quiet,
         )
-        self.interpolant = interpolant
-        self.radiative_transfer = radiative_transfer
-        self.refinement_strategy = refinement_strategy
-        self.adaptive_grid = adaptive_grid
-        self._init_coarse_grid()
 
         return
 
-    def _init_coarse_grid(self) -> None:
+    def _prune_particles(
+        self,
+        spatial: bool = True,
+        spectral: bool = False,
+        mass: bool = False,
+        los_distance: bool = True,
+    ) -> None:
         """
-        Initialize datacube and interpolation grid for a coarse shape.
+        Identify and remove particles that cannot contribute to the DataCube.
 
-        Since MOCHI uses dynamic resolution based on bisection and user input cube shape
-        may not allow factorisation, the cube is padded such that it is covered by a
-        coarse grid of cells with power-of-two side lengths in pixels. Bisected cells
-        then remain aligned with the pixel grid.
-        Starting from a minimal resolution also reduces the amount of cell-particle
-        distance computations.
+        :class:`~martini.mochi.mochi.Mochi` prunes particles that cannot contribute to the
+        data cube in RA and Dec. It also discards particle with no contribution to the
+        chosen interval in line-of-sight distance (``los_depth``). Particles are not
+        pruned based on their HI mass (zero-mass particles are kept) or on the spectral
+        bandwidth because both of these may contribute to the interpolated field on the
+        3D spatial grid.
+
+        Parameters
+        ----------
+        spatial : bool
+            If ``True``, prune particles that fall outside the spatial aperture.
+
+        spectral : bool
+            If ``True``, prune particles that fall outside the spectral bandwidth.
+
+        mass : bool
+            If ``True``, prune particles that have zero HI mass.
+
+        los_distance : bool
+            If ``True``, prune particles that fall outside the line-of-sight distance
+            extent of the region.
+
+        Notes
+        -----
+        Particles are pruned against the full extent of the cell grid, not just the
+        region that contributes to the data cube. A cell that straddles the edge of the
+        region contributes the part of its mass inside the region assuming that its
+        density is uniform, so the particles touching the part of the cell beyond the
+        region must contribute to its density. The datacube is therefore padded to the
+        extent of the coarse grid before pruning.
         """
-        if not self.adaptive_grid:
-            return
-        shape, self.initial_cell_size, pad_coarse = _coarse_shape(
-            (self._datacube.datacube_shape[0], self._datacube.datacube_shape[1])
+        self._apply_coarse_padding()
+        super()._prune_particles(
+            spatial=spatial, spectral=spectral, mass=mass, los_distance=los_distance
         )
-        pad = (pad_coarse[0] + self.datacube.padx, pad_coarse[1] + self.datacube.pady)
-        # Ideally this padding calculation should happen before the datacube array is
-        # actually allocated. The shape is available before that. Otherwise we end up
-        # allocating a larger cube, copying the smaller cube into it, then deleting the
-        # smaller cube, which is wasted time and memory. Maybe this is already the case,
-        # but should check.
-        self.datacube.drop_pad()
-        self.datacube.add_pad(pad)
-        self.initial_grid_shape = (shape[0],) + shape  # los direction as z -- needs fix
+
+    @staticmethod
+    def _los_region(
+        los_depth: U.Quantity[U.kpc],
+        distance: U.Quantity[U.Mpc],
+        px_size: U.Quantity[U.rad],
+    ) -> tuple[float, float]:
+        """
+        Find the edges of the region along the line of sight in pixel coordinates.
+
+        The region spans ``distance - los_depth / 2`` to ``distance + los_depth / 2``.
+        Pixels along the line of sight are locally cubic, so the line-of-sight pixel
+        coordinate is logarithmic in distance (see
+        :meth:`~martini.sources.sph_source.SPHSource._init_pixcoords`) and the region is
+        not symmetric about the source distance in pixel coordinates.
+
+        Parameters
+        ----------
+        los_depth : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of length. Total depth of
+            the region along the line of sight, centred on the source distance.
+
+        distance : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of length. Distance to the
+            source.
+
+        px_size : ~astropy.units.Quantity
+            :class:`~astropy.units.Quantity`, with dimensions of angle. Pixel size.
+
+        Returns
+        -------
+        tuple[float, float]
+            The near and far edges of the region, in pixels relative to the source
+            distance.
+        """
+        if not (0 < los_depth < 2 * distance):
+            raise ValueError(
+                "The line-of-sight depth must be positive and less than twice the source "
+                f"distance, got los_depth={los_depth} with distance={distance}."
+            )
+        half_depth = (los_depth / 2 / distance).to_value(U.dimensionless_unscaled)
+        px = px_size.to_value(U.rad)
+        return np.log(1 - half_depth) / px, np.log(1 + half_depth) / px
+
+    def _init_grid_geometry(
+        self, source: SPHSource, datacube: DataCube, beam: _BaseBeam | None
+    ) -> None:
+        """
+        Determine the extent of the cell grid.
+
+        Since :class:`~martini.mochi.mochi.Mochi` may use adaptive grid refinement and an
+        initial cell grid may not allow subdivision aligned with the pixel grid, the cube
+        is padded such that it is covered by a coarse grid of cells with power-of-two side
+        lengths in pixels. Along the line of sight the grid covers the region
+        symmetrically about the source distance (the region itself is not symmetric in
+        pixel coordinates, which are logarithmic in distance) with a whole number of
+        cells.
+
+        Sets ``_n_px_z`` (the extent of the grid along the line of sight in pixels,
+        centred on the source distance), ``_los_bounds`` (the edges of the region in
+        line-of-sight pixel coordinates) and, for an adaptive grid, the shape and cell
+        size of the coarse grid and the additional padding of the datacube that it
+        requires.
+
+        The final grid may extend past the edges of the target region to satisfy these
+        constraints. Unused cells (or partial cells along the line of sight direction)
+        should be discarded when constructing the final data cube.
+
+        Parameters
+        ----------
+        source : ~martini.sources.sph_source.SPHSource
+            The source module, needed for its distance.
+
+        datacube : ~martini.datacube.DataCube
+            The datacube, before any padding.
+
+        beam : _BaseBeam or None
+            The beam, needed for the padding of the datacube that it requires.
+        """
+        u_lo, u_hi = self._los_region(self.los_depth, source.distance, datacube.px_size)
+        # the region is wider on the near side than on the far side in pixels
+        los_half_extent = -u_lo
+        self._coarse_pad: tuple[int, ...] = (0, 0)
+        if self.adaptive_grid:
+            if beam is not None:
+                beam.init_kernel(datacube)
+                beam_pad = beam.needs_pad()
+            else:
+                beam_pad = (0, 0)
+            shape, self.initial_cell_size, pad = _coarse_shape(
+                (
+                    datacube.n_px_x + 2 * beam_pad[0],
+                    datacube.n_px_y + 2 * beam_pad[1],
+                    2 * int(np.ceil(los_half_extent)),
+                )
+            )
+            self._coarse_pad = pad[:2]
+            n_cells_z = int(np.ceil(2 * los_half_extent / self.initial_cell_size))
+            # cells are indexed (LoS, RA, Dec):
+            self.initial_grid_shape = (n_cells_z, shape[0], shape[1])
+            self._n_px_z = n_cells_z * self.initial_cell_size
+        else:
+            self._n_px_z = int(np.ceil(2 * los_half_extent))
+        los_centre = (self._n_px_z - 1) / 2
+        self._los_bounds = (los_centre + u_lo, los_centre + u_hi)
+        return
+
+    def _apply_coarse_padding(self) -> None:
+        """
+        Pad the datacube to the extent of the coarse grid.
+
+        The particle pixel coordinates evaluated for the datacube before the additional
+        padding are shifted accordingly.
+        """
+        if self._coarse_pad == (0, 0):
+            return
+        pad = (
+            self._coarse_pad[0] + self._datacube.padx,
+            self._coarse_pad[1] + self._datacube.pady,
+        )
+        self._datacube.drop_pad()
+        self._datacube.add_pad(pad)
+        # The padding shifts the pixel grid by a whole number of pixels.
+        self.source.pixcoords[:2] += np.array(self._coarse_pad)[:, np.newaxis] * U.pix
+        self._coarse_pad = (0, 0)  # applied
+        return
+
+    def _make_cell_grid(self) -> CellGrid:
+        """
+        Create the (initial) cell grid determined by :meth:`_init_grid_geometry`.
+
+        Returns
+        -------
+        ~martini.mochi.cell_grid.CellGrid
+            An :class:`~martini.mochi.cell_grid.AdaptiveCellGrid` with the coarse grid if
+            ``adaptive_grid`` is ``True``, otherwise a
+            :class:`~martini.mochi.cell_grid.CellGrid` of 1px cells.
+        """
+        if self.adaptive_grid:  # do any options need exposing?
+            return AdaptiveCellGrid(
+                self.source,
+                self._datacube,
+                self._los_bounds,
+                self.initial_grid_shape,
+                initial_cell_size=self.initial_cell_size,
+            )
+        return CellGrid(
+            self.source,
+            self._datacube,
+            self._los_bounds,
+            (self._n_px_z,) + tuple(self._datacube.datacube_shape[:2]),
+        )
 
     def insert_source_in_cube(
         self,
@@ -293,16 +477,7 @@ class Mochi(Martini):
         # kernel at hand, e.g. by validating smoothing lengths in units of the sizes of
         # the cells that each particle deposits into (with Mochi-specific tolerances).
         self.sph_kernel._init_sm_ranges()
-        cell_grid = (  # do any options need exposing?
-            AdaptiveCellGrid(
-                self.source,
-                self._datacube,
-                self.initial_grid_shape,
-                initial_cell_size=self.initial_cell_size,
-            )
-            if self.adaptive_grid
-            else CellGrid(self.source, self._datacube)
-        )
+        cell_grid = self._make_cell_grid()
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
         if hasattr(cell_grid, "eval_grid_refinement"):
             cell_grid.eval_grid_refinement(

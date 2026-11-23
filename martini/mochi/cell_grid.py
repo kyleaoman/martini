@@ -75,14 +75,22 @@ class CellGrid:
     datacube : ~martini.datacube.DataCube
         The target data cube object for the spectral cube.
 
-    grid_size : int or None
-        The number of cells along each axis of the grid. If ``None``, it is determined
-        from the ``datacube`` dimensions.
+    los_region : tuple[float, float]
+        The edges of the region covered by the mock observation along the line of sight,
+        in line-of-sight pixel coordinates of the particles. The grid may extend beyond
+        this if required (e.g. divides into a non-integer number of cells).
+
+    grid_shape : tuple[int, int, int] or int
+        The number of cells along each axis of the grid, ordered (LoS, RA, Dec). The grid
+        starts at the lower edge of the first pixel along each axis. Along the line of
+        sight it is assumed to be centred on the source distance: the line-of-sight pixel
+        coordinates of the particles must be centred on ``(los_extent - 1) / 2``, where
+        ``los_extent = grid_shape[0] * cell_size`` is the extent of the grid along the
+        line of sight in pixels.
 
     cell_size : float or None
         The side length of the cells in pixels. If ``None``, it is determined such that
-        the grid exactly covers the datacube pixel grid. The cell grid may extend
-        beyond the datacube pixel grid if a larger size is given.
+        the grid exactly covers the datacube pixel grid.
     """
 
     cells: np.ndarray
@@ -96,32 +104,31 @@ class CellGrid:
     cell_centres: U.Quantity[U.pix]
     grid_shape: tuple[int, int, int]
     cell_size: float
+    los_region: tuple[float, float]
+    los_extent: float
 
     def __init__(
         self,
         source: SPHSource,
         datacube: DataCube,
-        grid_shape: tuple[int, int, int] | int | None = None,
+        los_region: tuple[float, float],
+        grid_shape: tuple[int, int, int] | int,
         cell_size: float | None = None,
     ) -> None:
         datacube_shape = datacube.datacube_shape[:3]
-        full_grid_shape: tuple[int, int, int]
-        if grid_shape is None:
-            full_grid_shape = (
-                datacube_shape[0],  # copy ra dim length into los dim length
-                datacube_shape[0],
-                datacube_shape[1],
-            )
-        elif type(grid_shape) is int:
-            full_grid_shape = (grid_shape, grid_shape, grid_shape)
-        else:
-            full_grid_shape = grid_shape
+        self.los_region = los_region
+        full_grid_shape: tuple[int, int, int] = (
+            (grid_shape, grid_shape, grid_shape)
+            if isinstance(grid_shape, int)
+            else grid_shape
+        )
         if cell_size is None:
             size = datacube_shape[0] / full_grid_shape[1]  # offset because 0 is LOS
             size_y = datacube_shape[1] / full_grid_shape[2]
             assert size == size_y  # Enforce cuboid cells
         else:
             size = cell_size
+        self.los_extent = full_grid_shape[0] * size
 
         self.pix_range = [(0, n_px) for n_px in full_grid_shape]
 
@@ -235,9 +242,9 @@ class CellGrid:
         """
         Initialize the distance from the observer to the centre of each cell.
 
-        The LoS axis of the cell grid has the same number of pixels as the RA axis of
-        the datacube, centred on the source distance. A cell centred on the grid centre
-        along the LoS direction is at the source distance. Pixels are locally cubic, so
+        The cell grid is ``los_extent`` pixels long along the LoS axis, centred on the
+        source distance. A cell centred on the centre of the grid along the LoS direction
+        is at the source distance. Pixels are locally cubic, so
         the LoS pixel coordinate is logarithmic in distance (see
         :meth:`~martini.sources.sph_source.SPHSource._init_pixcoords`).
 
@@ -256,7 +263,7 @@ class CellGrid:
         """
         if prefix != "":
             prefix = f"{prefix}_"
-        ref_cell = (datacube.datacube_shape[0] / 2 - 0.5) * U.pix
+        ref_cell = (self.los_extent / 2 - 0.5) * U.pix
         log_distance_ratios = (
             (getattr(self, f"{prefix}cell_centres")[:, 0] - ref_cell)
             / U.pix
@@ -463,8 +470,16 @@ class AdaptiveCellGrid(CellGrid):
     datacube : ~martini.datacube.DataCube
         The target data cube object for the spectral cube.
 
-    initial_grid_size : int
-        The initial number of cells along each axis of the adaptive grid.
+    los_region : tuple[float, float]
+        The edges of the region covered by the mock observation along the line of sight,
+        in line-of-sight pixel coordinates of the particles. The grid may extend beyond
+        this if required (e.g. divides into a non-integer number of cells).
+
+    initial_grid_size : tuple[int, int, int] or int
+        The initial number of cells along each axis of the adaptive grid, ordered (LoS,
+        RA, Dec). The grid starts at the lower edge of the first pixel along each axis.
+        Along the line of sight it is assumed to be centred on the source distance (see
+        :class:`CellGrid`).
 
     initial_cell_size : float or None
         The side length of the initial cells in pixels. If ``None``, it is determined
@@ -482,11 +497,16 @@ class AdaptiveCellGrid(CellGrid):
         self,
         source: SPHSource,
         datacube: DataCube,
-        initial_grid_size: int | tuple[int, int, int] = 2,
+        los_region: tuple[float, float],
+        initial_grid_size: tuple[int, int, int] | int,
         initial_cell_size: float | None = None,
     ) -> None:
         super().__init__(
-            source, datacube, grid_shape=initial_grid_size, cell_size=initial_cell_size
+            source,
+            datacube,
+            los_region,
+            grid_shape=initial_grid_size,
+            cell_size=initial_cell_size,
         )
         self.initial_cells = self.cells
 
