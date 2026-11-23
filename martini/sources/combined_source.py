@@ -13,7 +13,7 @@ from astropy.coordinates import (
     CartesianRepresentation,
     CartesianDifferential,
 )
-from martini.sources.sph_source import SPHSource
+from martini.sources.sph_source import SPHSource, _index_spectralcoord
 from ..datacube import DataCube
 from .._util import HIfreq
 from ..L_coords import L_coords
@@ -31,33 +31,6 @@ else:
 
 if TYPE_CHECKING:
     from martplotlib.figure import Figure
-
-
-def _index_spectralcoord(
-    spectralcoord: SpectralCoord, index: slice | np.ndarray
-) -> SpectralCoord:
-    """
-    Index a :class:`~astropy.coordinates.SpectralCoord` and its target consistently.
-
-    Indexing a :class:`~astropy.coordinates.SpectralCoord` does not index its target, so
-    that evaluating e.g. its radial velocity fails.
-
-    Parameters
-    ----------
-    spectralcoord : ~astropy.coordinates.SpectralCoord
-        The spectral coordinates to index.
-
-    index : slice or ~numpy.ndarray
-        The index (e.g. a :class:`slice`, giving a view, or a boolean mask).
-
-    Returns
-    -------
-    ~astropy.coordinates.SpectralCoord
-        The indexed spectral coordinates.
-    """
-    return spectralcoord[index].replicate(
-        target=spectralcoord.target[index], copy=False
-    )
 
 
 class CombinedSource(SPHSource):

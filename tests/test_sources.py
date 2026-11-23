@@ -549,6 +549,21 @@ class TestSPHSource:
         assert U.allclose(s.pixcoords, pixcoords_before[:, mask])
         assert U.allclose(s.los_distance_pixcoords, los_distance_pixcoords_before[mask])
 
+    def test_apply_mask_spectralcoords(self, s, dc_zeros):
+        """Check that spectral coordinates and their target are masked consistently."""
+        s._init_skycoords()
+        radial_velocity_before = s.spectralcoords.radial_velocity
+        mask = np.zeros(s.npart, dtype=bool)
+        mask[::3] = True
+        s.apply_mask(mask)
+        assert s.spectralcoords.target.size == mask.sum()
+        assert U.allclose(
+            s.spectralcoords.radial_velocity, radial_velocity_before[mask]
+        )
+        # pixel coordinates use the spectral coordinates:
+        s._init_pixcoords(dc_zeros)
+        assert s.pixcoords.shape == (3, mask.sum())
+
     def test_apply_badmask(self, s):
         """Check that bad masks are rejected."""
         with pytest.raises(
@@ -1377,6 +1392,22 @@ class TestCombinedSource:
             combined_source.pixcoords,
             np.hstack([source.pixcoords for source in combined_source.sources]),
         )
+
+    def test_pixcoords_setters(self, combined_source, dc_zeros):
+        """Check the pixel coordinate getter and setters for invalid use."""
+        with pytest.raises(RuntimeError, match="Call _init_pixcoords before"):
+            combined_source.pixcoords
+        combined_source._init_skycoords()
+        combined_source._init_pixcoords(dc_zeros, n_px_z=8)
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.pixcoords = np.zeros((3, combined_source.npart - 1)) * U.pix
+        with pytest.raises(ValueError, match="Wrong number of elements"):
+            combined_source.los_distance_pixcoords = (
+                np.zeros(combined_source.npart - 1) * U.pix
+            )
+        combined_source.los_distance_pixcoords = None
+        for source in combined_source.sources:
+            assert source.los_distance_pixcoords is None
 
     def test_input_fields_follow_sources(self, combined_source):
         """Check that the combined input fields follow changes to the sources."""

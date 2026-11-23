@@ -39,6 +39,34 @@ setattr(CartesianRepresentation, "affine_transform", affine_transform)
 setattr(CartesianDifferential, "translate", translate_d)
 setattr(CartesianDifferential, "affine_transform", affine_transform_d)
 
+
+def _index_spectralcoord(
+    spectralcoord: SpectralCoord, index: slice | np.ndarray
+) -> SpectralCoord:
+    """
+    Index a :class:`~astropy.coordinates.SpectralCoord` and its target consistently.
+
+    Indexing a :class:`~astropy.coordinates.SpectralCoord` does not index its target, so
+    that evaluating e.g. its radial velocity fails.
+
+    Parameters
+    ----------
+    spectralcoord : ~astropy.coordinates.SpectralCoord
+        The spectral coordinates to index.
+
+    index : slice or ~numpy.ndarray
+        The index (e.g. a :class:`slice`, giving a view, or a boolean mask).
+
+    Returns
+    -------
+    ~astropy.coordinates.SpectralCoord
+        The indexed spectral coordinates.
+    """
+    return spectralcoord[index].replicate(
+        target=spectralcoord.target[index], copy=False
+    )
+
+
 _origin = CartesianRepresentation(
     np.zeros((3, 1)) * U.kpc,
     differentials={"s": CartesianDifferential(np.zeros((3, 1)) * U.km / U.s)},
@@ -413,7 +441,7 @@ class SPHSource(object):
         if self.skycoords is not None:
             self.skycoords = self.skycoords[mask]
         if self.spectralcoords is not None:
-            self.spectralcoords = self.spectralcoords[mask]
+            self.spectralcoords = _index_spectralcoord(self.spectralcoords, mask)
         if self.pixcoords is not None:
             self.pixcoords = self.pixcoords[:, mask]
         if self.los_distance_pixcoords is not None:
