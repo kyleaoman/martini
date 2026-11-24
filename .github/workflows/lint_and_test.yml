@@ -102,7 +102,8 @@ jobs:
           tests/test_spectral_models.py \
           tests/test_util.py \
           "tests/test_martini.py::TestParallel" \
-          "tests/test_martini.py::TestBatched"
+          "tests/test_martini.py::TestBatched" \
+          "tests/test_mochi.py::TestKernelInterpolation"
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       env:

@@ -1,20 +1,41 @@
 """Interpolant functions to render particle properties onto a grid."""
 
+import contextlib
 import itertools
+import warnings
 from scipy.spatial import distance, KDTree
 from martini._grid_search import (
     find_grid_intersections,
     FindGridIntersectionsResult,
+    _balanced_blocks,
 )
 from astropy import units as U
 import numpy as np
 from functools import partial
-from typing import Callable, TYPE_CHECKING
+from typing import Callable, Generator, NamedTuple, TYPE_CHECKING
 from collections.abc import Iterable
-from martini.sph_kernels import _BaseSPHKernel
+from martini.sph_kernels import (
+    _AdaptiveKernel,
+    _BaseSPHKernel,
+    DiracDeltaKernel,
+    ScalarKernel,
+)
+from martini._util import NUMBA_AVAILABLE, numba_threads
+
+if NUMBA_AVAILABLE:
+    from numba import njit
+    from numba.core.errors import NumbaExperimentalFeatureWarning
+if TYPE_CHECKING or not NUMBA_AVAILABLE:
+    prange = range  # pragma: no cover
+else:
+    from numba import prange
 
 if TYPE_CHECKING:
     from martini.mochi.cell_grid import CellGrid
+
+# Distance from the centre to the corners of a cell, in units of its size (slightly
+# enlarged to be safe from rounding):
+_CELL_REACH = np.sqrt(3) / 2 * (1 + 1e-9)
 
 
 def _eval_kernel(
@@ -45,71 +66,426 @@ def _eval_kernel(
         smoothing lengths ``h``. Expected units of ``pixels**-3``.
     """
     r = distance.cdist(x_eval.to_value(h.unit), x_particle.to_value(h.unit))
-    # TODO: adaptive kernels evaluate only their preferred kernel, see particle_scatter.
+    # Adaptive kernels evaluate only their preferred kernel, see _preferred_kernel.
     return kernel.eval_kernel(r, h.to_value(h.unit)) * h.unit**-3
 
 
-def _eval_cache_kernel(
-    u: np.ndarray, kernel_cache: np.ndarray, kernel_cache_extent: float
-) -> np.ndarray:
+def _preferred_kernel(kernel: _BaseSPHKernel) -> _BaseSPHKernel:
     """
-    Get the value of the kernel function on a pre-computed discrete grid.
+    Get the kernel that is evaluated to sample a (possibly adaptive) kernel in 3D.
 
-    Since kernels are generally well behaved compact functions,
-    computing the kernel thousands of times can be needlessly expensive
-    especially for more computationally expensive kernels. The kernel is linearly
-    interpolated between the grid points, and is zero beyond the extent of the grid.
-    The grid is uniform, so the grid points bracketing each location can be computed
-    directly.
+    As in :meth:`~martini.sph_kernels._AdaptiveKernel.eval_kernel`, their preferred
+    (first) kernel is used for all particles, ignoring the martini approach to kernel
+    validation. A decision on how to handle kernels too small for their cells will be
+    needed (or the refinement must guarantee that this is not a problem).
 
     Parameters
     ----------
-    u : ~numpy.ndarray
-        Evaluation location in units of the smoothing length (FWHM).
+    kernel : _BaseSPHKernel
+        The SPH kernel.
 
-    kernel_cache : ~numpy.ndarray
-        The kernel evaluated on a uniform grid spanning ``0 <= u <= kernel_cache_extent``,
-        including both endpoints.
+    Returns
+    -------
+    _BaseSPHKernel
+        The kernel evaluated for all particles.
+    """
+    return kernel.kernels[0] if isinstance(kernel, _AdaptiveKernel) else kernel
 
-    kernel_cache_extent : float
-        The extent of the grid on which the kernel is evaluated, in units of the
-        smoothing length (FWHM). Should be at least the radius of compact support.
+
+def _numpy_kernel_weights(
+    offsets: np.ndarray,
+    cell_sizes: np.ndarray,
+    smoothing_lengths: np.ndarray,
+    kernel: _BaseSPHKernel,
+) -> np.ndarray:
+    """
+    Evaluate kernel weights of particle-cell pairs with :mod:`numpy`.
+
+    The equivalent of the compiled ``_scalar_kernel`` of the kernel classes (see
+    :meth:`~martini.sph_kernels._BaseSPHKernel._numba_spherical_kernel_arrays`), used when
+    compiled code is unavailable or disabled: the kernel is evaluated at the cell centre,
+    except that a :class:`~martini.sph_kernels.DiracDeltaKernel` fills the (half-open)
+    cell containing the particle.
+
+    Parameters
+    ----------
+    offsets : ~numpy.ndarray
+        Offsets from the cell centre to the particle of each pair, shape ``(M, 3)``.
+
+    cell_sizes : ~numpy.ndarray
+        Side length of the cell of each pair.
+
+    smoothing_lengths : ~numpy.ndarray
+        Smoothing length (FWHM) of the particle of each pair.
+
+    kernel : _BaseSPHKernel
+        The SPH kernel.
 
     Returns
     -------
     ~numpy.ndarray
-        The approximate kernel amplitude at location ``u``.
+        The kernel weight (per unit volume) of each pair.
     """
-    n_intervals = len(kernel_cache) - 1
-    x = u * (n_intervals / kernel_cache_extent)  # position in units of grid intervals
-    beyond_extent = x > n_intervals
-    # left grid point of interval, last interval includes its right end:
-    i = np.minimum(x.astype(np.intp), n_intervals - 1)
-    x -= i  # now fractional position within interval
-    W = kernel_cache[i] * (1 - x) + kernel_cache[i + 1] * x
-    W[beyond_extent] = 0.0
-    return W
+    preferred = _preferred_kernel(kernel)
+    if isinstance(preferred, DiracDeltaKernel):
+        half = cell_sizes[:, np.newaxis] / 2
+        inside = np.all((-half <= offsets) & (offsets < half), axis=1)
+        return np.where(inside, np.power(cell_sizes, -3.0), 0.0)
+    return np.asarray(
+        preferred.eval_kernel(np.sqrt((offsets**2).sum(axis=1)), smoothing_lengths)
+    )
+
+
+class _CompiledKernel(NamedTuple):
+    """
+    Collect data required for kernel weight evaluation in compiled code.
+
+    Attributes
+    ----------
+    coords : ~numpy.ndarray
+        Particle positions, shape ``(N, 3)``.
+
+    centres : ~numpy.ndarray
+        Cell centres, shape ``(n_cells, 3)``.
+
+    sizes : ~numpy.ndarray
+        Cell side lengths.
+
+    kernel_slot : ~numpy.ndarray
+        For each particle, the entry of ``kernels`` and ``kernel_params`` to use.
+
+    kernels : tuple
+        Table of compiled kernel evaluations.
+
+    kernel_params : ~numpy.ndarray
+        Table of kernel parameters, shape ``(n_kernels, 2)``.
+
+    h : ~numpy.ndarray
+        Rescaled smoothing lengths of the particles.
+
+    ncpu : int
+        Number of threads to use.
+    """
+
+    coords: np.ndarray
+    centres: np.ndarray
+    sizes: np.ndarray
+    kernel_slot: np.ndarray
+    kernels: tuple[ScalarKernel, ...]
+    kernel_params: np.ndarray
+    h: np.ndarray
+    ncpu: int
+
+
+def _cell_kernel_sums_loop(
+    total: np.ndarray,
+    intersections: np.ndarray,
+    cell_indices: np.ndarray,
+    strides: np.ndarray,
+    coords: np.ndarray,
+    centres: np.ndarray,
+    sizes: np.ndarray,
+    h: np.ndarray,
+    kernel_slot: np.ndarray,
+    kernels: tuple[ScalarKernel, ...],
+    kernel_params: np.ndarray,
+    block_edges: np.ndarray,
+) -> None:
+    """
+    Sum the kernel weights of the particles overlapping each cell.
+
+    Kernel weights are evaluated on the fly and are not stored. Each cell is visited by
+    one thread only, so the writes are thread safe. The compiled kernels are passed into
+    the compiled loops as numba "first-class functions".
+
+    Parameters
+    ----------
+    total : ~numpy.ndarray
+        Sum of kernel weights for each cell, modified in place.
+
+    intersections : ~numpy.ndarray
+        Particle-cell overlaps grouped by cell, see
+        :func:`~martini._grid_search.find_grid_intersections`.
+
+    cell_indices : ~numpy.ndarray
+        The index of each cell with overlaps.
+
+    strides : ~numpy.ndarray
+        The range of ``intersections`` for each cell.
+
+    coords : ~numpy.ndarray
+        Particle positions, shape ``(N, 3)``.
+
+    centres : ~numpy.ndarray
+        Cell centres, shape ``(n_cells, 3)``.
+
+    sizes : ~numpy.ndarray
+        Cell side lengths.
+
+    h : ~numpy.ndarray
+        Rescaled smoothing lengths of the particles.
+
+    kernel_slot : ~numpy.ndarray
+        For each particle, the entry of ``kernels`` and ``kernel_params`` to use.
+
+    kernels : tuple
+        Table of compiled kernel evaluations.
+
+    kernel_params : ~numpy.ndarray
+        Table of kernel parameters, shape ``(n_kernels, 2)``.
+
+    block_edges : ~numpy.ndarray
+        Cells are processed in parallel in blocks ``block_edges[b]:block_edges[b + 1]``
+        (indices into ``cell_indices``).
+    """
+    for b in prange(block_edges.size - 1):
+        for c in range(block_edges[b], block_edges[b + 1]):
+            cell = cell_indices[c]
+            cell_total = 0.0
+            for m in range(strides[c, 0], strides[c, 1]):
+                p = intersections[m]
+                slot = kernel_slot[p]
+                cell_total += kernels[slot](
+                    coords[p, 0] - centres[cell, 0],
+                    coords[p, 1] - centres[cell, 1],
+                    coords[p, 2] - centres[cell, 2],
+                    sizes[cell],
+                    h[p],
+                    kernel_params[slot, 0],
+                    kernel_params[slot, 1],
+                )
+            total[cell] += cell_total
+
+
+def _particle_volumes_loop(
+    volumes: np.ndarray,
+    rectilinear_volumes: np.ndarray,
+    total: np.ndarray,
+    corrected_cell_volumes: np.ndarray,
+    cell_volumes: np.ndarray,
+    intersections: np.ndarray,
+    cell_indices: np.ndarray,
+    strides: np.ndarray,
+    coords: np.ndarray,
+    centres: np.ndarray,
+    sizes: np.ndarray,
+    h: np.ndarray,
+    kernel_slot: np.ndarray,
+    kernels: tuple[ScalarKernel, ...],
+    kernel_params: np.ndarray,
+) -> None:
+    """
+    Accumulate the volume of each particle from its share of the cells it overlaps.
+
+    Kernel weights are evaluated on the fly and are not stored. The writes are to
+    particles, which can overlap cells processed by different threads, so this loop is
+    serial.
+
+    Parameters
+    ----------
+    volumes : ~numpy.ndarray
+        Volume of each particle (its kernel-weighted share of the corrected volumes of
+        the cells it overlaps), modified in place.
+
+    rectilinear_volumes : ~numpy.ndarray
+        Total rectilinear volume of the cells that each particle overlaps with a non-zero
+        weight, modified in place.
+
+    total : ~numpy.ndarray
+        Sum of kernel weights for each cell, see :func:`_cell_kernel_sums_loop`.
+
+    corrected_cell_volumes : ~numpy.ndarray
+        Cell volumes including the spherical distortion corrections.
+
+    cell_volumes : ~numpy.ndarray
+        Rectilinear cell volumes.
+
+    intersections : ~numpy.ndarray
+        Particle-cell overlaps grouped by cell, see
+        :func:`~martini._grid_search.find_grid_intersections`.
+
+    cell_indices : ~numpy.ndarray
+        The index of each cell with overlaps.
+
+    strides : ~numpy.ndarray
+        The range of ``intersections`` for each cell.
+
+    coords : ~numpy.ndarray
+        Particle positions, shape ``(N, 3)``.
+
+    centres : ~numpy.ndarray
+        Cell centres, shape ``(n_cells, 3)``.
+
+    sizes : ~numpy.ndarray
+        Cell side lengths.
+
+    h : ~numpy.ndarray
+        Rescaled smoothing lengths of the particles.
+
+    kernel_slot : ~numpy.ndarray
+        For each particle, the entry of ``kernels`` and ``kernel_params`` to use.
+
+    kernels : tuple
+        Table of compiled kernel evaluations.
+
+    kernel_params : ~numpy.ndarray
+        Table of kernel parameters, shape ``(n_kernels, 2)``.
+    """
+    for c in range(cell_indices.size):
+        cell = cell_indices[c]
+        for m in range(strides[c, 0], strides[c, 1]):
+            p = intersections[m]
+            slot = kernel_slot[p]
+            w = kernels[slot](
+                coords[p, 0] - centres[cell, 0],
+                coords[p, 1] - centres[cell, 1],
+                coords[p, 2] - centres[cell, 2],
+                sizes[cell],
+                h[p],
+                kernel_params[slot, 0],
+                kernel_params[slot, 1],
+            )
+            if w != 0:
+                volumes[p] += w * corrected_cell_volumes[cell] / total[cell]
+                rectilinear_volumes[p] += cell_volumes[cell]
+
+
+def _deposit_loop(
+    out: np.ndarray,
+    quantities: np.ndarray,
+    scale: np.ndarray,
+    intersections: np.ndarray,
+    cell_indices: np.ndarray,
+    strides: np.ndarray,
+    coords: np.ndarray,
+    centres: np.ndarray,
+    sizes: np.ndarray,
+    h: np.ndarray,
+    kernel_slot: np.ndarray,
+    kernels: tuple[ScalarKernel, ...],
+    kernel_params: np.ndarray,
+    block_edges: np.ndarray,
+) -> None:
+    """
+    Add the kernel-weighted particle quantities into the cells that they overlap.
+
+    Kernel weights are evaluated on the fly and are not stored. Each cell is visited by
+    one thread only, so the writes are thread safe.
+
+    Parameters
+    ----------
+    out : ~numpy.ndarray
+        Weighted sums of the quantities for each cell, shape ``(n_cells, k)``, modified
+        in place.
+
+    quantities : ~numpy.ndarray
+        Particle quantities, shape ``(N, k)``.
+
+    scale : ~numpy.ndarray
+        Factor multiplying the kernel weights of each particle.
+
+    intersections : ~numpy.ndarray
+        Particle-cell overlaps grouped by cell, see
+        :func:`~martini._grid_search.find_grid_intersections`.
+
+    cell_indices : ~numpy.ndarray
+        The index of each cell with overlaps.
+
+    strides : ~numpy.ndarray
+        The range of ``intersections`` for each cell.
+
+    coords : ~numpy.ndarray
+        Particle positions, shape ``(N, 3)``.
+
+    centres : ~numpy.ndarray
+        Cell centres, shape ``(n_cells, 3)``.
+
+    sizes : ~numpy.ndarray
+        Cell side lengths.
+
+    h : ~numpy.ndarray
+        Rescaled smoothing lengths of the particles.
+
+    kernel_slot : ~numpy.ndarray
+        For each particle, the entry of ``kernels`` and ``kernel_params`` to use.
+
+    kernels : tuple
+        Table of compiled kernel evaluations.
+
+    kernel_params : ~numpy.ndarray
+        Table of kernel parameters, shape ``(n_kernels, 2)``.
+
+    block_edges : ~numpy.ndarray
+        Cells are processed in parallel in blocks ``block_edges[b]:block_edges[b + 1]``
+        (indices into ``cell_indices``).
+    """
+    n_quantities = quantities.shape[1]
+    for b in prange(block_edges.size - 1):
+        for c in range(block_edges[b], block_edges[b + 1]):
+            cell = cell_indices[c]
+            for m in range(strides[c, 0], strides[c, 1]):
+                p = intersections[m]
+                slot = kernel_slot[p]
+                w = kernels[slot](
+                    coords[p, 0] - centres[cell, 0],
+                    coords[p, 1] - centres[cell, 1],
+                    coords[p, 2] - centres[cell, 2],
+                    sizes[cell],
+                    h[p],
+                    kernel_params[slot, 0],
+                    kernel_params[slot, 1],
+                )
+                if w != 0:
+                    w *= scale[p]
+                    for k in range(n_quantities):
+                        out[cell, k] += w * quantities[p, k]
+
+
+if NUMBA_AVAILABLE:
+    _cell_kernel_sums_loop = njit(parallel=True, cache=True)(_cell_kernel_sums_loop)
+    _particle_volumes_loop = njit(cache=True)(_particle_volumes_loop)
+    _deposit_loop = njit(parallel=True, cache=True)(_deposit_loop)
+
+
+@contextlib.contextmanager
+def _compiled_loop(ncpu: int) -> Generator[None, None, None]:
+    """
+    Set the number of threads for compiled loops, and silence numba warnings.
+
+    The compiled kernels are passed to compiled code as numba "first-class functions",
+    flagged as an experimental feature.
+
+    Parameters
+    ----------
+    ncpu : int
+        Number of threads to use.
+    """
+    if not NUMBA_AVAILABLE:  # pragma: no cover
+        yield
+        return
+    with numba_threads(ncpu), warnings.catch_warnings():
+        warnings.simplefilter("ignore", NumbaExperimentalFeatureWarning)
+        yield
 
 
 def sph_loop(
     masses: np.ndarray,
     masses_HI: np.ndarray,
     velocities: np.ndarray,
-    smoothing_lengths: np.ndarray,
     support_radii: np.ndarray,
     mask_out_of_bound: np.ndarray,
     gs: FindGridIntersectionsResult,
     cell_volumes: np.ndarray,
-    cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled],
-    kernel_cache: np.ndarray,
-    kernel_cache_extent: float,
+    cell_distortion_corrections: np.ndarray,
+    kernel_weights: np.ndarray | _CompiledKernel,
     extra_fields: dict[str, np.ndarray],
     mfm: bool = False,
 ) -> dict[str, np.ndarray]:
     """
     Use SPH formalism to scatter particles onto the grid.
 
-    ??.
+    The kernel weights of the particle-cell pairs are either given, or evaluated on the
+    fly (without being stored) in compiled code.
 
     Parameters
     ----------
@@ -122,12 +498,8 @@ def sph_loop(
     velocities : ~numpy.ndarray
         Particle line-of-sight velocities as an array with implicit units.
 
-    smoothing_lengths : ~numpy.ndarray
-        Particle smoothing lengths (FWHM) as an array with implicit units.
-
     support_radii : ~numpy.ndarray
-        Particle radii of compact support as an array with implicit units (same as
-        ``smoothing_lengths``).
+        Particle radii of compact support as an array with implicit units.
 
     mask_out_of_bound : ~numpy.ndarray
         A boolean mask selecting particles whose kernels extend outside of the region
@@ -146,12 +518,9 @@ def sph_loop(
         interpolated HI density is per unit of corrected volume, such that the HI mass in
         a cell is the density times ``cell_volumes * cell_distortion_corrections``.
 
-    kernel_cache : ~numpy.ndarray
-        Kernel amplitude pre-computed on a discrete grid for fast lookup, see
-        :func:`_eval_cache_kernel`.
-
-    kernel_cache_extent : float
-        Extent of the grid of ``kernel_cache`` in units of the smoothing length (FWHM).
+    kernel_weights : ~numpy.ndarray or _CompiledKernel
+        The kernel weight (per unit volume) of each particle-cell pair in ``gs``, or a
+        description of how to evaluate them in compiled code.
 
     extra_fields : dict
         Additional fields that should be interpolated onto the grid (e.g. temperature).
@@ -168,78 +537,97 @@ def sph_loop(
     dict
         Contains the interpolated fields as bare arrays.
     """
-    # Technically don't need the zero-initialized arrays here but keep for now as
-    # arrays to accumulate will be needed to break particles into batches for processing,
-    # which will be needed when the tree search result gets huge.
     n_pos = len(cell_volumes)
-    field_masses_HI = np.zeros(n_pos)
-    field_masses = np.zeros(n_pos)
-    field_velocities = np.zeros(n_pos)
-    field_extra = {k: np.zeros(n_pos) for k in extra_fields.keys()}
-    total_kernel = np.zeros(n_pos) if mfm else np.array(1.0)
-    kernel_weights = (
-        _eval_cache_kernel(
-            np.sqrt((gs.distances**2).sum(axis=1))
-            / smoothing_lengths[gs.intersections],
-            kernel_cache,
-            kernel_cache_extent,
-        )
-        / (smoothing_lengths**3)[gs.intersections]
+    n_part = len(masses)
+    # columns: masses, HI masses, momenta, then extra fields weighted by mass
+    quantities = np.column_stack(
+        (masses, masses_HI, velocities * masses)
+        + tuple(v * masses for v in extra_fields.values())
     )
-    if mfm:
-        total_kernel[gs.cell_indices] += np.add.reduceat(
-            kernel_weights, gs.strides[:, 0]
-        )
-    # Need to break here if splitting particles into batches in "mfm" mode:
-    # the total kernel contribution in each cell must be fully accumulated before
-    # calculating volumes & applying weights. However, we may then proceed safely in
-    # batches.
-    if mfm:
-        volumes = np.bincount(
+    compiled = isinstance(kernel_weights, _CompiledKernel)
+    if compiled:
+        ck = kernel_weights
+        loop_args = (
             gs.intersections,
-            weights=kernel_weights
-            * np.repeat(
-                (cell_volumes * cell_distortion_corrections)[gs.cell_indices]
-                / total_kernel[gs.cell_indices],
-                np.diff(gs.strides, axis=1)[:, 0],
-            ),
-            minlength=masses.size,
+            gs.cell_indices,
+            gs.strides,
+            ck.coords,
+            ck.centres,
+            ck.sizes,
+            ck.h,
+            ck.kernel_slot,
+            ck.kernels,
+            ck.kernel_params,
         )
-        volumes[mask_out_of_bound] *= (
-            np.pi
-            * 4
-            / 3
-            * support_radii**3
-            / np.bincount(
-                gs.intersections,
-                # rectilinear volume to match the kernel volume in the numerator:
-                weights=np.where(
-                    kernel_weights,
-                    np.repeat(
-                        cell_volumes[gs.cell_indices], np.diff(gs.strides, axis=1)[:, 0]
-                    ),
-                    0,
-                ),
-                minlength=masses.size,
+        hits_per_cell = gs.strides[:, 1] - gs.strides[:, 0]
+        block_edges = _balanced_blocks(hits_per_cell, 8 * ck.ncpu)
+    else:
+        weights = kernel_weights
+        hits_per_cell = np.diff(gs.strides, axis=1)[:, 0]
+    total_kernel = np.zeros(n_pos)
+    scale = np.ones(n_part)
+    if mfm:
+        # The total kernel contribution in each cell must be fully accumulated before
+        # calculating volumes & applying weights (this matters when processing particles
+        # in batches).
+        volumes = np.zeros(n_part)
+        rectilinear_volumes = np.zeros(n_part)
+        corrected_cell_volumes = cell_volumes * cell_distortion_corrections
+        if compiled:
+            with _compiled_loop(ck.ncpu):
+                _cell_kernel_sums_loop(total_kernel, *loop_args, block_edges)
+                _particle_volumes_loop(
+                    volumes,
+                    rectilinear_volumes,
+                    total_kernel,
+                    corrected_cell_volumes,
+                    cell_volumes,
+                    *loop_args,
+                )
+        else:
+            total_kernel[gs.cell_indices] += np.add.reduceat(weights, gs.strides[:, 0])
+            # cells reached only with zero weights have no kernel total:
+            share = np.divide(
+                corrected_cell_volumes,
+                total_kernel,
+                out=np.zeros(n_pos),
+                where=total_kernel != 0,
             )
-        )[mask_out_of_bound]
-        kernel_weights /= volumes[gs.intersections]
-    field_masses[gs.cell_indices] += np.add.reduceat(
-        kernel_weights * masses[gs.intersections], gs.strides[:, 0]
-    )
-    field_masses_HI[gs.cell_indices] += np.add.reduceat(
-        kernel_weights * masses_HI[gs.intersections], gs.strides[:, 0]
-    )
-    field_velocities[gs.cell_indices] += np.add.reduceat(
-        kernel_weights * (velocities * masses)[gs.intersections], gs.strides[:, 0]
-    )
-    for k, v in extra_fields.items():
-        field_extra[k][gs.cell_indices] += np.add.reduceat(
-            kernel_weights * (v * masses)[gs.intersections], gs.strides[:, 0]
+            cells_of_pairs = np.repeat(gs.cell_indices, hits_per_cell)
+            volumes = np.bincount(
+                gs.intersections,
+                weights=weights * share[cells_of_pairs],
+                minlength=n_part,
+            )
+            rectilinear_volumes = np.bincount(
+                gs.intersections,
+                weights=np.where(weights, cell_volumes[cells_of_pairs], 0),
+                minlength=n_part,
+            )
+        # Correct the volumes of particles whose kernels are cut off by the edge of the
+        # grid (those reaching cells only with zero weights deposit nothing), using the
+        # rectilinear volume to match the kernel volume in the numerator:
+        correct = mask_out_of_bound & (rectilinear_volumes > 0)
+        volumes[correct] *= (
+            np.pi * 4 / 3 * support_radii[correct] ** 3 / rectilinear_volumes[correct]
         )
+        np.divide(1, volumes, out=scale, where=volumes != 0)
+    out = np.zeros((n_pos, quantities.shape[1]))
+    if compiled:
+        with _compiled_loop(ck.ncpu):
+            _deposit_loop(out, quantities, scale, *loop_args, block_edges)
+    elif gs.intersections.size > 0:
+        out[gs.cell_indices] += np.add.reduceat(
+            (weights * scale[gs.intersections])[:, np.newaxis]
+            * quantities[gs.intersections],
+            gs.strides[:, 0],
+        )
+    field_masses, field_masses_HI, field_momenta = out[:, 0], out[:, 1], out[:, 2]
     if mfm:
         kernel_slice = total_kernel != 0
-        field_densities_HI = np.where(kernel_slice, field_masses_HI / total_kernel, 0)
+        field_densities_HI = np.divide(
+            field_masses_HI, total_kernel, out=np.zeros(n_pos), where=kernel_slice
+        )
     else:
         kernel_slice = field_masses != 0
         # SPH kernels are normalized in pixel coordinates, so field_masses_HI is a density
@@ -247,10 +635,14 @@ def sph_loop(
         field_densities_HI = field_masses_HI / cell_distortion_corrections
     return {
         "masses_HI": field_densities_HI,
-        "velocities": np.where(kernel_slice, field_velocities / field_masses, 0),
+        "velocities": np.divide(
+            field_momenta, field_masses, out=np.zeros(n_pos), where=kernel_slice
+        ),
         **{
-            k: np.where(kernel_slice, v / field_masses, 0)
-            for k, v in field_extra.items()
+            k: np.divide(
+                out[:, 3 + i], field_masses, out=np.zeros(n_pos), where=kernel_slice
+            )
+            for i, k in enumerate(extra_fields.keys())
         },
     }
 
@@ -359,7 +751,8 @@ def particle_scatter(
     kernel: _BaseSPHKernel,
     cell_grid: "CellGrid",
     *,
-    kernel_cache_resolution: int = 256,
+    ncpu: int = 1,
+    compiled: bool = NUMBA_AVAILABLE,
 ) -> dict[str, U.Quantity]:
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
@@ -391,20 +784,30 @@ def particle_scatter(
         Particle masses with dimensions of mass.
 
     kernel : _BaseSPHKernel
-        The SPH kernel, evaluated with
-        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`. Its ``size_in_fwhm``
-        gives the radii of compact support in units of ``smoothing_lengths``.
+        The SPH kernel (with smoothing lengths initialized). Adaptive kernels evaluate
+        their preferred kernel for all particles (see :func:`_preferred_kernel`), whose
+        ``size_in_fwhm`` gives the radii of compact support in units of
+        ``smoothing_lengths``. The kernel is evaluated at cell centres, except for a
+        :class:`~martini.sph_kernels.DiracDeltaKernel`, which deposits each particle in
+        the cell containing it.
 
     cell_grid : ~martini.mochi.cell_grid.CellGrid
         The grid of cells onto which to interpolate fields. Its ``field_positions``
         (cell centres, with units of pixels), ``field_volumes`` (rectilinear cell
-        volumes, with units of pixels cubed) and ``field_distortion_corrections``
-        (dimensionless spherical distortion corrections to the volumes) are used. If
-        its ``uniform_grid`` is not ``None`` (cells form a uniform grid), a fast search
-        for the cells within reach of each particle is used.
+        volumes, with units of pixels cubed), ``field_sizes`` (cell side lengths, with
+        units of pixels) and ``field_distortion_corrections`` (dimensionless spherical
+        distortion corrections to the volumes) are used. If its ``uniform_grid`` is not
+        ``None`` (cells form a uniform grid), a fast search for the cells within reach
+        of each particle is used.
 
-    kernel_cache_resolution : int
-        Number of intervals on which to sample the kernel for fast lookup.
+    ncpu : int, optional
+        Number of threads to use in compiled code.
+
+    compiled : bool, optional
+        If ``True`` (default if :mod:`numba` is available), kernel weights are evaluated
+        on the fly in compiled code (see
+        :meth:`~martini.sph_kernels._BaseSPHKernel._numba_spherical_kernel_arrays`),
+        otherwise with :mod:`numpy` (see :func:`_numpy_kernel_weights`).
 
     Returns
     -------
@@ -414,21 +817,19 @@ def particle_scatter(
     field_positions = cell_grid.field_positions
     d_volume = cell_grid.field_volumes
     distortion_corrections = cell_grid.field_distortion_corrections
-    assert kernel.size_in_fwhm is not None
-    size_in_fwhm = np.asarray(kernel.size_in_fwhm)
-    support_radii = smoothing_lengths * size_in_fwhm
-    # cache kernel in units of the smoothing length (FWHM):
-    # TODO: adaptive kernels evaluate only their preferred kernel (as in
-    # _AdaptiveKernel.eval_kernel), particles assigned a fallback kernel (e.g. the wider
-    # Gaussian) are still evaluated with the preferred one. Could cache one kernel per
-    # kernel_indices value and select per particle.
-    kernel_cache_extent = float(np.max(size_in_fwhm))
-    kernel_cache = kernel.eval_kernel(
-        np.linspace(0, kernel_cache_extent, kernel_cache_resolution + 1), 1.0
-    )
-    mask_out_of_bound = _get_out_of_bound_particles(
-        positions, support_radii, field_positions
-    )
+    preferred = _preferred_kernel(kernel)
+    assert preferred.size_in_fwhm is not None
+    support_radii = smoothing_lengths * preferred.size_in_fwhm
+    is_dirac_delta = isinstance(preferred, DiracDeltaKernel)
+    kernel_arrays = None
+    if compiled:
+        kernel_arrays = kernel._numba_spherical_kernel_arrays()
+        if kernel_arrays is None:
+            raise ValueError(
+                f"The SPH kernel {type(kernel).__name__} has no compiled kernel "
+                "(`_scalar_kernel`), which is required when 'numba' is available. See "
+                "the kernels in `martini.sph_kernels` for examples."
+            )
     n_pos = len(field_positions)
     if not isinstance(d_volume, Iterable):
         # Is this required, or will it just broadcast if scalar?
@@ -437,32 +838,76 @@ def particle_scatter(
         distortion_corrections = np.ones(n_pos) * distortion_corrections
     assert field_positions.unit == positions.unit
     assert field_positions.unit == smoothing_lengths.unit
+    cell_volumes = d_volume.to_value(positions.unit**3)
+    cell_sizes = cell_grid.field_sizes.to_value(positions.unit)
+    # A Dirac-delta kernel deposits its particle in the cell containing it, which must be
+    # found by the search (as must a cell of a kernel smaller than the cell, though its
+    # weight there is zero), so the search reaches at least the furthest corner of the
+    # cell containing each particle:
+    if cell_grid.uniform_grid is not None:
+        containing_cell_sizes = np.full(len(positions), cell_sizes[0])
+    else:
+        containing_cells = _find_containing_cells(
+            positions.value,
+            field_positions.value - cell_sizes[:, np.newaxis] / 2,
+            cell_sizes,
+        )
+        containing_cell_sizes = np.where(
+            containing_cells >= 0, cell_sizes[containing_cells], 0
+        )
+    search_radii = np.maximum(support_radii.value, _CELL_REACH * containing_cell_sizes)
+    mask_out_of_bound = (
+        np.zeros(len(positions), dtype=bool)
+        if is_dirac_delta
+        else _get_out_of_bound_particles(positions, support_radii, field_positions)
+    )
     if cell_grid.uniform_grid is not None:
         # uniform grid: fast search, in grid units (cell centres at integer coordinates)
         grid_shape, cell_size = cell_grid.uniform_grid
         gs = find_grid_intersections(
             grid_shape,
             (positions.value + 0.5) / cell_size - 0.5,
-            support_radii.value / cell_size,
+            search_radii / cell_size,
+            ncpu=ncpu,
+            return_distances=not compiled,  # on the fly otherwise
         )
         if gs.distances is not None and gs.distances.size > 0:
             gs.distances[...] *= cell_size  # back to pixels
     else:
         gs = _tree_grid_intersections(
-            field_positions.value, positions.value, support_radii.value
+            field_positions.value, positions.value, search_radii
+        )
+    if kernel_arrays is not None:
+        kernel_slot, kernels, kernel_params, h = kernel_arrays
+        kernel_weights: np.ndarray | _CompiledKernel = _CompiledKernel(
+            coords=np.ascontiguousarray(positions.value, dtype=np.float64),
+            centres=np.ascontiguousarray(field_positions.value, dtype=np.float64),
+            sizes=cell_sizes.astype(np.float64),
+            kernel_slot=kernel_slot,
+            kernels=kernels,
+            kernel_params=kernel_params,
+            h=h,
+            ncpu=ncpu,
+        )
+    else:
+        assert gs.distances is not None
+        hits_per_cell = np.diff(gs.strides, axis=1)[:, 0]
+        kernel_weights = _numpy_kernel_weights(
+            gs.distances,
+            np.repeat(cell_sizes[gs.cell_indices], hits_per_cell),
+            smoothing_lengths.value[gs.intersections],
+            kernel,
         )
     array_results = main_loop(
         masses.value,
         masses_HI.value,
         velocities.value,
-        smoothing_lengths.value,
         support_radii.value,
         mask_out_of_bound,
         gs,
-        d_volume.to_value(positions.unit**3),
+        cell_volumes,
         distortion_corrections.to_value(U.dimensionless_unscaled),
-        kernel_cache,
-        kernel_cache_extent,
+        kernel_weights,
         # have in mind selectively omitting temperatures when not needed by spectral model
         extra_fields={"temperatures": temperatures.to_value(velocities.unit**2)},
     )

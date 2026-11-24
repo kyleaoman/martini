@@ -348,6 +348,18 @@ class CellGrid:
         return self.cell_volumes
 
     @property
+    def field_sizes(self) -> U.Quantity[U.pix]:
+        """
+        Side lengths of the cells onto which fields are interpolated.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Cell side lengths, with units of pixels.
+        """
+        return self.cells["size"] << U.pix
+
+    @property
     def field_distortion_corrections(self) -> U.Quantity[U.dimensionless_unscaled]:
         """
         Spherical distortion corrections to the volumes of the cells.
@@ -381,6 +393,7 @@ class CellGrid:
         source: SPHSource,
         sph_kernel: _BaseSPHKernel,
         interpolant: Callable,  # fill in arg & return types
+        **interpolant_kwargs: int | bool,
     ) -> None:
         """
         Interpolate particle-carried fields onto the grid.
@@ -402,6 +415,9 @@ class CellGrid:
             grid. E.g. :func:`~martini.mochi.interpolants.sph` or
             :func:`~martini.mochi.interpolants.mfm` found in the
             :mod:`~martini.mochi.interpolants` module.
+
+        **interpolant_kwargs : dict
+            Additional keyword arguments passed to the interpolant (e.g. ``ncpu``).
         """
         if source.skycoords is None:
             raise RuntimeError(
@@ -416,6 +432,7 @@ class CellGrid:
             masses_HI=source.mHI_g,
             temperatures=source.T_g * C.k_B / C.m_p,  # approx thermal energy?
             masses=source.mHI_g,  # mass goes here, crude approx for now
+            **interpolant_kwargs,
         )
 
     def eval_radiative_transfer(
@@ -567,6 +584,18 @@ class AdaptiveCellGrid(CellGrid):
             Cell volumes, with units of pixels cubed.
         """
         return self.adaptive_cell_volumes
+
+    @property
+    def field_sizes(self) -> U.Quantity[U.pix]:
+        """
+        Side lengths of the cells onto which fields are interpolated.
+
+        Returns
+        -------
+        ~astropy.units.Quantity
+            Cell side lengths, with units of pixels.
+        """
+        return self.adaptive_cells["size"] << U.pix
 
     @property
     def field_distortion_corrections(self) -> U.Quantity[U.dimensionless_unscaled]:

@@ -20,6 +20,7 @@ from martini.mochi.refinement import refine_grid_to_half_particle_scale
 from martini.mochi.radiative_transfer import optically_thin
 from martini.mochi import interpolants
 from martini._unit_conversion import MHI_to_Jy_inplace
+from martini._util import resolve_ncpu
 
 
 def _coarse_shape(
@@ -202,15 +203,11 @@ class Mochi(Martini):
                 f"datacube, got n_px_x={datacube.n_px_x}, n_px_y={datacube.n_px_y}."
             )
         is_dirac_delta = isinstance(sph_kernel, DiracDeltaKernel)
-        if is_dirac_delta and interpolant in (
-            interpolants.sph,
-            interpolants.mfm,
-            interpolants.manual_sph,
-        ):
+        if is_dirac_delta and interpolant is interpolants.manual_sph:
             raise ValueError(
-                "Kernel interpolants cannot sample a DiracDeltaKernel, use "
-                "interpolant=martini.mochi.interpolants.particle_in_cell "
-                "(or voronoi_mesh)."
+                "The manual_sph interpolant cannot sample a DiracDeltaKernel, use "
+                "interpolant=martini.mochi.interpolants.sph (or mfm, particle_in_cell, "
+                "voronoi_mesh)."
             )
         if not is_dirac_delta and interpolant is interpolants.particle_in_cell:
             warnings.warn(
@@ -461,11 +458,11 @@ class Mochi(Martini):
             unless explicitly turned on.
 
         ncpu : int
-            Number of processes to use in main source insertion loop. Using more than
-            one cpu requires the :mod:`multiprocess` module (n.b. not the same as
-            ``multiprocessing``).
+            Number of threads to use in compiled code (requires :mod:`numba`) to
+            interpolate particles onto the cell grid. A value of ``-1`` means as many
+            threads as available cores.
         """
-        # need to revise irrelevant (?) arguments: skip_validation, progressbar, ncpu
+        # need to revise irrelevant (?) arguments: skip_validation, progressbar
         # TODO: resolution checks. Kernels are point-sampled at cell centres, so accuracy
         # depends on cell size relative to the kernel FWHM, not on pixel size as for
         # Martini's kernel integrals. Refinement (e.g. refine_grid_to_half_particle_scale)
@@ -483,7 +480,14 @@ class Mochi(Martini):
             cell_grid.eval_grid_refinement(
                 self.source, self._datacube, self.refinement_strategy
             )
-        cell_grid.interpolate_fields(self.source, self.sph_kernel, self.interpolant)
+        interpolant_kwargs = (
+            {"ncpu": resolve_ncpu(ncpu), "compiled": self._numba_enabled}
+            if self.interpolant in (interpolants.sph, interpolants.mfm)
+            else {}
+        )
+        cell_grid.interpolate_fields(
+            self.source, self.sph_kernel, self.interpolant, **interpolant_kwargs
+        )
 
         datacube_array = cell_grid.eval_radiative_transfer(
             # haven't exposed the index datatype option

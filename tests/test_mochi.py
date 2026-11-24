@@ -5,7 +5,12 @@ from martini.datacube import DataCube
 from martini.sources import SPHSource
 from martini.beams import GaussianBeam
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
-from martini.sph_kernels import CubicSplineKernel, DiracDeltaKernel
+from martini.sph_kernels import (
+    CubicSplineKernel,
+    DiracDeltaKernel,
+    _CubicSplineKernel,
+    _GaussianKernel,
+)
 import astropy.units as U
 from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
 from martini.mochi import interpolants as module_interpolants
@@ -564,17 +569,250 @@ class TestAdaptiveCellGrid:
         assert U.isclose(cubes[1].sum(), cubes[0].sum(), rtol=1e-3)
 
 
-class TestKernelEvaluation:
-    """Test evaluation of SPH kernels for interpolation onto cells."""
+def _uniform_test_grid(shape=(6, 5, 4), size=1.0):
+    """
+    Make a uniform grid of cells with the attributes used by the interpolants.
 
-    def test_eval_cache_kernel(self):
-        """Check that cached kernel is linearly interpolated and zero beyond extent."""
-        # samples of 2 - (u / 2)**2 at u = 0, 0.5, 1, 1.5, 2:
-        kernel_cache = np.array([2, 1.9375, 1.75, 1.4375, 1])
-        u = np.array([0, 0.25, 0.5, 1.2, 2.0, 2.001, 3.0])
-        expected = np.array([2, 1.96875, 1.9375, 1.625, 1, 0, 0])
-        assert np.allclose(
-            module_interpolants._eval_cache_kernel(u, kernel_cache, 2.0), expected
+    Cell centres are ordered as in :func:`~martini._grid_search.find_grid_intersections`
+    and the grid starts at ``-0.5`` along each axis, as for
+    :class:`~martini.mochi.cell_grid.CellGrid`.
+
+    Parameters
+    ----------
+    shape : tuple, optional
+        Number of cells along each axis.
+
+    size : float, optional
+        Side length of the cells, in pixels.
+
+    Returns
+    -------
+    ~types.SimpleNamespace
+        The cell grid.
+    """
+    centres = (np.array(list(itertools.product(*map(range, shape)))) + 0.5) * size - 0.5
+    n_pos = len(centres)
+    return SimpleNamespace(
+        field_positions=centres * U.pix,
+        field_volumes=np.full(n_pos, size**3) * U.pix**3,
+        field_sizes=np.full(n_pos, size) * U.pix,
+        field_distortion_corrections=np.linspace(0.9, 1.1, n_pos)
+        * U.dimensionless_unscaled,
+        uniform_grid=(shape, size),
+    )
+
+
+def _adaptive_test_grid():
+    """
+    Make an adaptive grid of cells with the attributes used by the interpolants.
+
+    2x2x2 coarse cells of size 2, one bisected, one of whose children is bisected (as in
+    ``TestParticleInCell.test_find_containing_cells``), starting at ``-0.5``.
+
+    Returns
+    -------
+    ~types.SimpleNamespace
+        The cell grid.
+    """
+    corners, sizes = [], []
+    for corner in itertools.product((0, 2), repeat=3):
+        if corner != (0, 0, 0):
+            corners.append(corner)
+            sizes.append(2.0)
+    for corner in itertools.product((0, 1), repeat=3):
+        if corner != (1, 1, 1):
+            corners.append(corner)
+            sizes.append(1.0)
+    for corner in itertools.product((1, 1.5), repeat=3):
+        corners.append(corner)
+        sizes.append(0.5)
+    sizes = np.array(sizes)
+    centres = np.array(corners, dtype=float) + sizes[:, np.newaxis] / 2 - 0.5
+    n_pos = len(centres)
+    return SimpleNamespace(
+        field_positions=centres * U.pix,
+        field_volumes=sizes**3 * U.pix**3,
+        field_sizes=sizes * U.pix,
+        field_distortion_corrections=np.linspace(0.9, 1.1, n_pos)
+        * U.dimensionless_unscaled,
+        uniform_grid=None,
+    )
+
+
+def _scatter_test_particles(n=40, extent=3.5, h=(0.3, 2.0), seed=0):
+    """
+    Make random particle properties, including particles on cell boundaries.
+
+    Parameters
+    ----------
+    n : int, optional
+        Number of random particles (four more are placed on cell boundaries).
+
+    extent : float, optional
+        Particles are placed between ``-0.5`` and ``extent - 0.5`` pixels along each axis.
+
+    h : tuple, optional
+        Range of smoothing lengths, in pixels.
+
+    seed : int, optional
+        Random seed.
+
+    Returns
+    -------
+    dict
+        Particle properties, as keyword arguments for the interpolants.
+    """
+    rng = np.random.default_rng(seed)
+    positions = np.vstack(
+        (
+            rng.uniform(-0.5, extent - 0.5, (n, 3)),
+            # on cell faces, edges and corners (cell edges are at half-integers):
+            [[0.5, 1.2, 1.3], [0.5, 1.5, 0.7], [1.5, 0.5, 2.5], [-0.5, -0.5, -0.5]],
+        )
+    )
+    n = len(positions)
+    return dict(
+        positions=positions * U.pix,
+        velocities=rng.uniform(-50, 50, n) * U.km / U.s,
+        smoothing_lengths=rng.uniform(*h, n) * U.pix,
+        masses_HI=rng.uniform(0.5, 2, n) * U.Msun,
+        temperatures=rng.uniform(100, 200, n) * U.km**2 / U.s**2,
+        masses=rng.uniform(1, 3, n) * U.Msun,
+    )
+
+
+class TestKernelInterpolation:
+    """Test interpolation onto cells with SPH kernels (compiled and numpy)."""
+
+    @pytest.mark.parametrize("interpolant", ("sph", "mfm"))
+    @pytest.mark.parametrize("grid", ("uniform", "adaptive"))
+    @pytest.mark.parametrize(
+        "kernel", (_CubicSplineKernel, _GaussianKernel, DiracDeltaKernel)
+    )
+    def test_compiled_matches_numpy(self, interpolant, grid, kernel):
+        """Check that compiled and numpy evaluation of kernel weights agree."""
+        cell_grid = _uniform_test_grid() if grid == "uniform" else _adaptive_test_grid()
+        particles = _scatter_test_particles()
+        k = kernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        results = [
+            getattr(module_interpolants, interpolant)(
+                **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+            )
+            for compiled in (True, False)
+        ]
+        assert np.count_nonzero(results[0]["masses_HI"]) > 0
+        for field in ("masses_HI", "velocities", "temperatures"):
+            assert U.allclose(results[0][field], results[1][field], rtol=1e-10)
+
+    @pytest.mark.parametrize("compiled", (True, False))
+    @pytest.mark.parametrize("interpolant", ("sph", "mfm"))
+    @pytest.mark.parametrize("grid", ("uniform", "adaptive"))
+    def test_dirac_delta_matches_particle_in_cell(self, compiled, interpolant, grid):
+        """
+        Check that a Dirac-delta kernel deposits each particle in the cell containing it.
+
+        Includes particles on faces, edges and corners shared by several cells, and
+        particles much smaller than the cells (the search must still find their cells).
+        """
+        cell_grid = _uniform_test_grid() if grid == "uniform" else _adaptive_test_grid()
+        particles = _scatter_test_particles(h=(0.001, 0.01))
+        k = DiracDeltaKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        result = getattr(module_interpolants, interpolant)(
+            **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+        )
+        expected = module_interpolants.particle_in_cell(
+            **particles, kernel=k, cell_grid=cell_grid
+        )
+        for field in ("masses_HI", "velocities", "temperatures"):
+            assert U.allclose(result[field], expected[field], rtol=1e-10)
+        # all particles are inside the grid, and all of their mass is deposited:
+        mass = (
+            result["masses_HI"]
+            * cell_grid.field_volumes
+            * cell_grid.field_distortion_corrections
+        ).sum()
+        assert U.isclose(mass, particles["masses_HI"].sum(), rtol=1e-12)
+
+    @pytest.mark.parametrize("compiled", (True, False))
+    @pytest.mark.parametrize("interpolant", ("sph", "mfm"))
+    def test_kernel_smaller_than_cells(self, compiled, interpolant):
+        """Check that a kernel reaching no cell centre deposits nothing (and no NaNs)."""
+        cell_grid = _uniform_test_grid()
+        particles = _scatter_test_particles(h=(0.001, 0.01))
+        # away from cell centres (at integer coordinates):
+        particles["positions"] = np.full((len(particles["masses"]), 3), 1.3) * U.pix
+        k = _CubicSplineKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        result = getattr(module_interpolants, interpolant)(
+            **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+        )
+        for field in ("masses_HI", "velocities", "temperatures"):
+            assert np.all(result[field] == 0)
+
+    @pytest.mark.parametrize("interpolant", ("sph", "mfm"))
+    def test_threads(self, interpolant):
+        """Check that using several threads gives the same result as one."""
+        cell_grid = _uniform_test_grid(shape=(12, 12, 12), size=0.5)
+        particles = _scatter_test_particles(n=400, extent=5.5)
+        k = _CubicSplineKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        results = [
+            getattr(module_interpolants, interpolant)(
+                **particles, kernel=k, cell_grid=cell_grid, ncpu=ncpu
+            )
+            for ncpu in (1, 2)
+        ]
+        for field in ("masses_HI", "velocities", "temperatures"):
+            assert U.allclose(results[0][field], results[1][field], rtol=1e-12)
+
+    @pytest.mark.parametrize("compiled", (True, False))
+    def test_adaptive_kernel_support(self, compiled):
+        """
+        Check that adaptive kernels evaluate their preferred kernel over its support.
+
+        Mochi ignores the martini kernel validation. A decision on what to do when for
+        example a kernel is smaller than its containing cell and misses the centre is
+        needed later (maybe cell refinement prevents this? maybe fall back to
+        DiracDeltaKernel through the AdaptiveKernel mechanism? other?). Here we check
+        the current behaviour of always taking the preferred kernel of an adaptive
+        kernel for kernel evaluation in Mochi.
+        """
+        cell_grid = _uniform_test_grid(shape=(16, 16, 16), size=1.0)
+        particles = _scatter_test_particles(n=1, extent=1, h=(3, 3))
+        particles = {k: v[:1] for k, v in particles.items()}
+        particles["positions"] = np.full((1, 3), 7.3) * U.pix
+        results = []
+        for kernel_index in (0, 1):  # preferred, DiracDeltaKernel
+            k = CubicSplineKernel()
+            k.sm_lengths = particles["smoothing_lengths"]
+            k.kernel_indices = np.array([kernel_index])
+            k._rescale = np.array([k.kernels[kernel_index]._rescale])
+            k.size_in_fwhm = np.array([k.kernels[kernel_index].size_in_fwhm])
+            results.append(
+                module_interpolants.sph(
+                    **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+                )
+            )
+        assert U.allclose(results[0]["masses_HI"], results[1]["masses_HI"], rtol=1e-12)
+
+    def test_missing_compiled_kernel(self):
+        """Check that a kernel without a compiled implementation is rejected."""
+
+        class CustomKernel(_CubicSplineKernel):
+            _scalar_kernel = None
+
+        particles = _scatter_test_particles()
+        k = CustomKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        with pytest.raises(ValueError, match="has no compiled kernel"):
+            module_interpolants.sph(
+                **particles, kernel=k, cell_grid=_uniform_test_grid(), compiled=True
+            )
+        # the numpy implementation needs no compiled kernel:
+        module_interpolants.sph(
+            **particles, kernel=k, cell_grid=_uniform_test_grid(), compiled=False
         )
 
 
@@ -1176,12 +1414,8 @@ class TestMochiMassAccuracy:
             adaptive_grid=adaptive_grid,
             quiet=True,
         )
-        if kernel_name == "DiracDeltaKernel" and interpolant_name in (
-            "sph",
-            "mfm",
-            "manual_sph",
-        ):
-            # kernel interpolants cannot sample a Dirac-delta kernel:
+        if kernel_name == "DiracDeltaKernel" and interpolant_name == "manual_sph":
+            # manual_sph cannot sample a Dirac-delta kernel:
             with pytest.raises(ValueError, match="DiracDeltaKernel"):
                 Mochi(**mochi_kwargs)
             return
