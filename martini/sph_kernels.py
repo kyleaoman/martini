@@ -201,6 +201,7 @@ else:
     _quartic_spline_ia_compiled = njit(cache=True, inline="always")(_quartic_spline_ia)
 
 ScalarKernelIntegral = Callable[[float, float, float, float, float], float]
+ScalarKernel = Callable[[float, float, float, float, float, float, float], float]
 
 
 @functools.cache
@@ -228,6 +229,32 @@ def _compile_scalar_integral(integral: ScalarKernelIntegral) -> ScalarKernelInte
     )
 
 
+@functools.cache
+def _compile_scalar_kernel(kernel: ScalarKernel) -> ScalarKernel:
+    """
+    Compile a scalar (spherical) kernel evaluation for use in compiled code.
+
+    All scalar kernel evaluations share one signature, so that compiled code can choose
+    between them at run time (as numba "first-class functions").
+
+    Parameters
+    ----------
+    kernel : ~collections.abc.Callable
+        A ``_scalar_kernel`` static method of a kernel class.
+
+    Returns
+    -------
+    ~collections.abc.Callable
+        The compiled function (the input function if :mod:`numba` is unavailable).
+    """
+    if not NUMBA_AVAILABLE:  # pragma: no cover
+        return kernel
+    return njit(
+        "float64(float64, float64, float64, float64, float64, float64, float64)",
+        cache=True,
+    )(kernel)
+
+
 class _BaseSPHKernel(object):
     """
     Abstract base class for classes implementing SPH kernels to inherit from.
@@ -251,13 +278,22 @@ class _BaseSPHKernel(object):
     return a boolean array with ``True`` for particles which pass validation, and
     ``False`` otherwise.
 
-    When :mod:`numba` is available, classes must also provide a static method
-    ``_scalar_kernel_integral(dx, dy, h, p0, p1)`` that evaluates the same integral as
-    :meth:`~martini.sph_kernels._BaseSPHKernel._kernel_integral` for a single
+    When :mod:`numba` is available, classes must also provide two static methods
+    ``_scalar_kernel(dx, dy, dz, size, h, p0, p1)`` and
+    ``_scalar_kernel_integral(dx, dy, h, p0, p1)``. The first should evaluates the same
+    kernel as :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel` for a single
+    particle and grid cell (offsets ``dx``, ``dy``, ``dz`` from the cell centre to the
+    particle, cell side length ``size`` and smoothing length ``h``, rescaled as in
+    :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`, all in the same units, kernel
+    parameters ``p0``, ``p1`` from ``_numba_params``). The second shoud evaluate the same
+    integral as :meth:`~martini.sph_kernels._BaseSPHKernel._kernel_integral` for a single
     particle-pixel pair (offsets ``dx``, ``dy`` and smoothing length ``h`` in pixels,
-    kernel parameters ``p0``, ``p1`` from ``_numba_params``) and that :mod:`numba` can
-    compile. It is used to evaluate kernel weights on the fly while inserting a source;
-    the kernels in this module provide examples.
+    kernel parameters ``p0``, ``p1`` from ``_numba_params``). Both must be compilable
+    by :mod:`numba`. They are used to evaluate kernel weights on the fly while inserting
+    a source; the kernels in this module provide examples. The kernel or its integral are
+    evaluated at or through the pixel or cell centre, except for the
+    :class:`~martini.sph_kernels.DiracDeltaKernel` that deposits the contribution from the
+    particle entirely in the pixel or cell containing it.
     """
 
     __metaclass__ = ABCMeta
@@ -266,6 +302,7 @@ class _BaseSPHKernel(object):
     size_in_fwhm: float | list[float] | None
     _rescale: float | np.ndarray
     _scalar_kernel_integral: ScalarKernelIntegral | None = None
+    _scalar_kernel: ScalarKernel | None = None
     # Progress logger, set by martini.Martini so that messages nest with its own:
     _logger: _ProgressLogger | None = None
 
@@ -310,6 +347,33 @@ class _BaseSPHKernel(object):
         return (
             np.zeros(h.size, dtype=np.int32),
             (_compile_scalar_integral(self._scalar_kernel_integral),),
+            np.array([self._numba_params()], dtype=np.float64),
+            h,
+        )
+
+    def _numba_spherical_kernel_arrays(
+        self,
+    ) -> tuple[np.ndarray, tuple[ScalarKernel, ...], np.ndarray, np.ndarray] | None:
+        """
+        Describe the (spherical) kernel of each particle for compiled evaluation.
+
+        Returns
+        -------
+        tuple or None
+            ``None`` if no compiled implementation is available. Otherwise a tuple of
+            the index into the kernel table for each particle, the table of compiled
+            kernel evaluations, the table of kernel parameters (one row per table entry),
+            and the rescaled smoothing length of each particle in pixels.
+        """
+        if self._scalar_kernel is None:
+            return None
+        h = np.asarray(
+            self.sm_lengths.to_value(U.pix) * np.asarray(self._rescale),
+            dtype=np.float64,
+        )
+        return (
+            np.zeros(h.size, dtype=np.int32),
+            (_compile_scalar_kernel(self._scalar_kernel),),
             np.array([self._numba_params()], dtype=np.float64),
             h,
         )
@@ -594,6 +658,51 @@ class _WendlandC2Kernel(_BaseSPHKernel):
     min_valid_size: float = 1.51
 
     @staticmethod
+    def _scalar_kernel(
+        dx: float, dy: float, dz: float, size: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the WendlandC2 kernel.
+
+        Mirrors :meth:`kernel` (including the normalization by the volume, as in
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`) for a single particle
+        and grid cell, evaluated at the cell centre, for use in compiled code (see
+        :func:`_compile_scalar_kernel`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the cell centre to the particle along the first axis.
+
+        dy : float
+            Offset from the cell centre to the particle along the second axis.
+
+        dz : float
+            Offset from the cell centre to the particle along the third axis.
+
+        size : float
+            Side length of the cell (unused).
+
+        h : float
+            Rescaled smoothing length, in the same units as the offsets.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel value, with implicit units of inverse volume.
+        """
+        q = math.sqrt(dx * dx + dy * dy + dz * dz) / h
+        if q >= 1:
+            return 0.0
+        return (1 - q) ** 4 * (4 * q + 1) * (21 / 2 / np.pi) / (h * h * h)
+
+    @staticmethod
     def _scalar_kernel_integral(
         dx: float, dy: float, h: float, p0: float, p1: float
     ) -> float:
@@ -780,6 +889,56 @@ class _WendlandC6Kernel(_BaseSPHKernel):
     """
 
     min_valid_size: float = 1.29
+
+    @staticmethod
+    def _scalar_kernel(
+        dx: float, dy: float, dz: float, size: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the WendlandC6 kernel.
+
+        Mirrors :meth:`kernel` (including the normalization by the volume, as in
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`) for a single particle
+        and grid cell, evaluated at the cell centre, for use in compiled code (see
+        :func:`_compile_scalar_kernel`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the cell centre to the particle along the first axis.
+
+        dy : float
+            Offset from the cell centre to the particle along the second axis.
+
+        dz : float
+            Offset from the cell centre to the particle along the third axis.
+
+        size : float
+            Side length of the cell (unused).
+
+        h : float
+            Rescaled smoothing length, in the same units as the offsets.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel value, with implicit units of inverse volume.
+        """
+        q = math.sqrt(dx * dx + dy * dy + dz * dz) / h
+        if q >= 1:
+            return 0.0
+        return (
+            (1 - q) ** 8
+            * (1 + 8 * q + 25 * q * q + 32 * q * q * q)
+            * (1365 / 64 / np.pi)
+            / (h * h * h)
+        )
 
     @staticmethod
     def _scalar_kernel_integral(
@@ -981,6 +1140,55 @@ class _CubicSplineKernel(_BaseSPHKernel):
     """
 
     min_valid_size: float = 1.16
+
+    @staticmethod
+    def _scalar_kernel(
+        dx: float, dy: float, dz: float, size: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the cubic spline kernel.
+
+        Mirrors :meth:`kernel` (including the normalization by the volume, as in
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`) for a single particle
+        and grid cell, evaluated at the cell centre, for use in compiled code (see
+        :func:`_compile_scalar_kernel`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the cell centre to the particle along the first axis.
+
+        dy : float
+            Offset from the cell centre to the particle along the second axis.
+
+        dz : float
+            Offset from the cell centre to the particle along the third axis.
+
+        size : float
+            Side length of the cell (unused).
+
+        h : float
+            Rescaled smoothing length, in the same units as the offsets.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel value, with implicit units of inverse volume.
+        """
+        q = math.sqrt(dx * dx + dy * dy + dz * dz) / h
+        if q < 0.5:
+            W = 1 - 6 * q * q + 6 * q * q * q
+        elif q <= 1:
+            W = 2 * (1 - q) ** 3
+        else:
+            return 0.0
+        return W * (8 / np.pi) / (h * h * h)
 
     @staticmethod
     def _scalar_kernel_integral(
@@ -1234,6 +1442,57 @@ class _GaussianKernel(_BaseSPHKernel):
     norm: float
 
     @staticmethod
+    def _scalar_kernel(
+        dx: float, dy: float, dz: float, size: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the Gaussian kernel.
+
+        Mirrors :meth:`kernel` (including the normalization by the volume, as in
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`) for a single particle
+        and grid cell, evaluated at the cell centre, for use in compiled code (see
+        :func:`_compile_scalar_kernel`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the cell centre to the particle along the first axis.
+
+        dy : float
+            Offset from the cell centre to the particle along the second axis.
+
+        dz : float
+            Offset from the cell centre to the particle along the third axis.
+
+        size : float
+            Side length of the cell (unused).
+
+        h : float
+            Rescaled smoothing length, in the same units as the offsets.
+
+        p0 : float
+            Truncation radius in standard deviations.
+
+        p1 : float
+            Normalization of the truncated kernel.
+
+        Returns
+        -------
+        float
+            Kernel value, with implicit units of inverse volume.
+        """
+        sig = 1 / (2 * math.sqrt(2 * math.log(2)))  # s.t. FWHM = 1
+        q = math.sqrt(dx * dx + dy * dy + dz * dz) / h
+        if q >= p0 * sig:
+            return 0.0
+        return (
+            math.exp(-((q / sig) ** 2) / 2)
+            / (sig * math.sqrt(2 * np.pi)) ** 3
+            / p1
+            / (h * h * h)
+        )
+
+    @staticmethod
     def _scalar_kernel_integral(
         dx: float, dy: float, h: float, p0: float, p1: float
     ) -> float:
@@ -1475,6 +1734,53 @@ class DiracDeltaKernel(_BaseSPHKernel):
     """
 
     max_valid_size: float = 0.5
+
+    @staticmethod
+    def _scalar_kernel(
+        dx: float, dy: float, dz: float, size: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the Dirac-delta kernel.
+
+        All of the mass of the particle is deposited in the grid cell containing it,
+        so the kernel is ``1 / size**3`` in that cell and zero elsewhere, unlike
+        :meth:`kernel` (which can't be sampled on a grid). For use in compiled code (see
+        :func:`_compile_scalar_kernel`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the cell centre to the particle along the first axis.
+
+        dy : float
+            Offset from the cell centre to the particle along the second axis.
+
+        dz : float
+            Offset from the cell centre to the particle along the third axis.
+
+        size : float
+            Side length of the cell.
+
+        h : float
+            Unused.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel value, with implicit units of inverse volume.
+        """
+        # Cells are half-open intervals so that a particle exactly on a cell boundary is
+        # assigned to exactly one cell.
+        half = size / 2
+        if -half <= dx < half and -half <= dy < half and -half <= dz < half:
+            return 1.0 / (size * size * size)
+        return 0.0
 
     @staticmethod
     def _scalar_kernel_integral(
@@ -1731,6 +2037,36 @@ class _AdaptiveKernel(_BaseSPHKernel):
             h,
         )
 
+    def _numba_spherical_kernel_arrays(
+        self,
+    ) -> tuple[np.ndarray, tuple[ScalarKernel, ...], np.ndarray, np.ndarray] | None:
+        """
+        Describe the (spherical) kernel of each particle for compiled evaluation.
+
+        As in :meth:`~martini.sph_kernels._AdaptiveKernel.eval_kernel`, every particle
+        uses the preferred (first) kernel.
+
+        Returns
+        -------
+        tuple or None
+            ``None`` if the preferred kernel has no compiled implementation. Otherwise a
+            tuple of the index into the kernel table for each particle, the table of
+            compiled kernel evaluations, the table of kernel parameters (one row per table
+            entry), and the rescaled smoothing length of each particle in pixels.
+        """
+        preferred = self.kernels[0]
+        if preferred._scalar_kernel is None:
+            return None
+        h = np.asarray(
+            self.sm_lengths.to_value(U.pix) * preferred._rescale, dtype=np.float64
+        )
+        return (
+            np.zeros(h.size, dtype=np.int32),
+            (_compile_scalar_kernel(preferred._scalar_kernel),),
+            np.array([preferred._numba_params()], dtype=np.float64),
+            h,
+        )
+
     def _apply_mask(self, mask: np.ndarray) -> None:
         """
         Apply a mask to maskable attributes.
@@ -1887,6 +2223,57 @@ class _QuarticSplineKernel(_BaseSPHKernel):
     """
 
     min_valid_size: float = 1.2385
+
+    @staticmethod
+    def _scalar_kernel(
+        dx: float, dy: float, dz: float, size: float, h: float, p0: float, p1: float
+    ) -> float:
+        """
+        Evaluate the quartic spline kernel.
+
+        Mirrors :meth:`kernel` (including the normalization by the volume, as in
+        :meth:`~martini.sph_kernels._BaseSPHKernel.eval_kernel`) for a single particle
+        and grid cell, evaluated at the cell centre, for use in compiled code (see
+        :func:`_compile_scalar_kernel`).
+
+        Parameters
+        ----------
+        dx : float
+            Offset from the cell centre to the particle along the first axis.
+
+        dy : float
+            Offset from the cell centre to the particle along the second axis.
+
+        dz : float
+            Offset from the cell centre to the particle along the third axis.
+
+        size : float
+            Side length of the cell (unused).
+
+        h : float
+            Rescaled smoothing length, in the same units as the offsets.
+
+        p0 : float
+            Unused.
+
+        p1 : float
+            Unused.
+
+        Returns
+        -------
+        float
+            Kernel value, with implicit units of inverse volume.
+        """
+        q = math.sqrt(dx * dx + dy * dy + dz * dz) / h
+        if q < 0.2:
+            W = (1 - q) ** 4 - 5 * (0.6 - q) ** 4 + 10 * (0.2 - q) ** 4
+        elif q < 0.6:
+            W = (1 - q) ** 4 - 5 * (0.6 - q) ** 4
+        elif q < 1:
+            W = (1 - q) ** 4
+        else:
+            return 0.0
+        return W * (15625 / 512 / np.pi) / (h * h * h)
 
     @staticmethod
     def _scalar_kernel_integral(
