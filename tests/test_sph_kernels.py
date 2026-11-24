@@ -1,5 +1,6 @@
 """Test functionality of SPH kernel modules."""
 
+import itertools
 import pytest
 import numpy as np
 from martini import Martini, DataCube
@@ -14,6 +15,7 @@ from martini.sph_kernels import (
     DiracDeltaKernel,
     _AdaptiveKernel,
     _compile_scalar_integral,
+    _compile_scalar_kernel,
     WendlandC2Kernel,
     GaussianKernel,
     CubicSplineKernel,
@@ -490,3 +492,136 @@ class TestCompiledKernels:
 
         assert CustomKernel()._numba_kernel_arrays() is None
         assert _AdaptiveKernel((CustomKernel(),))._numba_kernel_arrays() is None
+
+        class CustomSphericalKernel(_GaussianKernel):
+            _scalar_kernel = None
+
+        assert CustomSphericalKernel()._numba_spherical_kernel_arrays() is None
+        assert (
+            _AdaptiveKernel((CustomSphericalKernel(),))._numba_spherical_kernel_arrays()
+            is None
+        )
+
+    @pytest.mark.parametrize(
+        "kernel",
+        (
+            _WendlandC2Kernel(),
+            _WendlandC6Kernel(),
+            _CubicSplineKernel(),
+            _GaussianKernel(),
+            _GaussianKernel(truncate=6.0),
+            _QuarticSplineKernel(),
+        ),
+    )
+    def test_spherical_matches_vectorized(self, kernel):
+        """Check that compiled spherical kernels match the vectorized implementations."""
+        rng = np.random.default_rng(0)
+        n = 2000
+        h = rng.uniform(0.5, 8, n)  # rescaled smoothing lengths
+        # just inside/outside each branch boundary (and the support), and the centre:
+        q_edges = np.array([0.2, 0.5, 0.6, 1.0])
+        if isinstance(kernel, _GaussianKernel):
+            q_edges = np.r_[q_edges, kernel.truncate / (2 * np.sqrt(2 * np.log(2)))]
+        q = np.r_[0, q_edges * (1 - 1e-9), q_edges * (1 + 1e-9)]
+        r = rng.uniform(0, 1.2, n) * h
+        r[: q.size] = q * h[: q.size]
+        # offsets along random directions, the cell size is unused (kernel evaluated at
+        # the cell centre):
+        direction = rng.normal(size=(n, 3))
+        direction /= np.linalg.norm(direction, axis=1)[:, np.newaxis]
+        offsets = r[:, np.newaxis] * direction
+        sizes = rng.uniform(0.1, 4, n)
+        expected = kernel.eval_kernel(r, h / kernel._rescale)
+        evaluate = _compile_scalar_kernel(kernel._scalar_kernel)
+        p0, p1 = kernel._numba_params()
+        result = np.array(
+            [evaluate(*d, size, hi, p0, p1) for d, size, hi in zip(offsets, sizes, h)]
+        )
+        assert np.count_nonzero(expected) > 0
+        assert np.count_nonzero(expected == 0) > 0
+        assert np.allclose(result, expected, rtol=1e-10, atol=1e-12 * expected.max())
+
+    @pytest.mark.parametrize("size", (0.5, 1.0, 4.0))
+    def test_spherical_dirac_delta_cells(self, size):
+        """
+        Check that the Dirac-delta kernel fills the grid cell containing the particle.
+
+        Cells are half-open intervals ``[-size / 2, size / 2)`` in the offset from the
+        cell centre to the particle, so a particle on a face or corner shared by several
+        cells is assigned to exactly one of them.
+        """
+        evaluate = _compile_scalar_kernel(DiracDeltaKernel()._scalar_kernel)
+
+        def weights(offsets):
+            return np.array([evaluate(*d, size, 0.1, 0.0, 0.0) for d in offsets])
+
+        half = size / 2
+        # inside the cell, and just outside it along each axis:
+        assert np.array_equal(
+            weights([(0, 0, 0), (0.9 * half, -0.9 * half, 0.3 * half)]),
+            [size**-3, size**-3],
+        )
+        for axis in range(3):
+            for sign in (-1, 1):
+                d = np.zeros(3)
+                d[axis] = sign * 1.0001 * half
+                assert weights([d])[0] == 0
+        # in a block of cells, each particle is deposited exactly once, in the cell
+        # whose lower corner is at or below it, including on faces, edges and corners
+        # shared by several cells:
+        corners = np.array(list(itertools.product(range(4), repeat=3))) * size
+        rng = np.random.default_rng(0)
+        particles = np.vstack(
+            (
+                rng.uniform(0, 4 * size, (200, 3)),
+                np.array([[2, 1.3, 1.7], [2, 2, 1.7], [2, 2, 2]]) * size,
+                rng.integers(0, 4, (50, 3)) * size,
+            )
+        )
+        for particle in particles:
+            w = weights(particle - (corners + half))
+            assert np.count_nonzero(w) == 1
+            assert w.sum() == size**-3
+            assert np.array_equal(
+                corners[np.flatnonzero(w)[0]], np.floor(particle / size) * size
+            )
+
+    def test_spherical_compiled_once(self):
+        """Check that each spherical kernel is compiled once and shared."""
+        kernels = GaussianKernel()  # adaptive, uses _GaussianKernel twice
+        compiled = [_compile_scalar_kernel(K._scalar_kernel) for K in kernels.kernels]
+        assert compiled[0] is compiled[2]
+        assert compiled[0] is not compiled[1]
+
+    @pytest.mark.parametrize("kernel", recommended_kernels + (_CubicSplineKernel,))
+    def test_spherical_kernel_arrays(
+        self, kernel, adaptive_kernel_test_source, adaptive_kernel_test_datacube
+    ):
+        """
+        Check that the spherical kernel arrays reproduce ``eval_kernel``.
+
+        The adaptive kernels select different kernels for the test particles (including
+        :class:`~martini.sph_kernels.DiracDeltaKernel`), but evaluate their preferred
+        kernel, like :meth:`~martini.sph_kernels._AdaptiveKernel.eval_kernel`.
+        """
+        source = adaptive_kernel_test_source()
+        source._init_skycoords()
+        k = kernel()
+        k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
+        if isinstance(k, _AdaptiveKernel):
+            assert np.unique(k.kernel_indices).size > 1
+        kernel_slot, kernels, kernel_params, h = k._numba_spherical_kernel_arrays()
+        sm_lengths = k.sm_lengths.to_value(U.pix)
+        for i, sm_length in enumerate(sm_lengths):
+            r = np.linspace(0, 1.2, 25) * sm_length
+            result = np.array(
+                [
+                    kernels[kernel_slot[i]](
+                        0.0, ri, 0.0, 1.0, h[i], *kernel_params[kernel_slot[i]]
+                    )
+                    for ri in r
+                ]
+            )
+            expected = k.eval_kernel(r, np.full(r.size, sm_length))
+            assert np.count_nonzero(expected) > 0
+            assert np.allclose(result, expected, rtol=1e-10, atol=0)
