@@ -1,10 +1,10 @@
 """Interpolant functions to render particle properties onto a grid."""
 
 import contextlib
-import itertools
 import warnings
 from scipy.spatial import distance, KDTree
 from martini._grid_search import (
+    find_cell_tree_intersections,
     find_grid_intersections,
     FindGridIntersectionsResult,
     _balanced_blocks,
@@ -680,66 +680,6 @@ def _get_out_of_bound_particles(
     return mask_out_of_bound
 
 
-def _tree_grid_intersections(
-    cell_centres: np.ndarray, coords: np.ndarray, radii: np.ndarray
-) -> FindGridIntersectionsResult:
-    """
-    Search for cell centres within variable radii of coordinates, using a KDTree.
-
-    Unlike :func:`~martini._grid_search.find_grid_intersections`, the cell centres can
-    be arbitrary (e.g. an adaptive grid), at the cost of speed and memory.
-
-    Parameters
-    ----------
-    cell_centres : ~numpy.ndarray
-        Coordinates of cell centres, with one column per dimension.
-
-    coords : ~numpy.ndarray
-        Coordinates to search around for cells, with one column per dimension.
-
-    radii : ~numpy.ndarray
-        Search radii around the ``coords``.
-
-    Returns
-    -------
-    ~martini._grid_search.FindGridIntersectionsResult
-        The matches, in the same layout as returned by
-        :func:`~martini._grid_search.find_grid_intersections`.
-    """
-    candidate_lists = KDTree(
-        cell_centres, leafsize=16, compact_nodes=True, balanced_tree=True
-    ).query_ball_point(x=coords, r=radii, p=2.0, return_sorted=False)
-    data_counts = np.array([len(lst) for lst in candidate_lists], dtype=np.int64)
-    if np.sum(data_counts) == 0:
-        return FindGridIntersectionsResult(
-            intersections=np.empty(0),
-            distances=np.empty(0),
-            cell_indices=np.empty(0),
-            strides=np.empty((0, 2)),
-        )
-    flat_cell_indices = np.fromiter(
-        itertools.chain.from_iterable(candidate_lists), dtype=np.int64
-    )
-    del candidate_lists
-    flat_data_indices = np.repeat(np.arange(len(coords), dtype=np.int32), data_counts)
-    del data_counts
-    sort_idx = np.argsort(flat_cell_indices, kind="stable")
-    sorted_cell_indices = flat_cell_indices[sort_idx]
-    del flat_cell_indices
-    cell_indices, split_indices, counts = np.unique(
-        sorted_cell_indices, return_index=True, return_counts=True
-    )
-    strides = np.column_stack((split_indices, split_indices + counts))
-    intersections = flat_data_indices[sort_idx]
-    distances = coords[intersections] - cell_centres[sorted_cell_indices]  # vectors
-    return FindGridIntersectionsResult(
-        intersections=intersections,
-        distances=distances,
-        cell_indices=cell_indices,
-        strides=strides,
-    )
-
-
 def particle_scatter(
     main_loop: Callable,  # fill in arg & return types
     positions: U.Quantity[U.pix],
@@ -874,8 +814,13 @@ def particle_scatter(
         if gs.distances is not None and gs.distances.size > 0:
             gs.distances[...] *= cell_size  # back to pixels
     else:
-        gs = _tree_grid_intersections(
-            field_positions.value, positions.value, search_radii
+        gs = find_cell_tree_intersections(
+            field_positions.value,
+            cell_sizes,
+            positions.value,
+            search_radii,
+            ncpu=ncpu,
+            return_distances=not compiled,
         )
     if kernel_arrays is not None:
         kernel_slot, kernels, kernel_params, h = kernel_arrays
