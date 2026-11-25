@@ -4,7 +4,9 @@ import pytest
 import numpy as np
 from martini import _grid_search
 from martini._grid_search import (
+    count_cell_tree_intersections,
     count_grid_intersections,
+    find_cell_tree_intersections,
     find_grid_intersections,
     FindGridIntersectionsResult,
 )
@@ -34,6 +36,32 @@ def _brute_force(
         by particle then cell index.
     """
     cell_centres = np.indices(grid_shape).reshape(len(grid_shape), -1).T
+    return _brute_force_centres(cell_centres, coords, radii)
+
+
+def _brute_force_centres(
+    cell_centres: np.ndarray, coords: np.ndarray, radii: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Find all matches between coordinates and arbitrary cell centres by brute force.
+
+    Parameters
+    ----------
+    cell_centres : ~numpy.ndarray
+        Cell centres, one column per dimension.
+
+    coords : ~numpy.ndarray
+        Search coordinates, one column per dimension.
+
+    radii : ~numpy.ndarray
+        Search radii.
+
+    Returns
+    -------
+    tuple
+        Arrays of particle indices, cell indices and offset vectors of matches, sorted
+        by particle then cell index.
+    """
     part, cell, dvec = [], [], []
     for p, (coord, radius) in enumerate(zip(coords, radii)):
         offsets = coord - cell_centres
@@ -257,5 +285,314 @@ class TestUniformGridSearch:
         expected = find_grid_intersections((37, 64), coords, radii)
         monkeypatch.setattr(_grid_search, "NUMBA_AVAILABLE", False)
         gs = find_grid_intersections((37, 64), coords, radii)
+        for a, b in zip(gs, expected):
+            assert np.array_equal(a, b)
+
+
+def _bisected_grid(
+    root_shape: tuple[int, int, int] = (3, 2, 2),
+    root_size: float = 2.0,
+    depth: int = 3,
+    p_bisect: float = 0.4,
+    seed: int = 0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generate an adaptive grid by randomly bisecting a uniform grid of cubic cells.
+
+    The grid starts at ``-0.5`` along each axis, as for
+    :class:`~martini.mochi.cell_grid.AdaptiveCellGrid`, and the cells are shuffled.
+
+    Parameters
+    ----------
+    root_shape : tuple
+        Number of initial cells along each axis.
+
+    root_size : float
+        Side length of the initial cells.
+
+    depth : int
+        Maximum number of bisections.
+
+    p_bisect : float
+        Probability of bisecting each cell.
+
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    tuple
+        The cell centres and sizes.
+    """
+    rng = np.random.default_rng(seed)
+    todo = [
+        (np.array(ijk, dtype=float) * root_size - 0.5, root_size, 0)
+        for ijk in np.ndindex(root_shape)
+    ]
+    corners, sizes = [], []
+    while todo:
+        corner, size, level = todo.pop()
+        if level < depth and rng.random() < p_bisect:
+            for offset in np.ndindex((2, 2, 2)):
+                todo.append((corner + np.array(offset) * size / 2, size / 2, level + 1))
+        else:
+            corners.append(corner)
+            sizes.append(size)
+    order = rng.permutation(len(sizes))
+    sizes_array = np.array(sizes)[order]
+    return np.array(corners)[order] + sizes_array[:, np.newaxis] / 2, sizes_array
+
+
+def _small_tree_grid() -> tuple[np.ndarray, np.ndarray]:
+    """
+    Make a small adaptive grid by hand.
+
+    2x2x2 cells of size 2, one bisected octant, and one octant further bisected, starting
+    at ``-0.5``.
+
+    Returns
+    -------
+    tuple
+        The cell centres and sizes.
+    """
+    corners, sizes = [], []
+    for corner in np.ndindex((2, 2, 2)):
+        if corner != (0, 0, 0):
+            corners.append(np.array(corner) * 2.0)
+            sizes.append(2.0)
+    for corner in np.ndindex((2, 2, 2)):
+        if corner != (1, 1, 1):
+            corners.append(np.array(corner, dtype=float))
+            sizes.append(1.0)
+    for corner in np.ndindex((2, 2, 2)):
+        corners.append(1 + np.array(corner) * 0.5)
+        sizes.append(0.5)
+    sizes_array = np.array(sizes)
+    return np.array(corners) + sizes_array[:, np.newaxis] / 2 - 0.5, sizes_array
+
+
+def _tree_input(
+    cell_centres: np.ndarray, n: int, rmax: float, seed: int = 0
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generate random search coordinates and radii around an adaptive grid.
+
+    Coordinates extend 2 beyond the grid on each side, radii range from tiny to
+    ``rmax``, and one radius is infinite.
+
+    Parameters
+    ----------
+    cell_centres : ~numpy.ndarray
+        Cell centres of the grid.
+
+    n : int
+        Number of coordinates.
+
+    rmax : float
+        Maximum (finite) search radius.
+
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    tuple
+        The coordinates and radii.
+    """
+    rng = np.random.default_rng(seed)
+    lo = cell_centres.min(axis=0) - 2
+    hi = cell_centres.max(axis=0) + 2
+    coords = rng.uniform(lo, hi, (n, 3))
+    radii = rng.uniform(0, 1, n) ** 2 * rmax
+    radii[0] = np.inf
+    return coords, radii
+
+
+class TestCellTreeSearch:
+    """Tests of the grid search methods for adaptive (octree) cell grids."""
+
+    @pytest.mark.parametrize(
+        "grid",
+        (
+            _small_tree_grid(),
+            # without the last size-2 cell, so the region is not a box:
+            tuple(a[:6].tolist() + a[7:].tolist() for a in _small_tree_grid()),
+            _bisected_grid(),
+            _bisected_grid(root_shape=(1, 2, 3), root_size=1.0, depth=5, seed=1),
+        ),
+    )
+    def test_matches_brute_force(self, grid: tuple[np.ndarray, np.ndarray]) -> None:
+        """Check that the tree search gives the same result as a brute force search."""
+        cell_centres, cell_sizes = map(np.array, grid)
+        coords, radii = _tree_input(cell_centres, 300, 3.0)
+        bf_part, bf_cell, bf_dvec = _brute_force_centres(cell_centres, coords, radii)
+        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        part, cell, dvec = _unpack(gs)
+        assert np.array_equal(part, bf_part)
+        assert np.array_equal(cell, bf_cell)
+        assert np.allclose(dvec, bf_dvec)
+        # cell_indices unique and sorted, strides contiguous and covering all matches:
+        assert np.all(np.diff(gs.cell_indices) > 0)
+        assert gs.strides[0, 0] == 0
+        assert np.array_equal(gs.strides[1:, 0], gs.strides[:-1, 1])
+        assert gs.strides[-1, 1] == gs.intersections.size
+        # within each cell, matches are in ascending order of search coordinate index:
+        for start, end in gs.strides:
+            assert np.all(np.diff(gs.intersections[start:end]) > 0)
+        # the infinite radius reaches every cell, some coordinates reach none:
+        assert np.sum(part == 0) == cell_sizes.size
+        assert np.unique(part).size < coords.shape[0]
+
+    def test_exact_boundary(self) -> None:
+        """Check that cells exactly at the search radius are included."""
+        cell_centres, cell_sizes = _small_tree_grid()
+        # exactly one unit below the centre of the first size-0.5 cell:
+        target = 7 + 7
+        coord = cell_centres[target] - [0.0, 0.0, 1.0]
+        radius = 1.0
+        for r, included in ((radius, True), (np.nextafter(radius, 0), False)):
+            gs = find_cell_tree_intersections(
+                cell_centres, cell_sizes, coord[np.newaxis], np.array([r])
+            )
+            assert (target in gs.cell_indices) == included
+
+    def test_uniform_matches_grid_search(self) -> None:
+        """Check that equal cells give the same result as the uniform grid search."""
+        grid_shape = (7, 5, 6)
+        cell_centres = np.indices(grid_shape).reshape(3, -1).T.astype(float)
+        coords, radii = _random_input(grid_shape, 200, 3.0, margin=2)
+        expected = find_grid_intersections(grid_shape, coords, radii)
+        gs = find_cell_tree_intersections(
+            cell_centres, np.ones(len(cell_centres)), coords, radii
+        )
+        for field in ("intersections", "cell_indices", "strides"):
+            assert np.array_equal(getattr(gs, field), getattr(expected, field))
+        assert np.allclose(gs.distances, expected.distances)
+
+    def test_empty(self) -> None:
+        """Check that we get empty results without coordinates or hits."""
+        cell_centres, cell_sizes = _small_tree_grid()
+        far = (np.array([[20.0, 0.0, 0.0]]), np.array([3.0]))
+        for coords, radii in ((np.empty((0, 3)), np.empty(0)), far):
+            gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+            assert gs.intersections.shape == (0,)
+            assert gs.distances.shape == (0,)
+            assert gs.cell_indices.shape == (0,)
+            assert gs.strides.shape == (0, 2)
+            assert np.array_equal(
+                count_cell_tree_intersections(cell_centres, cell_sizes, coords, radii),
+                np.zeros(coords.shape[0]),
+            )
+            gs = find_cell_tree_intersections(
+                cell_centres, cell_sizes, coords, radii, return_distances=False
+            )
+            assert gs.distances is None
+
+    def test_counts(self) -> None:
+        """Check that counts agree with the number of matches found for each particle."""
+        cell_centres, cell_sizes = _bisected_grid()
+        coords, radii = _tree_input(cell_centres, 200, 3.0)
+        counts = count_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        assert np.array_equal(
+            counts, np.bincount(gs.intersections, minlength=coords.shape[0])
+        )
+
+    def test_without_distances(self) -> None:
+        """Check that skipping the distances leaves the other results unchanged."""
+        cell_centres, cell_sizes = _bisected_grid()
+        coords, radii = _tree_input(cell_centres, 100, 3.0)
+        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        gs_nodist = find_cell_tree_intersections(
+            cell_centres, cell_sizes, coords, radii, return_distances=False
+        )
+        assert gs_nodist.distances is None
+        for field in ("intersections", "cell_indices", "strides"):
+            assert np.array_equal(getattr(gs, field), getattr(gs_nodist, field))
+
+    def test_threads(self) -> None:
+        """Check that the result does not depend on the number of threads."""
+        cell_centres, cell_sizes = _bisected_grid(depth=4)
+        coords, radii = _tree_input(cell_centres, 300, 3.0)
+        results = [
+            find_cell_tree_intersections(
+                cell_centres, cell_sizes, coords, radii, ncpu=ncpu
+            )
+            for ncpu in (1, 3)
+        ]
+        for a, b in zip(*results):
+            assert np.array_equal(a, b)
+
+    @pytest.mark.parametrize("dist_dtype", (np.float64, np.float32))
+    def test_dist_dtype(self, dist_dtype) -> None:
+        """Check that distances have the requested dtype."""
+        cell_centres, cell_sizes = _small_tree_grid()
+        coords, radii = _tree_input(cell_centres, 50, 3.0)
+        gs = find_cell_tree_intersections(
+            cell_centres, cell_sizes, coords, radii, dist_dtype=dist_dtype
+        )
+        assert gs.distances.dtype == dist_dtype
+
+    @pytest.mark.parametrize(
+        "change, message",
+        (
+            ("no cells", "without cells"),
+            ("size", "powers of two"),
+            ("corner", "lattice"),
+            ("missing", "tile"),
+            ("duplicate", "duplicated"),
+            ("overlap", "overlap"),
+            ("deep", "Too many levels"),
+        ),
+    )
+    def test_not_octree(self, change: str, message: str) -> None:
+        """Check that grids that are not an octree are rejected."""
+        cell_centres, cell_sizes = _small_tree_grid()
+        if change == "no cells":
+            cell_centres, cell_sizes = cell_centres[:0], cell_sizes[:0]
+        elif change == "size":
+            cell_sizes[-1] = 0.75
+        elif change == "corner":
+            cell_centres[0] += 0.25
+        elif change == "missing":
+            cell_centres, cell_sizes = cell_centres[:-1], cell_sizes[:-1]
+        elif change == "duplicate":
+            cell_centres = np.vstack((cell_centres, cell_centres[-1]))
+            cell_sizes = np.r_[cell_sizes, cell_sizes[-1]]
+        elif change == "overlap":  # the bisected size-1 cell is also kept
+            cell_centres = np.vstack((cell_centres, [1.0, 1.0, 1.0]))
+            cell_sizes = np.r_[cell_sizes, 1.0]
+        elif change == "deep":  # a tiny cell at the corner of a size-0.5 cell
+            cell_centres[-1] += 2.0**-41 - 0.25
+            cell_sizes[-1] = 2.0**-40
+        coords, radii = np.zeros((1, 3)), np.ones(1)
+        with pytest.raises(ValueError, match=message):
+            find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        with pytest.raises(ValueError, match=message):
+            count_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+
+    def test_input_validation(self) -> None:
+        """Check that inconsistent inputs are rejected."""
+        cell_centres, cell_sizes = _small_tree_grid()
+        coords, radii = _tree_input(cell_centres, 5, 2.0)
+        bad_inputs = (
+            ((cell_centres[:, :2], cell_sizes, coords, radii), "cell_centres must"),
+            ((cell_centres, cell_sizes[:-1], coords, radii), "cell_sizes must"),
+            ((cell_centres, cell_sizes, coords[:, :2], radii), "coords must"),
+            ((cell_centres, cell_sizes, coords, radii[:-1]), "radii must"),
+        )
+        for args, message in bad_inputs:
+            with pytest.raises(ValueError, match=message):
+                find_cell_tree_intersections(*args)
+            with pytest.raises(ValueError, match=message):
+                count_cell_tree_intersections(*args)
+
+    def test_without_numba_threads(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Check that the search runs without numba thread control."""
+        cell_centres, cell_sizes = _bisected_grid()
+        coords, radii = _tree_input(cell_centres, 50, 3.0)
+        expected = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        monkeypatch.setattr(_grid_search, "NUMBA_AVAILABLE", False)
+        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
         for a, b in zip(gs, expected):
             assert np.array_equal(a, b)
