@@ -15,6 +15,11 @@ if TYPE_CHECKING or not NUMBA_AVAILABLE:
 else:
     from numba import prange
 
+# Define modes for _walk_subtree:
+_WALK_COUNT = 0  # only count hits
+_WALK_COUNT_CELLS = 1  # count the hits of each cell
+_WALK_RECORD = 2  # record the hits, grouped by cell
+
 
 class FindGridIntersectionsResult(NamedTuple):
     """
@@ -74,9 +79,9 @@ def _line_interval(
         First cell and last cell (inclusive) within the search radius. The interval is
         empty if last is smaller than first.
     """
-    h = math.sqrt(max(r2 - dperp2, 0.0))
-    lo = max(0, math.ceil(coord - h) - 1)
-    hi = min(line_cells - 1, math.floor(coord + h) + 1)
+    half_chord = math.sqrt(max(r2 - dperp2, 0.0))
+    lo = max(0, math.ceil(coord - half_chord) - 1)
+    hi = min(line_cells - 1, math.floor(coord + half_chord) + 1)
     while lo <= hi and dperp2 + (coord - lo) * (coord - lo) > r2:
         lo += 1
     while hi >= lo and dperp2 + (coord - hi) * (coord - hi) > r2:
@@ -109,25 +114,27 @@ def _count_hits(coords: np.ndarray, radii: np.ndarray, shape: np.ndarray) -> np.
         Number of cell centres within the search radius of each coordinate.
     """
     ndim = shape.size
-    n_last = shape[ndim - 1]
-    n = coords.shape[0]
-    counts = np.zeros(n, dtype=np.int64)
-    for p in prange(n):
+    n_line_cells = shape[ndim - 1]
+    n_coords = coords.shape[0]
+    counts = np.zeros(n_coords, dtype=np.int64)
+    for p in prange(n_coords):
         x = coords[p, 0]
-        c = coords[p, ndim - 1]
+        last_coord = coords[p, ndim - 1]
         r2 = radii[p] * radii[p]
         hits = 0
         i0, i1 = _line_interval(x, r2, 0.0, shape[0])
         for i in range(i0, i1 + 1):
             dx2 = (x - i) * (x - i)
             if ndim == 2:
-                lo, hi = _line_interval(c, r2, dx2, n_last)
+                lo, hi = _line_interval(last_coord, r2, dx2, n_line_cells)
                 hits += max(hi - lo + 1, 0)
             else:
                 y = coords[p, 1]
                 j0, j1 = _line_interval(y, r2, dx2, shape[1])
                 for j in range(j0, j1 + 1):
-                    lo, hi = _line_interval(c, r2, dx2 + (y - j) * (y - j), n_last)
+                    lo, hi = _line_interval(
+                        last_coord, r2, dx2 + (y - j) * (y - j), n_line_cells
+                    )
                     hits += max(hi - lo + 1, 0)
         counts[p] = hits
     return counts
@@ -203,40 +210,40 @@ def _build_line_candidates(
     n_lines = shape[0] if ndim == 2 else shape[0] * shape[1]
     # A particle's candidate lines are contiguous in the flattened line index (in 3D,
     # along each row of the first axis), so counts are accumulated as differences.
-    diff = np.zeros(n_lines + 1, dtype=np.int64)
+    candidate_diff = np.zeros(n_lines + 1, dtype=np.int64)
     for p in range(coords.shape[0]):
         i0, i1 = _candidate_rows(p, coords, radii, shape)
         if ndim == 2:
             if i1 >= i0:
-                diff[i0] += 1
-                diff[i1 + 1] -= 1
+                candidate_diff[i0] += 1
+                candidate_diff[i1 + 1] -= 1
         else:
             x = coords[p, 0]
             r2 = radii[p] * radii[p]
             for i in range(i0, i1 + 1):
                 j0, j1 = _line_interval(coords[p, 1], r2, (x - i) * (x - i), shape[1])
                 if j1 >= j0:
-                    diff[i * shape[1] + j0] += 1
-                    diff[i * shape[1] + j1 + 1] -= 1
+                    candidate_diff[i * shape[1] + j0] += 1
+                    candidate_diff[i * shape[1] + j1 + 1] -= 1
     line_ptr = np.zeros(n_lines + 1, dtype=np.int64)
-    line_ptr[1:] = np.cumsum(diff[:-1])
+    line_ptr[1:] = np.cumsum(candidate_diff[:-1])
     line_ptr[1:] = np.cumsum(line_ptr[1:])
     line_particles = np.empty(line_ptr[-1], dtype=np.int32)
-    offset = line_ptr[:-1].copy()
+    next_slot = line_ptr[:-1].copy()
     for p in range(coords.shape[0]):
         i0, i1 = _candidate_rows(p, coords, radii, shape)
         if ndim == 2:
             for i in range(i0, i1 + 1):
-                line_particles[offset[i]] = p
-                offset[i] += 1
+                line_particles[next_slot[i]] = p
+                next_slot[i] += 1
         else:
             x = coords[p, 0]
             r2 = radii[p] * radii[p]
             for i in range(i0, i1 + 1):
                 j0, j1 = _line_interval(coords[p, 1], r2, (x - i) * (x - i), shape[1])
                 for line in range(i * shape[1] + j0, i * shape[1] + j1 + 1):
-                    line_particles[offset[line]] = p
-                    offset[line] += 1
+                    line_particles[next_slot[line]] = p
+                    next_slot[line] += 1
     return line_ptr, line_particles
 
 
@@ -320,33 +327,35 @@ def _count_line_hits(
     line_cells_hit : ~numpy.ndarray
         Output array for the number of distinct cells hit on each line.
     """
-    n_last = shape[shape.size - 1]
+    n_line_cells = shape[shape.size - 1]
     for b in prange(block_edges.size - 1):
-        diff = np.zeros(n_last + 1, dtype=np.int64)
+        coverage_diff = np.zeros(n_line_cells + 1, dtype=np.int64)
         for line in range(block_edges[b], block_edges[b + 1]):
             hits = 0
-            kmin = n_last
+            kmin = n_line_cells
             kmax = -1
             for m in range(line_ptr[line], line_ptr[line + 1]):
                 p = line_particles[m]
                 _, _, dperp2 = _line_perp(line, p, coords, shape)
                 r2 = radii[p] * radii[p]
-                lo, hi = _line_interval(coords[p, shape.size - 1], r2, dperp2, n_last)
+                lo, hi = _line_interval(
+                    coords[p, shape.size - 1], r2, dperp2, n_line_cells
+                )
                 if hi >= lo:
                     hits += hi - lo + 1
-                    diff[lo] += 1
-                    diff[hi + 1] -= 1
+                    coverage_diff[lo] += 1
+                    coverage_diff[hi + 1] -= 1
                     kmin = min(kmin, lo)
                     kmax = max(kmax, hi)
             cells_hit = 0
-            cover = 0
+            coverage = 0
             for k in range(kmin, kmax + 1):
-                cover += diff[k]
-                if cover > 0:
+                coverage += coverage_diff[k]
+                if coverage > 0:
                     cells_hit += 1
-                diff[k] = 0
+                coverage_diff[k] = 0
             if kmax >= 0:
-                diff[kmax + 1] = 0
+                coverage_diff[kmax + 1] = 0
             line_hits[line] = hits
             line_cells_hit[line] = cells_hit
 
@@ -417,44 +426,44 @@ def _fill_lines(
         If ``True``, fill ``distances``.
     """
     ndim = shape.size
-    n_last = shape[ndim - 1]
+    n_line_cells = shape[ndim - 1]
     for b in prange(block_edges.size - 1):
-        diff = np.zeros(n_last + 1, dtype=np.int64)
-        cursor = np.empty(n_last, dtype=np.int64)
+        coverage_diff = np.zeros(n_line_cells + 1, dtype=np.int64)
+        cursor = np.empty(n_line_cells, dtype=np.int64)
         for line in range(block_edges[b], block_edges[b + 1]):
-            kmin = n_last
+            kmin = n_line_cells
             kmax = -1
             for m in range(line_ptr[line], line_ptr[line + 1]):
                 p = line_particles[m]
                 _, _, dperp2 = _line_perp(line, p, coords, shape)
                 r2 = radii[p] * radii[p]
-                lo, hi = _line_interval(coords[p, ndim - 1], r2, dperp2, n_last)
+                lo, hi = _line_interval(coords[p, ndim - 1], r2, dperp2, n_line_cells)
                 if hi >= lo:
-                    diff[lo] += 1
-                    diff[hi + 1] -= 1
+                    coverage_diff[lo] += 1
+                    coverage_diff[hi + 1] -= 1
                     kmin = min(kmin, lo)
                     kmax = max(kmax, hi)
-            pos = hit_ptr[line]
-            c = cell_ptr[line]
-            cover = 0
+            hit_slot = hit_ptr[line]
+            cell_slot = cell_ptr[line]
+            coverage = 0
             for k in range(kmin, kmax + 1):
-                cover += diff[k]
-                diff[k] = 0
-                if cover > 0:
-                    cursor[k] = pos
-                    cell_indices[c] = line * n_last + k
-                    strides[c, 0] = pos
-                    strides[c, 1] = pos + cover
-                    c += 1
-                    pos += cover
+                coverage += coverage_diff[k]
+                coverage_diff[k] = 0
+                if coverage > 0:
+                    cursor[k] = hit_slot
+                    cell_indices[cell_slot] = line * n_line_cells + k
+                    strides[cell_slot, 0] = hit_slot
+                    strides[cell_slot, 1] = hit_slot + coverage
+                    cell_slot += 1
+                    hit_slot += coverage
             if kmax >= 0:
-                diff[kmax + 1] = 0
+                coverage_diff[kmax + 1] = 0
             for m in range(line_ptr[line], line_ptr[line + 1]):
                 p = line_particles[m]
                 dx, dy, dperp2 = _line_perp(line, p, coords, shape)
                 r2 = radii[p] * radii[p]
-                cp = coords[p, ndim - 1]
-                lo, hi = _line_interval(cp, r2, dperp2, n_last)
+                last_coord = coords[p, ndim - 1]
+                lo, hi = _line_interval(last_coord, r2, dperp2, n_line_cells)
                 for k in range(lo, hi + 1):
                     dest = cursor[k]
                     cursor[k] += 1
@@ -462,10 +471,10 @@ def _fill_lines(
                     if fill_distances:
                         distances[dest, 0] = dx
                         if ndim == 2:
-                            distances[dest, 1] = cp - k
+                            distances[dest, 1] = last_coord - k
                         else:
                             distances[dest, 1] = dy
-                            distances[dest, 2] = cp - k
+                            distances[dest, 2] = last_coord - k
 
 
 def _box_distance2(
@@ -499,18 +508,18 @@ def _box_distance2(
         The squared distance.
     """
     d2 = 0.0
-    for d, v in enumerate((x, y, z)):
+    for d, coord in enumerate((x, y, z)):
         lo = corner[d]
         hi = corner[d] + size
-        if v < lo:
-            d2 += (lo - v) * (lo - v)
-        elif v > hi:
-            d2 += (v - hi) * (v - hi)
+        if coord < lo:
+            d2 += (lo - coord) * (lo - coord)
+        elif coord > hi:
+            d2 += (coord - hi) * (coord - hi)
     return d2
 
 
 def _root_range(
-    v: float, r: float, origin: float, root_size: float, n_roots: int
+    coord: float, r: float, origin: float, root_size: float, n_roots: int
 ) -> tuple[int, int]:
     """
     Find the range of root nodes along an axis that a search radius may touch.
@@ -519,7 +528,7 @@ def _root_range(
 
     Parameters
     ----------
-    v : float
+    coord : float
         Coordinate of the search centre along the axis.
 
     r : float
@@ -539,12 +548,134 @@ def _root_range(
     tuple
         First and last (inclusive) root node index. Empty if last is smaller than first.
     """
-    lo = max(math.floor((v - r - origin) / root_size), 0.0)
-    hi = min(math.floor((v + r - origin) / root_size), n_roots - 1.0)
+    lo = max(math.floor((coord - r - origin) / root_size), 0.0)
+    hi = min(math.floor((coord + r - origin) / root_size), n_roots - 1.0)
     return int(lo), int(hi)
 
 
-def _tree_walk(
+def _walk_subtree(
+    start: int,
+    p: int,
+    x: float,
+    y: float,
+    z: float,
+    r2: float,
+    cell_centres: np.ndarray,
+    first_child: np.ndarray,
+    node_cell: np.ndarray,
+    node_corner: np.ndarray,
+    node_size: np.ndarray,
+    stack: np.ndarray,
+    mode: int,
+    cell_counts: np.ndarray,
+    cursor: np.ndarray,
+    intersections: np.ndarray,
+    distances: np.ndarray,
+    fill_distances: bool,
+) -> int:
+    """
+    Find the cells below a node of a tree with centres within a search radius.
+
+    Can be compiled with numba for faster execution.
+
+    Parameters
+    ----------
+    start : int
+        Node to search below.
+
+    p : int
+        Index of the search coordinate.
+
+    x : float
+        First search coordinate.
+
+    y : float
+        Second search coordinate.
+
+    z : float
+        Third search coordinate.
+
+    r2 : float
+        Squared search radius.
+
+    cell_centres : ~numpy.ndarray
+        Cell centres, shape ``(n_cells, 3)``.
+
+    first_child : ~numpy.ndarray
+        Index of the first of the 8 consecutive children of each node, or ``-1``.
+
+    node_cell : ~numpy.ndarray
+        Index of the cell of each leaf node, or ``-1``.
+
+    node_corner : ~numpy.ndarray
+        Lower corner of each node, shape ``(n_nodes, 3)``.
+
+    node_size : ~numpy.ndarray
+        Side length of each node.
+
+    stack : ~numpy.ndarray
+        Work space for the tree traversal, at least ``8 * (depth + 1)`` long.
+
+    mode : int
+        ``_WALK_COUNT`` to only count the cells hit, ``_WALK_COUNT_CELLS`` to also add
+        them to ``cell_counts``, ``_WALK_RECORD`` to also record the hits in
+        ``intersections`` (and ``distances`` if ``fill_distances``).
+
+    cell_counts : ~numpy.ndarray
+        Number of hits of each cell (incremented if ``mode`` is ``_WALK_COUNT_CELLS``).
+
+    cursor : ~numpy.ndarray
+        Location in ``intersections`` of the next hit of each cell (incremented if
+        ``mode`` is ``_WALK_RECORD``).
+
+    intersections : ~numpy.ndarray
+        Output array for the index of the search coordinate of each hit (if ``mode`` is
+        ``_WALK_RECORD``).
+
+    distances : ~numpy.ndarray
+        Output array for the offset from the cell centre to the search coordinate of
+        each hit (if ``mode`` is ``_WALK_RECORD`` and ``fill_distances``).
+
+    fill_distances : bool
+        If ``True``, fill ``distances``. Ignored if ``mode`` is not ``_WALK_RECORD``.
+
+    Returns
+    -------
+    int
+        Number of cells hit.
+    """
+    stack[0] = start
+    stack_size = 1
+    hits = 0
+    while stack_size > 0:
+        stack_size -= 1
+        node = stack[stack_size]
+        cell = node_cell[node]
+        if cell >= 0:
+            dx = x - cell_centres[cell, 0]
+            dy = y - cell_centres[cell, 1]
+            dz = z - cell_centres[cell, 2]
+            if dx * dx + dy * dy + dz * dz <= r2:
+                hits += 1
+                if mode == _WALK_COUNT_CELLS:
+                    cell_counts[cell] += 1
+                elif mode == _WALK_RECORD:
+                    dest = cursor[cell]
+                    cursor[cell] += 1
+                    intersections[dest] = p
+                    if fill_distances:
+                        distances[dest, 0] = dx
+                        distances[dest, 1] = dy
+                        distances[dest, 2] = dz
+            continue
+        if _box_distance2(x, y, z, node_corner[node], node_size[node]) <= r2:
+            for child in range(8):
+                stack[stack_size] = first_child[node] + child
+                stack_size += 1
+    return hits
+
+
+def _walk_from_roots(
     p: int,
     coords: np.ndarray,
     radii: np.ndarray,
@@ -557,13 +688,18 @@ def _tree_walk(
     node_cell: np.ndarray,
     node_corner: np.ndarray,
     node_size: np.ndarray,
+    work_unit_of_node: np.ndarray,
     stack: np.ndarray,
-    pair_cells: np.ndarray,
+    work_units: np.ndarray,
     start: int,
-    fill: bool,
+    record: bool,
 ) -> int:
     """
-    Find the cells of a tree with centres within the search radius of one coordinate.
+    Search a tree from its root nodes for one coordinate.
+
+    Counts the cells with centres within the search radius or, if ``work_unit_of_node`` is
+    not empty, records the work units (see :func:`_work_units`) that the search radius
+    may reach without searching below them.
 
     Can be compiled with numba for faster execution.
 
@@ -605,22 +741,25 @@ def _tree_walk(
     node_size : ~numpy.ndarray
         Side length of each node.
 
+    work_unit_of_node : ~numpy.ndarray
+        Index of the work unit of each node, or ``-1``. Empty to count cells instead.
+
     stack : ~numpy.ndarray
         Work space for the tree traversal, at least ``8 * (depth + 1)`` long.
 
-    pair_cells : ~numpy.ndarray
-        Output array for the cell of each hit (ignored unless ``fill``).
+    work_units : ~numpy.ndarray
+        Output array for the work units reached (ignored unless ``record``).
 
     start : int
-        Location in ``pair_cells`` of the first hit of this coordinate.
+        Location in ``work_units`` of the first work unit reached by this coordinate.
 
-    fill : bool
-        If ``True``, fill ``pair_cells``.
+    record : bool
+        If ``True``, record ``work_units``.
 
     Returns
     -------
     int
-        Number of cells hit.
+        Number of cells hit, or of work units reached.
     """
     x = coords[p, 0]
     y = coords[p, 1]
@@ -630,37 +769,59 @@ def _tree_walk(
     i0, i1 = _root_range(x, r, origin[0], root_size, root_shape[0])
     j0, j1 = _root_range(y, r, origin[1], root_size, root_shape[1])
     k0, k1 = _root_range(z, r, origin[2], root_size, root_shape[2])
-    hits = 0
+    by_work_unit = work_unit_of_node.size > 0
+    placeholder_int = np.empty(0, dtype=np.int64)
+    placeholder_float = np.empty((0, 3), dtype=np.float64)
+    n_found = 0
     for i in range(i0, i1 + 1):
         for j in range(j0, j1 + 1):
             for k in range(k0, k1 + 1):
                 root = root_nodes[(i * root_shape[1] + j) * root_shape[2] + k]
                 if root < 0:
                     continue
+                if not by_work_unit:
+                    n_found += _walk_subtree(
+                        root,
+                        p,
+                        x,
+                        y,
+                        z,
+                        r2,
+                        cell_centres,
+                        first_child,
+                        node_cell,
+                        node_corner,
+                        node_size,
+                        stack,
+                        _WALK_COUNT,
+                        placeholder_int,
+                        placeholder_int,
+                        placeholder_int,
+                        placeholder_float,
+                        False,
+                    )
+                    continue
                 stack[0] = root
-                top = 1
-                while top > 0:
-                    top -= 1
-                    node = stack[top]
-                    cell = node_cell[node]
-                    if cell >= 0:
-                        dx = x - cell_centres[cell, 0]
-                        dy = y - cell_centres[cell, 1]
-                        dz = z - cell_centres[cell, 2]
-                        if dx * dx + dy * dy + dz * dz <= r2:
-                            if fill:
-                                pair_cells[start + hits] = cell
-                            hits += 1
-                        continue
+                stack_size = 1
+                while stack_size > 0:
+                    stack_size -= 1
+                    node = stack[stack_size]
                     corner = node_corner[node]
-                    if _box_distance2(x, y, z, corner, node_size[node]) <= r2:
-                        for c in range(8):
-                            stack[top] = first_child[node] + c
-                            top += 1
-    return hits
+                    if _box_distance2(x, y, z, corner, node_size[node]) > r2:
+                        continue
+                    if work_unit_of_node[node] >= 0:
+                        if record:
+                            work_units[start + n_found] = work_unit_of_node[node]
+                        n_found += 1
+                        continue
+                    # nodes above the work units are never leaves:
+                    for child in range(8):
+                        stack[stack_size] = first_child[node] + child
+                        stack_size += 1
+    return n_found
 
 
-def _count_tree_hits(
+def _count_from_roots(
     coords: np.ndarray,
     radii: np.ndarray,
     cell_centres: np.ndarray,
@@ -673,11 +834,12 @@ def _count_tree_hits(
     node_corner: np.ndarray,
     node_size: np.ndarray,
     depth: int,
+    work_unit_of_node: np.ndarray,
     block_edges: np.ndarray,
     counts: np.ndarray,
 ) -> None:
     """
-    Count the cells of a tree with centres within the search radius of each coordinate.
+    Count cells hit (or work units reached) from the root nodes for each coordinate.
 
     Can be compiled with numba for faster and parallel execution.
 
@@ -718,19 +880,23 @@ def _count_tree_hits(
 
     depth : int
         Number of levels of the tree below the root nodes.
+
+    work_unit_of_node : ~numpy.ndarray
+        Index of the work unit of each node, or ``-1``. Empty to count cells instead.
 
     block_edges : ~numpy.ndarray
         Coordinates are processed in parallel in blocks
         ``block_edges[b]:block_edges[b + 1]``.
 
     counts : ~numpy.ndarray
-        Output array for the number of cells hit by each coordinate.
+        Output array for the number of cells hit (or work units reached) by each
+        coordinate.
     """
-    unused = np.empty(0, dtype=np.int64)
+    placeholder = np.empty(0, dtype=np.int64)
     for b in prange(block_edges.size - 1):
         stack = np.empty(8 * (depth + 1), dtype=np.int64)
         for p in range(block_edges[b], block_edges[b + 1]):
-            counts[p] = _tree_walk(
+            counts[p] = _walk_from_roots(
                 p,
                 coords,
                 radii,
@@ -743,14 +909,15 @@ def _count_tree_hits(
                 node_cell,
                 node_corner,
                 node_size,
+                work_unit_of_node,
                 stack,
-                unused,
+                placeholder,
                 0,
                 False,
             )
 
 
-def _fill_tree_hits(
+def _fill_work_unit_candidates(
     coords: np.ndarray,
     radii: np.ndarray,
     cell_centres: np.ndarray,
@@ -763,12 +930,13 @@ def _fill_tree_hits(
     node_corner: np.ndarray,
     node_size: np.ndarray,
     depth: int,
+    work_unit_of_node: np.ndarray,
     block_edges: np.ndarray,
-    hit_ptr: np.ndarray,
-    pair_cells: np.ndarray,
+    candidate_ptr: np.ndarray,
+    candidate_work_units: np.ndarray,
 ) -> None:
     """
-    Record the cells of a tree within the search radius of each coordinate.
+    Record the work units that the search radius of each coordinate may reach.
 
     Can be compiled with numba for faster and parallel execution.
 
@@ -810,20 +978,24 @@ def _fill_tree_hits(
     depth : int
         Number of levels of the tree below the root nodes.
 
+    work_unit_of_node : ~numpy.ndarray
+        Index of the work unit of each node, or ``-1``.
+
     block_edges : ~numpy.ndarray
         In parallel execution, coordinates are processed in load-balanced blocks
         ``block_edges[b]:block_edges[b + 1]``.
 
-    hit_ptr : ~numpy.ndarray
-        Location in ``pair_cells`` where the hits of each coordinate start.
+    candidate_ptr : ~numpy.ndarray
+        Location in ``candidate_work_units`` where the work units of each coordinate
+        start.
 
-    pair_cells : ~numpy.ndarray
-        Output array for the cell of each hit, grouped by coordinate.
+    candidate_work_units : ~numpy.ndarray
+        Output array for the work units reached, grouped by coordinate.
     """
     for b in prange(block_edges.size - 1):
         stack = np.empty(8 * (depth + 1), dtype=np.int64)
         for p in range(block_edges[b], block_edges[b + 1]):
-            _tree_walk(
+            _walk_from_roots(
                 p,
                 coords,
                 radii,
@@ -836,66 +1008,203 @@ def _fill_tree_hits(
                 node_cell,
                 node_corner,
                 node_size,
+                work_unit_of_node,
                 stack,
-                pair_cells,
-                hit_ptr[p],
+                candidate_work_units,
+                candidate_ptr[p],
                 True,
             )
 
 
-def _group_by_cell(
+def _group_by_work_unit(
+    candidate_ptr: np.ndarray,
+    candidate_work_units: np.ndarray,
+    cursor: np.ndarray,
+    work_unit_particles: np.ndarray,
+) -> None:
+    """
+    Reorder candidate work units grouped by search coordinate into groups by work unit.
+
+    Within each work unit, candidate search coordinates are in ascending order.
+
+    Can be compiled with numba for faster execution.
+
+    Parameters
+    ----------
+    candidate_ptr : ~numpy.ndarray
+        Location in ``candidate_work_units`` where the candidate work units of each
+        search coordinate start.
+
+    candidate_work_units : ~numpy.ndarray
+        The candidate work units, grouped by search coordinate.
+
+    cursor : ~numpy.ndarray
+        Location in ``work_unit_particles`` where the candidates of each work unit start
+        (modified).
+
+    work_unit_particles : ~numpy.ndarray
+        Output array for the candidate search coordinates, grouped by work unit.
+    """
+    for p in range(candidate_ptr.size - 1):
+        for m in range(candidate_ptr[p], candidate_ptr[p + 1]):
+            work_unit = candidate_work_units[m]
+            work_unit_particles[cursor[work_unit]] = p
+            cursor[work_unit] += 1
+
+
+def _work_unit_hits(
     coords: np.ndarray,
+    radii: np.ndarray,
     cell_centres: np.ndarray,
-    hit_ptr: np.ndarray,
-    pair_cells: np.ndarray,
+    first_child: np.ndarray,
+    node_cell: np.ndarray,
+    node_corner: np.ndarray,
+    node_size: np.ndarray,
+    depth: int,
+    work_units: np.ndarray,
+    work_unit_ptr: np.ndarray,
+    work_unit_particles: np.ndarray,
+    block_edges: np.ndarray,
+    record: bool,
+    work_unit_hits: np.ndarray,
+    cell_counts: np.ndarray,
     cursor: np.ndarray,
     intersections: np.ndarray,
     distances: np.ndarray,
     fill_distances: bool,
 ) -> None:
     """
-    Reorder hits grouped by search coordinate into hits grouped by cell.
+    Count or record the cell "hits" below each work unit, grouped by cell.
 
-    Within each cell, hits remain in ascending order of the search coordinates.
+    Each cell is below exactly one work unit, so work units can be processed in parallel
+    without write collisions. The candidate coordinates of each work unit are processed
+    in ascending order, so that the hits of each cell are recorded in ascending order.
 
-    Can be compiled with numba for faster execution.
+    Can be compiled with numba for faster and parallel execution.
 
     Parameters
     ----------
     coords : ~numpy.ndarray
         Search coordinates, shape ``(N, 3)``.
 
+    radii : ~numpy.ndarray
+        Search radii, shape ``(N,)``.
+
     cell_centres : ~numpy.ndarray
         Cell centres, shape ``(n_cells, 3)``.
 
-    hit_ptr : ~numpy.ndarray
-        Location in ``pair_cells`` where the hits of each coordinate start.
+    first_child : ~numpy.ndarray
+        Index of the first of the 8 consecutive children of each node, or ``-1``.
 
-    pair_cells : ~numpy.ndarray
-        The cell of each hit, grouped by coordinate.
+    node_cell : ~numpy.ndarray
+        Index of the cell of each leaf node, or ``-1``.
+
+    node_corner : ~numpy.ndarray
+        Lower corner of each node, shape ``(n_nodes, 3)``.
+
+    node_size : ~numpy.ndarray
+        Side length of each node.
+
+    depth : int
+        Number of levels of the tree below the root nodes.
+
+    work_units : ~numpy.ndarray
+        Node of each work unit.
+
+    work_unit_ptr : ~numpy.ndarray
+        Location in ``work_unit_particles`` where the candidates of each work unit start.
+
+    work_unit_particles : ~numpy.ndarray
+        Candidate search coordinates of the ``work_units``, in ascending order for each.
+
+    block_edges : ~numpy.ndarray
+        In parallel execution, ``work_units`` are processed in load-balanced blocks
+        ``block_edges[b]:block_edges[b + 1]``.
+
+    record : bool
+        If ``True``, record the hits, otherwise count them.
+
+    work_unit_hits : ~numpy.ndarray
+        Output array for the number of hits below each work unit (if not ``record``).
+
+    cell_counts : ~numpy.ndarray
+        Output array for the number of hits of each cell (if not ``record``).
 
     cursor : ~numpy.ndarray
-        Location in ``intersections`` where the hits of each cell start (modified).
+        Location in ``intersections`` where the hits of each cell start (if ``record``,
+        modified).
 
     intersections : ~numpy.ndarray
-        Output array for the index of the search coordinate of each hit.
+        Output array for the index of the search coordinate of each hit (if ``record``).
 
     distances : ~numpy.ndarray
         Output array for the offset from the cell centre to the search coordinate of
-        each hit, shape ``(M, 3)`` (ignored unless ``fill_distances``).
+        each hit, shape ``(M, 3)`` (if ``record`` and ``fill_distances``).
 
     fill_distances : bool
         If ``True``, fill ``distances``.
     """
-    for p in range(hit_ptr.size - 1):
-        for m in range(hit_ptr[p], hit_ptr[p + 1]):
-            cell = pair_cells[m]
-            dest = cursor[cell]
-            cursor[cell] += 1
-            intersections[dest] = p
-            if fill_distances:
-                for d in range(3):
-                    distances[dest, d] = coords[p, d] - cell_centres[cell, d]
+    mode = _WALK_RECORD if record else _WALK_COUNT_CELLS
+    for b in prange(block_edges.size - 1):
+        stack = np.empty(8 * (depth + 1), dtype=np.int64)
+        for u in range(block_edges[b], block_edges[b + 1]):
+            hits = 0
+            for m in range(work_unit_ptr[u], work_unit_ptr[u + 1]):
+                p = work_unit_particles[m]
+                hits += _walk_subtree(
+                    work_units[u],
+                    p,
+                    coords[p, 0],
+                    coords[p, 1],
+                    coords[p, 2],
+                    radii[p] * radii[p],
+                    cell_centres,
+                    first_child,
+                    node_cell,
+                    node_corner,
+                    node_size,
+                    stack,
+                    mode,
+                    cell_counts,
+                    cursor,
+                    intersections,
+                    distances,
+                    fill_distances,
+                )
+            if not record:
+                work_unit_hits[u] = hits
+
+
+def _cells_below(first_child: np.ndarray, node_cell: np.ndarray) -> np.ndarray:
+    """
+    Count the cells below each node of a tree (``1`` for leaves).
+
+    Children are stored after their parent (see :func:`_build_cell_tree`), so nodes are
+    processed in reverse order.
+
+    Can be compiled with numba for faster execution.
+
+    Parameters
+    ----------
+    first_child : ~numpy.ndarray
+        Index of the first of the 8 consecutive children of each node, or ``-1``.
+
+    node_cell : ~numpy.ndarray
+        Index of the cell of each leaf node, or ``-1``.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        The number of cells below each node.
+    """
+    n_below = np.zeros(first_child.size, dtype=np.int64)
+    for node in range(first_child.size - 1, -1, -1):
+        if node_cell[node] >= 0:
+            n_below[node] = 1
+        else:
+            for child in range(8):
+                n_below[node] += n_below[first_child[node] + child]
+    return n_below
 
 
 if NUMBA_AVAILABLE:
@@ -908,10 +1217,15 @@ if NUMBA_AVAILABLE:
     _fill_lines = njit(parallel=True, cache=True)(_fill_lines)
     _box_distance2 = njit(cache=True, inline="always")(_box_distance2)
     _root_range = njit(cache=True, inline="always")(_root_range)
-    _tree_walk = njit(cache=True)(_tree_walk)
-    _count_tree_hits = njit(parallel=True, cache=True)(_count_tree_hits)
-    _fill_tree_hits = njit(parallel=True, cache=True)(_fill_tree_hits)
-    _group_by_cell = njit(cache=True)(_group_by_cell)
+    _walk_subtree = njit(cache=True)(_walk_subtree)
+    _walk_from_roots = njit(cache=True)(_walk_from_roots)
+    _count_from_roots = njit(parallel=True, cache=True)(_count_from_roots)
+    _fill_work_unit_candidates = njit(parallel=True, cache=True)(
+        _fill_work_unit_candidates
+    )
+    _group_by_work_unit = njit(cache=True)(_group_by_work_unit)
+    _work_unit_hits = njit(parallel=True, cache=True)(_work_unit_hits)
+    _cells_below = njit(cache=True)(_cells_below)
 
 
 def _balanced_blocks(weights: np.ndarray, n_blocks: int) -> np.ndarray:
@@ -1257,9 +1571,9 @@ class _CellTree(NamedTuple):
     depth: int
 
 
-def _lattice_keys(ijk: np.ndarray, shape: np.ndarray) -> np.ndarray:
+def _flat_lattice_indices(ijk: np.ndarray, shape: np.ndarray) -> np.ndarray:
     """
-    Flatten 3D lattice indices.
+    Flatten 3D lattice indices into positions on the lattice.
 
     Parameters
     ----------
@@ -1272,35 +1586,37 @@ def _lattice_keys(ijk: np.ndarray, shape: np.ndarray) -> np.ndarray:
     Returns
     -------
     ~numpy.ndarray
-        The flattened indices.
+        The flattened lattice positions.
     """
     return np.ravel_multi_index(tuple(ijk.T), tuple(shape))
 
 
 def _sorted_lookup(
-    sorted_keys: np.ndarray, keys: np.ndarray
+    sorted_values: np.ndarray, values: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Look up keys in a sorted array of keys.
+    Look up values in a sorted array of values.
 
     Parameters
     ----------
-    sorted_keys : ~numpy.ndarray
-        Keys to search, in ascending order.
+    sorted_values : ~numpy.ndarray
+        Values to search, in ascending order.
 
-    keys : ~numpy.ndarray
-        Keys to look up.
+    values : ~numpy.ndarray
+        Values to look up.
 
     Returns
     -------
     tuple
-        The location in ``sorted_keys`` of each key (meaningful only where found), and
-        whether each key was found.
+        The location in ``sorted_values`` of each value (meaningful only where found),
+        and whether each value was found.
     """
-    if sorted_keys.size == 0:
-        return np.zeros(keys.size, dtype=np.intp), np.zeros(keys.size, dtype=bool)
-    found = np.minimum(np.searchsorted(sorted_keys, keys), sorted_keys.size - 1)
-    return found, sorted_keys[found] == keys
+    if sorted_values.size == 0:
+        return np.zeros(values.size, dtype=np.intp), np.zeros(values.size, dtype=bool)
+    locations = np.minimum(
+        np.searchsorted(sorted_values, values), sorted_values.size - 1
+    )
+    return locations, sorted_values[locations] == values
 
 
 def _build_cell_tree(cell_centres: np.ndarray, cell_sizes: np.ndarray) -> _CellTree:
@@ -1336,25 +1652,25 @@ def _build_cell_tree(cell_centres: np.ndarray, cell_sizes: np.ndarray) -> _CellT
     if cell_sizes.size == 0:
         raise ValueError("Cannot build a tree without cells.")
     root_size = float(cell_sizes.max())
-    levels = np.rint(np.log2(root_size / cell_sizes)).astype(np.int64)
-    if np.any(root_size / 2.0**levels != cell_sizes):
+    cell_levels = np.rint(np.log2(root_size / cell_sizes)).astype(np.int64)
+    if np.any(root_size / 2.0**cell_levels != cell_sizes):
         raise ValueError(
             "Cell sizes must be the largest cell size divided by powers of two."
         )
     corners = cell_centres - cell_sizes[:, np.newaxis] / 2
     origin = corners.min(axis=0)
-    lattice = (corners - origin) / cell_sizes[:, np.newaxis]
-    ijk = np.rint(lattice).astype(np.int64)
-    if np.any(np.abs(lattice - ijk) > 1e-6):
+    lattice_coords = (corners - origin) / cell_sizes[:, np.newaxis]
+    cell_ijk = np.rint(lattice_coords).astype(np.int64)
+    if np.any(np.abs(lattice_coords - cell_ijk) > 1e-6):
         raise ValueError(
             "Cell corners must lie on a lattice of the cell size, starting from the "
             "lowest cell corner."
         )
-    depth = int(levels.max())
-    root_shape = (ijk >> levels[:, np.newaxis]).max(axis=0) + 1
+    depth = int(cell_levels.max())
+    root_shape = (cell_ijk >> cell_levels[:, np.newaxis]).max(axis=0) + 1
     if np.log2(np.prod(root_shape.astype(float))) + 3 * depth > 62:
         raise ValueError("Too many levels of refinement to index the cells.")
-    children = np.array(
+    child_offsets = np.array(
         [(dx, dy, dz) for dx in range(2) for dy in range(2) for dz in range(2)]
     )
     first_child, node_cell, node_corner, node_size = [], [], [], []
@@ -1363,28 +1679,35 @@ def _build_cell_tree(cell_centres: np.ndarray, cell_sizes: np.ndarray) -> _CellT
     is_internal = np.empty(0, dtype=bool)
     root_nodes = np.empty(0, dtype=np.int64)
     for level in range(depth + 1):
-        shape = root_shape << level
-        size = root_size / 2.0**level
-        leaves = np.flatnonzero(levels == level)
-        leaf_keys = _lattice_keys(ijk[leaves], shape)
-        leaf_order = np.argsort(leaf_keys)
-        leaf_keys = leaf_keys[leaf_order]
-        if np.any(np.diff(leaf_keys) == 0):
+        level_shape = root_shape << level
+        level_size = root_size / 2.0**level
+        level_cells = np.flatnonzero(cell_levels == level)
+        # positions of the nodes of this level on its lattice (flattened):
+        leaf_positions = _flat_lattice_indices(cell_ijk[level_cells], level_shape)
+        leaf_order = np.argsort(leaf_positions)
+        leaf_positions = leaf_positions[leaf_order]
+        if np.any(np.diff(leaf_positions) == 0):
             raise ValueError("Cells must not be duplicated.")
-        deeper = levels > level
-        internal_keys = np.unique(
-            _lattice_keys(ijk[deeper] >> (levels[deeper] - level)[:, np.newaxis], shape)
+        deeper_cells = cell_levels > level
+        internal_positions = np.unique(
+            _flat_lattice_indices(
+                cell_ijk[deeper_cells]
+                >> (cell_levels[deeper_cells] - level)[:, np.newaxis],
+                level_shape,
+            )
         )
         if level == 0:
-            root_keys = np.union1d(leaf_keys, internal_keys)
-            node_ijk = np.column_stack(np.unravel_index(root_keys, tuple(shape)))
+            root_positions = np.union1d(leaf_positions, internal_positions)
+            node_ijk = np.column_stack(
+                np.unravel_index(root_positions, tuple(level_shape))
+            )
         else:
             node_ijk = (
-                2 * node_ijk[is_internal, np.newaxis, :] + children[np.newaxis]
+                2 * node_ijk[is_internal, np.newaxis, :] + child_offsets[np.newaxis]
             ).reshape(-1, 3)
-        keys = _lattice_keys(node_ijk, shape)
-        leaf_found, is_leaf = _sorted_lookup(leaf_keys, keys)
-        _, is_internal = _sorted_lookup(internal_keys, keys)
+        node_positions = _flat_lattice_indices(node_ijk, level_shape)
+        leaf_locations, is_leaf = _sorted_lookup(leaf_positions, node_positions)
+        _, is_internal = _sorted_lookup(internal_positions, node_positions)
         if np.any(is_leaf & is_internal):
             raise ValueError("Cells must not overlap.")
         if np.any(~is_leaf & ~is_internal):
@@ -1392,21 +1715,21 @@ def _build_cell_tree(cell_centres: np.ndarray, cell_sizes: np.ndarray) -> _CellT
                 "Cells must tile the region covered by the largest cells (each bisected "
                 "cell must be replaced by all 8 of its octants)."
             )
-        n_level = keys.size
+        n_level = node_positions.size
         next_offset = n_nodes + n_level
         level_first_child = np.full(n_level, -1, dtype=np.int64)
         level_first_child[is_internal] = next_offset + 8 * np.arange(
             np.count_nonzero(is_internal)
         )
         level_cell = np.full(n_level, -1, dtype=np.int64)
-        level_cell[is_leaf] = leaves[leaf_order[leaf_found[is_leaf]]]
+        level_cell[is_leaf] = level_cells[leaf_order[leaf_locations[is_leaf]]]
         first_child.append(level_first_child)
         node_cell.append(level_cell)
-        node_corner.append(origin + node_ijk * size)
-        node_size.append(np.full(n_level, size))
+        node_corner.append(origin + node_ijk * level_size)
+        node_size.append(np.full(n_level, level_size))
         if level == 0:
             root_nodes = np.full(np.prod(root_shape), -1, dtype=np.int64)
-            root_nodes[keys] = np.arange(n_level)
+            root_nodes[node_positions] = np.arange(n_level)
         n_nodes = next_offset
     return _CellTree(
         origin=origin,
@@ -1419,6 +1742,41 @@ def _build_cell_tree(cell_centres: np.ndarray, cell_sizes: np.ndarray) -> _CellT
         node_size=np.concatenate(node_size),
         depth=depth,
     )
+
+
+def _work_units(tree: _CellTree, n_below: np.ndarray, max_cells: int) -> np.ndarray:
+    """
+    Divide the cells of a tree into ``work_units`` that each own the cells below a node.
+
+    Starting from the root nodes, nodes with more than ``max_cells`` cells below them
+    are replaced by their children, so that work is shared out evenly even where cells
+    are concentrated in a few root nodes. Every cell is below exactly one work unit.
+
+    Parameters
+    ----------
+    tree : _CellTree
+        The tree of cells.
+
+    n_below : ~numpy.ndarray
+        Number of cells below each node, see :func:`_cells_below`.
+
+    max_cells : int
+        Largest number of cells below a work unit, unless it is a leaf.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        The node of each work unit, in ascending order.
+    """
+    work_units = tree.root_nodes[tree.root_nodes >= 0]
+    while True:
+        to_split = (tree.first_child[work_units] >= 0) & (
+            n_below[work_units] > max_cells
+        )
+        if not np.any(to_split):
+            return np.sort(work_units)
+        child_nodes = tree.first_child[work_units[to_split], np.newaxis] + np.arange(8)
+        work_units = np.concatenate((work_units[~to_split], child_nodes.ravel()))
 
 
 def _prepare_tree_inputs(
@@ -1471,14 +1829,15 @@ def _prepare_tree_inputs(
     return tree, cell_centres, coords, radii
 
 
-def _tree_counts(
+def _counts_per_coordinate(
     tree: _CellTree,
     cell_centres: np.ndarray,
     coords: np.ndarray,
     radii: np.ndarray,
+    work_unit_of_node: np.ndarray | None = None,
 ) -> np.ndarray:
     """
-    Count the cells within the search radius of each coordinate.
+    Count the cells (or work units) within the search radius of each coordinate.
 
     Must be called within :func:`_threads`.
 
@@ -1496,19 +1855,28 @@ def _tree_counts(
     radii : ~numpy.ndarray
         Search radii, shape ``(N,)``.
 
+    work_unit_of_node : ~numpy.ndarray, optional
+        Index of the work unit of each node, or ``-1`` (see :func:`_work_units`). If
+        provided, the work units that each search radius may reach are counted instead
+        of the cells.
+
     Returns
     -------
     ~numpy.ndarray
-        Number of cell centres within the search radius of each coordinate.
+        Number of cell centres (or work units) within the search radius of each
+        coordinate.
     """
+    if work_unit_of_node is None:
+        work_unit_of_node = np.empty(0, dtype=np.int64)
     counts = np.zeros(coords.shape[0], dtype=np.int64)
     if coords.shape[0] > 0:
         n_blocks = 8 * (numba.get_num_threads() if NUMBA_AVAILABLE else 1)
-        _count_tree_hits(
+        _count_from_roots(
             coords,
             radii,
             cell_centres,
             *tree,
+            work_unit_of_node,
             _balanced_blocks(np.ones(coords.shape[0]), n_blocks),
             counts,
         )
@@ -1567,7 +1935,7 @@ def count_cell_tree_intersections(
         cell_centres, cell_sizes, coords, radii
     )
     with _threads(ncpu):
-        return _tree_counts(tree, cell_centres, coords, radii)
+        return _counts_per_coordinate(tree, cell_centres, coords, radii)
 
 
 def find_cell_tree_intersections(
@@ -1648,21 +2016,95 @@ def find_cell_tree_intersections(
 
     Notes
     -----
-    The tree is traversed from the largest cells down for each coordinate, skipping
-    nodes (bisected cells) whose cube is beyond the search radius, to count the hits.
-    Since the hits of each coordinate are counted in advance, coordinates can be
-    processed in parallel to record the hits without risking write collisions. The hits
-    are then regrouped by cell.
+    The cells are divided into work units that each own the cells below a node of the
+    tree (busy nodes are split, so that no work unit holds a large share of the cells),
+    as each grid line owns its cells in :func:`find_grid_intersections`. The tree is
+    traversed from the largest cells down for each coordinate, skipping nodes whose
+    cube is beyond the search radius, to list the candidate coordinates of each work
+    unit. The work units then count the hits of their cells, and record them once their
+    locations in the output arrays are known, in parallel without risking write
+    collisions. Output is grouped by cell, and within each cell matches are ordered by
+    ascending search coordinate index.
+
+    Work units are never larger than the largest cells, so many large cells that are not
+    bisected (e.g. a uniform grid, better searched with
+    :func:`find_grid_intersections`) make the candidate lists nearly as long as the list
+    of matches, which costs time and memory.
     """
     tree, cell_centres, coords, radii = _prepare_tree_inputs(
         cell_centres, cell_sizes, coords, radii
     )
     n_cells = cell_centres.shape[0]
+    n_coords = coords.shape[0]
     with _threads(ncpu):
-        counts = _tree_counts(tree, cell_centres, coords, radii)
-        hit_ptr = np.zeros(coords.shape[0] + 1, dtype=np.int64)
-        np.cumsum(counts, out=hit_ptr[1:])
-        total_intersections = int(hit_ptr[-1])
+        n_threads = numba.get_num_threads() if NUMBA_AVAILABLE else 1
+        n_blocks = 8 * n_threads
+        n_below = _cells_below(tree.first_child, tree.node_cell)
+        work_units = _work_units(tree, n_below, max(1, n_cells // (64 * n_threads)))
+        work_unit_of_node = np.full(tree.first_child.size, -1, dtype=np.int64)
+        work_unit_of_node[work_units] = np.arange(work_units.size)
+        # candidate coordinates of each work unit, in ascending order:
+        candidate_counts = _counts_per_coordinate(
+            tree, cell_centres, coords, radii, work_unit_of_node
+        )
+        candidate_ptr = np.zeros(n_coords + 1, dtype=np.int64)
+        np.cumsum(candidate_counts, out=candidate_ptr[1:])
+        candidate_work_units = np.empty(int(candidate_ptr[-1]), dtype=np.int32)
+        if n_coords > 0:
+            _fill_work_unit_candidates(
+                coords,
+                radii,
+                cell_centres,
+                *tree,
+                work_unit_of_node,
+                _balanced_blocks(candidate_counts + 1, n_blocks),
+                candidate_ptr,
+                candidate_work_units,
+            )
+        work_unit_ptr = np.zeros(work_units.size + 1, dtype=np.int64)
+        np.cumsum(
+            np.bincount(candidate_work_units, minlength=work_units.size),
+            out=work_unit_ptr[1:],
+        )
+        work_unit_particles = np.empty(candidate_work_units.size, dtype=np.int32)
+        _group_by_work_unit(
+            candidate_ptr,
+            candidate_work_units,
+            work_unit_ptr[:-1].copy(),
+            work_unit_particles,
+        )
+        del candidate_work_units
+        work_unit_args = (
+            coords,
+            radii,
+            cell_centres,
+            tree.first_child,
+            tree.node_cell,
+            tree.node_corner,
+            tree.node_size,
+            tree.depth,
+            work_units,
+            work_unit_ptr,
+            work_unit_particles,
+        )
+        work_unit_hits = np.zeros(work_units.size, dtype=np.int64)
+        cell_ptr = np.zeros(n_cells + 1, dtype=np.int64)
+        cell_counts = cell_ptr[1:]  # counted in place, then accumulated
+        unused_int = np.empty(0, dtype=np.int32)
+        _work_unit_hits(
+            *work_unit_args,
+            _balanced_blocks(np.diff(work_unit_ptr) + n_below[work_units], n_blocks),
+            False,
+            work_unit_hits,
+            cell_counts,
+            cell_ptr,
+            unused_int,
+            np.empty((0, 3), dtype=dist_dtype),
+            False,
+        )
+        cell_indices = np.flatnonzero(cell_counts).astype(np.int64)
+        np.cumsum(cell_counts, out=cell_counts)
+        total_intersections = int(cell_ptr[-1])
         if total_intersections == 0:
             return FindGridIntersectionsResult(
                 intersections=np.empty(0),
@@ -1670,38 +2112,22 @@ def find_cell_tree_intersections(
                 cell_indices=np.empty(0),
                 strides=np.empty((0, 2)),
             )
-        n_blocks = 8 * (numba.get_num_threads() if NUMBA_AVAILABLE else 1)
-        pair_cells: np.ndarray = np.empty(
-            total_intersections,
-            dtype=np.int32 if n_cells <= np.iinfo(np.int32).max else np.int64,
+        strides = np.column_stack((cell_ptr[cell_indices], cell_ptr[cell_indices + 1]))
+        intersections = np.empty(total_intersections, dtype=np.int32)
+        distances: np.ndarray = np.empty(
+            (total_intersections if return_distances else 1, 3), dtype=dist_dtype
         )
-        _fill_tree_hits(
-            coords,
-            radii,
-            cell_centres,
-            *tree,
-            _balanced_blocks(counts + 1, n_blocks),
-            hit_ptr,
-            pair_cells,
+        _work_unit_hits(
+            *work_unit_args,
+            _balanced_blocks(work_unit_hits + 1, n_blocks),
+            True,
+            work_unit_hits,
+            cell_counts,
+            cell_ptr[:-1].copy(),
+            intersections,
+            distances,
+            return_distances,
         )
-    cell_ptr = np.zeros(n_cells + 1, dtype=np.int64)
-    np.cumsum(np.bincount(pair_cells, minlength=n_cells), out=cell_ptr[1:])
-    cell_indices = np.flatnonzero(np.diff(cell_ptr)).astype(np.int64)
-    strides = np.column_stack((cell_ptr[cell_indices], cell_ptr[cell_indices + 1]))
-    intersections = np.empty(total_intersections, dtype=np.int32)
-    distances: np.ndarray = np.empty(
-        (total_intersections if return_distances else 1, 3), dtype=dist_dtype
-    )
-    _group_by_cell(
-        coords,
-        cell_centres,
-        hit_ptr,
-        pair_cells,
-        cell_ptr[:-1].copy(),
-        intersections,
-        distances,
-        return_distances,
-    )
     return FindGridIntersectionsResult(
         intersections=intersections,
         distances=distances if return_distances else None,
