@@ -522,6 +522,39 @@ class TestCellTreeSearch:
         ]
         for a, b in zip(*results):
             assert np.array_equal(a, b)
+        # with 3 threads the grid is split into many small work units:
+        bf_part, bf_cell, bf_dvec = _brute_force_centres(cell_centres, coords, radii)
+        part, cell, dvec = _unpack(results[1])
+        assert np.array_equal(part, bf_part)
+        assert np.array_equal(cell, bf_cell)
+        assert np.allclose(dvec, bf_dvec)
+
+    @pytest.mark.parametrize("max_cells", (1, 5, 40, 10**6))
+    def test_work_units(self, max_cells: int) -> None:
+        """
+        Check that every cell is below exactly one work unit, and work units are small.
+
+        Parallelization is first split across top-level tree cells. If these give a poor
+        load balance, they are (recursively) unpacked into octants to provide finer
+        division of work.
+        """
+        cell_centres, cell_sizes = _bisected_grid(depth=4)
+        tree = _grid_search._build_cell_tree(cell_centres, cell_sizes)
+        n_below = _grid_search._cells_below(tree.first_child, tree.node_cell)
+        assert n_below[tree.root_nodes[tree.root_nodes >= 0]].sum() == cell_sizes.size
+        work_units = _grid_search._work_units(tree, n_below, max_cells)
+        assert np.all(np.diff(work_units) > 0)
+        cells = []
+        for work_unit in work_units:
+            assert tree.first_child[work_unit] < 0 or n_below[work_unit] <= max_cells
+            todo = [work_unit]
+            while todo:
+                node = todo.pop()
+                if tree.node_cell[node] >= 0:
+                    cells.append(tree.node_cell[node])
+                else:
+                    todo.extend(tree.first_child[node] + np.arange(8))
+        assert np.array_equal(np.sort(cells), np.arange(cell_sizes.size))
 
     @pytest.mark.parametrize("dist_dtype", (np.float64, np.float32))
     def test_dist_dtype(self, dist_dtype) -> None:
