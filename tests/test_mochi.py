@@ -663,7 +663,7 @@ def _adaptive_test_grid():
     Make an adaptive grid of cells with the attributes used by the interpolants.
 
     2x2x2 coarse cells of size 2, one bisected, one of whose children is bisected (as in
-    ``TestParticleInCell.test_find_containing_cells``), starting at ``-0.5``.
+    ``_small_tree_grid`` in ``test_grid_search.py``), starting at ``-0.5``.
 
     Returns
     -------
@@ -1018,44 +1018,27 @@ def _batching_estimate(monkeypatch, interpolant, **kwargs):
 class TestParticleInCell:
     """Test deposition of particles into the cells containing them."""
 
-    def test_find_containing_cells(self):
-        """Check containing cells on an adaptive grid against a brute force search."""
-        # 2x2x2 coarse cells of size 2, one bisected, one of whose children is bisected:
-        corners, sizes = [], []
-        for corner in itertools.product((0, 2), repeat=3):
-            if corner != (0, 0, 0):
-                corners.append(corner)
-                sizes.append(2.0)
-        for corner in itertools.product((0, 1), repeat=3):
-            if corner != (1, 1, 1):
-                corners.append(corner)
-                sizes.append(1.0)
-        for corner in itertools.product((1, 1.5), repeat=3):
-            corners.append(corner)
-            sizes.append(0.5)
-        cell_corners = np.array(corners, dtype=float)
-        cell_sizes = np.array(sizes)
+    def test_uniform_containing_cells(self):
+        """Check containing cells on a uniform grid against a brute force search."""
+        shape, size = (3, 2, 4), 2.0
+        corners = np.array(list(itertools.product(*map(range, shape)))) * size - 0.5
         rng = np.random.default_rng(0)
         coords = np.vstack(
             (
-                rng.uniform(-0.5, 4.5, (1000, 3)),
+                rng.uniform(-1.5, 8.5, (1000, 3)),
                 # on cell boundaries, at the grid edges and outside the grid:
-                [[2, 0.5, 0.5], [1.5, 1.5, 1.5], [0, 0, 0], [4, 1, 1], [-0.1, 1, 1]],
+                [[1.5, 1.5, 1.5], [-0.5, -0.5, -0.5], [5.5, 1, 1], [-0.6, 1, 1]],
+                [[np.nan, 0, 0], [1e300, 0, 0]],
             )
         )
         inside = np.all(
-            np.logical_and(
-                coords[:, np.newaxis, :] >= cell_corners,
-                coords[:, np.newaxis, :] < cell_corners + cell_sizes[:, np.newaxis],
-            ),
+            (coords[:, np.newaxis] >= corners)
+            & (coords[:, np.newaxis] < corners + size),
             axis=2,
         )
         expected = np.where(inside.any(axis=1), inside.argmax(axis=1), -1)
-        assert np.all(inside.sum(axis=1) <= 1)  # cells do not overlap
         assert np.array_equal(
-            module_interpolants._find_containing_cells(
-                coords, cell_corners, cell_sizes
-            ),
+            module_interpolants._uniform_containing_cells(coords, shape, size),
             expected,
         )
 
@@ -1081,6 +1064,7 @@ class TestParticleInCell:
                 field_volumes=np.ones(n_pos) * U.pix**3,
                 field_distortion_corrections=distortion_corrections,
                 uniform_grid=None,
+                octree=Octree(field_positions.value, np.ones(n_pos)),
             ),
         )
         expected_densities = np.zeros(n_pos) * U.Msun / U.pix**3

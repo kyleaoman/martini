@@ -497,15 +497,18 @@ class Mochi(Martini):
             cell_grid.eval_grid_refinement(
                 self.source, self._datacube, self.refinement_strategy
             )
-        interpolant_kwargs = (
-            {
-                "ncpu": resolve_ncpu(ncpu),
-                "compiled": self._numba_enabled,
-                "mem_allowance_GB": mem_lim_GB - self.baseline_mem_estimate,
-            }
-            if self.interpolant in (interpolants.sph, interpolants.mfm)
-            else {}
-        )
+        interpolant_kwargs: dict[str, int | bool | float] = {}
+        if self.interpolant in (
+            interpolants.sph,
+            interpolants.mfm,
+            interpolants.particle_in_cell,
+        ):
+            interpolant_kwargs["ncpu"] = resolve_ncpu(ncpu)
+        if self.interpolant in (interpolants.sph, interpolants.mfm):
+            interpolant_kwargs["compiled"] = self._numba_enabled
+            interpolant_kwargs["mem_allowance_GB"] = (
+                mem_lim_GB - self.baseline_mem_estimate
+            )
         cell_grid.interpolate_fields(
             self.source, self.sph_kernel, self.interpolant, **interpolant_kwargs
         )

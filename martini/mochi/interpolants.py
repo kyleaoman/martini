@@ -1110,11 +1110,7 @@ def particle_scatter(
     if cell_grid.uniform_grid is not None:
         containing_cell_sizes = np.full(len(positions), cell_sizes[0])
     else:
-        containing_cells = _find_containing_cells(
-            positions.value,
-            field_positions.value - cell_sizes[:, np.newaxis] / 2,
-            cell_sizes,
-        )
+        containing_cells = cell_grid.octree.containing_cells(positions.value, ncpu)
         containing_cell_sizes = np.where(
             containing_cells >= 0, cell_sizes[containing_cells], 0
         )
@@ -1413,27 +1409,32 @@ def voronoi_mesh(
     }
 
 
-def _find_containing_cells(
-    coords: np.ndarray, cell_corners: np.ndarray, cell_sizes: np.ndarray
+def _uniform_containing_cells(
+    coords: np.ndarray, grid_shape: tuple[int, int, int], cell_size: float
 ) -> np.ndarray:
     """
-    Find the index of the cell containing each coordinate.
+    Find the index of the cell of a uniform grid containing each coordinate.
 
-    Cells are cubes that tile a region without overlapping, each with its lower corner at
-    an integer multiple of its size from the lower corner of the region. Cells of each
-    size therefore lie on a regular lattice, so containing cells are found by computing
-    lattice indices one cell size at a time.
+    Used by :func:`particle_in_cell` on uniform grids, which have no
+    :class:`~martini._grid_search.Octree`: adaptive grids walk their ``octree`` instead
+    (see :meth:`~martini._grid_search.Octree.containing_cells`), and :func:`sph` and
+    :func:`mfm` need no lookup on uniform grids, where all cells have the same size.
+
+    The cells are ordered as in an array of shape ``grid_shape`` (C-order), with lower
+    corners at ``index * cell_size - 0.5`` along each axis (see
+    :attr:`~martini.mochi.cell_grid.CellGrid.uniform_grid`). Cells are half-open: they
+    contain their lower faces but not their upper faces.
 
     Parameters
     ----------
     coords : ~numpy.ndarray
-        Coordinates to place in cells.
+        Coordinates to place in cells, shape ``(N, 3)``, in pixels.
 
-    cell_corners : ~numpy.ndarray
-        Lower corners of the cells (same implicit units as ``coords``).
+    grid_shape : tuple
+        Number of cells along each axis.
 
-    cell_sizes : ~numpy.ndarray
-        Side lengths of the cells (same implicit units as ``coords``).
+    cell_size : float
+        Side length of the cells, in pixels.
 
     Returns
     -------
@@ -1441,27 +1442,13 @@ def _find_containing_cells(
         Index of the cell containing each coordinate, or ``-1`` for coordinates outside of
         all cells.
     """
-    origin = cell_corners.min(axis=0)
-    containing_cells = np.full(len(coords), -1, dtype=np.intp)
-    for size in np.unique(cell_sizes):
-        level_cells = np.flatnonzero(cell_sizes == size)
-        cell_ijk = np.rint((cell_corners[level_cells] - origin) / size).astype(np.intp)
-        coord_ijk = np.floor((coords - origin) / size).astype(np.intp)
-        lattice_shape = tuple(cell_ijk.max(axis=0) + 1)
-        in_lattice = np.all(
-            np.logical_and(coord_ijk >= 0, coord_ijk < lattice_shape), axis=1
-        )
-        cell_keys = np.ravel_multi_index(tuple(cell_ijk.T), lattice_shape)
-        coord_keys = np.ravel_multi_index(tuple(coord_ijk[in_lattice].T), lattice_shape)
-        sort_order = np.argsort(cell_keys)
-        found = np.minimum(
-            np.searchsorted(cell_keys, coord_keys, sorter=sort_order),
-            len(cell_keys) - 1,
-        )
-        match = cell_keys[sort_order[found]] == coord_keys
-        containing_cells[np.flatnonzero(in_lattice)[match]] = level_cells[
-            sort_order[found[match]]
-        ]
+    scaled = (np.asarray(coords, dtype=np.float64) + 0.5) / cell_size
+    # compare as floats before casting to catch coordinates far outside (or nan):
+    inside = np.all((scaled >= 0) & (scaled < np.asarray(grid_shape)), axis=1)
+    containing_cells = np.full(len(scaled), -1, dtype=np.intp)
+    containing_cells[inside] = np.ravel_multi_index(
+        tuple(np.floor(scaled[inside]).astype(np.intp).T), tuple(grid_shape)
+    )
     return containing_cells
 
 
@@ -1474,6 +1461,7 @@ def particle_in_cell(
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
     cell_grid: "CellGrid",
+    ncpu: int = 1,
     **kwargs: int,
 ) -> dict[str, U.Quantity]:
     """
@@ -1516,7 +1504,16 @@ def particle_in_cell(
         The grid of cells onto which to interpolate fields. Its ``field_positions``
         (cell centres, with units of pixels), ``field_volumes`` (rectilinear cell
         volumes, with units of pixels cubed) and ``field_distortion_corrections``
-        (dimensionless spherical distortion corrections to the volumes) are used.
+        (dimensionless spherical distortion corrections to the volumes) are used. If its
+        ``uniform_grid`` is not ``None`` (cells form a uniform grid), the containing cells
+        are found on the grid, otherwise by walking its ``octree`` (a
+        :class:`~martini._grid_search.Octree`).
+
+    ncpu : int, optional
+        Number of threads to use in compiled code.
+
+    **kwargs : dict
+        Unused.
 
     Returns
     -------
@@ -1535,12 +1532,11 @@ def particle_in_cell(
     if not isinstance(distortion_corrections, Iterable):
         distortion_corrections = np.ones(n_pos) * distortion_corrections
     length_unit = field_positions.unit
-    cell_sizes = np.cbrt(d_volume.to_value(length_unit**3))
-    containing_cells = _find_containing_cells(
-        positions.to_value(length_unit),
-        field_positions.to_value(length_unit) - cell_sizes[:, np.newaxis] / 2,
-        cell_sizes,
-    )
+    coords = positions.to_value(U.pix)
+    if cell_grid.uniform_grid is not None:
+        containing_cells = _uniform_containing_cells(coords, *cell_grid.uniform_grid)
+    else:
+        containing_cells = cell_grid.octree.containing_cells(coords, ncpu)
     in_grid = containing_cells >= 0
     cells = containing_cells[in_grid]
 
