@@ -174,6 +174,8 @@ class Mochi(Martini):
     """
 
     _n_px_z: int  # always set, see __init__
+    # spherical kernels are evaluated over 3D cells (see _BaseSPHKernel._init_sm_ranges):
+    _kernel_ndim = 3
     los_depth: U.Quantity[U.kpc]
 
     @U.quantity_input
@@ -488,7 +490,7 @@ class Mochi(Martini):
                 f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
                 f" `mem_lim_GB` when calling `insert_source_in_cube`."
             )
-        self.sph_kernel._init_sm_ranges()
+        self.sph_kernel._init_sm_ranges(ndim=self._kernel_ndim)
         cell_grid = self._make_cell_grid()
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
         if hasattr(cell_grid, "eval_grid_refinement"):

@@ -232,7 +232,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         acg = AdaptiveCellGrid(source, datacube, self.los_region, self.grid_shape)
         acg.init_particle_locations(source, sph_kernel)
         assert acg.positions.shape == (source.hsm_g.size, 3)
@@ -248,7 +248,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         grid = AdaptiveCellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         grid.eval_grid_refinement(
@@ -264,7 +264,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         grid = AdaptiveCellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         built = []
@@ -305,7 +305,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.test_cells = np.array([(0, 0, 0, 1)], dtype=CELL_DTYPE)
         test_centres = np.array([[0.5, 0.5, 0.5]]) * U.pix
@@ -320,7 +320,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         size = datacube.datacube_shape[0]
         # LoS centre of the cell at the centre of the region (the source distance):
@@ -374,7 +374,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         grid.test_cells = np.array(
@@ -438,7 +438,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         grid.interpolate_fields(source, sph_kernel, interpolant)
@@ -464,7 +464,7 @@ class TestAdaptiveCellGrid:
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
         sph_kernel._init_sm_lengths(source, datacube)
-        sph_kernel._init_sm_ranges()
+        sph_kernel._init_sm_ranges(ndim=3)
         grid = CellGrid(source, datacube, self.los_region, grid_shape)
         if grid_shape != self.grid_shape:
             assert grid.cell_size != 1  # check the mapping to grid units
@@ -561,7 +561,7 @@ class TestAdaptiveCellGrid:
         if grid_kind == "adaptive 1px":
             sph_kernel = CubicSplineKernel()
             sph_kernel._init_sm_lengths(source, datacube)
-            sph_kernel._init_sm_ranges()
+            sph_kernel._init_sm_ranges(ndim=3)
             grid = AdaptiveCellGrid(
                 source,
                 datacube,
@@ -1453,6 +1453,91 @@ class TestMochi:
             assert coarse_pad > 0  # check that the coarse padding is tested
         kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
         assert set(kept) == {0, 1, 3}
+
+    def test_preferred_kernel_ranges(self):
+        """
+        Check that kernel ranges are those of the preferred kernel of adaptive kernels.
+
+        Mochi evaluates the preferred kernel over 3D cells for all particles, so
+        particles that Martini's validation (for 2D pixels) assigns a fallback kernel
+        (here a ``DiracDeltaKernel``, narrower than the cubic spline) must be pruned
+        (and grids refined) with the reach of the preferred kernel.
+        """
+        distance = 3 * U.Mpc
+        px_size = 15 * U.arcsec
+        px_kpc = (px_size * distance).to_value(U.kpc, U.dimensionless_angles())
+        hsm = 0.1  # kpc, about 0.46px: too small for the cubic spline in martini
+        preferred, fallback = CubicSplineKernel().kernels[:2]
+        assert isinstance(fallback, DiracDeltaKernel)
+        assert fallback.size_in_fwhm < preferred.size_in_fwhm
+        h_px = hsm / px_kpc
+
+        def make_mochi(xyz_g):
+            """
+            Create a Mochi instance with particles at the given positions.
+
+            Parameters
+            ----------
+            xyz_g : ~astropy.units.Quantity
+                Particle positions.
+
+            Returns
+            -------
+            ~martini.mochi.mochi.Mochi
+                The Mochi instance.
+            """
+            n = xyz_g.shape[0]
+            return Mochi(
+                source=SPHSource(
+                    xyz_g=xyz_g,
+                    vxyz_g=np.zeros((n, 3)) * U.km / U.s,
+                    T_g=(1.0e4 + np.arange(n))
+                    * U.K,  # label particles to identify them
+                    hsm_g=np.ones(n) * hsm * U.kpc,
+                    mHI_g=np.ones(n) * 1.0e4 * U.Msun,
+                    distance=distance,
+                    coordinate_axis=1,
+                ),
+                datacube=DataCube(
+                    n_px_x=32,
+                    n_px_y=32,
+                    n_channels=16,
+                    channel_width=4 * U.km / U.s,
+                    spectral_centre=distance * 70 * U.km / U.s / U.Mpc,
+                    px_size=px_size,
+                ),
+                beam=GaussianBeam(),
+                sph_kernel=CubicSplineKernel(),
+                spectral_model=GaussianSpectrum(),
+                los_depth=self.los_depth,
+                interpolant=module_interpolants.sph,
+                quiet=True,
+            )
+
+        # pixel x increases with decreasing source y, from the centre to the edge of the
+        # grid is half of its (padded) width:
+        sky_edge_px = (
+            make_mochi(np.zeros((1, 3)) * U.kpc).datacube.datacube_shape[0] / 2
+        )
+        between = (fallback.size_in_fwhm + preferred.size_in_fwhm) / 2
+        beyond = 1.2 * preferred.size_in_fwhm
+        m = make_mochi(
+            U.Quantity(
+                [
+                    [0, 0, 0],  # kept
+                    [0, -(sky_edge_px + between * h_px) * px_kpc, 0],  # within reach
+                    [0, -(sky_edge_px + beyond * h_px) * px_kpc, 0],  # out of reach
+                ],
+                U.kpc,
+            )
+        )
+        kept = np.rint(m.source.T_g.to_value(U.K) - 1.0e4).astype(int)
+        assert set(kept) == {0, 1}
+        assert np.all(m.sph_kernel.kernel_indices == 1)  # martini falls back
+        expected = m.sph_kernel.sm_lengths * preferred.size_in_fwhm
+        assert U.allclose(m.sph_kernel.sm_ranges, expected)
+        m.insert_source_in_cube()
+        assert U.allclose(m.sph_kernel.sm_ranges, expected)
 
     def test_pixcoords_match_padded_datacube(self, many_particle_source, dc_zeros):
         """
