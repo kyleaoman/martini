@@ -548,8 +548,21 @@ class _BaseSPHKernel(object):
 
         return
 
-    def _init_sm_ranges(self) -> None:
-        """Determine maximum number of pixels reached by kernel."""
+    def _init_sm_ranges(self, *, ndim: int) -> None:
+        """
+        Determine maximum number of pixels reached by kernel.
+
+        Parameters
+        ----------
+        ndim : int
+            Dimensionality of the grid that the kernel is inserted into: ``2`` for
+            kernel line integrals over pixels, or ``3`` for spherical kernels over 3D
+            cells. The ranges of a single kernel are the same for both, but adaptive
+            kernels differ (see
+            :meth:`~martini.sph_kernels._AdaptiveKernel._init_sm_ranges`).
+        """
+        if ndim not in (2, 3):
+            raise ValueError(f"Kernel grid dimensionality must be 2 or 3, got {ndim}.")
         # store as float: use case for np.inf in GlobalProfile:
         self.sm_ranges = self.sm_lengths * self.size_in_fwhm
 
@@ -1998,6 +2011,26 @@ class _AdaptiveKernel(_BaseSPHKernel):
         # ensure default is 0th entry
         assert isinstance(self._rescale, np.ndarray)
         self._rescale[self.kernel_indices == -1] = _rescales[0]
+
+        return
+
+    def _init_sm_ranges(self, ndim: int = 2) -> None:
+        """
+        Determine maximum number of pixels reached by kernel.
+
+        Parameters
+        ----------
+        ndim : int, optional
+            Dimensionality of the grid that the kernel is inserted into. For ``2``, the
+            kernel line integrals over pixels use the kernel chosen for each particle by
+            validation, so the ranges follow that kernel. For ``3``, spherical kernels
+            are evaluated over 3D cells using the preferred (first) kernel for all
+            particles, so the ranges are those of the preferred kernel.
+        """
+        if ndim == 3:
+            self.sm_ranges = self.sm_lengths * self.kernels[0].size_in_fwhm
+        else:
+            super()._init_sm_ranges(ndim=ndim)
 
         return
 
