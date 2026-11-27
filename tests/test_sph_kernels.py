@@ -406,6 +406,53 @@ class TestAdaptiveKernels:
             kernel().kernels[0].eval_kernel(eval_at, np.ones(eval_at.shape)),
         )
 
+    @pytest.mark.parametrize("kernel", recommended_kernels)
+    def test_sm_ranges_ndim(
+        self, kernel, adaptive_kernel_test_source, adaptive_kernel_test_datacube
+    ):
+        """
+        Check the kernel ranges for insertion into 2D pixels and 3D cells.
+
+        For 2D pixels the ranges follow the kernel chosen for each particle,
+        for 3D cells they are those of the preferred kernel for all particles.
+        """
+        source = adaptive_kernel_test_source()
+        source._init_skycoords()
+        k = kernel()
+        k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
+        sizes_in_fwhm = np.array([K.size_in_fwhm for K in k.kernels])
+        assert len(set(k.kernel_indices)) > 1  # some particles fall back
+        k._init_sm_ranges(ndim=2)
+        assert U.allclose(k.sm_ranges, k.sm_lengths * sizes_in_fwhm[k.kernel_indices])
+        k._init_sm_ranges()  # default is 2D
+        assert U.allclose(k.sm_ranges, k.sm_lengths * sizes_in_fwhm[k.kernel_indices])
+        k._init_sm_ranges(ndim=3)
+        assert U.allclose(k.sm_ranges, k.sm_lengths * k.kernels[0].size_in_fwhm)
+
+    @pytest.mark.parametrize("ndim", (2, 3))
+    def test_sm_ranges_single_kernel(
+        self, ndim, adaptive_kernel_test_source, adaptive_kernel_test_datacube
+    ):
+        """Check that the ranges of a single kernel are the same in 2D and 3D."""
+        source = adaptive_kernel_test_source()
+        source._init_skycoords()
+        k = _CubicSplineKernel()
+        k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
+        k._init_sm_ranges(ndim=ndim)
+        assert U.allclose(k.sm_ranges, k.sm_lengths * k.size_in_fwhm)
+
+    @pytest.mark.parametrize("kernel", (CubicSplineKernel, _CubicSplineKernel))
+    def test_sm_ranges_bad_ndim(
+        self, kernel, adaptive_kernel_test_source, adaptive_kernel_test_datacube
+    ):
+        """Check that only 2D and 3D grids are accepted."""
+        source = adaptive_kernel_test_source()
+        source._init_skycoords()
+        k = kernel()
+        k._init_sm_lengths(source=source, datacube=adaptive_kernel_test_datacube)
+        with pytest.raises(ValueError, match="must be 2 or 3"):
+            k._init_sm_ranges(ndim=1)
+
 
 class TestCompiledKernels:
     """Test the compiled (scalar) kernel integrals used to insert sources in cubes."""
