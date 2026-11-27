@@ -410,19 +410,19 @@ def _tree_input(
     return coords, radii
 
 
+_tree_grids = (
+    _small_tree_grid(),
+    # without the last size-2 cell, so the region is not a box:
+    tuple(a[:6].tolist() + a[7:].tolist() for a in _small_tree_grid()),
+    _bisected_grid(),
+    _bisected_grid(root_shape=(1, 2, 3), root_size=1.0, depth=5, seed=1),
+)
+
+
 class TestOctreeSearch:
     """Tests of the grid search methods for adaptive (octree) cell grids."""
 
-    @pytest.mark.parametrize(
-        "grid",
-        (
-            _small_tree_grid(),
-            # without the last size-2 cell, so the region is not a box:
-            tuple(a[:6].tolist() + a[7:].tolist() for a in _small_tree_grid()),
-            _bisected_grid(),
-            _bisected_grid(root_shape=(1, 2, 3), root_size=1.0, depth=5, seed=1),
-        ),
-    )
+    @pytest.mark.parametrize("grid", _tree_grids)
     def test_matches_brute_force(self, grid: tuple[np.ndarray, np.ndarray]) -> None:
         """Check that the tree search gives the same result as a brute force search."""
         cell_centres, cell_sizes = map(np.array, grid)
@@ -620,6 +620,42 @@ class TestOctreeSearch:
         with pytest.raises(ValueError, match=message):
             Octree(cell_centres, cell_sizes)
 
+    @pytest.mark.parametrize("ncpu", (1, 2))
+    @pytest.mark.parametrize("grid", _tree_grids)
+    def test_containing_cells(
+        self, grid: tuple[np.ndarray, np.ndarray], ncpu: int
+    ) -> None:
+        """Check the cells containing points against a brute force search."""
+        cell_centres, cell_sizes = map(np.array, grid)
+        corners = cell_centres - cell_sizes[:, np.newaxis] / 2
+        uppers = corners + cell_sizes[:, np.newaxis]
+        rng = np.random.default_rng(0)
+        coords = np.vstack(
+            (
+                rng.uniform(corners.min(axis=0) - 1, uppers.max(axis=0) + 1, (500, 3)),
+                # on cell faces, edges and corners (lower and upper), including the
+                # upper edges of the grid:
+                corners[:20],
+                uppers[:20],
+                [[np.nan, 0, 0], [1e300, 0, 0]],
+            )
+        )
+        inside = np.all(
+            (coords[:, np.newaxis] >= corners) & (coords[:, np.newaxis] < uppers),
+            axis=2,
+        )
+        assert np.all(inside.sum(axis=1) <= 1)  # cells do not overlap
+        expected = np.where(inside.any(axis=1), inside.argmax(axis=1), -1)
+        assert np.any(expected == -1) and np.any(expected >= 0)
+        result = Octree(cell_centres, cell_sizes).containing_cells(coords, ncpu=ncpu)
+        assert result.dtype == np.intp
+        assert np.array_equal(result, expected)
+
+    def test_containing_cells_empty(self) -> None:
+        """Check that no coordinates give an empty result."""
+        result = Octree(*_small_tree_grid()).containing_cells(np.empty((0, 3)))
+        assert result.shape == (0,)
+
     def test_input_validation(self) -> None:
         """Check that inconsistent inputs are rejected."""
         cell_centres, cell_sizes = _small_tree_grid()
@@ -641,6 +677,8 @@ class TestOctreeSearch:
                 octree.find(*args)
             with pytest.raises(ValueError, match=message):
                 octree.count(*args)
+        with pytest.raises(ValueError, match="coords must"):
+            octree.containing_cells(coords[:, :2])
 
     def test_without_numba_threads(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Check that the search runs without numba thread control."""
