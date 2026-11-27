@@ -1717,6 +1717,9 @@ class Octree:
     cell_centres : ~numpy.ndarray
         C-contiguous, ``float64`` copy (if needed) of the cell centres.
 
+    cell_sizes : ~numpy.ndarray
+        ``float64`` copy (if needed) of the cell sizes.
+
     Raises
     ------
     ValueError
@@ -1752,9 +1755,44 @@ class Octree:
         if cell_sizes.shape != (cell_centres.shape[0],):
             raise ValueError("cell_sizes must have one entry per row of cell_centres.")
         self.cell_centres = cell_centres
+        self.cell_sizes = cell_sizes
         self._octree = Octree._build_octree(cell_centres, cell_sizes)
         # number of cells below each node:
         self._n_below = _cells_below(self._octree.first_child, self._octree.node_cell)
+
+    @classmethod
+    def _from_arrays(
+        cls, octree: _OctreeArrays, cell_centres: np.ndarray, cell_sizes: np.ndarray
+    ) -> "Octree":
+        """
+        Create the tree from arrays that are already built, without validation.
+
+        Used when the tree is constructed along with the cells (e.g. by grid
+        refinement), instead of rebuilding it from the cells.
+
+        Parameters
+        ----------
+        octree : _OctreeArrays
+            The tree, in the layout of :meth:`_build_octree`.
+
+        cell_centres : ~numpy.ndarray
+            Coordinates of the cell centres (the leaves of the tree, ordered by their
+            ``node_cell``), shape ``(n_cells, 3)``.
+
+        cell_sizes : ~numpy.ndarray
+            Side lengths of the cells.
+
+        Returns
+        -------
+        Octree
+            The tree.
+        """
+        tree = cls.__new__(cls)
+        tree.cell_centres = np.ascontiguousarray(cell_centres, dtype=np.float64)
+        tree.cell_sizes = np.ascontiguousarray(cell_sizes, dtype=np.float64)
+        tree._octree = octree
+        tree._n_below = _cells_below(octree.first_child, octree.node_cell)
+        return tree
 
     def count(self, coords: np.ndarray, radii: np.ndarray, ncpu: int = 1) -> np.ndarray:
         """
