@@ -470,12 +470,14 @@ class Mochi(Martini):
 
         mem_lim_GB : float
             The peak memory usage can get very large if many particle kernels overlap
-            many cells. For the :func:`~martini.mochi.interpolants.sph` and
+            many cells, or if the cell grid has many cells and the cube many channels.
+            For the :func:`~martini.mochi.interpolants.sph` and
             :func:`~martini.mochi.interpolants.mfm` interpolants, the particles are
             processed in batches if the estimated memory usage of the interpolation onto
-            the cell grid would exceed this limit (in GB), which slows down the code.
-            This is a "soft" limit, and the refinement of the cell grid and the
-            radiative transfer are not yet included.
+            the cell grid would exceed this limit (in GB), and the radiative transfer
+            (e.g. :func:`~martini.mochi.radiative_transfer.optically_thin`) processes the
+            cells in batches likewise. Batches slow down the code. This is a "soft"
+            limit, and the refinement of the cell grid is not yet included.
         """
         # need to revise irrelevant (?) arguments: skip_validation, progressbar
         # TODO: resolution checks. Kernels are point-sampled at cell centres, so accuracy
@@ -521,11 +523,11 @@ class Mochi(Martini):
         )
 
         datacube_array = cell_grid.eval_radiative_transfer(
-            # haven't exposed the index datatype option
             self._datacube,
             self.spectral_model,
             self.radiative_transfer,
             ncpu=resolve_ncpu(ncpu),
+            mem_allowance_GB=mem_lim_GB - self.baseline_mem_estimate,
         )
         # can the unit conversion be merged with martini?
         datacube_array /= np.abs(np.diff(self._datacube.velocity_channel_edges)).to(

@@ -20,6 +20,8 @@ from martini._grid_search import Octree
 from martini.mochi.radiative_transfer import (
     optically_thin,
     _los_overlap,
+    _cell_pixel_overlaps,
+    _radiative_transfer_mem_estimate,
     calculate_field_spectrum,
 )
 import pytest
@@ -832,19 +834,26 @@ class TestAdaptiveCellGrid:
         assert cubes[0].shape == cubes[1].shape
         assert U.isclose(cubes[1].sum(), cubes[0].sum(), rtol=1e-3)
 
-    @pytest.mark.parametrize("ncpu", (1, 2))
-    def test_radiative_transfer_matches_loop(
-        self, many_particle_source, dc_zeros, ncpu
-    ):
+    def _refined_grid(self, source, datacube, ncpu=1):
         """
-        Check the cube of a refined grid against adding one cell at a time.
+        Make a refined grid, with cells larger and smaller than a pixel, and fields.
 
-        The LoS region cuts through cells, so some contribute part of their mass. The
-        spectra of the cells are added to each pixel in the same order, so the cubes are
-        identical.
+        Parameters
+        ----------
+        source : ~martini.sources.sph_source.SPHSource
+            The source.
+
+        datacube : ~martini.datacube.DataCube
+            The data cube.
+
+        ncpu : int, optional
+            Number of threads used to refine the grid.
+
+        Returns
+        -------
+        ~martini.mochi.cell_grid.AdaptiveCellGrid
+            The grid, with random interpolated fields.
         """
-        datacube = dc_zeros
-        source = many_particle_source()
         source._init_skycoords()
         source._init_pixcoords(datacube, n_px_z=self.n_px_z)
         sph_kernel = CubicSplineKernel()
@@ -884,9 +893,43 @@ class TestAdaptiveCellGrid:
             / U.s,
             "temperatures": rng.uniform(1, 100, len(cells)) * U.km**2 / U.s**2,
         }
-        spectral_model = GaussianSpectrum()
-        spectral_model.spec_dtype = np.float64
-        cube = optically_thin(grid, datacube, spectral_model, ncpu=ncpu)
+        return grid
+
+    @pytest.mark.parametrize("ncpu", (1, 2))
+    @pytest.mark.parametrize("spectral_model", (GaussianSpectrum, DiracDeltaSpectrum))
+    @pytest.mark.parametrize("batched", (False, True))
+    def test_radiative_transfer_matches_loop(
+        self, many_particle_source, dc_zeros, ncpu, spectral_model, batched
+    ):
+        """
+        Check the cube of a refined grid against adding one cell at a time.
+
+        The LoS region cuts through cells, so some contribute part of their mass. The
+        spectra of the cells are added to each pixel in the same order, also when the
+        cells are processed in batches, so the cubes are identical.
+        """
+        datacube = dc_zeros
+        grid = self._refined_grid(many_particle_source(), datacube, ncpu)
+        cells = grid.adaptive_cells
+        spectral_model = spectral_model()
+        if batched:
+            mem_estimate, overhead, baseline = _radiative_transfer_mem_estimate(
+                np.maximum(cells["size"], 1) ** 2,
+                datacube.n_channels,
+                8,
+                np.prod(datacube.datacube_shape[:2]),
+            )
+            mem_allowance_GB = overhead + baseline + np.sum(mem_estimate) / 3
+            with pytest.warns(RuntimeWarning, match="Processing in batches"):
+                cube = optically_thin(
+                    grid,
+                    datacube,
+                    spectral_model,
+                    ncpu=ncpu,
+                    mem_allowance_GB=mem_allowance_GB,
+                )
+        else:
+            cube = optically_thin(grid, datacube, spectral_model, ncpu=ncpu)
         # reference: add the spectrum of one cell at a time to the pixels it covers
         field_spectra = calculate_field_spectrum(
             grid,
@@ -916,6 +959,152 @@ class TestAdaptiveCellGrid:
             )
         assert expected.sum() > 0
         assert np.array_equal(cube.value, np.flip(np.moveaxis(expected, 1, 2), axis=2))
+
+    def test_radiative_transfer_uniform(self, many_particle_source, dc_zeros):
+        """
+        Check the cube of a uniform grid of pixel-sized cells against a weighted sum.
+
+        Each column of cells along the LoS maps onto one pixel, the sum is weighted by
+        the fraction of each layer of cells inside the region.
+        """
+        datacube = dc_zeros
+        source = many_particle_source()
+        grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
+        n_cells = len(grid.cells)
+        rng = np.random.default_rng(0)
+        channels = datacube.velocity_channel_edges.to_value(U.km / U.s)
+        grid.interpolated_fields = {
+            "masses_HI": rng.uniform(0, 1, n_cells) * U.Msun / U.pix**3,
+            "velocities": rng.uniform(channels.min(), channels.max(), n_cells)
+            * U.km
+            / U.s,
+            "temperatures": rng.uniform(1, 100, n_cells) * U.km**2 / U.s**2,
+        }
+        spectral_model = GaussianSpectrum()
+        cube = optically_thin(grid, datacube, spectral_model)
+        field_spectra = calculate_field_spectrum(
+            grid,
+            datacube,
+            spectral_model,
+            grid.cell_volumes,
+            grid.cell_distortion_corrections,
+            grid.cell_distances,
+        )
+        layer_weights = _los_overlap(
+            grid.cells["x"].reshape(self.grid_shape)[:, 0, 0], 1.0, *self.los_region
+        )
+        expected = np.einsum(
+            "cxyz,x->cyz",
+            field_spectra.value.reshape((-1,) + self.grid_shape),
+            layer_weights,
+        )
+        assert cube.unit == field_spectra.unit
+        assert np.allclose(
+            cube.value, np.flip(np.moveaxis(expected, 1, 2), axis=2), rtol=1e-14, atol=0
+        )
+
+    def test_radiative_transfer_outside_region(self, many_particle_source, dc_zeros):
+        """Check that a region along the LoS beyond all cells gives an empty cube."""
+        datacube = dc_zeros
+        grid = self._refined_grid(many_particle_source(), datacube)
+        grid.los_region = (1e3, 2e3)
+        cube = optically_thin(grid, datacube, DiracDeltaSpectrum())
+        assert cube.unit == U.Msun / U.Mpc**2
+        assert cube.shape == (datacube.n_channels, *datacube.datacube_shape[1::-1])
+        assert not cube.value.any()
+
+    def test_radiative_transfer_ncpu(self, many_particle_source, dc_zeros, monkeypatch):
+        """Check that the number of threads reaches the spectral model."""
+        datacube = dc_zeros
+        grid = self._refined_grid(many_particle_source(), datacube)
+        spectral_model = GaussianSpectrum()
+        requested = []
+        spectral_function = spectral_model.spectral_function
+
+        def recording_spectral_function(*args, ncpu=1, **kwargs):
+            """
+            Record the number of threads requested from the spectral model.
+
+            Parameters
+            ----------
+            *args : tuple
+                Arguments of the spectral function.
+
+            ncpu : int, optional
+                Number of threads.
+
+            **kwargs : dict
+                Keyword arguments of the spectral function.
+
+            Returns
+            -------
+            ~astropy.units.Quantity
+                The spectra.
+            """
+            requested.append(ncpu)
+            return spectral_function(*args, ncpu=ncpu, **kwargs)
+
+        monkeypatch.setattr(
+            spectral_model, "spectral_function", recording_spectral_function
+        )
+        optically_thin(grid, datacube, spectral_model, ncpu=2)
+        assert requested and all(ncpu == 2 for ncpu in requested[1:])
+
+    def test_radiative_transfer_insufficient_memory(
+        self, many_particle_source, dc_zeros
+    ):
+        """Check that an allowance too small even for batches is rejected."""
+        datacube = dc_zeros
+        grid = self._refined_grid(many_particle_source(), datacube)
+        grid.los_region = (-1e3, 1e3)  # all cells contribute
+        cells = grid.adaptive_cells
+        mem_estimate, overhead, baseline = _radiative_transfer_mem_estimate(
+            np.maximum(cells["size"], 1) ** 2,
+            datacube.n_channels,
+            8,
+            np.prod(datacube.datacube_shape[:2]),
+        )
+        for mem_allowance_GB in (
+            0.0,  # not enough for the cube
+            overhead + baseline + mem_estimate.max() / 2,  # not enough for one cell
+        ):
+            with (
+                pytest.warns(RuntimeWarning, match="Processing in batches"),
+                pytest.raises(RuntimeError, match="insufficient, even when cells"),
+            ):
+                optically_thin(
+                    grid,
+                    datacube,
+                    DiracDeltaSpectrum(),
+                    mem_allowance_GB=mem_allowance_GB,
+                )
+
+    @pytest.mark.parametrize(
+        "image_shape",
+        ((8, 8), (5, 6)),  # covering all cells, cutting off cells
+    )
+    def test_cell_pixel_overlaps(self, image_shape):
+        """Check the pixels covered by cells against a brute-force search."""
+        begin = np.array([[0, 0], [2, 4], [4, 4], [4, 4], [6, 2], [1, 1]])
+        size = np.array([2, 4, 1, 1, 2, 1])
+        end = begin + size[:, np.newaxis]
+        intersections, cell_indices, strides = _cell_pixel_overlaps(
+            begin, end, image_shape
+        )
+        assert np.all(np.diff(cell_indices) > 0)
+        n_hits = 0
+        for pixel, (start, stop) in zip(cell_indices, strides):
+            y, z = divmod(pixel, image_shape[1])
+            expected = np.flatnonzero(
+                np.all((begin <= (y, z)) & ((y, z) < end), axis=1)
+            )
+            assert np.array_equal(intersections[start:stop], expected)
+            n_hits += stop - start
+        covered = sum(
+            np.prod(np.minimum(e, image_shape) - np.minimum(b, image_shape))
+            for b, e in zip(begin, end)
+        )
+        assert n_hits == intersections.size == covered
 
     def test_radiative_transfer_misaligned(self, many_particle_source, dc_zeros):
         """Check that cells not aligned with the pixel grid are rejected."""

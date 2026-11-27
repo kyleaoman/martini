@@ -443,6 +443,7 @@ class CellGrid:
         spectral_model: _BaseSpectrum,
         radiative_transfer: Callable,  # fill in arg & return types
         ncpu: int = 1,
+        mem_allowance_GB: float = np.inf,
     ) -> U.Quantity[U.Msun / U.Mpc**2]:
         """
         "Collapse" the cell grid into a spectral cube.
@@ -463,12 +464,16 @@ class CellGrid:
             squared in each pixel-channel cell). E.g.
             :func:`~martini.mochi.radiative_transfer.optically_thin`, can be found in the
             :mod:`~martini.mochi.radiative_transfer` module. It is called with the cell
-            grid, ``datacube`` and ``spectral_model``, and the keyword argument ``ncpu``,
-            the number of threads that it may use.
+            grid, ``datacube`` and ``spectral_model``, and the keyword arguments ``ncpu``,
+            the number of threads that it may use, and ``mem_allowance_GB``, the memory
+            that it may use (in GB).
 
         ncpu : int, optional
             Number of threads passed to ``radiative_transfer``. A value of ``-1`` means
             as many threads as available cores.
+
+        mem_allowance_GB : float, optional
+            Memory allowance passed to ``radiative_transfer``, in GB.
 
         Returns
         -------
@@ -482,6 +487,7 @@ class CellGrid:
             datacube,
             spectral_model,
             ncpu=ncpu,
+            mem_allowance_GB=mem_allowance_GB,
         )
 
 
