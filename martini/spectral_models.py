@@ -264,7 +264,9 @@ if NUMBA_AVAILABLE:
         N = a.shape[1]
         spectrum = np.zeros((M, N), dtype=spec_dtype)
         sqrt_2 = math.sqrt(2.0)
-        is_row_varying = sigma.ndim == 2 and sigma.shape[0] > 1
+        # one sigma per particle unless a single value is given (also if there are no
+        # particles, then there is no single value to read):
+        is_row_varying = sigma.ndim == 2 and sigma.shape[0] != 1
         s_global = 0.0 if is_row_varying else float(sigma.flat[0])
         for i in prange(M):  # type: ignore[attr-defined]
             v = vmids[i, 0]

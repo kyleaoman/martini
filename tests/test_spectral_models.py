@@ -91,6 +91,28 @@ class TestGaussianSpectrum:
         )
         assert U.isclose(spectrum.sum(), 1.0 * U.dimensionless_unscaled, rtol=1.0e-4)
 
+    @pytest.mark.parametrize(
+        "sigma",
+        (
+            np.zeros((0, 1)) * U.km / U.s,  # one per particle
+            np.full((1, 1), 7.0) * U.km / U.s,  # one for all particles
+            7.0 * U.km / U.s,  # scalar
+        ),
+    )
+    @pytest.mark.parametrize("numba_enabled", (True, False))
+    def test_spectral_function_no_particles(self, sigma, numba_enabled):
+        """Check that the spectral function evaluates without particles."""
+        spectral_model = GaussianSpectrum()
+        spectral_model._numba_enabled = numba_enabled
+        channel_edges = np.linspace(-100, 100, 9) * U.km / U.s
+        spectrum = spectral_model.spectral_function(
+            channel_edges[np.newaxis, 1:],
+            channel_edges[np.newaxis, :-1],
+            np.zeros((0, 1)) * U.km / U.s,
+            extra_data={"sigma": sigma},
+        )
+        assert spectrum.shape == (0, 8)
+
     @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
     @pytest.mark.parametrize("source", ("single_particle_source", "cross_source"))
     def test_spectral_function_extra_data(self, sigma, source, request):
