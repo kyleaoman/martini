@@ -13,6 +13,7 @@ from martini.spectral_models import _BaseSpectrum
 from typing import Callable
 from martini.mochi._dtypes import CELL_DTYPE as _CELL_DTYPE
 from martini._grid_search import Octree
+from martini.mochi.refinement import _octree_cells
 
 
 def _pixel_solid_angle_ratio(
@@ -533,9 +534,8 @@ class AdaptiveCellGrid(CellGrid):
         self,
         source: SPHSource,
         datacube: DataCube,
-        refinement_strategy: Callable[
-            [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix]], np.ndarray
-        ],
+        refinement_strategy: Callable[..., Octree | np.ndarray],
+        ncpu: int = 1,
     ) -> None:
         """
         Walk the initial cell grid and refine where required to make an adaptive grid.
@@ -551,14 +551,31 @@ class AdaptiveCellGrid(CellGrid):
             The target data cube object for the spectral cube.
 
         refinement_strategy : Callable
-            The method to decide and apply the refinement criterion.
+            The method to decide and apply the refinement criterion. It is called with
+            the initial cells, and the particle positions and radii (smoothing ranges) in
+            pixels, and the keyword argument ``ncpu``, the number of threads that it may
+            use. It returns the refined cells, either as an
+            :class:`~martini._grid_search.Octree` (as the strategies in
+            :mod:`~martini.mochi.refinement` do), which is then reused to search the
+            cells, or as an array like ``initial_cells``, from which a tree is built when
+            needed.
+
+        ncpu : int, optional
+            Number of threads passed to ``refinement_strategy``. A value of ``-1`` means
+            as many threads as available cores.
         """
-        self.adaptive_cells = refinement_strategy(
+        refined = refinement_strategy(
             self.initial_cells,
             self.positions.to_value(U.pix),
             self.radii.to_value(U.pix),
-        ).view(dtype=_CELL_DTYPE)
-        self._octree = None  # built from the new cells when needed
+            ncpu=ncpu,
+        )
+        if isinstance(refined, Octree):
+            self.adaptive_cells = _octree_cells(refined)
+            self._octree = refined
+        else:
+            self.adaptive_cells = refined.view(dtype=_CELL_DTYPE)
+            self._octree = None  # built from the new cells when needed
         self.init_cell_centres(prefix="adaptive")
         self.init_cell_volumes(prefix="adaptive")
         self.init_cell_distances(source, datacube, prefix="adaptive")

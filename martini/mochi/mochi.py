@@ -21,6 +21,7 @@ from martini.mochi.radiative_transfer import optically_thin
 from martini.mochi import interpolants
 from martini._unit_conversion import MHI_to_Jy_inplace
 from martini._util import resolve_ncpu
+from martini._grid_search import Octree
 
 
 def _coarse_shape(
@@ -148,8 +149,9 @@ class Mochi(Martini):
     refinement_strategy : Callable, optional
         Function that decides and applies the grid refinement criterion. E.g.
         :func:`~martini.mochi.refinement.refine_grid_to_half_particle_scale`, found in
-        the :mod:`~martini.mochi.refinement` module. Ignored if ``adaptive_grid`` is
-        ``False``.
+        the :mod:`~martini.mochi.refinement` module. See
+        :meth:`~martini.mochi.cell_grid.AdaptiveCellGrid.eval_grid_refinement` for the
+        expected call signature. Ignored if ``adaptive_grid`` is ``False``.
 
     adaptive_grid : bool, optional
         If ``True`` (the default) the gas particle (or gas cell) properties are
@@ -194,7 +196,7 @@ class Mochi(Martini):
             [CellGrid, DataCube, _BaseSpectrum, type], U.Quantity[U.Msun / U.Mpc**2]
         ] = optically_thin,
         refinement_strategy: Callable[
-            [np.ndarray, U.Quantity[U.pix], U.Quantity[U.pix]], np.ndarray
+            ..., Octree | np.ndarray
         ] = refine_grid_to_half_particle_scale,
         adaptive_grid: bool = True,
         quiet: bool = False,
@@ -460,9 +462,9 @@ class Mochi(Martini):
             unless explicitly turned on.
 
         ncpu : int
-            Number of threads to use in compiled code (requires :mod:`numba`) to
-            interpolate particles onto the cell grid. A value of ``-1`` means as many
-            threads as available cores.
+            Number of threads to use in compiled code (requires :mod:`numba`) to refine
+            the cell grid and interpolate particles onto it. A value of ``-1`` means as
+            many threads as available cores.
 
         mem_lim_GB : float
             The peak memory usage can get very large if many particle kernels overlap
@@ -495,7 +497,10 @@ class Mochi(Martini):
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
         if hasattr(cell_grid, "eval_grid_refinement"):
             cell_grid.eval_grid_refinement(
-                self.source, self._datacube, self.refinement_strategy
+                self.source,
+                self._datacube,
+                self.refinement_strategy,
+                ncpu=resolve_ncpu(ncpu),
             )
         interpolant_kwargs: dict[str, int | bool | float] = {}
         if self.interpolant in (

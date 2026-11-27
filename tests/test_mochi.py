@@ -70,118 +70,170 @@ class _ArbitraryCellGrid(CellGrid):
         )
 
 
+def _initial_cells(shape, size):
+    """
+    Make a uniform grid of initial cells, starting at ``-0.5`` along each axis.
+
+    Parameters
+    ----------
+    shape : tuple
+        Number of cells along each axis.
+
+    size : float
+        Side length of the cells.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        The lower corners and sizes of the cells.
+    """
+    return np.array(
+        [
+            tuple(np.array(ijk) * size - 0.5) + (size,)
+            for ijk in itertools.product(*map(range, shape))
+        ],
+        dtype=CELL_DTYPE,
+    )
+
+
+def _reference_refinement(cells, positions, radii, keep, max_count, stop_iter):
+    """
+    Refine cells by recursive bisection, one cell at a time, with numpy.
+
+    Parameters
+    ----------
+    cells : ~numpy.ndarray
+        The initial cells.
+
+    positions : ~numpy.ndarray
+        Particle positions.
+
+    radii : ~numpy.ndarray
+        Particle radii.
+
+    keep : Callable
+        Given the positions and radii of candidate particles, a cell corner and size,
+        decide which candidates count towards bisecting the cell.
+
+    max_count : int
+        Cells where more particles count are bisected.
+
+    stop_iter : int
+        Maximum number of bisections.
+
+    Returns
+    -------
+    set
+        The refined cells, as tuples of lower corner coordinates and size.
+    """
+    todo = [
+        (np.array([c["x"], c["y"], c["z"]]), c["size"], 0, np.arange(len(radii)))
+        for c in cells
+    ]
+    refined = set()
+    while todo:
+        corner, size, level, candidates = todo.pop()
+        kept = candidates[keep(positions[candidates], radii[candidates], corner, size)]
+        if level < stop_iter and kept.size > max_count:
+            for offset in itertools.product(range(2), repeat=3):
+                todo.append(
+                    (corner + np.array(offset) * size / 2, size / 2, level + 1, kept)
+                )
+        else:
+            refined.add(tuple(corner) + (size,))
+    return refined
+
+
+def _keep_half_scale(positions, radii, corner, size):
+    """
+    Decide which particles count for the half-particle-scale criterion.
+
+    Parameters
+    ----------
+    positions : ~numpy.ndarray
+        Particle positions.
+
+    radii : ~numpy.ndarray
+        Particle radii.
+
+    corner : ~numpy.ndarray
+        Lower corner of the cell.
+
+    size : float
+        Side length of the cell.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        Whether each particle counts.
+    """
+    offsets = positions - corner - size / 2
+    return (radii * 0.5 < size) & (
+        np.linalg.norm(offsets, axis=1) < radii + size * np.sqrt(3) / 2
+    )
+
+
+def _keep_occupancy(positions, radii, corner, size):
+    """
+    Decide which particles count for the occupancy criterion.
+
+    Parameters
+    ----------
+    positions : ~numpy.ndarray
+        Particle positions.
+
+    radii : ~numpy.ndarray
+        Unused.
+
+    corner : ~numpy.ndarray
+        Lower corner of the cell.
+
+    size : float
+        Side length of the cell.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        Whether each particle counts.
+    """
+    return np.sum(np.abs(positions - corner - size / 2), axis=1) < size * 2
+
+
 class TestAdaptiveCellGridUtils:
     """Test adaptive cell grid utils."""
 
-    def test_refine_grid_bisect(self):
-        """Check grid bisect operation for a (0,0,0,2) cell."""
-        from martini.mochi.refinement import _refine_grid_bisect
-
-        cell = np.array((0, 0, 0, 2), dtype=CELL_DTYPE)
-        mask = np.ones(3, dtype=bool)
-        incell = np.ones(3, dtype=bool)
-        new_cells = []
-        new_cells_over = []
-        new_cells_masks = []
-        _refine_grid_bisect(
-            cell, mask, incell, new_cells, new_cells_over, new_cells_masks
+    def test_keep_particle_occupancy(self):
+        """Check that particles near the cell are selected, regardless of radius."""
+        cell = (10.0, 100.0, 1000.0, 1.0)
+        particles = (
+            ((10.5, 100.5, 1000.5), 1, True),
+            ((10.5, 100.5, -1000.5), 1e7, False),  # radii should not impact occupancy
         )
-        new_cells_correct = [
-            np.array([0, 0, 0, 1], dtype=float),
-            np.array([0, 0, 1, 1], dtype=float),
-            np.array([0, 1, 1, 1], dtype=float),
-            np.array([0, 1, 0, 1], dtype=float),
-            np.array([1, 0, 0, 1], dtype=float),
-            np.array([1, 0, 1, 1], dtype=float),
-            np.array([1, 1, 1, 1], dtype=float),
-            np.array([1, 1, 0, 1], dtype=float),
-        ]
-        assert len(new_cells) == len(new_cells_correct)
-        for cell in new_cells:
-            cell_is_good = False
-            for i in range(len(new_cells_correct)):
-                correct_cell = new_cells_correct[i]
-                if np.all(correct_cell == cell):
-                    cell_is_good = True
-                    del new_cells_correct[i]
-                    break
-            assert cell_is_good
+        for position, radius, expected in particles:
+            assert (
+                refinement._keep_particle(
+                    refinement._OCCUPANCY, *position, radius, *cell
+                )
+                == expected
+            )
 
-    def test_pass_complete_cell(self):
-        """Check that _pass_complete_cell correctly passes contents."""
-        from martini.mochi.refinement import _pass_complete_cell
-
-        cells_lists = [["a"], [1]]
-        content_list = ["b", 2]
-        _pass_complete_cell(cells_lists, content_list)
-        assert cells_lists[0][-1] == content_list[0]
-        assert cells_lists[1][-1] == content_list[1]
-
-    def test_refine_grid(self):
-        """Test that refine grid passes correctly when bisect condition is not met."""
-
-        def in_cell_condition(mask, positions, radii, cell):
-            return np.ones(np.count_nonzero(mask), dtype=bool)
-
-        def bisect_condition(in_cell):
-            return False
-
-        from martini.mochi.refinement import _refine_grid
-
-        input_cells = (np.array([(0, 0, 0, 2)], dtype=CELL_DTYPE),)  # cells
-
-        cells = _refine_grid(
-            in_cell_condition,
-            bisect_condition,
-            input_cells,
-            np.array([[0, 0, 0], [1, 1, 1]], dtype=float),  # positions
-            np.array([1, 1], dtype=float),  # radii
+    def test_keep_particle_half_scale(self):
+        """Check that small particles intersecting the cell are selected."""
+        cell = (10.0, 100.0, 1000.0, 1.0)
+        particles = (
+            ((10.5, 100.5, 1000.5), 1, True),
+            ((10.5, 100.5, -1000.5), 1e7, False),  # too large
+            ((10.5, 100.5, -1000.5), 0.1, False),  # too far
+            ((10.5, 100.5, 1001.1), 0.25, True),
+            ((11, 101, 1001.11), 0.01, False),  # approximated, using the worst case
         )
-
-        assert np.all(input_cells == cells)  # null case bc bisect condition is false
-        """this test could be extended to a non-null case: ex test_refine_grid_bisect"""
-
-    def test_occupancy_in_cell(self):
-        """Check that only particles inside cell are selected."""
-        cell = np.array((10.0, 100.0, 1000.0, 1.0), dtype=CELL_DTYPE)
-        mask = [True, True]
-        particles_pos = np.array([[10.5, 100.5, 1000.5], [10.5, 100.5, -1000.5]])
-        particles_radii = np.array([1, 1e7])  # radii should not impact occupancy
-        result = refinement._occupancy_in_cell(
-            mask, particles_pos, particles_radii, cell
-        )
-        correct_result = np.array([True, False])
-        assert np.all(correct_result == result)
-
-    @pytest.mark.parametrize(
-        "count, mask_count", list(itertools.product([10, 3, 2], [100, 4, 2, 0]))
-    )
-    def test_has_more_than(self, count, mask_count):
-        """Check that _has_more_than for different counts and masks."""
-        mask_size = 1000
-        mask = np.zeros(mask_size, dtype=bool)
-        mask[:mask_count] = True
-        assert refinement._has_more_than(count, mask) == (count < mask_count)
-
-    def test_intersect_in_cell(self):
-        """Check intersect_in_cell selects for small particles intersecting."""
-        cell = np.array((10.0, 100.0, 1000.0, 1.0), dtype=CELL_DTYPE)
-        particles_pos = np.array(
-            [
-                [10.5, 100.5, 1000.5],
-                [10.5, 100.5, -1000.5],
-                [10.5, 100.5, -1000.5],
-                [10.5, 100.5, 1001.1],
-                [11, 101, 1001.11],  # intersect_in_cell approximates, using worst case
-            ]
-        )
-        particles_radii = np.array([1, 1e7, 0.1, 0.25, 0.01])  # radii should impact
-        mask = np.arange(len(particles_radii))
-        result = refinement._intersect_in_cell(
-            0.5, mask, particles_pos, particles_radii, cell
-        )
-        correct_result = np.array([True, False, False, True, False])
-        assert np.all(correct_result == result)
+        for position, radius, expected in particles:
+            assert (
+                refinement._keep_particle(
+                    refinement._HALF_PARTICLE_SCALE, *position, radius, *cell
+                )
+                == expected
+            )
 
     def test_refine_grid_to_occupancy(self):
         """Check that refinement stops when only one particle occupies cell."""
@@ -189,7 +241,7 @@ class TestAdaptiveCellGridUtils:
         positions = np.array([[0.5, 0.5, 0.5]])
         radii = [None]  # Should not be needed for this
         result = refinement.refine_grid_to_single_occupancy(cells, positions, radii)
-        assert np.all(cells == result)
+        assert np.all(cells == refinement._octree_cells(result))
 
     def test_refine_grid_to_particle_scale(self):
         """Check that the refinement stops appropriately."""
@@ -202,7 +254,115 @@ class TestAdaptiveCellGridUtils:
         )
         radii = np.array([10, 0.1])
         result = refinement.refine_grid_to_half_particle_scale(cells, positions, radii)
-        assert np.all(cells == result)
+        assert np.all(cells == refinement._octree_cells(result))
+
+    @pytest.mark.parametrize("stop_iter", (0, 1, 4))
+    @pytest.mark.parametrize(
+        "strategy, keep, max_count",
+        (
+            (refinement.refine_grid_to_half_particle_scale, _keep_half_scale, 0),
+            (refinement.refine_grid_to_single_occupancy, _keep_occupancy, 2),
+        ),
+    )
+    @pytest.mark.parametrize("clustered", (False, True))
+    @pytest.mark.parametrize("ncpu", (1, 2))
+    def test_matches_reference(
+        self, strategy, keep, max_count, stop_iter, clustered, ncpu
+    ):
+        """Check the refined cells against a refinement one cell at a time."""
+        shape, size = (3, 4, 2), 2.0
+        cells = _initial_cells(shape, size)
+        extent = np.array(shape) * size
+        rng = np.random.default_rng(0)
+        positions = rng.uniform(-1.5, extent + 0.5, (200, 3))
+        if clustered:
+            positions[:100] = rng.normal(extent / 2, extent / 10, (100, 3))
+            positions[:5] = np.round(positions[:5]) - 0.5  # on cell corners
+        radii = rng.uniform(0.05, 2, 200) ** 2
+        tree = strategy(cells, positions, radii, stop_iter, ncpu=ncpu)
+        refined = refinement._octree_cells(tree)
+        assert set(map(tuple, refined.tolist())) == _reference_refinement(
+            cells, positions, radii, keep, max_count, stop_iter
+        )
+        assert len(set(map(tuple, refined.tolist()))) == len(refined)
+        assert tree._octree.depth == np.rint(np.log2(size / refined["size"].min()))
+        assert tree._octree.depth <= stop_iter
+
+    @pytest.mark.parametrize("strategy", refinement_strategies)
+    def test_tree_matches_rebuilt(self, strategy):
+        """
+        Check that the tree built during refinement matches one built from its cells.
+
+        If every initial cell is bisected, a tree rebuilt from the cells has smaller root
+        nodes, so the searches are compared.
+        """
+        cells = _initial_cells((3, 4, 2), 2.0)
+        rng = np.random.default_rng(1)
+        positions = rng.normal((3, 4, 2), 1.0, (100, 3))
+        radii = rng.uniform(0.1, 1.5, 100)
+        tree = strategy(cells, positions, radii, 4)
+        assert tree._octree.depth > 0  # cells were refined
+        rebuilt = Octree(tree.cell_centres, tree.cell_sizes)
+        coords = rng.uniform(-1.5, 8.5, (300, 3))
+        search_radii = rng.uniform(0, 2, 300)
+        for emitted, expected in zip(
+            tree.find(coords, search_radii), rebuilt.find(coords, search_radii)
+        ):
+            assert np.array_equal(emitted, expected)
+        assert np.array_equal(
+            tree.count(coords, search_radii), rebuilt.count(coords, search_radii)
+        )
+        assert np.array_equal(
+            tree.containing_cells(coords), rebuilt.containing_cells(coords)
+        )
+        if np.any(tree.cell_sizes == 2.0):  # same roots, so the same tree
+            for emitted, expected in zip(tree._octree, rebuilt._octree):
+                assert np.array_equal(emitted, expected)
+
+    def test_incomplete_initial_grid(self):
+        """Check that refinement works when initial cells leave holes in the lattice."""
+        cells = _initial_cells((3, 3, 3), 1.0)
+        cells = np.delete(cells, [4, 13])  # one with particles nearby
+        rng = np.random.default_rng(2)
+        positions = rng.uniform(-0.5, 2.5, (50, 3))
+        radii = rng.uniform(0.05, 1.0, 50)
+        tree = refinement.refine_grid_to_half_particle_scale(cells, positions, radii, 3)
+        assert set(map(tuple, refinement._octree_cells(tree).tolist())) == (
+            _reference_refinement(cells, positions, radii, _keep_half_scale, 0, 3)
+        )
+
+    def test_no_particles(self):
+        """Check that cells are not refined without particles."""
+        cells = _initial_cells((2, 2, 2), 1.0)
+        tree = refinement.refine_grid_to_half_particle_scale(
+            cells, np.empty((0, 3)), np.empty(0)
+        )
+        assert np.array_equal(refinement._octree_cells(tree), cells)
+
+    @pytest.mark.parametrize(
+        "change, message",
+        (
+            ("size", "same size"),
+            ("offset", "lattice"),
+            ("duplicate", "duplicated"),
+            ("empty", "without cells"),
+        ),
+    )
+    def test_bad_initial_cells(self, change, message):
+        """Check that initial cells that are not a uniform grid are rejected."""
+        cells = _initial_cells((2, 2, 2), 1.0)
+        if change == "size":
+            cells["size"][0] = 0.5
+        elif change == "offset":
+            cells["x"][0] += 0.25
+        elif change == "duplicate":
+            cells[1] = cells[0]
+        else:
+            cells = cells[:0]
+        with pytest.raises(ValueError, match=message):
+            refinement.refine_grid_to_half_particle_scale(
+                cells, np.zeros((1, 3)), np.ones(1)
+            )
 
 
 class TestAdaptiveCellGrid:
@@ -256,8 +416,14 @@ class TestAdaptiveCellGrid:
         )
         assert grid.adaptive_cells.dtype == CELL_DTYPE
 
-    def test_octree(self, monkeypatch, many_particle_source, dc_zeros):
-        """Check that the tree of cells is built once, and again after refinement."""
+    @pytest.mark.parametrize("emits_tree", (True, False))
+    def test_octree(self, monkeypatch, many_particle_source, dc_zeros, emits_tree):
+        """
+        Check that the tree of cells is built once, and again after refinement.
+
+        The refinement strategies provide the tree, which is not rebuilt. Strategies
+        that return cells instead have their tree built when needed.
+        """
         datacube = dc_zeros
         source = many_particle_source()
         source._init_skycoords()
@@ -285,17 +451,54 @@ class TestAdaptiveCellGrid:
             built.append(self)
             init(self, *args)
 
+        def cells_strategy(cells, positions, radii, ncpu=1):
+            """
+            Refine cells, returning them as an array.
+
+            Parameters
+            ----------
+            cells : ~numpy.ndarray
+                The initial cells.
+
+            positions : ~numpy.ndarray
+                Particle positions.
+
+            radii : ~numpy.ndarray
+                Particle radii.
+
+            ncpu : int, optional
+                Number of threads.
+
+            Returns
+            -------
+            ~numpy.ndarray
+                The refined cells.
+            """
+            return refinement._octree_cells(
+                refinement.refine_grid_to_half_particle_scale(
+                    cells, positions, radii, ncpu=ncpu
+                )
+            )
+
         monkeypatch.setattr(Octree, "__init__", count_builds)
+        trees = []
         for _ in range(2):
             grid.eval_grid_refinement(
-                source, datacube, refinement.refine_grid_to_half_particle_scale
+                source,
+                datacube,
+                (
+                    refinement.refine_grid_to_half_particle_scale
+                    if emits_tree
+                    else cells_strategy
+                ),
             )
             for interpolant in (module_interpolants.sph, module_interpolants.mfm):
                 grid.interpolate_fields(source, sph_kernel, interpolant)
             assert grid.octree is grid.octree
-        # one tree for each refinement:
-        assert len(built) == 2
-        assert built[0] is not built[1]
+            trees.append(grid.octree)
+        # a new tree for each refinement:
+        assert trees[0] is not trees[1]
+        assert built == ([] if emits_tree else trees)
 
     def test_init_cell_centres(self, many_particle_source, dc_zeros):
         """Check test_init_cell_centres increment half size to lower corner pos."""
@@ -572,7 +775,7 @@ class TestAdaptiveCellGrid:
             grid.init_particle_locations(source, sph_kernel)
             # leave the cells unrefined:
             grid.eval_grid_refinement(
-                source, datacube, lambda cells, positions, radii: cells
+                source, datacube, lambda cells, positions, radii, ncpu: cells
             )
             cells = grid.adaptive_cells
         else:
