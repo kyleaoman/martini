@@ -445,6 +445,43 @@ class TestOctreeSearch:
         assert np.sum(part == 0) == cell_sizes.size
         assert np.unique(part).size < coords.shape[0]
 
+    def test_from_arrays(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Check that a tree created from known arrays matches one built from cells."""
+        cell_centres, cell_sizes = map(np.array, _bisected_grid())
+        coords, radii = _tree_input(cell_centres, 200, 3.0)
+        built = Octree(cell_centres, cell_sizes)
+        assert np.array_equal(built.cell_sizes, cell_sizes)
+
+        def no_build(*args: object) -> None:
+            """
+            Fail if the tree is built.
+
+            Parameters
+            ----------
+            *args : tuple
+                Arguments of :meth:`~martini._grid_search.Octree._build_octree`.
+            """
+            raise AssertionError("The tree should not be rebuilt.")
+
+        monkeypatch.setattr(Octree, "_build_octree", staticmethod(no_build))
+        tree = Octree._from_arrays(
+            built._octree, cell_centres.astype(np.float32), list(cell_sizes)
+        )
+        assert tree._octree is built._octree
+        for attr in ("cell_centres", "cell_sizes"):
+            value = getattr(tree, attr)
+            assert value.dtype == np.float64 and value.flags.c_contiguous
+            assert np.array_equal(value, getattr(built, attr).astype(np.float32))
+        assert np.array_equal(tree._n_below, built._n_below)
+        assert np.array_equal(tree.count(coords, radii), built.count(coords, radii))
+        for result, expected in zip(
+            _unpack(tree.find(coords, radii)), _unpack(built.find(coords, radii))
+        ):
+            assert np.array_equal(result, expected)
+        assert np.array_equal(
+            tree.containing_cells(coords), built.containing_cells(coords)
+        )
+
     def test_prebuilt_tree_batches(self) -> None:
         """Check that searching one tree for batches of coordinates matches one search."""
         cell_centres, cell_sizes = map(np.array, _bisected_grid())
