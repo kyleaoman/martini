@@ -238,6 +238,9 @@ class _BaseMartini:
     # _BaseMartini.__init__. The z axis is not padded: there is no beam along it and
     # particles beyond it should not contribute.
     _n_px_z: int | None = None
+    # Dimensionality of the grid that kernels are inserted into (see
+    # _BaseSPHKernel._init_sm_ranges):
+    _kernel_ndim: int = 2
 
     def __init__(
         self,
@@ -288,7 +291,7 @@ class _BaseMartini:
         )  # after datacube is padded
 
         self.sph_kernel._init_sm_lengths(source=self.source, datacube=self._datacube)
-        self.sph_kernel._init_sm_ranges()
+        self.sph_kernel._init_sm_ranges(ndim=self._kernel_ndim)
         self._prune_particles(
             **_prune_kwargs
         )  # prunes both source, and kernel if applicable
