@@ -29,6 +29,7 @@ from martini.mochi.radiative_transfer import (
 import pytest
 import numpy as np
 import itertools
+import warnings
 from types import SimpleNamespace
 from test_martini import check_mass_accuracy
 from test_sph_kernels import simple_kernels
@@ -1184,8 +1185,9 @@ class TestAdaptiveCellGrid:
     )
     def test_cell_pixel_overlaps(self, image_shape):
         """Check the pixels covered by cells against a brute-force search."""
-        begin = np.array([[0, 0], [2, 4], [4, 4], [4, 4], [6, 2], [1, 1]])
-        size = np.array([2, 4, 1, 1, 2, 1])
+        # the last cell starts below the image:
+        begin = np.array([[0, 0], [2, 4], [4, 4], [4, 4], [6, 2], [1, 1], [-2, 3]])
+        size = np.array([2, 4, 1, 1, 2, 1, 4])
         end = begin + size[:, np.newaxis]
         intersections, cell_indices, strides = _cell_pixel_overlaps(
             begin, end, image_shape
@@ -1200,10 +1202,53 @@ class TestAdaptiveCellGrid:
             assert np.array_equal(intersections[start:stop], expected)
             n_hits += stop - start
         covered = sum(
-            np.prod(np.minimum(e, image_shape) - np.minimum(b, image_shape))
+            np.prod(
+                np.minimum(e, image_shape) - np.minimum(np.maximum(b, 0), image_shape)
+            )
             for b, e in zip(begin, end)
         )
         assert n_hits == intersections.size == covered
+
+    @pytest.mark.parametrize("batched", (False, True))
+    def test_radiative_transfer_fallback(
+        self, many_particle_source, dc_zeros, capsys, batched
+    ):
+        """
+        Check that the serial fallback gives the same cube as compiled code.
+
+        The fallback sums the spectra in each pixel with numpy, in a different order, so
+        the cubes agree to rounding. Its progress bar is shown only if requested.
+        """
+        datacube = dc_zeros
+        grid = self._refined_grid(many_particle_source(), datacube)
+        kwargs = {}
+        if batched:
+            mem_estimate, overhead, baseline = _radiative_transfer_mem_estimate(
+                np.maximum(grid.adaptive_cells["size"], 1) ** 2,
+                datacube.n_channels,
+                8,
+                np.prod(datacube.datacube_shape[:2]),
+            )
+            kwargs["mem_allowance_GB"] = overhead + baseline + np.sum(mem_estimate) / 3
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # batches
+            cube = optically_thin(grid, datacube, GaussianSpectrum(), **kwargs)
+            capsys.readouterr()
+            fallback = optically_thin(
+                grid, datacube, GaussianSpectrum(), compiled=False, **kwargs
+            )
+            assert capsys.readouterr().err == ""
+            with_bar = optically_thin(
+                grid,
+                datacube,
+                GaussianSpectrum(),
+                compiled=False,
+                progressbar=True,
+                **kwargs,
+            )
+            assert "100%|" in capsys.readouterr().err
+        assert U.allclose(fallback, cube, rtol=1e-12, atol=0 * cube.unit)
+        assert np.array_equal(with_bar, fallback)
 
     def test_radiative_transfer_misaligned(self, many_particle_source, dc_zeros):
         """Check that cells not aligned with the pixel grid are rejected."""
@@ -2283,6 +2328,39 @@ class TestMochi:
             m.insert_source_in_cube(
                 mem_lim_GB=m.baseline_mem_estimate + 1.01 * initial_grid_mem_GB
             )
+
+    @pytest.mark.parametrize("numba_enabled", (True, False))
+    @pytest.mark.parametrize("quiet", (True, False))
+    @pytest.mark.parametrize("progressbar", (None, True, False))
+    def test_progressbar(
+        self, many_particle_source, dc_zeros, capsys, numba_enabled, quiet, progressbar
+    ):
+        """
+        Check that a progress bar is shown.
+
+        Without numba it is shown by default unless ``quiet``, or if requested. With
+        numba it is never shown, and requesting it warns.
+        """
+        m = Mochi(
+            source=many_particle_source(),
+            datacube=dc_zeros.copy(),
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=DiracDeltaSpectrum(),
+            los_depth=self.los_depth,
+            interpolant=module_interpolants.sph,
+            quiet=quiet,
+        )
+        m._numba_enabled = numba_enabled
+        capsys.readouterr()
+        if numba_enabled and progressbar:
+            with pytest.warns(RuntimeWarning, match="does not support progress bar"):
+                m.insert_source_in_cube(progressbar=progressbar)
+        else:
+            m.insert_source_in_cube(progressbar=progressbar)
+        shown = not numba_enabled and (
+            progressbar or (progressbar is None and not quiet)
+        )
+        assert ("100%|" in capsys.readouterr().err) == shown
 
 
 def check_inserted_mass_accuracy(m, expected_fraction=1.0):

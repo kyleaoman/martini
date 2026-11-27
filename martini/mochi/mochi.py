@@ -450,18 +450,17 @@ class Mochi(Martini):
         Parameters
         ----------
         skip_validation : bool, optional
-            SPH kernel interpolation onto the :class:`~martini.datacube.DataCube`
-            is approximated for increased speed. For some combinations of pixel size,
-            distance and SPH smoothing length, the approximation may break down. The
-            kernel class will check whether this will occur and raise a
-            ``RuntimeError`` if so. This validation can be skipped (at the cost
-            of accuracy!) by setting this parameter ``True``.
+            Currently has no effect. Reserved for validating that the cell grid is fine
+            enough for the SPH kernel (to be skipped, at the cost of accuracy, by setting
+            this parameter ``True``), as :class:`~martini.martini.Martini` validates the
+            kernel for the pixel grid.
 
         progressbar : bool, optional
-            A progress bar is shown by default. Progress bars work, with perhaps
-            some visual glitches, in parallel. If :class:`~martini.martini.Martini` was
-            initialised with ``quiet`` set to ``True``, progress bars are switched off
-            unless explicitly turned on.
+            Without :mod:`numba`, a progress bar of the radiative transfer (when it is
+            :func:`~martini.mochi.radiative_transfer.optically_thin`) is shown by
+            default. If :class:`~martini.mochi.mochi.Mochi` was initialised with
+            ``quiet`` set to ``True``, progress bars are switched off unless explicitly
+            turned on. With :mod:`numba` there is no progress bar.
 
         ncpu : int
             Number of threads to use in compiled code (requires :mod:`numba`) to refine
@@ -480,7 +479,6 @@ class Mochi(Martini):
             cell grid stops with an error if it would exceed the limit. The memory held
             by the cell grid counts towards the limit. This is a "soft" limit.
         """
-        # need to revise irrelevant (?) arguments: skip_validation, progressbar
         # TODO: resolution checks. Kernels are point-sampled at cell centres, so accuracy
         # depends on cell size relative to the kernel FWHM, not on pixel size as for
         # Martini's kernel integrals. Refinement (e.g. refine_grid_to_half_particle_scale)
@@ -497,6 +495,16 @@ class Mochi(Martini):
                 f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
                 f" `mem_lim_GB` when calling `insert_source_in_cube`."
             )
+        if progressbar and self._numba_enabled:
+            warnings.warn(
+                "'numba'-accelerated 'mochi' does not support progress bar (but it "
+                "will be pretty fast anyway!).",
+                RuntimeWarning,
+            )
+        if self._numba_enabled:
+            progressbar = False
+        elif progressbar is None:
+            progressbar = not self.quiet
         self.sph_kernel._init_sm_ranges(ndim=self._kernel_ndim)
         cell_grid = self._make_cell_grid()
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
@@ -538,12 +546,17 @@ class Mochi(Martini):
             self.source, self.sph_kernel, self.interpolant, **interpolant_kwargs
         )
 
+        radiative_transfer_kwargs: dict[str, bool] = {}
+        if self.radiative_transfer is optically_thin:
+            radiative_transfer_kwargs["compiled"] = self._numba_enabled
+            radiative_transfer_kwargs["progressbar"] = progressbar
         datacube_array = cell_grid.eval_radiative_transfer(
             self._datacube,
             self.spectral_model,
             self.radiative_transfer,
             ncpu=resolve_ncpu(ncpu),
             mem_allowance_GB=mem_allowance_GB(),
+            **radiative_transfer_kwargs,
         )
         # can the unit conversion be merged with martini?
         datacube_array /= np.abs(np.diff(self._datacube.velocity_channel_edges)).to(

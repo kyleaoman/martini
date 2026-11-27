@@ -499,6 +499,7 @@ class CellGrid:
         radiative_transfer: Callable,  # fill in arg & return types
         ncpu: int = 1,
         mem_allowance_GB: float = np.inf,
+        **radiative_transfer_kwargs: bool,
     ) -> U.Quantity[U.Msun / U.Mpc**2]:
         """
         "Collapse" the cell grid into a spectral cube.
@@ -530,6 +531,10 @@ class CellGrid:
         mem_allowance_GB : float, optional
             Memory allowance passed to ``radiative_transfer``, in GB.
 
+        **radiative_transfer_kwargs : dict
+            Additional keyword arguments passed to ``radiative_transfer`` (e.g.
+            ``progressbar``).
+
         Returns
         -------
         ~astropy.units.Quantity
@@ -543,6 +548,7 @@ class CellGrid:
             spectral_model,
             ncpu=ncpu,
             mem_allowance_GB=mem_allowance_GB,
+            **radiative_transfer_kwargs,
         )
 
 

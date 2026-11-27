@@ -9,6 +9,7 @@ from martini.datacube import DataCube
 from martini.spectral_models import _BaseSpectrum
 from martini.mochi.cell_grid import CellGrid
 import astropy.units as U
+from tqdm.auto import tqdm
 
 if NUMBA_AVAILABLE:
     from numba import njit
@@ -118,6 +119,52 @@ if NUMBA_AVAILABLE:
     )
 
 
+def _insert_cell_spectra(
+    cube: np.ndarray,
+    spectra: np.ndarray,
+    weights: np.ndarray,
+    intersections: np.ndarray,
+    cell_indices: np.ndarray,
+    strides: np.ndarray,
+    progressbar: bool = False,
+) -> None:
+    """
+    Add the weighted spectra of cells into the pixels that they cover, with numpy.
+
+    A fallback for :func:`_insert_cell_spectra_loop` when compiled code is unavailable or
+    disabled: a serial loop over pixels, summing the weighted spectra of the cells
+    covering each pixel.
+
+    Parameters
+    ----------
+    cube : ~numpy.ndarray
+        The cube array, shape ``(ny, nz, n_channels)``, modified in place.
+
+    spectra : ~numpy.ndarray
+        The spectra of the cells, shape ``(n_cells, n_channels)``.
+
+    weights : ~numpy.ndarray
+        The weight of each cell.
+
+    intersections : ~numpy.ndarray
+        Cell-pixel overlaps grouped by pixel, see :func:`_cell_pixel_overlaps`.
+
+    cell_indices : ~numpy.ndarray
+        The (flattened) index of each pixel with overlaps.
+
+    strides : ~numpy.ndarray
+        The range of ``intersections`` for each pixel.
+
+    progressbar : bool, optional
+        If ``True``, show a progress bar.
+    """
+    nz = cube.shape[1]
+    for c in tqdm(range(cell_indices.size), disable=not progressbar):
+        i, j = divmod(cell_indices[c], nz)
+        pairs = intersections[strides[c, 0] : strides[c, 1]]
+        cube[i, j] += weights[pairs] @ spectra[pairs]
+
+
 def _cell_pixel_overlaps(
     footprint_begin: np.ndarray,
     footprint_end: np.ndarray,
@@ -160,7 +207,7 @@ def _cell_pixel_overlaps(
     offset = np.arange(cell.size) - np.repeat(np.cumsum(counts) - counts, counts)
     y = begin[cell, 0] + offset // extent[cell, 1]
     z = begin[cell, 1] + offset % extent[cell, 1]
-    in_image = (y < image_shape[0]) & (z < image_shape[1])
+    in_image = (y >= 0) & (y < image_shape[0]) & (z >= 0) & (z < image_shape[1])
     cell, flat = cell[in_image], (y * image_shape[1] + z)[in_image]
     order = np.argsort(flat, kind="stable")
     cell_indices, starts, hits = np.unique(
@@ -378,9 +425,10 @@ def optically_thin(
     cell_grid: CellGrid,
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
-    index_type: type = np.uintc,
     ncpu: int = 1,
     mem_allowance_GB: float = np.inf,
+    compiled: bool = NUMBA_AVAILABLE,
+    progressbar: bool = False,
 ) -> U.Quantity[U.Msun / U.Mpc**2]:
     """
     Assemble fields into an HI cube using optically thin approximation.
@@ -400,9 +448,6 @@ def optically_thin(
     spectral_model : _BaseSpectrum
         The spectral model used to evaluate the spectra.
 
-    index_type : type, optional
-        The data type used to store cell indices.
-
     ncpu : int, optional
         Number of threads to use (if :mod:`numba` is available) to evaluate the spectra
         and add them to the pixels that the cells cover. A value of ``-1`` means as many
@@ -411,6 +456,14 @@ def optically_thin(
     mem_allowance_GB : float, optional
         Memory available to evaluate the spectra and add them into the cube, in GB. This
         is a "soft" limit.
+
+    compiled : bool, optional
+        If ``True`` (the default if :mod:`numba` is available), the spectra are added to
+        the pixels in compiled code. Otherwise, a serial loop over pixels sums them.
+
+    progressbar : bool, optional
+        If ``True``, show a progress bar of the serial loop over pixels (no progress bar
+        is shown for compiled code).
 
     Returns
     -------
@@ -422,8 +475,8 @@ def optically_thin(
     cells = cell_grid.adaptive_cells if adaptive else cell_grid.cells
     yz_cells = np.column_stack([cells[i] for i in "yz"]) + 0.5
     sizes = cells["size"][:, np.newaxis]
-    cells_begin = np.floor(yz_cells).astype(index_type)
-    cells_end = np.ceil(yz_cells + sizes).astype(index_type)
+    cells_begin = np.floor(yz_cells).astype(np.int64)
+    cells_end = np.ceil(yz_cells + sizes).astype(np.int64)
     if np.any(cells_end - cells_begin != np.maximum(sizes, 1)):
         raise RuntimeError(
             "Cell grid is not aligned with pixel grid, cells must have power-of-two "
@@ -495,15 +548,26 @@ def optically_thin(
         intersections, cell_indices, strides = _cell_pixel_overlaps(
             cells_begin[batch], cells_end[batch], image_shape
         )
-        with _threads(ncpu):
-            _insert_cell_spectra_loop(
+        if compiled:
+            with _threads(ncpu):
+                _insert_cell_spectra_loop(
+                    cube,
+                    spectra,
+                    weights[batch],
+                    intersections,
+                    cell_indices,
+                    strides,
+                    _balanced_blocks(strides[:, 1] - strides[:, 0], 8 * ncpu),
+                )
+        else:
+            _insert_cell_spectra(
                 cube,
                 spectra,
                 weights[batch],
                 intersections,
                 cell_indices,
                 strides,
-                _balanced_blocks(strides[:, 1] - strides[:, 0], 8 * ncpu),
+                progressbar=progressbar,
             )
         # free this batch before evaluating the next:
         del spectra, intersections, cell_indices, strides

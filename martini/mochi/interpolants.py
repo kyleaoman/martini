@@ -1344,7 +1344,6 @@ def voronoi_mesh(
     field_positions = cell_grid.field_positions
     d_volume = cell_grid.field_volumes
     distortion_corrections = cell_grid.field_distortion_corrections
-    masses *= U.dimensionless_unscaled
     if velocities.ndim != 1:
         # more than one dimension of velocity is given, use radial velocity
         velocities = velocities[:, 0]
