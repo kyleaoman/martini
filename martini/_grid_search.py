@@ -477,6 +477,20 @@ def _fill_lines(
                             distances[dest, 2] = last_coord - k
 
 
+# The functions for tree search:
+# _box_distance2
+# _root_range
+# _walk_subtree
+# _walk_from_roots
+# _count_from_roots
+# _fill_work_unit_candidates
+# _group_by_work_unit
+# _work_unit_hits
+# _cells_below
+# logically belong to Octree. They are placed at module level so that numba can compile
+# and cache them, and they can call each other from compiled code.
+
+
 def _box_distance2(
     x: float, y: float, z: float, corner: np.ndarray, size: float
 ) -> float:
@@ -698,8 +712,8 @@ def _walk_from_roots(
     Search a tree from its root nodes for one coordinate.
 
     Counts the cells with centres within the search radius or, if ``work_unit_of_node`` is
-    not empty, records the work units (see :func:`_work_units`) that the search radius
-    may reach without searching below them.
+    not empty, records the work units (see :meth:`Octree._work_units`) that the search
+    radius may reach without searching below them.
 
     Can be compiled with numba for faster execution.
 
@@ -718,7 +732,7 @@ def _walk_from_roots(
         Cell centres, shape ``(n_cells, 3)``.
 
     origin : ~numpy.ndarray
-        Lower corner of the root lattice, see :func:`_build_cell_tree`.
+        Lower corner of the root lattice, see :meth:`Octree._build_octree`.
 
     root_size : float
         Side length of the root nodes.
@@ -855,7 +869,7 @@ def _count_from_roots(
         Cell centres, shape ``(n_cells, 3)``.
 
     origin : ~numpy.ndarray
-        Lower corner of the root lattice, see :func:`_build_cell_tree`.
+        Lower corner of the root lattice, see :meth:`Octree._build_octree`.
 
     root_size : float
         Side length of the root nodes.
@@ -952,7 +966,7 @@ def _fill_work_unit_candidates(
         Cell centres, shape ``(n_cells, 3)``.
 
     origin : ~numpy.ndarray
-        Lower corner of the root lattice, see :func:`_build_cell_tree`.
+        Lower corner of the root lattice, see :meth:`Octree._build_octree`.
 
     root_size : float
         Side length of the root nodes.
@@ -1179,8 +1193,8 @@ def _cells_below(first_child: np.ndarray, node_cell: np.ndarray) -> np.ndarray:
     """
     Count the cells below each node of a tree (``1`` for leaves).
 
-    Children are stored after their parent (see :func:`_build_cell_tree`), so nodes are
-    processed in reverse order.
+    Children are stored after their parent (see :meth:`Octree._build_octree`), so nodes
+    are processed in reverse order.
 
     Can be compiled with numba for faster execution.
 
@@ -1252,7 +1266,7 @@ def _balanced_blocks(weights: np.ndarray, n_blocks: int) -> np.ndarray:
     return np.unique(np.concatenate(([0], inner, [weights.size]))).astype(np.int64)
 
 
-def _prepare_inputs(
+def _prepare_grid_inputs(
     grid_shape: Sequence[int],
     coords: np.ndarray,
     radii: np.ndarray,
@@ -1366,11 +1380,41 @@ def count_grid_intersections(
 
     See Also
     --------
-    find_grid_intersections, find_cell_tree_intersections, count_cell_tree_intersections
+    find_grid_intersections, Octree
     """
-    grid_shape, coords, radii = _prepare_inputs(grid_shape, coords, radii)
+    grid_shape, coords, radii = _prepare_grid_inputs(grid_shape, coords, radii)
     with _threads(ncpu):
         return _count_hits(coords, radii, np.array(grid_shape, dtype=np.int64))
+
+
+def _empty_result(
+    ndim: int, dist_dtype: type, return_distances: bool
+) -> FindGridIntersectionsResult:
+    """
+    Make the result of a search without matches.
+
+    Parameters
+    ----------
+    ndim : int
+        Number of dimensions of the coordinates.
+
+    dist_dtype : type
+        Data type of the ``distances``.
+
+    return_distances : bool
+        If ``False``, ``distances`` is ``None``.
+
+    Returns
+    -------
+    ~martini._grid_search.FindGridIntersectionsResult
+        Empty arrays with the data types and number of columns of a search with matches.
+    """
+    return FindGridIntersectionsResult(
+        intersections=np.empty(0, dtype=np.int32),
+        distances=np.empty((0, ndim), dtype=dist_dtype) if return_distances else None,
+        cell_indices=np.empty(0, dtype=np.int64),
+        strides=np.empty((0, 2), dtype=np.int64),
+    )
 
 
 def find_grid_intersections(
@@ -1446,7 +1490,7 @@ def find_grid_intersections(
 
     See Also
     --------
-    count_grid_intersections, find_cell_tree_intersections, count_cell_tree_intersections
+    count_grid_intersections, Octree
 
     Notes
     -----
@@ -1461,7 +1505,7 @@ def find_grid_intersections(
     Output is grouped by cell, and within each cell matches are ordered by ascending
     particle index.
     """
-    grid_shape, coords, radii = _prepare_inputs(grid_shape, coords, radii)
+    grid_shape, coords, radii = _prepare_grid_inputs(grid_shape, coords, radii)
     ndim = len(grid_shape)
     shape = np.array(grid_shape, dtype=np.int64)
     n_lines = math.prod(grid_shape[:-1])
@@ -1487,12 +1531,7 @@ def find_grid_intersections(
         total_intersections = int(hit_ptr[-1])
 
         if total_intersections == 0:
-            return FindGridIntersectionsResult(
-                intersections=np.empty(0),
-                distances=np.empty(0) if return_distances else None,
-                cell_indices=np.empty(0),
-                strides=np.empty((0, 2)),
-            )
+            return _empty_result(ndim, dist_dtype, return_distances)
 
         intersections = np.empty(total_intersections, dtype=np.int32)
         cell_indices = np.empty(int(cell_ptr[-1]), dtype=np.int64)
@@ -1524,9 +1563,9 @@ def find_grid_intersections(
     )
 
 
-class _CellTree(NamedTuple):
+class _OctreeArrays(NamedTuple):
     """
-    Provide the arrays describing an octree of cells, see :func:`_build_cell_tree`.
+    Provide the arrays describing an octree of cells, see :meth:`Octree._build_octree`.
 
     Attributes
     ----------
@@ -1571,394 +1610,19 @@ class _CellTree(NamedTuple):
     depth: int
 
 
-def _flat_lattice_indices(ijk: np.ndarray, shape: np.ndarray) -> np.ndarray:
+class Octree:
     """
-    Flatten 3D lattice indices into positions on the lattice.
-
-    Parameters
-    ----------
-    ijk : ~numpy.ndarray
-        Lattice indices, shape ``(N, 3)``.
-
-    shape : ~numpy.ndarray
-        Shape of the lattice.
-
-    Returns
-    -------
-    ~numpy.ndarray
-        The flattened lattice positions.
-    """
-    return np.ravel_multi_index(tuple(ijk.T), tuple(shape))
-
-
-def _sorted_lookup(
-    sorted_values: np.ndarray, values: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Look up values in a sorted array of values.
-
-    Parameters
-    ----------
-    sorted_values : ~numpy.ndarray
-        Values to search, in ascending order.
-
-    values : ~numpy.ndarray
-        Values to look up.
-
-    Returns
-    -------
-    tuple
-        The location in ``sorted_values`` of each value (meaningful only where found),
-        and whether each value was found.
-    """
-    if sorted_values.size == 0:
-        return np.zeros(values.size, dtype=np.intp), np.zeros(values.size, dtype=bool)
-    locations = np.minimum(
-        np.searchsorted(sorted_values, values), sorted_values.size - 1
-    )
-    return locations, sorted_values[locations] == values
-
-
-def _build_cell_tree(cell_centres: np.ndarray, cell_sizes: np.ndarray) -> _CellTree:
-    """
-    Build the octree of a grid of cubic cells obtained by recursive bisection.
-
-    The largest cells (size ``S``) and the cells of each size ``S / 2**k`` are aligned
-    with lattices of their own size, starting from the lowest cell corner, and the cells
-    tile a region without overlapping (as for
-    :class:`~martini.mochi.cell_grid.AdaptiveCellGrid`). Nodes of the tree are the cells
-    (leaves) and the cubes that were bisected to obtain them (internal nodes). The tree
-    is built top-down, one level at a time, with the 8 children of a node stored
-    consecutively.
-
-    Parameters
-    ----------
-    cell_centres : ~numpy.ndarray
-        Cell centres, shape ``(n_cells, 3)``.
-
-    cell_sizes : ~numpy.ndarray
-        Cell side lengths, shape ``(n_cells,)``.
-
-    Returns
-    -------
-    _CellTree
-        The tree.
-
-    Raises
-    ------
-    ValueError
-        If the cells do not form an octree.
-    """
-    if cell_sizes.size == 0:
-        raise ValueError("Cannot build a tree without cells.")
-    root_size = float(cell_sizes.max())
-    cell_levels = np.rint(np.log2(root_size / cell_sizes)).astype(np.int64)
-    if np.any(root_size / 2.0**cell_levels != cell_sizes):
-        raise ValueError(
-            "Cell sizes must be the largest cell size divided by powers of two."
-        )
-    corners = cell_centres - cell_sizes[:, np.newaxis] / 2
-    origin = corners.min(axis=0)
-    lattice_coords = (corners - origin) / cell_sizes[:, np.newaxis]
-    cell_ijk = np.rint(lattice_coords).astype(np.int64)
-    if np.any(np.abs(lattice_coords - cell_ijk) > 1e-6):
-        raise ValueError(
-            "Cell corners must lie on a lattice of the cell size, starting from the "
-            "lowest cell corner."
-        )
-    depth = int(cell_levels.max())
-    root_shape = (cell_ijk >> cell_levels[:, np.newaxis]).max(axis=0) + 1
-    if np.log2(np.prod(root_shape.astype(float))) + 3 * depth > 62:
-        raise ValueError("Too many levels of refinement to index the cells.")
-    child_offsets = np.array(
-        [(dx, dy, dz) for dx in range(2) for dy in range(2) for dz in range(2)]
-    )
-    first_child, node_cell, node_corner, node_size = [], [], [], []
-    n_nodes = 0
-    node_ijk = np.empty((0, 3), dtype=np.int64)
-    is_internal = np.empty(0, dtype=bool)
-    root_nodes = np.empty(0, dtype=np.int64)
-    for level in range(depth + 1):
-        level_shape = root_shape << level
-        level_size = root_size / 2.0**level
-        level_cells = np.flatnonzero(cell_levels == level)
-        # positions of the nodes of this level on its lattice (flattened):
-        leaf_positions = _flat_lattice_indices(cell_ijk[level_cells], level_shape)
-        leaf_order = np.argsort(leaf_positions)
-        leaf_positions = leaf_positions[leaf_order]
-        if np.any(np.diff(leaf_positions) == 0):
-            raise ValueError("Cells must not be duplicated.")
-        deeper_cells = cell_levels > level
-        internal_positions = np.unique(
-            _flat_lattice_indices(
-                cell_ijk[deeper_cells]
-                >> (cell_levels[deeper_cells] - level)[:, np.newaxis],
-                level_shape,
-            )
-        )
-        if level == 0:
-            root_positions = np.union1d(leaf_positions, internal_positions)
-            node_ijk = np.column_stack(
-                np.unravel_index(root_positions, tuple(level_shape))
-            )
-        else:
-            node_ijk = (
-                2 * node_ijk[is_internal, np.newaxis, :] + child_offsets[np.newaxis]
-            ).reshape(-1, 3)
-        node_positions = _flat_lattice_indices(node_ijk, level_shape)
-        leaf_locations, is_leaf = _sorted_lookup(leaf_positions, node_positions)
-        _, is_internal = _sorted_lookup(internal_positions, node_positions)
-        if np.any(is_leaf & is_internal):
-            raise ValueError("Cells must not overlap.")
-        if np.any(~is_leaf & ~is_internal):
-            raise ValueError(
-                "Cells must tile the region covered by the largest cells (each bisected "
-                "cell must be replaced by all 8 of its octants)."
-            )
-        n_level = node_positions.size
-        next_offset = n_nodes + n_level
-        level_first_child = np.full(n_level, -1, dtype=np.int64)
-        level_first_child[is_internal] = next_offset + 8 * np.arange(
-            np.count_nonzero(is_internal)
-        )
-        level_cell = np.full(n_level, -1, dtype=np.int64)
-        level_cell[is_leaf] = level_cells[leaf_order[leaf_locations[is_leaf]]]
-        first_child.append(level_first_child)
-        node_cell.append(level_cell)
-        node_corner.append(origin + node_ijk * level_size)
-        node_size.append(np.full(n_level, level_size))
-        if level == 0:
-            root_nodes = np.full(np.prod(root_shape), -1, dtype=np.int64)
-            root_nodes[node_positions] = np.arange(n_level)
-        n_nodes = next_offset
-    return _CellTree(
-        origin=origin,
-        root_size=root_size,
-        root_shape=root_shape,
-        root_nodes=root_nodes,
-        first_child=np.concatenate(first_child),
-        node_cell=np.concatenate(node_cell),
-        node_corner=np.ascontiguousarray(np.concatenate(node_corner)),
-        node_size=np.concatenate(node_size),
-        depth=depth,
-    )
-
-
-def _work_units(tree: _CellTree, n_below: np.ndarray, max_cells: int) -> np.ndarray:
-    """
-    Divide the cells of a tree into ``work_units`` that each own the cells below a node.
-
-    Starting from the root nodes, nodes with more than ``max_cells`` cells below them
-    are replaced by their children, so that work is shared out evenly even where cells
-    are concentrated in a few root nodes. Every cell is below exactly one work unit.
-
-    Parameters
-    ----------
-    tree : _CellTree
-        The tree of cells.
-
-    n_below : ~numpy.ndarray
-        Number of cells below each node, see :func:`_cells_below`.
-
-    max_cells : int
-        Largest number of cells below a work unit, unless it is a leaf.
-
-    Returns
-    -------
-    ~numpy.ndarray
-        The node of each work unit, in ascending order.
-    """
-    work_units = tree.root_nodes[tree.root_nodes >= 0]
-    while True:
-        to_split = (tree.first_child[work_units] >= 0) & (
-            n_below[work_units] > max_cells
-        )
-        if not np.any(to_split):
-            return np.sort(work_units)
-        child_nodes = tree.first_child[work_units[to_split], np.newaxis] + np.arange(8)
-        work_units = np.concatenate((work_units[~to_split], child_nodes.ravel()))
-
-
-def _prepare_tree_inputs(
-    cell_centres: np.ndarray,
-    cell_sizes: np.ndarray,
-    coords: np.ndarray,
-    radii: np.ndarray,
-) -> tuple[_CellTree, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Validate and normalize inputs to the cell tree search functions.
-
-    Parameters
-    ----------
-    cell_centres : ~numpy.ndarray
-        Cell centres, shape ``(n_cells, 3)``.
-
-    cell_sizes : ~numpy.ndarray
-        Cell side lengths, shape ``(n_cells,)``.
-
-    coords : ~numpy.ndarray
-        Search coordinates, shape ``(N, 3)``.
-
-    radii : ~numpy.ndarray
-        Search radii, one per row of ``coords``.
-
-    Returns
-    -------
-    tuple
-        The tree of cells, and C-contiguous, ``float64`` copies (if needed) of
-        ``cell_centres``, ``coords`` and ``radii``.
-    """
-    cell_centres = np.ascontiguousarray(cell_centres, dtype=np.float64)
-    cell_sizes = np.ascontiguousarray(cell_sizes, dtype=np.float64)
-    coords = np.ascontiguousarray(coords, dtype=np.float64)
-    radii = np.ascontiguousarray(radii, dtype=np.float64)
-    if cell_centres.ndim != 2 or cell_centres.shape[1] != 3:
-        raise ValueError("cell_centres must have shape (n_cells, 3).")
-    if cell_sizes.shape != (cell_centres.shape[0],):
-        raise ValueError("cell_sizes must have one entry per row of cell_centres.")
-    if coords.ndim != 2 or coords.shape[1] != 3:
-        raise ValueError("coords must have shape (N, 3).")
-    if radii.shape != (coords.shape[0],):
-        raise ValueError("radii must have one entry per row of coords.")
-    tree = _build_cell_tree(cell_centres, cell_sizes)
-    # Radii can be infinite, cap them at a distance that reaches every cell so that the
-    # range of root nodes is finite:
-    extent = tree.root_shape * tree.root_size
-    reach_all = np.sqrt(np.sum((np.abs(coords - tree.origin) + extent) ** 2, axis=1))
-    radii = np.minimum(radii, reach_all)
-    return tree, cell_centres, coords, radii
-
-
-def _counts_per_coordinate(
-    tree: _CellTree,
-    cell_centres: np.ndarray,
-    coords: np.ndarray,
-    radii: np.ndarray,
-    work_unit_of_node: np.ndarray | None = None,
-) -> np.ndarray:
-    """
-    Count the cells (or work units) within the search radius of each coordinate.
-
-    Must be called within :func:`_threads`.
-
-    Parameters
-    ----------
-    tree : _CellTree
-        The tree of cells.
-
-    cell_centres : ~numpy.ndarray
-        Cell centres, shape ``(n_cells, 3)``.
-
-    coords : ~numpy.ndarray
-        Search coordinates, shape ``(N, 3)``.
-
-    radii : ~numpy.ndarray
-        Search radii, shape ``(N,)``.
-
-    work_unit_of_node : ~numpy.ndarray, optional
-        Index of the work unit of each node, or ``-1`` (see :func:`_work_units`). If
-        provided, the work units that each search radius may reach are counted instead
-        of the cells.
-
-    Returns
-    -------
-    ~numpy.ndarray
-        Number of cell centres (or work units) within the search radius of each
-        coordinate.
-    """
-    if work_unit_of_node is None:
-        work_unit_of_node = np.empty(0, dtype=np.int64)
-    counts = np.zeros(coords.shape[0], dtype=np.int64)
-    if coords.shape[0] > 0:
-        n_blocks = 8 * (numba.get_num_threads() if NUMBA_AVAILABLE else 1)
-        _count_from_roots(
-            coords,
-            radii,
-            cell_centres,
-            *tree,
-            work_unit_of_node,
-            _balanced_blocks(np.ones(coords.shape[0]), n_blocks),
-            counts,
-        )
-    return counts
-
-
-def count_cell_tree_intersections(
-    cell_centres: np.ndarray,
-    cell_sizes: np.ndarray,
-    coords: np.ndarray,
-    radii: np.ndarray,
-    ncpu: int = 1,
-) -> np.ndarray:
-    """
-    Count the cell centres of an adaptive (octree) cell grid within the search radii.
-
-    The cells are cubes obtained by recursively bisecting a uniform grid of cubes (e.g.
-    :class:`~martini.mochi.cell_grid.AdaptiveCellGrid`), see
-    :func:`find_cell_tree_intersections`.
-
-    This is cheaper than recording the hits with :func:`find_cell_tree_intersections`
-    (no per-match output is stored), so it can be used to plan memory usage in advance.
-
-    For the simpler case of a one-level tree (a uniform cell grid), see
-    :func:`count_grid_intersections`.
-
-    Parameters
-    ----------
-    cell_centres : ~numpy.ndarray
-        Coordinates of the cell centres, shape ``(n_cells, 3)``.
-
-    cell_sizes : ~numpy.ndarray
-        Side lengths of the cells (same implicit units as ``cell_centres``).
-
-    coords : ~numpy.ndarray
-        Coordinates to search around for cells, shape ``(N, 3)`` (same implicit units as
-        ``cell_centres``).
-
-    radii : ~numpy.ndarray
-        Search radii around the ``coords``. Must be an array with the same length as the
-        number of coordinates, a scalar is not accepted.
-
-    ncpu : int
-        Number of threads to use.
-
-    Returns
-    -------
-    ~numpy.ndarray
-        Number of cell centres within the search radius of each coordinate.
-
-    See Also
-    --------
-    find_cell_tree_intersections, find_grid_intersections, count_grid_intersections
-    """
-    tree, cell_centres, coords, radii = _prepare_tree_inputs(
-        cell_centres, cell_sizes, coords, radii
-    )
-    with _threads(ncpu):
-        return _counts_per_coordinate(tree, cell_centres, coords, radii)
-
-
-def find_cell_tree_intersections(
-    cell_centres: np.ndarray,
-    cell_sizes: np.ndarray,
-    coords: np.ndarray,
-    radii: np.ndarray,
-    ncpu: int = 1,
-    dist_dtype: type = np.float64,
-    return_distances: bool = True,
-) -> FindGridIntersectionsResult:
-    """
-    Search for coordinates that reach the cell centres of an adaptive (octree) grid.
+    The tree of the cells of an adaptive (octree) grid, to search for cells near points.
 
     The cells are cubes obtained by recursively bisecting a uniform grid of cubes, as
     in :class:`~martini.mochi.cell_grid.AdaptiveCellGrid`: the largest cells have size
     ``S``, every cell has a size ``S / 2**k`` and its lower corner on a lattice of its
     own size starting from the lowest cell corner, and the cells tile a region without
-    overlapping. A cell is "hit" if its centre is within the search radius (inclusive)
-    of a coordinate.
+    overlapping. The tree is built once, and can then be searched around several sets
+    of coordinates (e.g. batches of particles) with :meth:`count` and :meth:`find`.
 
     For the simpler case of a one-level tree (a uniform cell grid), see
-    :func:`find_grid_intersections`.
+    :func:`find_grid_intersections` and :func:`count_grid_intersections`.
 
     Parameters
     ----------
@@ -1968,42 +1632,10 @@ def find_cell_tree_intersections(
     cell_sizes : ~numpy.ndarray
         Side lengths of the cells (same implicit units as ``cell_centres``).
 
-    coords : ~numpy.ndarray
-        Coordinates to search around for cells, shape ``(N, 3)`` (same implicit units as
-        ``cell_centres``).
-
-    radii : ~numpy.ndarray
-        Search radii around the ``coords``. Must be an array with the same length as the
-        number of coordinates, a scalar is not accepted.
-
-    ncpu : int
-        Number of threads to use for the search.
-
-    dist_dtype : type, optional
-        Data type for returned ``distances`` array, can be used to manage memory usage.
-
-    return_distances : bool, optional
-        If ``False``, the offset vectors between cell centres and search coordinates are
-        not computed (``distances`` is ``None``), saving memory.
-
-    Returns
-    -------
-    intersections : ~numpy.ndarray
-        Each entry is the index of a search coordinate (index into ``coords``),
-        representing a search coordinate that "hit" a cell. Results are grouped by the
-        cell indices, and in ascending search coordinate index order within each cell.
-
-    distances : ~numpy.ndarray or None
-        The vector offset from the cell centre to the search coordinate for each match.
-        ``None`` if ``return_distances`` is ``False``.
-
-    cell_indices : ~numpy.ndarray
-        The unique cell indices (index into ``cell_centres``), in ascending order. Each
-        entry in this array corresponds to a range in ``strides``.
-
-    strides : ~numpy.ndarray
-        Each row can be used as a range to select rows from ``intersections`` that share
-        a common cell index.
+    Attributes
+    ----------
+    cell_centres : ~numpy.ndarray
+        C-contiguous, ``float64`` copy (if needed) of the cell centres.
 
     Raises
     ------
@@ -2012,7 +1644,7 @@ def find_cell_tree_intersections(
 
     See Also
     --------
-    count_cell_tree_intersections, find_grid_intersections, count_grid_intersections
+    find_grid_intersections, count_grid_intersections
 
     Notes
     -----
@@ -2031,106 +1663,504 @@ def find_cell_tree_intersections(
     :func:`find_grid_intersections`) make the candidate lists nearly as long as the list
     of matches, which costs time and memory.
     """
-    tree, cell_centres, coords, radii = _prepare_tree_inputs(
-        cell_centres, cell_sizes, coords, radii
-    )
-    n_cells = cell_centres.shape[0]
-    n_coords = coords.shape[0]
-    with _threads(ncpu):
-        n_threads = numba.get_num_threads() if NUMBA_AVAILABLE else 1
-        n_blocks = 8 * n_threads
-        n_below = _cells_below(tree.first_child, tree.node_cell)
-        work_units = _work_units(tree, n_below, max(1, n_cells // (64 * n_threads)))
-        work_unit_of_node = np.full(tree.first_child.size, -1, dtype=np.int64)
-        work_unit_of_node[work_units] = np.arange(work_units.size)
-        # candidate coordinates of each work unit, in ascending order:
-        candidate_counts = _counts_per_coordinate(
-            tree, cell_centres, coords, radii, work_unit_of_node
-        )
-        candidate_ptr = np.zeros(n_coords + 1, dtype=np.int64)
-        np.cumsum(candidate_counts, out=candidate_ptr[1:])
-        candidate_work_units = np.empty(int(candidate_ptr[-1]), dtype=np.int32)
-        if n_coords > 0:
-            _fill_work_unit_candidates(
+
+    def __init__(self, cell_centres: np.ndarray, cell_sizes: np.ndarray) -> None:
+        cell_centres = np.ascontiguousarray(cell_centres, dtype=np.float64)
+        cell_sizes = np.ascontiguousarray(cell_sizes, dtype=np.float64)
+        if cell_centres.ndim != 2 or cell_centres.shape[1] != 3:
+            raise ValueError("cell_centres must have shape (n_cells, 3).")
+        if cell_sizes.shape != (cell_centres.shape[0],):
+            raise ValueError("cell_sizes must have one entry per row of cell_centres.")
+        self.cell_centres = cell_centres
+        self._octree = Octree._build_octree(cell_centres, cell_sizes)
+        # number of cells below each node:
+        self._n_below = _cells_below(self._octree.first_child, self._octree.node_cell)
+
+    def count(self, coords: np.ndarray, radii: np.ndarray, ncpu: int = 1) -> np.ndarray:
+        """
+        Count the cell centres within the search radii.
+
+        This is cheaper than recording the hits with :meth:`find` (no per-match output is
+        stored), so it can be used to plan memory usage in advance.
+
+        Parameters
+        ----------
+        coords : ~numpy.ndarray
+            Coordinates to search around for cells, shape ``(N, 3)`` (same implicit units
+            as the cell centres).
+
+        radii : ~numpy.ndarray
+            Search radii around the ``coords``. Must be an array with the same length as
+            the number of coordinates, a scalar is not accepted.
+
+        ncpu : int
+            Number of threads to use.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            Number of cell centres within the search radius of each coordinate.
+        """
+        coords, radii = self._prepare_coords(coords, radii)
+        with _threads(ncpu):
+            return self._counts_per_coordinate(coords, radii)
+
+    def find(
+        self,
+        coords: np.ndarray,
+        radii: np.ndarray,
+        ncpu: int = 1,
+        dist_dtype: type = np.float64,
+        return_distances: bool = True,
+    ) -> FindGridIntersectionsResult:
+        """
+        Search for coordinates that reach the cell centres.
+
+        A cell is "hit" if its centre is within the search radius (inclusive) of a
+        coordinate.
+
+        Parameters
+        ----------
+        coords : ~numpy.ndarray
+            Coordinates to search around for cells, shape ``(N, 3)`` (same implicit units
+            as the cell centres).
+
+        radii : ~numpy.ndarray
+            Search radii around the ``coords``. Must be an array with the same length as
+            the number of coordinates, a scalar is not accepted.
+
+        ncpu : int
+            Number of threads to use for the search.
+
+        dist_dtype : type, optional
+            Data type for returned ``distances`` array, can be used to manage memory
+            usage.
+
+        return_distances : bool, optional
+            If ``False``, the offset vectors between cell centres and search coordinates
+            are not computed (``distances`` is ``None``), saving memory.
+
+        Returns
+        -------
+        intersections : ~numpy.ndarray
+            Each entry is the index of a search coordinate (index into ``coords``),
+            representing a search coordinate that "hit" a cell. Results are grouped by
+            the cell indices, and in ascending search coordinate index order within each
+            cell.
+
+        distances : ~numpy.ndarray or None
+            The vector offset from the cell centre to the search coordinate for each
+            match. ``None`` if ``return_distances`` is ``False``.
+
+        cell_indices : ~numpy.ndarray
+            The unique cell indices (index into the cells), in ascending order. Each
+            entry in this array corresponds to a range in ``strides``.
+
+        strides : ~numpy.ndarray
+            Each row can be used as a range to select rows from ``intersections`` that
+            share a common cell index.
+        """
+        octree, cell_centres = self._octree, self.cell_centres
+        coords, radii = self._prepare_coords(coords, radii)
+        n_cells = cell_centres.shape[0]
+        n_coords = coords.shape[0]
+        with _threads(ncpu):
+            n_threads = numba.get_num_threads() if NUMBA_AVAILABLE else 1
+            n_blocks = 8 * n_threads
+            n_below = self._n_below
+            work_units = Octree._work_units(
+                octree, n_below, max(1, n_cells // (64 * n_threads))
+            )
+            work_unit_of_node = np.full(octree.first_child.size, -1, dtype=np.int64)
+            work_unit_of_node[work_units] = np.arange(work_units.size)
+            # candidate coordinates of each work unit, in ascending order:
+            candidate_counts = self._counts_per_coordinate(
+                coords, radii, work_unit_of_node
+            )
+            candidate_ptr = np.zeros(n_coords + 1, dtype=np.int64)
+            np.cumsum(candidate_counts, out=candidate_ptr[1:])
+            candidate_work_units = np.empty(int(candidate_ptr[-1]), dtype=np.int32)
+            if n_coords > 0:
+                _fill_work_unit_candidates(
+                    coords,
+                    radii,
+                    cell_centres,
+                    *octree,
+                    work_unit_of_node,
+                    _balanced_blocks(candidate_counts + 1, n_blocks),
+                    candidate_ptr,
+                    candidate_work_units,
+                )
+            work_unit_ptr = np.zeros(work_units.size + 1, dtype=np.int64)
+            np.cumsum(
+                np.bincount(candidate_work_units, minlength=work_units.size),
+                out=work_unit_ptr[1:],
+            )
+            work_unit_particles = np.empty(candidate_work_units.size, dtype=np.int32)
+            _group_by_work_unit(
+                candidate_ptr,
+                candidate_work_units,
+                work_unit_ptr[:-1].copy(),
+                work_unit_particles,
+            )
+            del candidate_work_units
+            work_unit_args = (
                 coords,
                 radii,
                 cell_centres,
-                *tree,
+                octree.first_child,
+                octree.node_cell,
+                octree.node_corner,
+                octree.node_size,
+                octree.depth,
+                work_units,
+                work_unit_ptr,
+                work_unit_particles,
+            )
+            work_unit_hits = np.zeros(work_units.size, dtype=np.int64)
+            cell_ptr = np.zeros(n_cells + 1, dtype=np.int64)
+            cell_counts = cell_ptr[1:]  # counted in place, then accumulated
+            placeholder_int = np.empty(0, dtype=np.int32)
+            _work_unit_hits(
+                *work_unit_args,
+                _balanced_blocks(
+                    np.diff(work_unit_ptr) + n_below[work_units], n_blocks
+                ),
+                False,
+                work_unit_hits,
+                cell_counts,
+                cell_ptr,
+                placeholder_int,
+                np.empty((0, 3), dtype=dist_dtype),
+                False,
+            )
+            cell_indices = np.flatnonzero(cell_counts).astype(np.int64)
+            np.cumsum(cell_counts, out=cell_counts)
+            total_intersections = int(cell_ptr[-1])
+            if total_intersections == 0:
+                return _empty_result(3, dist_dtype, return_distances)
+            strides = np.column_stack(
+                (cell_ptr[cell_indices], cell_ptr[cell_indices + 1])
+            )
+            intersections = np.empty(total_intersections, dtype=np.int32)
+            distances: np.ndarray = np.empty(
+                (total_intersections if return_distances else 1, 3), dtype=dist_dtype
+            )
+            _work_unit_hits(
+                *work_unit_args,
+                _balanced_blocks(work_unit_hits + 1, n_blocks),
+                True,
+                work_unit_hits,
+                cell_counts,
+                cell_ptr[:-1].copy(),
+                intersections,
+                distances,
+                return_distances,
+            )
+        return FindGridIntersectionsResult(
+            intersections=intersections,
+            distances=distances if return_distances else None,
+            cell_indices=cell_indices,
+            strides=strides,
+        )
+
+    def _prepare_coords(
+        self, coords: np.ndarray, radii: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Validate and normalize the coordinates and radii of a search.
+
+        Parameters
+        ----------
+        coords : ~numpy.ndarray
+            Search coordinates, shape ``(N, 3)``.
+
+        radii : ~numpy.ndarray
+            Search radii, one per row of ``coords``.
+
+        Returns
+        -------
+        tuple
+            C-contiguous, ``float64`` copies (if needed) of ``coords`` and ``radii``, with
+            infinite radii capped.
+        """
+        coords = np.ascontiguousarray(coords, dtype=np.float64)
+        radii = np.ascontiguousarray(radii, dtype=np.float64)
+        if coords.ndim != 2 or coords.shape[1] != 3:
+            raise ValueError("coords must have shape (N, 3).")
+        if radii.shape != (coords.shape[0],):
+            raise ValueError("radii must have one entry per row of coords.")
+        # Radii can be infinite, cap them at a distance that reaches every cell so that
+        # the range of root nodes is finite:
+        octree = self._octree
+        extent = octree.root_shape * octree.root_size
+        reach_all = np.sqrt(
+            np.sum((np.abs(coords - octree.origin) + extent) ** 2, axis=1)
+        )
+        return coords, np.minimum(radii, reach_all)
+
+    def _counts_per_coordinate(
+        self,
+        coords: np.ndarray,
+        radii: np.ndarray,
+        work_unit_of_node: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """
+        Count the cells (or work units) within the search radius of each coordinate.
+
+        Must be called within :func:`_threads`.
+
+        Parameters
+        ----------
+        coords : ~numpy.ndarray
+            Search coordinates, shape ``(N, 3)``.
+
+        radii : ~numpy.ndarray
+            Search radii, shape ``(N,)``.
+
+        work_unit_of_node : ~numpy.ndarray, optional
+            Index of the work unit of each node, or ``-1`` (see :meth:`_work_units`). If
+            provided, the work units that each search radius may reach are counted instead
+            of the cells.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            Number of cell centres (or work units) within the search radius of each
+            coordinate.
+        """
+        if work_unit_of_node is None:
+            work_unit_of_node = np.empty(0, dtype=np.int64)
+        counts = np.zeros(coords.shape[0], dtype=np.int64)
+        if coords.shape[0] > 0:
+            n_blocks = 8 * (numba.get_num_threads() if NUMBA_AVAILABLE else 1)
+            _count_from_roots(
+                coords,
+                radii,
+                self.cell_centres,
+                *self._octree,
                 work_unit_of_node,
-                _balanced_blocks(candidate_counts + 1, n_blocks),
-                candidate_ptr,
-                candidate_work_units,
+                _balanced_blocks(np.ones(coords.shape[0]), n_blocks),
+                counts,
             )
-        work_unit_ptr = np.zeros(work_units.size + 1, dtype=np.int64)
-        np.cumsum(
-            np.bincount(candidate_work_units, minlength=work_units.size),
-            out=work_unit_ptr[1:],
-        )
-        work_unit_particles = np.empty(candidate_work_units.size, dtype=np.int32)
-        _group_by_work_unit(
-            candidate_ptr,
-            candidate_work_units,
-            work_unit_ptr[:-1].copy(),
-            work_unit_particles,
-        )
-        del candidate_work_units
-        work_unit_args = (
-            coords,
-            radii,
-            cell_centres,
-            tree.first_child,
-            tree.node_cell,
-            tree.node_corner,
-            tree.node_size,
-            tree.depth,
-            work_units,
-            work_unit_ptr,
-            work_unit_particles,
-        )
-        work_unit_hits = np.zeros(work_units.size, dtype=np.int64)
-        cell_ptr = np.zeros(n_cells + 1, dtype=np.int64)
-        cell_counts = cell_ptr[1:]  # counted in place, then accumulated
-        unused_int = np.empty(0, dtype=np.int32)
-        _work_unit_hits(
-            *work_unit_args,
-            _balanced_blocks(np.diff(work_unit_ptr) + n_below[work_units], n_blocks),
-            False,
-            work_unit_hits,
-            cell_counts,
-            cell_ptr,
-            unused_int,
-            np.empty((0, 3), dtype=dist_dtype),
-            False,
-        )
-        cell_indices = np.flatnonzero(cell_counts).astype(np.int64)
-        np.cumsum(cell_counts, out=cell_counts)
-        total_intersections = int(cell_ptr[-1])
-        if total_intersections == 0:
-            return FindGridIntersectionsResult(
-                intersections=np.empty(0),
-                distances=np.empty(0) if return_distances else None,
-                cell_indices=np.empty(0),
-                strides=np.empty((0, 2)),
+        return counts
+
+    @staticmethod
+    def _build_octree(
+        cell_centres: np.ndarray, cell_sizes: np.ndarray
+    ) -> _OctreeArrays:
+        """
+        Build the octree of a grid of cubic cells obtained by recursive bisection.
+
+        The largest cells (size ``S``) and the cells of each size ``S / 2**k`` are
+        aligned with lattices of their own size, starting from the lowest cell corner,
+        and the cells tile a region without overlapping (as for
+        :class:`~martini.mochi.cell_grid.AdaptiveCellGrid`). Nodes of the tree are the
+        cells (leaves) and the cubes that were bisected to obtain them (internal nodes).
+        The tree is built top-down, one level at a time, with the 8 children of a node
+        stored consecutively.
+
+        Parameters
+        ----------
+        cell_centres : ~numpy.ndarray
+            Cell centres, shape ``(n_cells, 3)``.
+
+        cell_sizes : ~numpy.ndarray
+            Cell side lengths, shape ``(n_cells,)``.
+
+        Returns
+        -------
+        _OctreeArrays
+            The tree.
+
+        Raises
+        ------
+        ValueError
+            If the cells do not form an octree.
+        """
+        if cell_sizes.size == 0:
+            raise ValueError("Cannot build a tree without cells.")
+        root_size = float(cell_sizes.max())
+        cell_levels = np.rint(np.log2(root_size / cell_sizes)).astype(np.int64)
+        if np.any(root_size / 2.0**cell_levels != cell_sizes):
+            raise ValueError(
+                "Cell sizes must be the largest cell size divided by powers of two."
             )
-        strides = np.column_stack((cell_ptr[cell_indices], cell_ptr[cell_indices + 1]))
-        intersections = np.empty(total_intersections, dtype=np.int32)
-        distances: np.ndarray = np.empty(
-            (total_intersections if return_distances else 1, 3), dtype=dist_dtype
+        corners = cell_centres - cell_sizes[:, np.newaxis] / 2
+        origin = corners.min(axis=0)
+        lattice_coords = (corners - origin) / cell_sizes[:, np.newaxis]
+        cell_ijk = np.rint(lattice_coords).astype(np.int64)
+        if np.any(np.abs(lattice_coords - cell_ijk) > 1e-6):
+            raise ValueError(
+                "Cell corners must lie on a lattice of the cell size, starting from the "
+                "lowest cell corner."
+            )
+        depth = int(cell_levels.max())
+        root_shape = (cell_ijk >> cell_levels[:, np.newaxis]).max(axis=0) + 1
+        if np.log2(np.prod(root_shape.astype(float))) + 3 * depth > 62:
+            raise ValueError("Too many levels of refinement to index the cells.")
+        child_offsets = np.array(
+            [(dx, dy, dz) for dx in range(2) for dy in range(2) for dz in range(2)]
         )
-        _work_unit_hits(
-            *work_unit_args,
-            _balanced_blocks(work_unit_hits + 1, n_blocks),
-            True,
-            work_unit_hits,
-            cell_counts,
-            cell_ptr[:-1].copy(),
-            intersections,
-            distances,
-            return_distances,
+        first_child, node_cell, node_corner, node_size = [], [], [], []
+        n_nodes = 0
+        node_ijk = np.empty((0, 3), dtype=np.int64)
+        is_internal = np.empty(0, dtype=bool)
+        root_nodes = np.empty(0, dtype=np.int64)
+        for level in range(depth + 1):
+            level_shape = root_shape << level
+            level_size = root_size / 2.0**level
+            level_cells = np.flatnonzero(cell_levels == level)
+            # positions of the nodes of this level on its lattice (flattened):
+            leaf_positions = Octree._flat_lattice_indices(
+                cell_ijk[level_cells], level_shape
+            )
+            leaf_order = np.argsort(leaf_positions)
+            leaf_positions = leaf_positions[leaf_order]
+            if np.any(np.diff(leaf_positions) == 0):
+                raise ValueError("Cells must not be duplicated.")
+            deeper_cells = cell_levels > level
+            internal_positions = np.unique(
+                Octree._flat_lattice_indices(
+                    cell_ijk[deeper_cells]
+                    >> (cell_levels[deeper_cells] - level)[:, np.newaxis],
+                    level_shape,
+                )
+            )
+            if level == 0:
+                root_positions = np.union1d(leaf_positions, internal_positions)
+                node_ijk = np.column_stack(
+                    np.unravel_index(root_positions, tuple(level_shape))
+                )
+            else:
+                node_ijk = (
+                    2 * node_ijk[is_internal, np.newaxis, :] + child_offsets[np.newaxis]
+                ).reshape(-1, 3)
+            node_positions = Octree._flat_lattice_indices(node_ijk, level_shape)
+            leaf_locations, is_leaf = Octree._sorted_lookup(
+                leaf_positions, node_positions
+            )
+            _, is_internal = Octree._sorted_lookup(internal_positions, node_positions)
+            if np.any(is_leaf & is_internal):
+                raise ValueError("Cells must not overlap.")
+            if np.any(~is_leaf & ~is_internal):
+                raise ValueError(
+                    "Cells must tile the region covered by the largest cells (each "
+                    "bisected cell must be replaced by all 8 of its octants)."
+                )
+            n_level = node_positions.size
+            next_offset = n_nodes + n_level
+            level_first_child = np.full(n_level, -1, dtype=np.int64)
+            level_first_child[is_internal] = next_offset + 8 * np.arange(
+                np.count_nonzero(is_internal)
+            )
+            level_cell = np.full(n_level, -1, dtype=np.int64)
+            level_cell[is_leaf] = level_cells[leaf_order[leaf_locations[is_leaf]]]
+            first_child.append(level_first_child)
+            node_cell.append(level_cell)
+            node_corner.append(origin + node_ijk * level_size)
+            node_size.append(np.full(n_level, level_size))
+            if level == 0:
+                root_nodes = np.full(np.prod(root_shape), -1, dtype=np.int64)
+                root_nodes[node_positions] = np.arange(n_level)
+            n_nodes = next_offset
+        return _OctreeArrays(
+            origin=origin,
+            root_size=root_size,
+            root_shape=root_shape,
+            root_nodes=root_nodes,
+            first_child=np.concatenate(first_child),
+            node_cell=np.concatenate(node_cell),
+            node_corner=np.ascontiguousarray(np.concatenate(node_corner)),
+            node_size=np.concatenate(node_size),
+            depth=depth,
         )
-    return FindGridIntersectionsResult(
-        intersections=intersections,
-        distances=distances if return_distances else None,
-        cell_indices=cell_indices,
-        strides=strides,
-    )
+
+    @staticmethod
+    def _work_units(
+        octree: _OctreeArrays, n_below: np.ndarray, max_cells: int
+    ) -> np.ndarray:
+        """
+        Divide the cells of a tree into work units that each own the cells below a node.
+
+        Starting from the root nodes, nodes with more than ``max_cells`` cells below them
+        are replaced by their children, so that work is shared out evenly even where cells
+        are concentrated in a few root nodes. Every cell is below exactly one work unit.
+
+        Parameters
+        ----------
+        octree : _OctreeArrays
+            The tree of cells.
+
+        n_below : ~numpy.ndarray
+            Number of cells below each node, see :func:`_cells_below`.
+
+        max_cells : int
+            Largest number of cells below a work unit, unless it is a leaf.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            The node of each work unit, in ascending order.
+        """
+        work_units = octree.root_nodes[octree.root_nodes >= 0]
+        while True:
+            to_split = (octree.first_child[work_units] >= 0) & (
+                n_below[work_units] > max_cells
+            )
+            if not np.any(to_split):
+                return np.sort(work_units)
+            child_nodes = octree.first_child[
+                work_units[to_split], np.newaxis
+            ] + np.arange(8)
+            work_units = np.concatenate((work_units[~to_split], child_nodes.ravel()))
+
+    @staticmethod
+    def _flat_lattice_indices(ijk: np.ndarray, shape: np.ndarray) -> np.ndarray:
+        """
+        Flatten 3D lattice indices into positions on the lattice.
+
+        Parameters
+        ----------
+        ijk : ~numpy.ndarray
+            Lattice indices, shape ``(N, 3)``.
+
+        shape : ~numpy.ndarray
+            Shape of the lattice.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            The flattened lattice positions.
+        """
+        return np.ravel_multi_index(tuple(ijk.T), tuple(shape))
+
+    @staticmethod
+    def _sorted_lookup(
+        sorted_values: np.ndarray, values: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Look up values in a sorted array of values.
+
+        Parameters
+        ----------
+        sorted_values : ~numpy.ndarray
+            Values to search, in ascending order.
+
+        values : ~numpy.ndarray
+            Values to look up.
+
+        Returns
+        -------
+        tuple
+            The location in ``sorted_values`` of each value (meaningful only where found),
+            and whether each value was found.
+        """
+        if sorted_values.size == 0:
+            return np.zeros(values.size, dtype=np.intp), np.zeros(
+                values.size, dtype=bool
+            )
+        locations = np.minimum(
+            np.searchsorted(sorted_values, values), sorted_values.size - 1
+        )
+        return locations, sorted_values[locations] == values

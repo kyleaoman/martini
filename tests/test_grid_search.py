@@ -4,9 +4,8 @@ import pytest
 import numpy as np
 from martini import _grid_search
 from martini._grid_search import (
-    count_cell_tree_intersections,
+    Octree,
     count_grid_intersections,
-    find_cell_tree_intersections,
     find_grid_intersections,
     FindGridIntersectionsResult,
 )
@@ -211,9 +210,12 @@ class TestUniformGridSearch:
         radii = np.empty((0,))
         gs = find_grid_intersections((128, 128), coords, radii)
         assert gs.intersections.shape == (0,)
-        assert gs.distances.shape == (0,)
+        assert gs.distances.shape == (0, 2)
         assert gs.cell_indices.shape == (0,)
         assert gs.strides.shape == (0, 2)
+        # same data types as results with matches:
+        assert gs.intersections.dtype == np.int32
+        assert gs.cell_indices.dtype == gs.strides.dtype == np.int64
 
     @pytest.mark.parametrize("grid_shape", ((37, 64), (24, 20, 16)))
     def test_counts(self, grid_shape: tuple[int, ...]) -> None:
@@ -408,7 +410,7 @@ def _tree_input(
     return coords, radii
 
 
-class TestCellTreeSearch:
+class TestOctreeSearch:
     """Tests of the grid search methods for adaptive (octree) cell grids."""
 
     @pytest.mark.parametrize(
@@ -426,7 +428,7 @@ class TestCellTreeSearch:
         cell_centres, cell_sizes = map(np.array, grid)
         coords, radii = _tree_input(cell_centres, 300, 3.0)
         bf_part, bf_cell, bf_dvec = _brute_force_centres(cell_centres, coords, radii)
-        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        gs = Octree(cell_centres, cell_sizes).find(coords, radii)
         part, cell, dvec = _unpack(gs)
         assert np.array_equal(part, bf_part)
         assert np.array_equal(cell, bf_cell)
@@ -443,6 +445,28 @@ class TestCellTreeSearch:
         assert np.sum(part == 0) == cell_sizes.size
         assert np.unique(part).size < coords.shape[0]
 
+    def test_prebuilt_tree_batches(self) -> None:
+        """Check that searching one tree for batches of coordinates matches one search."""
+        cell_centres, cell_sizes = map(np.array, _bisected_grid())
+        coords, radii = _tree_input(cell_centres, 300, 3.0)
+        octree = Octree(cell_centres, cell_sizes)
+        full_part, full_cell, full_dvec = _unpack(octree.find(coords, radii))
+        full_counts = octree.count(coords, radii)
+        batches = []
+        for start, stop in ((0, 100), (100, 101), (101, 300)):
+            batch = slice(start, stop)
+            gs = octree.find(coords[batch], radii[batch], ncpu=2)
+            part, cell, dvec = _unpack(gs)
+            batches.append((part + start, cell, dvec))
+            assert np.array_equal(
+                octree.count(coords[batch], radii[batch]), full_counts[batch]
+            )
+        # sorted by coordinate (as batches are contiguous), then cell:
+        part, cell, dvec = map(np.concatenate, zip(*batches))
+        assert np.array_equal(part, full_part)
+        assert np.array_equal(cell, full_cell)
+        assert np.array_equal(dvec, full_dvec)
+
     def test_exact_boundary(self) -> None:
         """Check that cells exactly at the search radius are included."""
         cell_centres, cell_sizes = _small_tree_grid()
@@ -451,9 +475,7 @@ class TestCellTreeSearch:
         coord = cell_centres[target] - [0.0, 0.0, 1.0]
         radius = 1.0
         for r, included in ((radius, True), (np.nextafter(radius, 0), False)):
-            gs = find_cell_tree_intersections(
-                cell_centres, cell_sizes, coord[np.newaxis], np.array([r])
-            )
+            gs = Octree(cell_centres, cell_sizes).find(coord[np.newaxis], np.array([r]))
             assert (target in gs.cell_indices) == included
 
     def test_uniform_matches_grid_search(self) -> None:
@@ -462,9 +484,7 @@ class TestCellTreeSearch:
         cell_centres = np.indices(grid_shape).reshape(3, -1).T.astype(float)
         coords, radii = _random_input(grid_shape, 200, 3.0, margin=2)
         expected = find_grid_intersections(grid_shape, coords, radii)
-        gs = find_cell_tree_intersections(
-            cell_centres, np.ones(len(cell_centres)), coords, radii
-        )
+        gs = Octree(cell_centres, np.ones(len(cell_centres))).find(coords, radii)
         for field in ("intersections", "cell_indices", "strides"):
             assert np.array_equal(getattr(gs, field), getattr(expected, field))
         assert np.allclose(gs.distances, expected.distances)
@@ -474,17 +494,20 @@ class TestCellTreeSearch:
         cell_centres, cell_sizes = _small_tree_grid()
         far = (np.array([[20.0, 0.0, 0.0]]), np.array([3.0]))
         for coords, radii in ((np.empty((0, 3)), np.empty(0)), far):
-            gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+            gs = Octree(cell_centres, cell_sizes).find(coords, radii)
             assert gs.intersections.shape == (0,)
-            assert gs.distances.shape == (0,)
+            assert gs.distances.shape == (0, 3)
             assert gs.cell_indices.shape == (0,)
             assert gs.strides.shape == (0, 2)
+            # same data types as results with matches:
+            assert gs.intersections.dtype == np.int32
+            assert gs.cell_indices.dtype == gs.strides.dtype == np.int64
             assert np.array_equal(
-                count_cell_tree_intersections(cell_centres, cell_sizes, coords, radii),
+                Octree(cell_centres, cell_sizes).count(coords, radii),
                 np.zeros(coords.shape[0]),
             )
-            gs = find_cell_tree_intersections(
-                cell_centres, cell_sizes, coords, radii, return_distances=False
+            gs = Octree(cell_centres, cell_sizes).find(
+                coords, radii, return_distances=False
             )
             assert gs.distances is None
 
@@ -492,8 +515,8 @@ class TestCellTreeSearch:
         """Check that counts agree with the number of matches found for each particle."""
         cell_centres, cell_sizes = _bisected_grid()
         coords, radii = _tree_input(cell_centres, 200, 3.0)
-        counts = count_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
-        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        counts = Octree(cell_centres, cell_sizes).count(coords, radii)
+        gs = Octree(cell_centres, cell_sizes).find(coords, radii)
         assert np.array_equal(
             counts, np.bincount(gs.intersections, minlength=coords.shape[0])
         )
@@ -502,9 +525,9 @@ class TestCellTreeSearch:
         """Check that skipping the distances leaves the other results unchanged."""
         cell_centres, cell_sizes = _bisected_grid()
         coords, radii = _tree_input(cell_centres, 100, 3.0)
-        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
-        gs_nodist = find_cell_tree_intersections(
-            cell_centres, cell_sizes, coords, radii, return_distances=False
+        gs = Octree(cell_centres, cell_sizes).find(coords, radii)
+        gs_nodist = Octree(cell_centres, cell_sizes).find(
+            coords, radii, return_distances=False
         )
         assert gs_nodist.distances is None
         for field in ("intersections", "cell_indices", "strides"):
@@ -515,9 +538,7 @@ class TestCellTreeSearch:
         cell_centres, cell_sizes = _bisected_grid(depth=4)
         coords, radii = _tree_input(cell_centres, 300, 3.0)
         results = [
-            find_cell_tree_intersections(
-                cell_centres, cell_sizes, coords, radii, ncpu=ncpu
-            )
+            Octree(cell_centres, cell_sizes).find(coords, radii, ncpu=ncpu)
             for ncpu in (1, 3)
         ]
         for a, b in zip(*results):
@@ -539,10 +560,10 @@ class TestCellTreeSearch:
         division of work.
         """
         cell_centres, cell_sizes = _bisected_grid(depth=4)
-        tree = _grid_search._build_cell_tree(cell_centres, cell_sizes)
+        tree = Octree._build_octree(cell_centres, cell_sizes)
         n_below = _grid_search._cells_below(tree.first_child, tree.node_cell)
         assert n_below[tree.root_nodes[tree.root_nodes >= 0]].sum() == cell_sizes.size
-        work_units = _grid_search._work_units(tree, n_below, max_cells)
+        work_units = Octree._work_units(tree, n_below, max_cells)
         assert np.all(np.diff(work_units) > 0)
         cells = []
         for work_unit in work_units:
@@ -561,9 +582,7 @@ class TestCellTreeSearch:
         """Check that distances have the requested dtype."""
         cell_centres, cell_sizes = _small_tree_grid()
         coords, radii = _tree_input(cell_centres, 50, 3.0)
-        gs = find_cell_tree_intersections(
-            cell_centres, cell_sizes, coords, radii, dist_dtype=dist_dtype
-        )
+        gs = Octree(cell_centres, cell_sizes).find(coords, radii, dist_dtype=dist_dtype)
         assert gs.distances.dtype == dist_dtype
 
     @pytest.mark.parametrize(
@@ -598,34 +617,37 @@ class TestCellTreeSearch:
         elif change == "deep":  # a tiny cell at the corner of a size-0.5 cell
             cell_centres[-1] += 2.0**-41 - 0.25
             cell_sizes[-1] = 2.0**-40
-        coords, radii = np.zeros((1, 3)), np.ones(1)
         with pytest.raises(ValueError, match=message):
-            find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
-        with pytest.raises(ValueError, match=message):
-            count_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+            Octree(cell_centres, cell_sizes)
 
     def test_input_validation(self) -> None:
         """Check that inconsistent inputs are rejected."""
         cell_centres, cell_sizes = _small_tree_grid()
         coords, radii = _tree_input(cell_centres, 5, 2.0)
-        bad_inputs = (
-            ((cell_centres[:, :2], cell_sizes, coords, radii), "cell_centres must"),
-            ((cell_centres, cell_sizes[:-1], coords, radii), "cell_sizes must"),
-            ((cell_centres, cell_sizes, coords[:, :2], radii), "coords must"),
-            ((cell_centres, cell_sizes, coords, radii[:-1]), "radii must"),
+        bad_cells = (
+            ((cell_centres[:, :2], cell_sizes), "cell_centres must"),
+            ((cell_centres, cell_sizes[:-1]), "cell_sizes must"),
         )
-        for args, message in bad_inputs:
+        for args, message in bad_cells:
             with pytest.raises(ValueError, match=message):
-                find_cell_tree_intersections(*args)
+                Octree(*args)
+        octree = Octree(cell_centres, cell_sizes)
+        bad_searches = (
+            ((coords[:, :2], radii), "coords must"),
+            ((coords, radii[:-1]), "radii must"),
+        )
+        for args, message in bad_searches:
             with pytest.raises(ValueError, match=message):
-                count_cell_tree_intersections(*args)
+                octree.find(*args)
+            with pytest.raises(ValueError, match=message):
+                octree.count(*args)
 
     def test_without_numba_threads(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Check that the search runs without numba thread control."""
         cell_centres, cell_sizes = _bisected_grid()
         coords, radii = _tree_input(cell_centres, 50, 3.0)
-        expected = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        expected = Octree(cell_centres, cell_sizes).find(coords, radii)
         monkeypatch.setattr(_grid_search, "NUMBA_AVAILABLE", False)
-        gs = find_cell_tree_intersections(cell_centres, cell_sizes, coords, radii)
+        gs = Octree(cell_centres, cell_sizes).find(coords, radii)
         for a, b in zip(gs, expected):
             assert np.array_equal(a, b)
