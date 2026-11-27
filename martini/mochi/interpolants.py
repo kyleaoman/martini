@@ -874,8 +874,8 @@ def _scatter_mem_estimate(
       8B).
     - Per cell, during the whole scatter: copies of positions, sizes and volumes, the
       accumulated quantities and the kernel totals (``2*q*8B + 32B``, measured ~75B for
-      ``q=4``). On adaptive grids, also the tree of cells (~55B, allow 64B), which
-      covers the temporary arrays needed to build it (~200B in all).
+      ``q=4``). The tree of cells of adaptive grids is held by the cell grid, and is not
+      included.
 
     Parameters
     ----------
@@ -907,7 +907,7 @@ def _scatter_mem_estimate(
     segment_overhead_mem_estimate = (80 if adaptive else 8) * n_cells / 1024**3  # GB
     scatter_baseline_mem_estimate = (
         pair_counts.size * (n_quantities * 8 + 64)
-        + n_cells * (2 * n_quantities * 8 + 32 + (64 if adaptive else 0))
+        + n_cells * (2 * n_quantities * 8 + 32)
     ) / 1024**3  # GB
     return (
         batch_mem_estimate,

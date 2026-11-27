@@ -13,8 +13,10 @@ from martini.sph_kernels import (
 )
 import astropy.units as U
 from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
+from martini.mochi.cell_grid import _distinct_nbytes
 from martini.mochi import interpolants as module_interpolants
 from martini.mochi import refinement
+from martini.mochi import radiative_transfer as module_radiative_transfer
 from martini.mochi._dtypes import CELL_DTYPE
 from martini._grid_search import Octree
 from martini.mochi.radiative_transfer import (
@@ -345,6 +347,40 @@ class TestAdaptiveCellGridUtils:
         )
         assert np.array_equal(refinement._octree_cells(tree), cells)
 
+    @pytest.mark.parametrize("strategy", refinement_strategies)
+    def test_mem_allowance(self, monkeypatch, strategy):
+        """
+        Check that refinement stops before it would exceed its memory allowance.
+
+        The estimate is checked before each new level, so an allowance just below the
+        largest estimate stops the refinement at the deepest level, and an allowance
+        that fits gives the same tree as no limit.
+        """
+        cells = _initial_cells((3, 4, 2), 2.0)
+        rng = np.random.default_rng(1)
+        positions = rng.normal((3, 4, 2), 1.0, (100, 3))
+        radii = rng.uniform(0.1, 1.5, 100)
+        estimates = []
+        estimate = refinement._refinement_mem_estimate
+
+        def record_estimate(*args):
+            estimates.append(estimate(*args))
+            return estimates[-1]
+
+        monkeypatch.setattr(refinement, "_refinement_mem_estimate", record_estimate)
+        tree = strategy(cells, positions, radii, 4)
+        depth = tree._octree.depth
+        assert len(estimates) == depth  # once per level built below the initial cells
+        assert np.all(np.diff(estimates) > 0)
+        fitting = strategy(cells, positions, radii, 4, mem_allowance_GB=max(estimates))
+        assert np.array_equal(
+            refinement._octree_cells(fitting), refinement._octree_cells(tree)
+        )
+        with pytest.raises(RuntimeError, match=f"to refine to depth {depth} "):
+            strategy(
+                cells, positions, radii, 4, mem_allowance_GB=0.999 * max(estimates)
+            )
+
     @pytest.mark.parametrize(
         "change, message",
         (
@@ -422,6 +458,62 @@ class TestAdaptiveCellGrid:
         )
         assert grid.adaptive_cells.dtype == CELL_DTYPE
 
+    def test_mem_usage(self, many_particle_source, dc_zeros):
+        """
+        Check the memory held by the cell grid as it is refined and interpolated onto.
+
+        Arrays sharing memory (``initial_cells`` is ``cells``) are counted once.
+        """
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges(ndim=3)
+        grid = AdaptiveCellGrid(source, datacube, self.los_region, self.grid_shape)
+        grid.init_particle_locations(source, sph_kernel)
+        initial = [
+            grid.cells,
+            grid.cell_centres,
+            grid.cell_volumes,
+            grid.cell_distances,
+            grid.cell_distortion_corrections,
+            grid.positions,
+            grid.radii,
+        ]
+        assert grid.initial_cells is grid.cells
+        assert grid._mem_usage_GB() * 1024**3 == sum(a.nbytes for a in initial)
+        grid.eval_grid_refinement(
+            source, datacube, refinement.refine_grid_to_half_particle_scale
+        )
+        refined = [
+            grid.adaptive_cells,
+            grid.adaptive_cell_centres,
+            grid.adaptive_cell_volumes,
+            grid.adaptive_cell_distances,
+            grid.adaptive_cell_distortion_corrections,
+            grid.octree.cell_centres,
+            grid.octree.cell_sizes,
+            grid.octree._n_below,
+            *(a for a in grid.octree._octree if isinstance(a, np.ndarray)),
+        ]
+        assert grid._mem_usage_GB() * 1024**3 == sum(
+            a.nbytes for a in initial + refined
+        )
+        grid.interpolate_fields(source, sph_kernel, module_interpolants.sph)
+        fields = list(grid.interpolated_fields.values())
+        assert grid._mem_usage_GB() * 1024**3 == sum(
+            a.nbytes for a in initial + refined + fields
+        )
+
+    def test_distinct_nbytes(self):
+        """Check that memory shared by several arrays is counted once."""
+        a = np.zeros(100)
+        b = np.zeros(10, dtype=np.int32)
+        assert _distinct_nbytes([a, a[10:20], a.view(np.int64)[::2], b, b]) == 840
+        assert _distinct_nbytes([(a * U.pix)[5:], U.Quantity(a, copy=False)]) == 1600
+
     @pytest.mark.parametrize("emits_tree", (True, False))
     def test_octree(self, monkeypatch, many_particle_source, dc_zeros, emits_tree):
         """
@@ -457,7 +549,7 @@ class TestAdaptiveCellGrid:
             built.append(self)
             init(self, *args)
 
-        def cells_strategy(cells, positions, radii, ncpu=1):
+        def cells_strategy(cells, positions, radii, ncpu=1, mem_allowance_GB=np.inf):
             """
             Refine cells, returning them as an array.
 
@@ -475,6 +567,9 @@ class TestAdaptiveCellGrid:
             ncpu : int, optional
                 Number of threads.
 
+            mem_allowance_GB : float, optional
+                Memory allowance, in GB.
+
             Returns
             -------
             ~numpy.ndarray
@@ -482,7 +577,11 @@ class TestAdaptiveCellGrid:
             """
             return refinement._octree_cells(
                 refinement.refine_grid_to_half_particle_scale(
-                    cells, positions, radii, ncpu=ncpu
+                    cells,
+                    positions,
+                    radii,
+                    ncpu=ncpu,
+                    mem_allowance_GB=mem_allowance_GB,
                 )
             )
 
@@ -782,7 +881,7 @@ class TestAdaptiveCellGrid:
             grid.init_particle_locations(source, sph_kernel)
             # leave the cells unrefined:
             grid.eval_grid_refinement(
-                source, datacube, lambda cells, positions, radii, ncpu: cells
+                source, datacube, lambda cells, positions, radii, **kwargs: cells
             )
             cells = grid.adaptive_cells
         else:
@@ -876,9 +975,9 @@ class TestAdaptiveCellGrid:
         grid.eval_grid_refinement(
             source,
             datacube,
-            lambda cells, positions, radii, ncpu: (
+            lambda cells, positions, radii, **kwargs: (
                 refinement.refine_grid_to_single_occupancy(
-                    cells, points, stop_iter=3, ncpu=ncpu
+                    cells, points, stop_iter=3, **kwargs
                 )
             ),
             ncpu=ncpu,
@@ -2121,24 +2220,43 @@ class TestMochi:
         m = make_mochi()
         with pytest.raises(RuntimeError, match="less than estimated baseline"):
             m.insert_source_in_cube(mem_lim_GB=m.baseline_mem_estimate / 2)
+        # only the interpolation is limited here:
+        monkeypatch.setattr(refinement, "_refinement_mem_estimate", lambda *args: 0.0)
+        monkeypatch.setattr(
+            module_radiative_transfer,
+            "_radiative_transfer_mem_estimate",
+            lambda footprints, *args: (np.zeros(footprints.size), 0.0, 0.0),
+        )
         m = make_mochi()
-        estimates = []
+        estimates, allowances = [], []
         estimate = module_interpolants._scatter_mem_estimate
+        plan = module_interpolants._plan_scatter_segments
 
         def record_estimate(*args):
             estimates.append(estimate(*args))
             return estimates[-1]
 
+        def record_allowance(*args):
+            allowances.append(args[-1])
+            return plan(*args)
+
         monkeypatch.setattr(
             module_interpolants, "_scatter_mem_estimate", record_estimate
         )
-        m.insert_source_in_cube()  # default limit: all at once
+        monkeypatch.setattr(
+            module_interpolants, "_plan_scatter_segments", record_allowance
+        )
+        default_mem_lim_GB = 4.0
+        m.insert_source_in_cube(mem_lim_GB=default_mem_lim_GB)  # all at once
         per_particle, per_batch, fixed = estimates[0]
         allowance = fixed + per_batch + max(per_particle.max(), per_particle.sum() / 2)
+        # the cell grid counts towards the limit:
+        grid_mem_GB = default_mem_lim_GB - m.baseline_mem_estimate - allowances[0]
+        assert grid_mem_GB > 0
         m_batched = make_mochi()
         with pytest.warns(RuntimeWarning, match="Processing in batches"):
             m_batched.insert_source_in_cube(
-                mem_lim_GB=m_batched.baseline_mem_estimate + allowance
+                mem_lim_GB=m_batched.baseline_mem_estimate + grid_mem_GB + allowance
             )
         assert U.allclose(
             m_batched.datacube._array,
@@ -2146,6 +2264,25 @@ class TestMochi:
             rtol=1e-10,
             atol=1e-12 * np.abs(m.datacube._array).max(),
         )
+
+    def test_mem_lim_refinement(self, many_particle_source, dc_zeros):
+        """Check that refinement stops with an error if the memory limit is too low."""
+        m = Mochi(
+            source=many_particle_source(hsm_g=0.5 * U.kpc),
+            datacube=dc_zeros.copy(),
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=DiracDeltaSpectrum(),
+            los_depth=self.los_depth,
+            interpolant=module_interpolants.mfm,
+            quiet=True,
+        )
+        cell_grid = m._make_cell_grid()
+        cell_grid.init_particle_locations(m.source, m.sph_kernel)
+        initial_grid_mem_GB = cell_grid._mem_usage_GB()
+        with pytest.raises(RuntimeError, match="refining the cell grid"):
+            m.insert_source_in_cube(
+                mem_lim_GB=m.baseline_mem_estimate + 1.01 * initial_grid_mem_GB
+            )
 
 
 def check_inserted_mass_accuracy(m, expected_fraction=1.0):

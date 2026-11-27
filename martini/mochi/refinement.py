@@ -293,6 +293,42 @@ def _root_lattice(
     return corners, origin, root_size, root_shape, root_nodes
 
 
+def _refinement_mem_estimate(
+    n_nodes: int, n_candidates: int, n_particles: int
+) -> float:
+    """
+    Estimate the peak memory needed to refine a cell grid to a number of tree nodes.
+
+    Estimated as:
+
+    - Per node of the tree, the arrays describing the tree and the cells (corners,
+      sizes, centres), and the arrays that
+      :class:`~martini.mochi.cell_grid.AdaptiveCellGrid` derives from them (volumes,
+      distances, distortion corrections), with their temporaries (measured ~250B, allow
+      300B).
+    - Per candidate particle of the cells being refined, its index (8B).
+    - Per particle, copies of its position and radius and the search for the cells near
+      it (allow 48B).
+
+    Parameters
+    ----------
+    n_nodes : int
+        Number of nodes in the tree.
+
+    n_candidates : int
+        Number of candidate particles held for the cells being refined.
+
+    n_particles : int
+        Number of particles.
+
+    Returns
+    -------
+    float
+        The estimated memory, in GB.
+    """
+    return (300 * n_nodes + 8 * n_candidates + 48 * n_particles) / 1024**3
+
+
 def _refine(
     criterion: int,
     max_count: int,
@@ -301,6 +337,7 @@ def _refine(
     radii: np.ndarray,
     stop_iter: int,
     ncpu: int,
+    mem_allowance_GB: float,
 ) -> Octree:
     """
     Start from a uniform grid, bisect cells until none meet a criterion.
@@ -337,10 +374,20 @@ def _refine(
     ncpu : int
         Number of threads to use.
 
+    mem_allowance_GB : float
+        Memory available to refine the grid, in GB. Before building each level of the
+        tree, its memory is estimated (see :func:`_refinement_mem_estimate`), and the
+        refinement stops with an error if it would exceed the allowance.
+
     Returns
     -------
     ~martini._grid_search.Octree
         The tree of the refined cells.
+
+    Raises
+    ------
+    RuntimeError
+        If refining further would exceed the memory allowance.
     """
     corners, origin, root_size, root_shape, root_nodes = _root_lattice(cells)
     positions = np.ascontiguousarray(positions, dtype=np.float64).reshape(-1, 3)
@@ -406,6 +453,19 @@ def _refine(
                 break
             offsets = np.zeros(n_level + 1, dtype=np.int64)
             offsets[1:] = np.cumsum(np.where(bisect, counts, 0))
+            mem_estimate = _refinement_mem_estimate(
+                n_nodes + 8 * n_bisect, candidates.size + offsets[-1], radii.size
+            )
+            if mem_estimate > mem_allowance_GB:
+                raise RuntimeError(
+                    "Memory allowance for refining the cell grid "
+                    f"({mem_allowance_GB:.2f} GB) is insufficient to refine to depth "
+                    f"{level + 1} (estimated memory required: {mem_estimate:.2f} GB, "
+                    f"with {n_nodes + 8 * n_bisect} tree nodes). Increase `mem_lim_GB` "
+                    "(the allowance is what remains of it after the estimated baseline "
+                    "memory and the cell grid), or limit the refinement (e.g. its "
+                    "`stop_iter`)."
+                )
             kept = np.empty(offsets[-1], dtype=candidates.dtype)
             _fill_kept(
                 criterion,
@@ -481,6 +541,7 @@ def refine_grid_to_single_occupancy(
     radii: np.ndarray | None = None,
     stop_iter: int = 8,
     ncpu: int = 1,
+    mem_allowance_GB: float = np.inf,
 ) -> Octree:
     """
     From a coarse grid, refine until no cells contain more than two nearby particles.
@@ -509,10 +570,18 @@ def refine_grid_to_single_occupancy(
         Number of threads to use (if :mod:`numba` is available). A value of ``-1`` means
         as many threads as available cores.
 
+    mem_allowance_GB : float, optional
+        Memory available to refine the grid, in GB. This is a "soft" limit.
+
     Returns
     -------
     ~martini._grid_search.Octree
         The tree of the refined cell grid.
+
+    Raises
+    ------
+    RuntimeError
+        If refining further would exceed the memory allowance.
     """
     positions = np.asarray(positions).reshape(-1, 3)
     return _refine(
@@ -523,6 +592,7 @@ def refine_grid_to_single_occupancy(
         np.zeros(positions.shape[0]),
         stop_iter,
         resolve_ncpu(ncpu),
+        mem_allowance_GB,
     )
 
 
@@ -532,6 +602,7 @@ def refine_grid_to_half_particle_scale(
     radii: np.ndarray,
     stop_iter: int = 8,
     ncpu: int = 1,
+    mem_allowance_GB: float = np.inf,
 ) -> Octree:
     """
     Refine until cells are smaller than the half radius of intersecting particles.
@@ -560,11 +631,26 @@ def refine_grid_to_half_particle_scale(
         Number of threads to use (if :mod:`numba` is available). A value of ``-1`` means
         as many threads as available cores.
 
+    mem_allowance_GB : float, optional
+        Memory available to refine the grid, in GB. This is a "soft" limit.
+
     Returns
     -------
     ~martini._grid_search.Octree
         The tree of the refined cell grid.
+
+    Raises
+    ------
+    RuntimeError
+        If refining further would exceed the memory allowance.
     """
     return _refine(
-        _HALF_PARTICLE_SCALE, 0, cells, positions, radii, stop_iter, resolve_ncpu(ncpu)
+        _HALF_PARTICLE_SCALE,
+        0,
+        cells,
+        positions,
+        radii,
+        stop_iter,
+        resolve_ncpu(ncpu),
+        mem_allowance_GB,
     )

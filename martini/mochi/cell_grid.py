@@ -16,6 +16,31 @@ from martini._grid_search import Octree
 from martini.mochi.refinement import _octree_cells
 
 
+def _distinct_nbytes(arrays: list[np.ndarray]) -> int:
+    """
+    Add up the memory of arrays, counting memory shared by several arrays once.
+
+    Arrays that are views of another array are counted as the array that owns their
+    memory.
+
+    Parameters
+    ----------
+    arrays : list
+        The arrays.
+
+    Returns
+    -------
+    int
+        The memory of the arrays, in bytes.
+    """
+    owners = {}
+    for array in arrays:
+        while isinstance(array.base, np.ndarray):
+            array = array.base
+        owners[id(array)] = array
+    return sum(array.nbytes for array in owners.values())
+
+
 def _pixel_solid_angle_ratio(
     datacube: DataCube, pix: np.ndarray, h: float = 0.01
 ) -> np.ndarray:
@@ -325,6 +350,36 @@ class CellGrid:
         )
         return
 
+    def _arrays(self) -> list[np.ndarray]:
+        """
+        List the arrays held by the cell grid.
+
+        Returns
+        -------
+        list
+            The array attributes of the grid and the interpolated fields.
+        """
+        return [
+            value for value in vars(self).values() if isinstance(value, np.ndarray)
+        ] + [
+            value
+            for value in getattr(self, "interpolated_fields", {}).values()
+            if isinstance(value, np.ndarray)
+        ]
+
+    def _mem_usage_GB(self) -> float:
+        """
+        Get the memory held by the arrays of the cell grid.
+
+        Memory shared by several arrays (e.g. views) is counted once.
+
+        Returns
+        -------
+        float
+            The memory, in GB.
+        """
+        return _distinct_nbytes(self._arrays()) / 1024**3
+
     @property
     def field_positions(self) -> U.Quantity[U.pix]:
         """
@@ -550,6 +605,7 @@ class AdaptiveCellGrid(CellGrid):
         datacube: DataCube,
         refinement_strategy: Callable[..., Octree | np.ndarray],
         ncpu: int = 1,
+        mem_allowance_GB: float = np.inf,
     ) -> None:
         """
         Walk the initial cell grid and refine where required to make an adaptive grid.
@@ -567,8 +623,9 @@ class AdaptiveCellGrid(CellGrid):
         refinement_strategy : Callable
             The method to decide and apply the refinement criterion. It is called with
             the initial cells, and the particle positions and radii (smoothing ranges) in
-            pixels, and the keyword argument ``ncpu``, the number of threads that it may
-            use. It returns the refined cells, either as an
+            pixels, and the keyword arguments ``ncpu``, the number of threads that it may
+            use, and ``mem_allowance_GB``, the memory that it may use (in GB). It returns
+            the refined cells, either as an
             :class:`~martini._grid_search.Octree` (as the strategies in
             :mod:`~martini.mochi.refinement` do), which is then reused to search the
             cells, or as an array like ``initial_cells``, from which a tree is built when
@@ -577,12 +634,16 @@ class AdaptiveCellGrid(CellGrid):
         ncpu : int, optional
             Number of threads passed to ``refinement_strategy``. A value of ``-1`` means
             as many threads as available cores.
+
+        mem_allowance_GB : float, optional
+            Memory allowance passed to ``refinement_strategy``, in GB.
         """
         refined = refinement_strategy(
             self.initial_cells,
             self.positions.to_value(U.pix),
             self.radii.to_value(U.pix),
             ncpu=ncpu,
+            mem_allowance_GB=mem_allowance_GB,
         )
         if isinstance(refined, Octree):
             self.adaptive_cells = _octree_cells(refined)
@@ -654,6 +715,24 @@ class AdaptiveCellGrid(CellGrid):
             Adaptive cells do not form a uniform grid.
         """
         return None
+
+    def _arrays(self) -> list[np.ndarray]:
+        """
+        List the arrays held by the cell grid, including its tree if built.
+
+        Returns
+        -------
+        list
+            The array attributes of the grid and of its tree, and the interpolated fields.
+        """
+        arrays = super()._arrays()
+        if self._octree is not None:
+            arrays += [
+                value
+                for value in (*vars(self._octree).values(), *self._octree._octree)
+                if isinstance(value, np.ndarray)
+            ]
+        return arrays
 
     @property
     def octree(self) -> Octree:

@@ -476,8 +476,9 @@ class Mochi(Martini):
             processed in batches if the estimated memory usage of the interpolation onto
             the cell grid would exceed this limit (in GB), and the radiative transfer
             (e.g. :func:`~martini.mochi.radiative_transfer.optically_thin`) processes the
-            cells in batches likewise. Batches slow down the code. This is a "soft"
-            limit, and the refinement of the cell grid is not yet included.
+            cells in batches likewise. Batches slow down the code. The refinement of the
+            cell grid stops with an error if it would exceed the limit. The memory held
+            by the cell grid counts towards the limit. This is a "soft" limit.
         """
         # need to revise irrelevant (?) arguments: skip_validation, progressbar
         # TODO: resolution checks. Kernels are point-sampled at cell centres, so accuracy
@@ -499,12 +500,25 @@ class Mochi(Martini):
         self.sph_kernel._init_sm_ranges(ndim=self._kernel_ndim)
         cell_grid = self._make_cell_grid()
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
+
+        def mem_allowance_GB() -> float:
+            """
+            Get the memory available to the next step, after the baseline and cell grid.
+
+            Returns
+            -------
+            float
+                The memory allowance, in GB.
+            """
+            return mem_lim_GB - self.baseline_mem_estimate - cell_grid._mem_usage_GB()
+
         if hasattr(cell_grid, "eval_grid_refinement"):
             cell_grid.eval_grid_refinement(
                 self.source,
                 self._datacube,
                 self.refinement_strategy,
                 ncpu=resolve_ncpu(ncpu),
+                mem_allowance_GB=mem_allowance_GB(),
             )
         interpolant_kwargs: dict[str, int | bool | float] = {}
         if self.interpolant in (
@@ -515,9 +529,11 @@ class Mochi(Martini):
             interpolant_kwargs["ncpu"] = resolve_ncpu(ncpu)
         if self.interpolant in (interpolants.sph, interpolants.mfm):
             interpolant_kwargs["compiled"] = self._numba_enabled
-            interpolant_kwargs["mem_allowance_GB"] = (
-                mem_lim_GB - self.baseline_mem_estimate
-            )
+            if isinstance(cell_grid, AdaptiveCellGrid):
+                # build the tree to search (unless the refinement already did), so that
+                # it is counted with the cell grid:
+                cell_grid.octree
+            interpolant_kwargs["mem_allowance_GB"] = mem_allowance_GB()
         cell_grid.interpolate_fields(
             self.source, self.sph_kernel, self.interpolant, **interpolant_kwargs
         )
@@ -527,7 +543,7 @@ class Mochi(Martini):
             self.spectral_model,
             self.radiative_transfer,
             ncpu=resolve_ncpu(ncpu),
-            mem_allowance_GB=mem_lim_GB - self.baseline_mem_estimate,
+            mem_allowance_GB=mem_allowance_GB(),
         )
         # can the unit conversion be merged with martini?
         datacube_array /= np.abs(np.diff(self._datacube.velocity_channel_edges)).to(
