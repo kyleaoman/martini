@@ -17,7 +17,11 @@ from martini.mochi import interpolants as module_interpolants
 from martini.mochi import refinement
 from martini.mochi._dtypes import CELL_DTYPE
 from martini._grid_search import Octree
-from martini.mochi.radiative_transfer import optically_thin, _los_overlap
+from martini.mochi.radiative_transfer import (
+    optically_thin,
+    _los_overlap,
+    calculate_field_spectrum,
+)
 import pytest
 import numpy as np
 import itertools
@@ -744,8 +748,9 @@ class TestAdaptiveCellGrid:
             ("uniform 0.5px", {2: 0, 3: 1, 19: 0.5, 20: 0}),
         ),
     )
+    @pytest.mark.parametrize("ncpu", (1, 2))
     def test_radiative_transfer_excludes_beyond_region(
-        self, many_particle_source, dc_zeros, grid_kind, layer_weights
+        self, many_particle_source, dc_zeros, grid_kind, layer_weights, ncpu
     ):
         """
         Check that only the mass within the region along the LoS reaches the cube.
@@ -797,9 +802,9 @@ class TestAdaptiveCellGrid:
                 "temperatures": np.ones(n_cells) * U.km**2 / U.s**2,
             }
             grid.los_region = full_region
-            cube_full = optically_thin(grid, datacube, DiracDeltaSpectrum())
+            cube_full = optically_thin(grid, datacube, DiracDeltaSpectrum(), ncpu=ncpu)
             grid.los_region = self.los_region
-            cube = optically_thin(grid, datacube, DiracDeltaSpectrum())
+            cube = optically_thin(grid, datacube, DiracDeltaSpectrum(), ncpu=ncpu)
             assert cube_full.sum() > 0
             assert U.allclose(cube, weight * cube_full, atol=0 * cube_full.unit)
 
@@ -826,6 +831,106 @@ class TestAdaptiveCellGrid:
             cubes.append(optically_thin(grid, datacube, DiracDeltaSpectrum()))
         assert cubes[0].shape == cubes[1].shape
         assert U.isclose(cubes[1].sum(), cubes[0].sum(), rtol=1e-3)
+
+    @pytest.mark.parametrize("ncpu", (1, 2))
+    def test_radiative_transfer_matches_loop(
+        self, many_particle_source, dc_zeros, ncpu
+    ):
+        """
+        Check the cube of a refined grid against adding one cell at a time.
+
+        The LoS region cuts through cells, so some contribute part of their mass. The
+        spectra of the cells are added to each pixel in the same order, so the cubes are
+        identical.
+        """
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges(ndim=3)
+        grid = AdaptiveCellGrid(
+            source,
+            datacube,
+            self.los_region,
+            (self.n_px_z // 2, 16, 16),
+            initial_cell_size=2,
+        )
+        grid.init_particle_locations(source, sph_kernel)
+        # refine around clustered points (the particles of the source are too smooth):
+        initial = grid.initial_cells
+        corners = np.column_stack([initial[axis] for axis in "xyz"])
+        extent = corners.max(axis=0) + 2 - corners.min(axis=0)
+        rng = np.random.default_rng(0)
+        points = rng.normal(corners.min(axis=0) + extent / 2, extent / 8, (300, 3))
+        grid.eval_grid_refinement(
+            source,
+            datacube,
+            lambda cells, positions, radii, ncpu: (
+                refinement.refine_grid_to_single_occupancy(
+                    cells, points, stop_iter=3, ncpu=ncpu
+                )
+            ),
+            ncpu=ncpu,
+        )
+        cells = grid.adaptive_cells
+        assert np.unique(cells["size"]).size > 2  # cells larger and smaller than pixels
+        channels = datacube.velocity_channel_edges.to_value(U.km / U.s)
+        grid.interpolated_fields = {
+            "masses_HI": rng.uniform(0, 1, len(cells)) * U.Msun / U.pix**3,
+            "velocities": rng.uniform(channels.min(), channels.max(), len(cells))
+            * U.km
+            / U.s,
+            "temperatures": rng.uniform(1, 100, len(cells)) * U.km**2 / U.s**2,
+        }
+        spectral_model = GaussianSpectrum()
+        spectral_model.spec_dtype = np.float64
+        cube = optically_thin(grid, datacube, spectral_model, ncpu=ncpu)
+        # reference: add the spectrum of one cell at a time to the pixels it covers
+        field_spectra = calculate_field_spectrum(
+            grid,
+            datacube,
+            spectral_model,
+            grid.adaptive_cell_volumes,
+            grid.adaptive_cell_distortion_corrections,
+            grid.adaptive_cell_distances,
+        )
+        begin = np.floor(np.column_stack([cells["y"], cells["z"]]) + 0.5).astype(int)
+        end = np.ceil(
+            np.column_stack([cells["y"], cells["z"]]) + 0.5 + cells["size"][:, None]
+        ).astype(int)
+        field_spectra = (field_spectra / np.prod(end - begin, axis=1)).value
+        expected = np.zeros((field_spectra.shape[0], *datacube.datacube_shape[:2]))
+        for i in range(len(cells)):
+            weight = 1.0
+            if (
+                cells["x"][i] < self.los_region[0]
+                or cells["x"][i] + cells["size"][i] > self.los_region[1]
+            ):
+                weight = _los_overlap(cells["x"][i], cells["size"][i], *self.los_region)
+                if weight == 0:
+                    continue
+            expected[:, begin[i, 0] : end[i, 0], begin[i, 1] : end[i, 1]] += (
+                weight * field_spectra[:, i, None, None]
+            )
+        assert expected.sum() > 0
+        assert np.array_equal(cube.value, np.flip(np.moveaxis(expected, 1, 2), axis=2))
+
+    def test_radiative_transfer_misaligned(self, many_particle_source, dc_zeros):
+        """Check that cells not aligned with the pixel grid are rejected."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        grid = CellGrid(source, datacube, self.los_region, (self.n_px_z // 2, 16, 16))
+        grid.cells["y"] += 0.5
+        n_cells = len(grid.cells)
+        grid.interpolated_fields = {
+            "masses_HI": np.ones(n_cells) * U.Msun / U.pix**3,
+            "velocities": np.zeros(n_cells) * U.km / U.s,
+            "temperatures": np.ones(n_cells) * U.km**2 / U.s**2,
+        }
+        with pytest.raises(RuntimeError, match="not aligned with pixel grid"):
+            optically_thin(grid, datacube, DiracDeltaSpectrum())
 
 
 def _uniform_test_grid(shape=(6, 5, 4), size=1.0):

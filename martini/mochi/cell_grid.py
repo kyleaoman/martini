@@ -442,6 +442,7 @@ class CellGrid:
         datacube: DataCube,
         spectral_model: _BaseSpectrum,
         radiative_transfer: Callable,  # fill in arg & return types
+        ncpu: int = 1,
     ) -> U.Quantity[U.Msun / U.Mpc**2]:
         """
         "Collapse" the cell grid into a spectral cube.
@@ -461,7 +462,13 @@ class CellGrid:
             Function that evaluates a mock spectral cube (of mass divided by distance
             squared in each pixel-channel cell). E.g.
             :func:`~martini.mochi.radiative_transfer.optically_thin`, can be found in the
-            :mod:`~martini.mochi.radiative_transfer` module.
+            :mod:`~martini.mochi.radiative_transfer` module. It is called with the cell
+            grid, ``datacube`` and ``spectral_model``, and the keyword argument ``ncpu``,
+            the number of threads that it may use.
+
+        ncpu : int, optional
+            Number of threads passed to ``radiative_transfer``. A value of ``-1`` means
+            as many threads as available cores.
 
         Returns
         -------
@@ -474,6 +481,7 @@ class CellGrid:
             self,
             datacube,
             spectral_model,
+            ncpu=ncpu,
         )
 
 

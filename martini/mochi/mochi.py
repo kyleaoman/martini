@@ -144,7 +144,9 @@ class Mochi(Martini):
         squared in each pixel-channel cell). E.g.
         :func:`~martini.mochi.radiative_transfer.optically_thin`, can be found in the
         :mod:`~martini.mochi.radiative_transfer` module. If omitted, the optically thin
-        method is adopted.
+        method is adopted. See
+        :meth:`~martini.mochi.cell_grid.CellGrid.eval_radiative_transfer` for the
+        expected call signature.
 
     refinement_strategy : Callable, optional
         Function that decides and applies the grid refinement criterion. E.g.
@@ -193,7 +195,7 @@ class Mochi(Martini):
         los_depth: U.Quantity[U.kpc],
         interpolant: Callable,  # fill in arg & return types
         radiative_transfer: Callable[
-            [CellGrid, DataCube, _BaseSpectrum, type], U.Quantity[U.Msun / U.Mpc**2]
+            ..., U.Quantity[U.Msun / U.Mpc**2]
         ] = optically_thin,
         refinement_strategy: Callable[
             ..., Octree | np.ndarray
@@ -463,8 +465,8 @@ class Mochi(Martini):
 
         ncpu : int
             Number of threads to use in compiled code (requires :mod:`numba`) to refine
-            the cell grid and interpolate particles onto it. A value of ``-1`` means as
-            many threads as available cores.
+            the cell grid, interpolate particles onto it and assemble the cube. A value
+            of ``-1`` means as many threads as available cores.
 
         mem_lim_GB : float
             The peak memory usage can get very large if many particle kernels overlap
@@ -523,6 +525,7 @@ class Mochi(Martini):
             self._datacube,
             self.spectral_model,
             self.radiative_transfer,
+            ncpu=resolve_ncpu(ncpu),
         )
         # can the unit conversion be merged with martini?
         datacube_array /= np.abs(np.diff(self._datacube.velocity_channel_edges)).to(

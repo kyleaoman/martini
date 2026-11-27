@@ -1,49 +1,107 @@
 """Base Mochi only includes optically thin models, but can be extended."""
 
 import numpy as np
+from typing import TYPE_CHECKING
+from martini._util import NUMBA_AVAILABLE
+from martini._grid_search import _threads
 from martini.datacube import DataCube
 from martini.spectral_models import _BaseSpectrum
 from martini.mochi.cell_grid import CellGrid
 import astropy.units as U
 
+if NUMBA_AVAILABLE:
+    from numba import njit
+if TYPE_CHECKING or not NUMBA_AVAILABLE:
+    prange = range  # pragma: no cover
+else:
+    from numba import prange
+
 
 def _los_overlap(
-    lower_cell_edge: float,
-    cell_size: float,
+    lower_cell_edge: float | np.ndarray,
+    cell_size: float | np.ndarray,
     region_lower_bound: float,
     region_upper_bound: float,
-) -> float:
+) -> float | np.ndarray:
     """
     Evaluate the fraction of a cell's extent along the line of sight inside a region.
 
     Parameters
     ----------
-    lower_cell_edge : float
-        Lower edge of the cell along the line of sight, in pixels.
+    lower_cell_edge : float or ~numpy.ndarray
+        Lower edge of the cell(s) along the line of sight, in pixels.
 
-    cell_size : float
-        Size of the cell, in pixels.
+    cell_size : float or ~numpy.ndarray
+        Size of the cell(s), in pixels.
 
-    lo : float
+    region_lower_bound : float
         Lower edge of the region along the line of sight, in pixels.
 
-    hi : float
+    region_upper_bound : float
         Upper edge of the region along the line of sight, in pixels.
 
     Returns
     -------
-    float
-        The fraction of the cell's extent along the line of sight in the interval defined
-        by the region bounds.
+    float or ~numpy.ndarray
+        The fraction of the extent of the cell(s) along the line of sight in the interval
+        defined by the region bounds.
     """
     return (
-        max(
+        np.maximum(
             0.0,
-            min(lower_cell_edge + cell_size, region_upper_bound)
-            - max(lower_cell_edge, region_lower_bound),
+            np.minimum(lower_cell_edge + cell_size, region_upper_bound)
+            - np.maximum(lower_cell_edge, region_lower_bound),
         )
         / cell_size
     )
+
+
+def _deposit_footprints(
+    field_spectra: np.ndarray,
+    weights: np.ndarray,
+    footprint_begin: np.ndarray,
+    footprint_end: np.ndarray,
+    cube: np.ndarray,
+) -> None:
+    """
+    Add the weighted spectrum of each cell to the pixels that it covers.
+
+    Compiled with :mod:`numba` if it is available, in parallel over channels (so threads
+    never write to the same pixel). The cells are added in order, skipping cells with zero
+    weight.
+
+    Parameters
+    ----------
+    field_spectra : ~numpy.ndarray
+        Spectrum of each cell per pixel that it covers, shape ``(n_channels, n_cells)``.
+
+    weights : ~numpy.ndarray
+        Weight of each cell, shape ``(n_cells,)``.
+
+    footprint_begin : ~numpy.ndarray
+        First pixel covered by each cell along the two axes of the image, shape
+        ``(n_cells, 2)``.
+
+    footprint_end : ~numpy.ndarray
+        One past the last pixel covered by each cell along the two axes of the image,
+        shape ``(n_cells, 2)``.
+
+    cube : ~numpy.ndarray
+        The cube that the spectra are added to, shape ``(n_channels, ny, nz)``. Modified
+        in place.
+    """
+    for c in prange(field_spectra.shape[0]):
+        for i in range(field_spectra.shape[1]):
+            if weights[i] == 0:
+                continue
+            value = weights[i] * field_spectra[c, i]
+            for y in range(footprint_begin[i, 0], footprint_end[i, 0]):
+                for z in range(footprint_begin[i, 1], footprint_end[i, 1]):
+                    cube[c, y, z] += value
+
+
+if NUMBA_AVAILABLE:
+    _deposit_footprints = njit(parallel=True, cache=True)(_deposit_footprints)
 
 
 def calculate_field_spectrum(
@@ -132,6 +190,7 @@ def optically_thin(
     datacube: DataCube,
     spectral_model: _BaseSpectrum,
     index_type: type = np.uintc,
+    ncpu: int = 1,
 ) -> U.Quantity[U.Msun / U.Mpc**2]:
     """
     Assemble fields into an HI cube using optically thin approximation.
@@ -151,6 +210,11 @@ def optically_thin(
 
     index_type : type, optional
         The data type used to store cell indices.
+
+    ncpu : int, optional
+        Number of threads to use (if :mod:`numba` is available) to add the spectra of
+        cells to the pixels that they cover. A value of ``-1`` means as many threads as
+        available cores.
 
     Returns
     -------
@@ -198,23 +262,24 @@ def optically_thin(
             )
         )
         cell_los_lower_edge, cell_los_size = cells["x"], cells["size"]
-        for i in np.arange(len(cells), dtype=index_type):
-            weight = 1.0
-            if (
-                cell_los_lower_edge[i] < region_lower_bound
-                or cell_los_lower_edge[i] + cell_los_size[i] > region_upper_bound
-            ):
-                weight = _los_overlap(
-                    cell_los_lower_edge[i],
-                    cell_los_size[i],
-                    *cell_grid.los_region,
-                )
-                if weight == 0:
-                    continue
-            y_start, z_start = cells_begin[i]
-            y_end, z_end = cells_end[i]
-            cube[:, y_start:y_end, z_start:z_end] += (
-                weight * field_spectra[:, i, None, None]
+        weights = np.where(
+            (cell_los_lower_edge < region_lower_bound)
+            | (cell_los_lower_edge + cell_los_size > region_upper_bound),
+            _los_overlap(
+                cell_los_lower_edge,
+                cell_los_size,
+                region_lower_bound,
+                region_upper_bound,
+            ),
+            1.0,
+        )
+        with _threads(ncpu):
+            _deposit_footprints(
+                np.ascontiguousarray(field_spectra),
+                weights,
+                np.ascontiguousarray(cells_begin),
+                np.ascontiguousarray(cells_end),
+                cube,
             )
         cube *= cube_unit
     else:
