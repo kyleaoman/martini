@@ -1221,6 +1221,84 @@ def _cells_below(first_child: np.ndarray, node_cell: np.ndarray) -> np.ndarray:
     return n_below
 
 
+def _containing_cells_loop(
+    coords: np.ndarray,
+    origin: np.ndarray,
+    root_size: float,
+    root_shape: np.ndarray,
+    root_nodes: np.ndarray,
+    first_child: np.ndarray,
+    node_cell: np.ndarray,
+    node_corner: np.ndarray,
+    node_size: np.ndarray,
+    out: np.ndarray,
+) -> None:
+    """
+    Find the cell containing each coordinate by walking down the tree.
+
+    The root node containing a coordinate is found on the root lattice, then the tree is
+    descended to the leaf containing the coordinate, choosing the child octant by
+    comparing the coordinate with the centre of each node. Cells are half-open (they
+    include their lower faces), as are the octants of the nodes.
+
+    Can be compiled with numba for faster execution.
+
+    Parameters
+    ----------
+    coords : ~numpy.ndarray
+        Coordinates to place in cells, shape ``(N, 3)``.
+
+    origin : ~numpy.ndarray
+        Lower corner of the lattice of root nodes.
+
+    root_size : float
+        Side length of the root nodes.
+
+    root_shape : ~numpy.ndarray
+        Number of root nodes along each axis.
+
+    root_nodes : ~numpy.ndarray
+        Node at each (flattened, C-order) position of the root lattice, or ``-1``.
+
+    first_child : ~numpy.ndarray
+        Index of the first of the 8 consecutive children of each node, or ``-1``.
+
+    node_cell : ~numpy.ndarray
+        Index of the cell of each leaf node, or ``-1``.
+
+    node_corner : ~numpy.ndarray
+        Lower corner of each node, shape ``(n_nodes, 3)``.
+
+    node_size : ~numpy.ndarray
+        Side length of each node.
+
+    out : ~numpy.ndarray
+        Output, the index of the cell containing each coordinate or ``-1`` for
+        coordinates outside of all cells, shape ``(N,)``.
+    """
+    for p in prange(coords.shape[0]):
+        flat = 0
+        inside = True
+        for d in range(3):
+            # compare as floats before casting to catch coordinates far outside (or nan):
+            f = (coords[p, d] - origin[d]) / root_size
+            if not (f >= 0 and f < root_shape[d]):
+                inside = False
+                break
+            flat = flat * root_shape[d] + int(math.floor(f))
+        node = root_nodes[flat] if inside else -1
+        if node < 0:
+            out[p] = -1
+            continue
+        while first_child[node] >= 0:
+            half = node_size[node] / 2
+            octant = 0
+            for d in range(3):
+                octant = 2 * octant + (coords[p, d] >= node_corner[node, d] + half)
+            node = first_child[node] + octant
+        out[p] = node_cell[node]
+
+
 if NUMBA_AVAILABLE:
     _line_interval = njit(cache=True, inline="always")(_line_interval)
     _candidate_rows = njit(cache=True, inline="always")(_candidate_rows)
@@ -1240,6 +1318,7 @@ if NUMBA_AVAILABLE:
     _group_by_work_unit = njit(cache=True)(_group_by_work_unit)
     _work_unit_hits = njit(parallel=True, cache=True)(_work_unit_hits)
     _cells_below = njit(cache=True)(_cells_below)
+    _containing_cells_loop = njit(parallel=True, cache=True)(_containing_cells_loop)
 
 
 def _balanced_blocks(weights: np.ndarray, n_blocks: int) -> np.ndarray:
@@ -1614,12 +1693,13 @@ class Octree:
     """
     The tree of the cells of an adaptive (octree) grid, to search for cells near points.
 
-    The cells are cubes obtained by recursively bisecting a uniform grid of cubes, as
-    in :class:`~martini.mochi.cell_grid.AdaptiveCellGrid`: the largest cells have size
-    ``S``, every cell has a size ``S / 2**k`` and its lower corner on a lattice of its
-    own size starting from the lowest cell corner, and the cells tile a region without
-    overlapping. The tree is built once, and can then be searched around several sets
-    of coordinates (e.g. batches of particles) with :meth:`count` and :meth:`find`.
+    The cells are cubes obtained by recursively bisecting a uniform grid of cubes: the
+    largest cells have size ``S``, every cell has a size ``S / 2**k`` and its lower corner
+    on a lattice of its own size starting from the lowest cell corner, and the cells tile
+    a region without overlapping. The tree is built once, and can then be searched around
+    several sets of coordinates (e.g. batches of particles) with :meth:`count` and
+    :meth:`find`, and the cell containing each of a set of points found with
+    :meth:`containing_cells`.
 
     For the simpler case of a one-level tree (a uniform cell grid), see
     :func:`find_grid_intersections` and :func:`count_grid_intersections`.
@@ -1636,6 +1716,9 @@ class Octree:
     ----------
     cell_centres : ~numpy.ndarray
         C-contiguous, ``float64`` copy (if needed) of the cell centres.
+
+    cell_sizes : ~numpy.ndarray
+        ``float64`` copy (if needed) of the cell sizes.
 
     Raises
     ------
@@ -1672,9 +1755,44 @@ class Octree:
         if cell_sizes.shape != (cell_centres.shape[0],):
             raise ValueError("cell_sizes must have one entry per row of cell_centres.")
         self.cell_centres = cell_centres
+        self.cell_sizes = cell_sizes
         self._octree = Octree._build_octree(cell_centres, cell_sizes)
         # number of cells below each node:
         self._n_below = _cells_below(self._octree.first_child, self._octree.node_cell)
+
+    @classmethod
+    def _from_arrays(
+        cls, octree: _OctreeArrays, cell_centres: np.ndarray, cell_sizes: np.ndarray
+    ) -> "Octree":
+        """
+        Create the tree from arrays that are already built, without validation.
+
+        Used when the tree is constructed along with the cells (e.g. by grid
+        refinement), instead of rebuilding it from the cells.
+
+        Parameters
+        ----------
+        octree : _OctreeArrays
+            The tree, in the layout of :meth:`_build_octree`.
+
+        cell_centres : ~numpy.ndarray
+            Coordinates of the cell centres (the leaves of the tree, ordered by their
+            ``node_cell``), shape ``(n_cells, 3)``.
+
+        cell_sizes : ~numpy.ndarray
+            Side lengths of the cells.
+
+        Returns
+        -------
+        Octree
+            The tree.
+        """
+        tree = cls.__new__(cls)
+        tree.cell_centres = np.ascontiguousarray(cell_centres, dtype=np.float64)
+        tree.cell_sizes = np.ascontiguousarray(cell_sizes, dtype=np.float64)
+        tree._octree = octree
+        tree._n_below = _cells_below(octree.first_child, octree.node_cell)
+        return tree
 
     def count(self, coords: np.ndarray, radii: np.ndarray, ncpu: int = 1) -> np.ndarray:
         """
@@ -1704,6 +1822,47 @@ class Octree:
         coords, radii = self._prepare_coords(coords, radii)
         with _threads(ncpu):
             return self._counts_per_coordinate(coords, radii)
+
+    def containing_cells(self, coords: np.ndarray, ncpu: int = 1) -> np.ndarray:
+        """
+        Find the cell containing each coordinate.
+
+        Cells are half-open: they contain their lower faces but not their upper faces.
+
+        Parameters
+        ----------
+        coords : ~numpy.ndarray
+            Coordinates to place in cells, shape ``(N, 3)`` (same implicit units as the
+            cell centres).
+
+        ncpu : int
+            Number of threads to use.
+
+        Returns
+        -------
+        ~numpy.ndarray
+            Index of the cell containing each coordinate, or ``-1`` for coordinates
+            outside of all cells.
+        """
+        coords = np.ascontiguousarray(coords, dtype=np.float64)
+        if coords.ndim != 2 or coords.shape[1] != 3:
+            raise ValueError("coords must have shape (N, 3).")
+        octree = self._octree
+        out = np.empty(coords.shape[0], dtype=np.intp)
+        with _threads(ncpu):
+            _containing_cells_loop(
+                coords,
+                octree.origin,
+                octree.root_size,
+                octree.root_shape,
+                octree.root_nodes,
+                octree.first_child,
+                octree.node_cell,
+                octree.node_corner,
+                octree.node_size,
+                out,
+            )
+        return out
 
     def find(
         self,
@@ -1954,11 +2113,10 @@ class Octree:
 
         The largest cells (size ``S``) and the cells of each size ``S / 2**k`` are
         aligned with lattices of their own size, starting from the lowest cell corner,
-        and the cells tile a region without overlapping (as for
-        :class:`~martini.mochi.cell_grid.AdaptiveCellGrid`). Nodes of the tree are the
-        cells (leaves) and the cubes that were bisected to obtain them (internal nodes).
-        The tree is built top-down, one level at a time, with the 8 children of a node
-        stored consecutively.
+        and the cells tile a region without overlapping. Nodes of the tree are the cells
+        (leaves) and the cubes that were bisected to obtain them (internal nodes). The
+        tree is built top-down, one level at a time, with the 8 children of a node stored
+        consecutively.
 
         Parameters
         ----------
