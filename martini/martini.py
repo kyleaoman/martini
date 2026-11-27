@@ -31,6 +31,7 @@ from martini._grid_search import (
     find_grid_intersections,
     FindGridIntersectionsResult,
     _balanced_blocks,
+    _empty_result,
 )
 from martini.sph_kernels import ScalarKernelIntegral
 from martini._util import (
@@ -40,6 +41,7 @@ from martini._util import (
     _to_unit_in_place,
     HIfreq,
     _FITS_BITPIX,
+    _plan_segments,
 )
 from martini._logging import _ProgressLogger
 from typing import TYPE_CHECKING
@@ -156,47 +158,6 @@ if NUMBA_AVAILABLE:
     _insert_weighted_spectra_loop = njit(parallel=True, cache=True)(
         _insert_weighted_spectra_loop
     )
-
-
-def _plan_segments(mem_estimate: np.ndarray, allowance: float) -> list[slice]:
-    """
-    Divide particles into contiguous batches that each fit within a memory allowance.
-
-    Parameters
-    ----------
-    mem_estimate : ~numpy.ndarray
-        Estimated memory required to process each particle.
-
-    allowance : float
-        Memory available to process each batch, in the same units as
-        ``mem_estimate``.
-
-    Returns
-    -------
-    list
-        List of :class:`slice` objects selecting the particles in each batch.
-
-    Raises
-    ------
-    ValueError
-        If any single particle needs more memory than the allowance.
-    """
-    if np.any(mem_estimate > allowance):
-        raise ValueError("Memory allowance insufficient for a single particle.")
-    # Should always have a particle if we get here, but make very sure so we don't
-    # enter an infinite loop:
-    assert len(mem_estimate) > 0, (
-        "Particles processing in batches but no particles present, this is an error."
-    )
-    segments = []
-    segment_start = 0
-    while segment_start < len(mem_estimate):
-        cumsum = np.cumsum(mem_estimate[segment_start:])
-        segment_length = np.searchsorted(cumsum, allowance, side="right")
-        segment_end = segment_start + int(segment_length)
-        segments.append(slice(segment_start, segment_end))
-        segment_start = segment_end
-    return segments
 
 
 class _BaseMartini:
@@ -2208,12 +2169,7 @@ class GlobalProfile(_BaseMartini):
         """
         n = len(range(self.source.npart)[segment])
         if n == 0:
-            return FindGridIntersectionsResult(
-                intersections=np.empty(0),
-                distances=np.empty(0) if return_distances else None,
-                cell_indices=np.empty(0),
-                strides=np.empty((0, 2)),
-            )
+            return _empty_result(2, self.spectral_model.spec_dtype, return_distances)
         return FindGridIntersectionsResult(
             intersections=np.arange(n, dtype=np.int32),
             distances=(
