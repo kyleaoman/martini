@@ -12,6 +12,7 @@ from martini.sph_kernels import _BaseSPHKernel
 from martini.spectral_models import _BaseSpectrum
 from typing import Callable
 from martini.mochi._dtypes import CELL_DTYPE as _CELL_DTYPE
+from martini._grid_search import Octree
 
 
 def _pixel_solid_angle_ratio(
@@ -393,14 +394,14 @@ class CellGrid:
         source: SPHSource,
         sph_kernel: _BaseSPHKernel,
         interpolant: Callable,  # fill in arg & return types
-        **interpolant_kwargs: int | bool,
+        **interpolant_kwargs: int | bool | float,
     ) -> None:
         """
         Interpolate particle-carried fields onto the grid.
 
         The interpolant receives this cell grid (``cell_grid`` argument) and uses its
         ``field_positions``, ``field_volumes``, ``field_distortion_corrections`` and
-        ``uniform_grid``.
+        ``uniform_grid`` (and ``octree`` of adaptive grids).
 
         Parameters
         ----------
@@ -509,6 +510,7 @@ class AdaptiveCellGrid(CellGrid):
     adaptive_cell_distances: U.Quantity[U.Mpc]
     adaptive_cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled]
     adaptive_cell_centres: U.Quantity[U.pix]
+    _octree: Octree | None = None
 
     def __init__(
         self,
@@ -556,6 +558,7 @@ class AdaptiveCellGrid(CellGrid):
             self.positions.to_value(U.pix),
             self.radii.to_value(U.pix),
         ).view(dtype=_CELL_DTYPE)
+        self._octree = None  # built from the new cells when needed
         self.init_cell_centres(prefix="adaptive")
         self.init_cell_volumes(prefix="adaptive")
         self.init_cell_distances(source, datacube, prefix="adaptive")
@@ -620,3 +623,21 @@ class AdaptiveCellGrid(CellGrid):
             Adaptive cells do not form a uniform grid.
         """
         return None
+
+    @property
+    def octree(self) -> Octree:
+        """
+        Tree of the adaptive cells, to search for the cells near particles.
+
+        Built from the refined cells when first needed, then reused.
+
+        Returns
+        -------
+        ~martini._grid_search.Octree
+            The tree of the cells onto which fields are interpolated.
+        """
+        if self._octree is None:
+            self._octree = Octree(
+                self.field_positions.to_value(U.pix), self.field_sizes.to_value(U.pix)
+            )
+        return self._octree

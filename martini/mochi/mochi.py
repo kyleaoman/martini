@@ -461,6 +461,15 @@ class Mochi(Martini):
             Number of threads to use in compiled code (requires :mod:`numba`) to
             interpolate particles onto the cell grid. A value of ``-1`` means as many
             threads as available cores.
+
+        mem_lim_GB : float
+            The peak memory usage can get very large if many particle kernels overlap
+            many cells. For the :func:`~martini.mochi.interpolants.sph` and
+            :func:`~martini.mochi.interpolants.mfm` interpolants, the particles are
+            processed in batches if the estimated memory usage of the interpolation onto
+            the cell grid would exceed this limit (in GB), which slows down the code.
+            This is a "soft" limit, and the refinement of the cell grid and the
+            radiative transfer are not yet included.
         """
         # need to revise irrelevant (?) arguments: skip_validation, progressbar
         # TODO: resolution checks. Kernels are point-sampled at cell centres, so accuracy
@@ -473,6 +482,12 @@ class Mochi(Martini):
         # used to check that the refinement strategy yields a fine enough grid for the
         # kernel at hand, e.g. by validating smoothing lengths in units of the sizes of
         # the cells that each particle deposits into (with Mochi-specific tolerances).
+        if self.baseline_mem_estimate > mem_lim_GB:
+            raise RuntimeError(
+                f"Requested memory limit ({mem_lim_GB}GB) is less than estimated "
+                f"baseline memory requirement of {self.baseline_mem_estimate}GB. Increase"
+                f" `mem_lim_GB` when calling `insert_source_in_cube`."
+            )
         self.sph_kernel._init_sm_ranges()
         cell_grid = self._make_cell_grid()
         cell_grid.init_particle_locations(self.source, self.sph_kernel)
@@ -481,7 +496,11 @@ class Mochi(Martini):
                 self.source, self._datacube, self.refinement_strategy
             )
         interpolant_kwargs = (
-            {"ncpu": resolve_ncpu(ncpu), "compiled": self._numba_enabled}
+            {
+                "ncpu": resolve_ncpu(ncpu),
+                "compiled": self._numba_enabled,
+                "mem_allowance_GB": mem_lim_GB - self.baseline_mem_estimate,
+            }
             if self.interpolant in (interpolants.sph, interpolants.mfm)
             else {}
         )

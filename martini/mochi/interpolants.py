@@ -4,7 +4,7 @@ import contextlib
 import warnings
 from scipy.spatial import distance, KDTree
 from martini._grid_search import (
-    find_cell_tree_intersections,
+    count_grid_intersections,
     find_grid_intersections,
     FindGridIntersectionsResult,
     _balanced_blocks,
@@ -20,7 +20,7 @@ from martini.sph_kernels import (
     DiracDeltaKernel,
     ScalarKernel,
 )
-from martini._util import NUMBA_AVAILABLE, numba_threads
+from martini._util import NUMBA_AVAILABLE, numba_threads, _plan_segments
 
 if NUMBA_AVAILABLE:
     from numba import njit
@@ -468,24 +468,237 @@ def _compiled_loop(ncpu: int) -> Generator[None, None, None]:
         yield
 
 
+_SearchResult = tuple[FindGridIntersectionsResult, np.ndarray | _CompiledKernel]
+
+
+def _compiled_loop_args(
+    gs: FindGridIntersectionsResult, ck: _CompiledKernel
+) -> tuple[np.ndarray | tuple[ScalarKernel, ...], ...]:
+    """
+    Collect the arguments that the compiled loops over particle-cell pairs share.
+
+    Parameters
+    ----------
+    gs : ~martini._grid_search.FindGridIntersectionsResult
+        The particle-cell pairs.
+
+    ck : _CompiledKernel
+        Description of how to evaluate the kernel weights in compiled code.
+
+    Returns
+    -------
+    tuple
+        The pairs and the kernel description, in the order the compiled loops take them.
+    """
+    return (
+        gs.intersections,
+        gs.cell_indices,
+        gs.strides,
+        ck.coords,
+        ck.centres,
+        ck.sizes,
+        ck.h,
+        ck.kernel_slot,
+        ck.kernels,
+        ck.kernel_params,
+    )
+
+
+def _add_cell_kernel_sums(
+    total_kernel: np.ndarray,
+    gs: FindGridIntersectionsResult,
+    kernel_weights: np.ndarray | _CompiledKernel,
+) -> None:
+    """
+    Add the kernel weights of a batch of particles to the kernel total of each cell.
+
+    Parameters
+    ----------
+    total_kernel : ~numpy.ndarray
+        Sum of the kernel weights in each cell, modified in place.
+
+    gs : ~martini._grid_search.FindGridIntersectionsResult
+        The particle-cell pairs of the batch.
+
+    kernel_weights : ~numpy.ndarray or _CompiledKernel
+        The kernel weight of each pair in ``gs``, or the inputs for evaluating them in
+        compiled code (see :class:`_CompiledKernel`).
+    """
+    if gs.intersections.size == 0:
+        return
+    if isinstance(kernel_weights, _CompiledKernel):
+        ck = kernel_weights
+        with _compiled_loop(ck.ncpu):
+            _cell_kernel_sums_loop(
+                total_kernel,
+                *_compiled_loop_args(gs, ck),
+                _balanced_blocks(gs.strides[:, 1] - gs.strides[:, 0], 8 * ck.ncpu),
+            )
+    else:
+        total_kernel[gs.cell_indices] += np.add.reduceat(
+            kernel_weights, gs.strides[:, 0]
+        )
+
+
+def _mfm_particle_scales(
+    gs: FindGridIntersectionsResult,
+    kernel_weights: np.ndarray | _CompiledKernel,
+    total_kernel: np.ndarray,
+    cell_volumes: np.ndarray,
+    corrected_cell_volumes: np.ndarray,
+    support_radii: np.ndarray,
+    mask_out_of_bound: np.ndarray,
+) -> np.ndarray:
+    """
+    Evaluate the MFM normalization (inverse volume) of each particle of a batch.
+
+    Each particle's volume is its kernel-weighted share of the corrected volumes of the
+    cells it overlaps. All of a particle's pairs are in its batch, but the kernel totals
+    of the cells must include every batch.
+
+    Parameters
+    ----------
+    gs : ~martini._grid_search.FindGridIntersectionsResult
+        The particle-cell pairs of the batch.
+
+    kernel_weights : ~numpy.ndarray or _CompiledKernel
+        The kernel weight of each pair in ``gs``, or the inputs for evaluating them in
+        compiled code (see :class:`_CompiledKernel`).
+
+    total_kernel : ~numpy.ndarray
+        Sum of the kernel weights in each cell, over all particles.
+
+    cell_volumes : ~numpy.ndarray
+        Rectilinear volume of each cell.
+
+    corrected_cell_volumes : ~numpy.ndarray
+        Volume of each cell including its spherical distortion correction.
+
+    support_radii : ~numpy.ndarray
+        Radii of compact support of the particles of the batch.
+
+    mask_out_of_bound : ~numpy.ndarray
+        Selects the particles of the batch whose kernels extend outside of the grid.
+
+    Returns
+    -------
+    ~numpy.ndarray
+        The inverse volume of each particle of the batch (``1`` for particles that have
+        no volume, as they deposit nothing).
+    """
+    n_part = support_radii.size
+    if isinstance(kernel_weights, _CompiledKernel):
+        volumes = np.zeros(n_part)
+        rectilinear_volumes = np.zeros(n_part)
+        with _compiled_loop(kernel_weights.ncpu):
+            _particle_volumes_loop(
+                volumes,
+                rectilinear_volumes,
+                total_kernel,
+                corrected_cell_volumes,
+                cell_volumes,
+                *_compiled_loop_args(gs, kernel_weights),
+            )
+    else:
+        weights = kernel_weights
+        # cells reached only with zero weights have no kernel total:
+        share = np.divide(
+            corrected_cell_volumes,
+            total_kernel,
+            out=np.zeros(total_kernel.size),
+            where=total_kernel != 0,
+        )
+        cells_of_pairs = np.repeat(gs.cell_indices, np.diff(gs.strides, axis=1)[:, 0])
+        # (bincount gives integers without pairs, even with weights)
+        volumes = np.bincount(
+            gs.intersections,
+            weights=weights * share[cells_of_pairs],
+            minlength=n_part,
+        ).astype(np.float64, copy=False)
+        rectilinear_volumes = np.bincount(
+            gs.intersections,
+            weights=np.where(weights, cell_volumes[cells_of_pairs], 0),
+            minlength=n_part,
+        ).astype(np.float64, copy=False)
+    # Correct the volumes of particles whose kernels are cut off by the edge of the grid
+    # (those reaching cells only with zero weights deposit nothing), using the
+    # rectilinear volume to match the kernel volume in the numerator:
+    correct = mask_out_of_bound & (rectilinear_volumes > 0)
+    volumes[correct] *= (
+        np.pi * 4 / 3 * support_radii[correct] ** 3 / rectilinear_volumes[correct]
+    )
+    return np.divide(1, volumes, out=np.ones(n_part), where=volumes != 0)
+
+
+def _deposit(
+    out: np.ndarray,
+    quantities: np.ndarray,
+    scale: np.ndarray,
+    gs: FindGridIntersectionsResult,
+    kernel_weights: np.ndarray | _CompiledKernel,
+) -> None:
+    """
+    Add the kernel-weighted quantities of a batch of particles into the cells.
+
+    Parameters
+    ----------
+    out : ~numpy.ndarray
+        Accumulated quantities of each cell, shape ``(n_cells, n_quantities)``, modified
+        in place.
+
+    quantities : ~numpy.ndarray
+        Quantities carried by the particles of the batch, shape
+        ``(n_part, n_quantities)``.
+
+    scale : ~numpy.ndarray
+        Factor multiplying the kernel weights of each particle of the batch.
+
+    gs : ~martini._grid_search.FindGridIntersectionsResult
+        The particle-cell pairs of the batch.
+
+    kernel_weights : ~numpy.ndarray or _CompiledKernel
+        The kernel weight of each pair in ``gs``, or the inputs for evaluating them in
+        compiled code (see :class:`_CompiledKernel`).
+    """
+    if gs.intersections.size == 0:
+        return
+    if isinstance(kernel_weights, _CompiledKernel):
+        ck = kernel_weights
+        with _compiled_loop(ck.ncpu):
+            _deposit_loop(
+                out,
+                quantities,
+                scale,
+                *_compiled_loop_args(gs, ck),
+                _balanced_blocks(gs.strides[:, 1] - gs.strides[:, 0], 8 * ck.ncpu),
+            )
+    else:
+        out[gs.cell_indices] += np.add.reduceat(
+            (kernel_weights * scale[gs.intersections])[:, np.newaxis]
+            * quantities[gs.intersections],
+            gs.strides[:, 0],
+        )
+
+
 def sph_loop(
     masses: np.ndarray,
     masses_HI: np.ndarray,
     velocities: np.ndarray,
     support_radii: np.ndarray,
     mask_out_of_bound: np.ndarray,
-    gs: FindGridIntersectionsResult,
+    search: Callable[[slice], _SearchResult],
+    segments: list[slice],
     cell_volumes: np.ndarray,
     cell_distortion_corrections: np.ndarray,
-    kernel_weights: np.ndarray | _CompiledKernel,
     extra_fields: dict[str, np.ndarray],
     mfm: bool = False,
 ) -> dict[str, np.ndarray]:
     """
     Use SPH formalism to scatter particles onto the grid.
 
-    The kernel weights of the particle-cell pairs are either given, or evaluated on the
-    fly (without being stored) in compiled code.
+    The particles are processed in batches (``segments``) to limit memory usage. The
+    kernel weights of the particle-cell pairs of each batch are either given, or
+    evaluated on the fly (without being stored) in compiled code.
 
     Parameters
     ----------
@@ -505,10 +718,16 @@ def sph_loop(
         A boolean mask selecting particles whose kernels extend outside of the region
         covered by the grid.
 
-    gs : ~martini._grid_search.FindGridIntersectionsResult
-        A ``NamedTuple`` containing the results of a tree search for particles touching
-        grid cell points within given search radii, see
-        :class:`~martini._grid_search.FindGridIntersectionResult` for details.
+    search : Callable
+        Given a batch of particles (a :class:`slice`), returns the particle-cell pairs
+        of the batch (a :class:`~martini._grid_search.FindGridIntersectionsResult`, with
+        particles indexed within the batch) and the kernel weight (per unit volume) of
+        each pair, or the inputs for evaluating them in compiled code (see
+        :class:`_CompiledKernel`).
+
+    segments : list
+        :class:`slice` objects (with explicit ``start`` and ``stop``) selecting the
+        batches of particles, contiguous and covering all particles.
 
     cell_volumes : ~numpy.ndarray
         Rectilinear volume of cells onto which fields are interpolated.
@@ -518,10 +737,6 @@ def sph_loop(
         interpolated HI density is per unit of corrected volume, such that the HI mass in
         a cell is the density times ``cell_volumes * cell_distortion_corrections``.
 
-    kernel_weights : ~numpy.ndarray or _CompiledKernel
-        The kernel weight (per unit volume) of each particle-cell pair in ``gs``, or a
-        description of how to evaluate them in compiled code.
-
     extra_fields : dict
         Additional fields that should be interpolated onto the grid (e.g. temperature).
         The keys are used to insert the interpolated grids into the return dictionary,
@@ -530,7 +745,9 @@ def sph_loop(
     mfm : bool, optional
         If ``True``, a simplified MFM (without tensor gradient interpolation but with
         volume weights) deposition is performed, otherwise (by default) SPH deposition
-        is performed.
+        is performed. The kernel totals of the cells must be complete before the
+        particle volumes are evaluated, so with more than one batch every batch is
+        searched twice.
 
     Returns
     -------
@@ -538,90 +755,39 @@ def sph_loop(
         Contains the interpolated fields as bare arrays.
     """
     n_pos = len(cell_volumes)
-    n_part = len(masses)
     # columns: masses, HI masses, momenta, then extra fields weighted by mass
     quantities = np.column_stack(
         (masses, masses_HI, velocities * masses)
         + tuple(v * masses for v in extra_fields.values())
     )
-    compiled = isinstance(kernel_weights, _CompiledKernel)
-    if compiled:
-        ck = kernel_weights
-        loop_args = (
-            gs.intersections,
-            gs.cell_indices,
-            gs.strides,
-            ck.coords,
-            ck.centres,
-            ck.sizes,
-            ck.h,
-            ck.kernel_slot,
-            ck.kernels,
-            ck.kernel_params,
-        )
-        hits_per_cell = gs.strides[:, 1] - gs.strides[:, 0]
-        block_edges = _balanced_blocks(hits_per_cell, 8 * ck.ncpu)
-    else:
-        weights = kernel_weights
-        hits_per_cell = np.diff(gs.strides, axis=1)[:, 0]
     total_kernel = np.zeros(n_pos)
-    scale = np.ones(n_part)
-    if mfm:
-        # The total kernel contribution in each cell must be fully accumulated before
-        # calculating volumes & applying weights (this matters when processing particles
-        # in batches).
-        volumes = np.zeros(n_part)
-        rectilinear_volumes = np.zeros(n_part)
-        corrected_cell_volumes = cell_volumes * cell_distortion_corrections
-        if compiled:
-            with _compiled_loop(ck.ncpu):
-                _cell_kernel_sums_loop(total_kernel, *loop_args, block_edges)
-                _particle_volumes_loop(
-                    volumes,
-                    rectilinear_volumes,
-                    total_kernel,
-                    corrected_cell_volumes,
-                    cell_volumes,
-                    *loop_args,
-                )
-        else:
-            total_kernel[gs.cell_indices] += np.add.reduceat(weights, gs.strides[:, 0])
-            # cells reached only with zero weights have no kernel total:
-            share = np.divide(
-                corrected_cell_volumes,
-                total_kernel,
-                out=np.zeros(n_pos),
-                where=total_kernel != 0,
-            )
-            cells_of_pairs = np.repeat(gs.cell_indices, hits_per_cell)
-            volumes = np.bincount(
-                gs.intersections,
-                weights=weights * share[cells_of_pairs],
-                minlength=n_part,
-            )
-            rectilinear_volumes = np.bincount(
-                gs.intersections,
-                weights=np.where(weights, cell_volumes[cells_of_pairs], 0),
-                minlength=n_part,
-            )
-        # Correct the volumes of particles whose kernels are cut off by the edge of the
-        # grid (those reaching cells only with zero weights deposit nothing), using the
-        # rectilinear volume to match the kernel volume in the numerator:
-        correct = mask_out_of_bound & (rectilinear_volumes > 0)
-        volumes[correct] *= (
-            np.pi * 4 / 3 * support_radii[correct] ** 3 / rectilinear_volumes[correct]
-        )
-        np.divide(1, volumes, out=scale, where=volumes != 0)
     out = np.zeros((n_pos, quantities.shape[1]))
-    if compiled:
-        with _compiled_loop(ck.ncpu):
-            _deposit_loop(out, quantities, scale, *loop_args, block_edges)
-    elif gs.intersections.size > 0:
-        out[gs.cell_indices] += np.add.reduceat(
-            (weights * scale[gs.intersections])[:, np.newaxis]
-            * quantities[gs.intersections],
-            gs.strides[:, 0],
-        )
+    corrected_cell_volumes = cell_volumes * cell_distortion_corrections
+    reused: _SearchResult | None = None
+    if mfm:
+        for segment in segments:
+            reused = None  # free the previous batch first
+            reused = search(segment)
+            _add_cell_kernel_sums(total_kernel, *reused)
+        if len(segments) > 1:
+            reused = None
+    for segment in segments:
+        gs, kernel_weights = search(segment) if reused is None else reused
+        reused = None
+        if mfm:
+            scale = _mfm_particle_scales(
+                gs,
+                kernel_weights,
+                total_kernel,
+                cell_volumes,
+                corrected_cell_volumes,
+                support_radii[segment],
+                mask_out_of_bound[segment],
+            )
+        else:
+            scale = np.ones(segment.stop - segment.start)
+        _deposit(out, quantities[segment], scale, gs, kernel_weights)
+        del gs, kernel_weights  # free this batch before searching the next
     field_masses, field_masses_HI, field_momenta = out[:, 0], out[:, 1], out[:, 2]
     if mfm:
         kernel_slice = total_kernel != 0
@@ -680,6 +846,152 @@ def _get_out_of_bound_particles(
     return mask_out_of_bound
 
 
+def _scatter_mem_estimate(
+    pair_counts: np.ndarray,
+    n_cells: int,
+    n_quantities: int,
+    compiled: bool,
+    adaptive: bool,
+) -> tuple[np.ndarray, float, float]:
+    """
+    Estimate the memory needed to scatter particles onto the cell grid.
+
+    Estimates memory (bytes, 8B per float), with q the number of quantities carried by
+    the particles. The sizes of temporary arrays were measured (with
+    :mod:`tracemalloc`), and are rounded up:
+
+    - Per particle-cell pair, the index of the particle (4B), grouped by cell, and lists
+      of candidate particles during the search (4B). If the kernel weights are evaluated
+      on the fly, that's all. Otherwise, the offset vector between the particle and cell
+      centre (24B), and the kernel weights, the gathered particle quantities and
+      temporary arrays (measured ~80B, allow 104B).
+    - Per particle, while its batch is processed: search coordinates, radius and
+      bookkeeping (64B). For all particles, during the whole scatter: the quantities,
+      the search radii, the number of pairs and normalization factors (``q*8B + 64B``).
+    - Per cell, for each batch: the cells with pairs and the ranges of their pairs. On
+      adaptive grids the tree search also counts the pairs of every cell (measured ~75B,
+      allow 80B), on uniform grids it allocates only for the cells with pairs (allow
+      8B).
+    - Per cell, during the whole scatter: copies of positions, sizes and volumes, the
+      accumulated quantities and the kernel totals (``2*q*8B + 32B``, measured ~75B for
+      ``q=4``). On adaptive grids, also the tree of cells (~55B, allow 64B), which
+      covers the temporary arrays needed to build it (~200B in all).
+
+    Parameters
+    ----------
+    pair_counts : ~numpy.ndarray
+        Number of cells within the search radius of each particle.
+
+    n_cells : int
+        Number of cells.
+
+    n_quantities : int
+        Number of quantities carried by the particles.
+
+    compiled : bool
+        ``True`` if kernel weights are evaluated on the fly in compiled code (so not
+        stored).
+
+    adaptive : bool
+        ``True`` if the cells form an adaptive grid (searched with a tree), ``False``
+        for a uniform grid.
+
+    Returns
+    -------
+    tuple
+        The memory needed for each particle in its batch, the fixed memory needed for
+        each batch, and the memory needed throughout regardless of batching, in GB.
+    """
+    mem_per_pair = 8 if compiled else 8 + 24 + 104
+    batch_mem_estimate = (pair_counts * mem_per_pair + 64) / 1024**3  # GB
+    segment_overhead_mem_estimate = (80 if adaptive else 8) * n_cells / 1024**3  # GB
+    scatter_baseline_mem_estimate = (
+        pair_counts.size * (n_quantities * 8 + 64)
+        + n_cells * (2 * n_quantities * 8 + 32 + (64 if adaptive else 0))
+    ) / 1024**3  # GB
+    return (
+        batch_mem_estimate,
+        segment_overhead_mem_estimate,
+        scatter_baseline_mem_estimate,
+    )
+
+
+def _plan_scatter_segments(
+    pair_counts: np.ndarray,
+    n_cells: int,
+    n_quantities: int,
+    compiled: bool,
+    adaptive: bool,
+    mem_allowance_GB: float,
+) -> list[slice]:
+    """
+    Divide the particles into batches to scatter them within a memory allowance.
+
+    Parameters
+    ----------
+    pair_counts : ~numpy.ndarray
+        Number of cells within the search radius of each particle.
+
+    n_cells : int
+        Number of cells.
+
+    n_quantities : int
+        Number of quantities carried by the particles.
+
+    compiled : bool
+        ``True`` if kernel weights are evaluated on the fly in compiled code (so not
+        stored).
+
+    adaptive : bool
+        ``True`` if the cells form an adaptive grid (searched with a tree), ``False``
+        for a uniform grid.
+
+    mem_allowance_GB : float
+        Memory available to scatter the particles onto the grid, in GB.
+
+    Returns
+    -------
+    list
+        :class:`slice` objects (with explicit ``start`` and ``stop``) selecting the
+        batches of particles.
+
+    Raises
+    ------
+    RuntimeError
+        If the allowance is insufficient, even when processing particles in batches.
+    """
+    mem_estimate, segment_overhead, baseline = _scatter_mem_estimate(
+        pair_counts, n_cells, n_quantities, compiled, adaptive
+    )
+    advice = (
+        "Increase `mem_lim_GB` (the allowance is what remains of it after the estimated "
+        "baseline memory, e.g. to store particle data)."
+    )
+    single_batch_mem_estimate = np.sum(mem_estimate) + segment_overhead + baseline
+    if single_batch_mem_estimate <= mem_allowance_GB:
+        return [slice(0, pair_counts.size)]
+    warnings.warn(
+        f"Memory allowance for interpolating onto the cell grid ({mem_allowance_GB:.2f}"
+        " GB) is insufficient to process all particles at once (estimated memory "
+        f"required: {single_batch_mem_estimate:.2f} GB). Processing in batches instead, "
+        f"this could take longer. {advice}",
+        RuntimeWarning,
+    )
+    insufficient = RuntimeError(
+        f"Memory allowance for interpolating onto the cell grid ({mem_allowance_GB:.2f}"
+        " GB) is insufficient, even when particles are processed in batches (estimated "
+        f"memory required for the cell grid: {segment_overhead + baseline:.2f} GB). "
+        f"{advice}"
+    )
+    batch_allowance = mem_allowance_GB - segment_overhead - baseline
+    if batch_allowance <= 0:
+        raise insufficient
+    try:
+        return _plan_segments(mem_estimate, batch_allowance)
+    except ValueError as e:
+        raise insufficient from e
+
+
 def particle_scatter(
     main_loop: Callable,  # fill in arg & return types
     positions: U.Quantity[U.pix],
@@ -693,6 +1005,7 @@ def particle_scatter(
     *,
     ncpu: int = 1,
     compiled: bool = NUMBA_AVAILABLE,
+    mem_allowance_GB: float | None = None,
 ) -> dict[str, U.Quantity]:
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
@@ -702,7 +1015,9 @@ def particle_scatter(
     Parameters
     ----------
     main_loop : Callable
-        The function handling the scatter operation, e.g. ``sph_loop`` or ``mfm_loop``.
+        The function handling the scatter operation, e.g. :func:`sph_loop`. It receives
+        a function that searches a batch of particles and the list of batches, see
+        :func:`sph_loop`.
 
     positions : ~astropy.units.Quantity
         Particle positions with units of pixels.
@@ -738,7 +1053,8 @@ def particle_scatter(
         units of pixels) and ``field_distortion_corrections`` (dimensionless spherical
         distortion corrections to the volumes) are used. If its ``uniform_grid`` is not
         ``None`` (cells form a uniform grid), a fast search for the cells within reach
-        of each particle is used.
+        of each particle is used, otherwise its ``octree`` (a
+        :class:`~martini._grid_search.Octree`) is searched.
 
     ncpu : int, optional
         Number of threads to use in compiled code.
@@ -748,6 +1064,13 @@ def particle_scatter(
         on the fly in compiled code (see
         :meth:`~martini.sph_kernels._BaseSPHKernel._numba_spherical_kernel_arrays`),
         otherwise with :mod:`numpy` (see :func:`_numpy_kernel_weights`).
+
+    mem_allowance_GB : float, optional
+        Memory (in GB) available to scatter the particles. If the estimated memory
+        needed (see :func:`_scatter_mem_estimate`) exceeds it, the particles are
+        processed in batches (with a ``RuntimeWarning``), which takes longer (MFM then
+        searches each batch twice). This is a "soft" limit. If ``None`` (default), all
+        particles are processed at once.
 
     Returns
     -------
@@ -801,60 +1124,97 @@ def particle_scatter(
         if is_dirac_delta
         else _get_out_of_bound_particles(positions, support_radii, field_positions)
     )
+    n_part = len(positions)
+    # have in mind selectively omitting temperatures when not needed by spectral model
+    extra_fields = {"temperatures": temperatures.to_value(velocities.unit**2)}
     if cell_grid.uniform_grid is not None:
         # uniform grid: fast search, in grid units (cell centres at integer coordinates)
         grid_shape, cell_size = cell_grid.uniform_grid
-        gs = find_grid_intersections(
-            grid_shape,
-            (positions.value + 0.5) / cell_size - 0.5,
-            search_radii / cell_size,
-            ncpu=ncpu,
-            return_distances=not compiled,  # on the fly otherwise
-        )
-        if gs.distances is not None and gs.distances.size > 0:
-            gs.distances[...] *= cell_size  # back to pixels
+        grid_coords = (positions.value + 0.5) / cell_size - 0.5
+        grid_radii = search_radii / cell_size
+
+        def count_pairs() -> np.ndarray:
+            return count_grid_intersections(
+                grid_shape, grid_coords, grid_radii, ncpu=ncpu
+            )
+
+        def find_pairs(segment: slice) -> FindGridIntersectionsResult:
+            gs = find_grid_intersections(
+                grid_shape,
+                grid_coords[segment],
+                grid_radii[segment],
+                ncpu=ncpu,
+                return_distances=not compiled,  # on the fly otherwise
+            )
+            if gs.distances is not None and gs.distances.size > 0:
+                gs.distances[...] *= cell_size  # back to pixels
+            return gs
+
     else:
-        gs = find_cell_tree_intersections(
-            field_positions.value,
-            cell_sizes,
-            positions.value,
-            search_radii,
-            ncpu=ncpu,
-            return_distances=not compiled,
+        # the tree of the adaptive grid is built once, then searched for each batch:
+        octree = cell_grid.octree
+
+        def count_pairs() -> np.ndarray:
+            return octree.count(positions.value, search_radii, ncpu=ncpu)
+
+        def find_pairs(segment: slice) -> FindGridIntersectionsResult:
+            return octree.find(
+                positions.value[segment],
+                search_radii[segment],
+                ncpu=ncpu,
+                return_distances=not compiled,
+            )
+
+    if mem_allowance_GB is None:
+        segments = [slice(0, n_part)]
+    else:
+        segments = _plan_scatter_segments(
+            count_pairs(),
+            n_pos,
+            3 + len(extra_fields),
+            compiled,
+            cell_grid.uniform_grid is None,
+            mem_allowance_GB,
         )
     if kernel_arrays is not None:
         kernel_slot, kernels, kernel_params, h = kernel_arrays
-        kernel_weights: np.ndarray | _CompiledKernel = _CompiledKernel(
-            coords=np.ascontiguousarray(positions.value, dtype=np.float64),
-            centres=np.ascontiguousarray(field_positions.value, dtype=np.float64),
-            sizes=cell_sizes.astype(np.float64),
-            kernel_slot=kernel_slot,
-            kernels=kernels,
-            kernel_params=kernel_params,
-            h=h,
-            ncpu=ncpu,
-        )
-    else:
+        coords = np.ascontiguousarray(positions.value, dtype=np.float64)
+        centres = np.ascontiguousarray(field_positions.value, dtype=np.float64)
+        sizes = cell_sizes.astype(np.float64)
+
+    def search(segment: slice) -> _SearchResult:
+        gs = find_pairs(segment)
+        if kernel_arrays is not None:
+            return gs, _CompiledKernel(
+                coords=coords[segment],
+                centres=centres,
+                sizes=sizes,
+                kernel_slot=kernel_slot[segment],
+                kernels=kernels,
+                kernel_params=kernel_params,
+                h=h[segment],
+                ncpu=ncpu,
+            )
         assert gs.distances is not None
         hits_per_cell = np.diff(gs.strides, axis=1)[:, 0]
-        kernel_weights = _numpy_kernel_weights(
+        return gs, _numpy_kernel_weights(
             gs.distances,
             np.repeat(cell_sizes[gs.cell_indices], hits_per_cell),
-            smoothing_lengths.value[gs.intersections],
+            smoothing_lengths.value[segment][gs.intersections],
             kernel,
         )
+
     array_results = main_loop(
         masses.value,
         masses_HI.value,
         velocities.value,
         support_radii.value,
         mask_out_of_bound,
-        gs,
+        search,
+        segments,
         cell_volumes,
         distortion_corrections.to_value(U.dimensionless_unscaled),
-        kernel_weights,
-        # have in mind selectively omitting temperatures when not needed by spectral model
-        extra_fields={"temperatures": temperatures.to_value(velocities.unit**2)},
+        extra_fields=extra_fields,
     )
     array_results["masses_HI"] = U.Quantity(
         array_results["masses_HI"],

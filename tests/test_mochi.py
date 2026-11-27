@@ -16,6 +16,7 @@ from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
 from martini.mochi import interpolants as module_interpolants
 from martini.mochi import refinement
 from martini.mochi._dtypes import CELL_DTYPE
+from martini._grid_search import Octree
 from martini.mochi.radiative_transfer import optically_thin, _los_overlap
 import pytest
 import numpy as np
@@ -53,6 +54,20 @@ class _ArbitraryCellGrid(CellGrid):
             Always ``None``.
         """
         return None
+
+    @property
+    def octree(self) -> Octree:
+        """
+        Build the tree of the cells, as for an adaptive grid.
+
+        Returns
+        -------
+        ~martini._grid_search.Octree
+            The tree of the cells.
+        """
+        return Octree(
+            self.field_positions.to_value(U.pix), self.field_sizes.to_value(U.pix)
+        )
 
 
 class TestAdaptiveCellGridUtils:
@@ -240,6 +255,47 @@ class TestAdaptiveCellGrid:
             source, datacube, refinement.refine_grid_to_half_particle_scale
         )
         assert grid.adaptive_cells.dtype == CELL_DTYPE
+
+    def test_octree(self, monkeypatch, many_particle_source, dc_zeros):
+        """Check that the tree of cells is built once, and again after refinement."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges()
+        grid = AdaptiveCellGrid(source, datacube, self.los_region, self.grid_shape)
+        grid.init_particle_locations(source, sph_kernel)
+        built = []
+        init = Octree.__init__
+
+        def count_builds(self, *args):
+            """
+            Count the trees built.
+
+            Parameters
+            ----------
+            self : ~martini._grid_search.Octree
+                The tree.
+
+            *args : tuple
+                Arguments of :class:`~martini._grid_search.Octree`.
+            """
+            built.append(self)
+            init(self, *args)
+
+        monkeypatch.setattr(Octree, "__init__", count_builds)
+        for _ in range(2):
+            grid.eval_grid_refinement(
+                source, datacube, refinement.refine_grid_to_half_particle_scale
+            )
+            for interpolant in (module_interpolants.sph, module_interpolants.mfm):
+                grid.interpolate_fields(source, sph_kernel, interpolant)
+            assert grid.octree is grid.octree
+        # one tree for each refinement:
+        assert len(built) == 2
+        assert built[0] is not built[1]
 
     def test_init_cell_centres(self, many_particle_source, dc_zeros):
         """Check test_init_cell_centres increment half size to lower corner pos."""
@@ -636,6 +692,7 @@ def _adaptive_test_grid():
         field_distortion_corrections=np.linspace(0.9, 1.1, n_pos)
         * U.dimensionless_unscaled,
         uniform_grid=None,
+        octree=Octree(centres, sizes),
     )
 
 
@@ -814,6 +871,148 @@ class TestKernelInterpolation:
         module_interpolants.sph(
             **particles, kernel=k, cell_grid=_uniform_test_grid(), compiled=False
         )
+
+    @pytest.mark.parametrize("interpolant", ("sph", "mfm"))
+    @pytest.mark.parametrize("grid", ("uniform", "adaptive"))
+    @pytest.mark.parametrize("compiled", (True, False))
+    def test_batches_match_single_batch(self, monkeypatch, interpolant, grid, compiled):
+        """Check that processing particles in batches gives the same fields."""
+        cell_grid = _uniform_test_grid() if grid == "uniform" else _adaptive_test_grid()
+        particles = _scatter_test_particles()
+        k = _CubicSplineKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        kwargs = dict(**particles, kernel=k, cell_grid=cell_grid, compiled=compiled)
+        interp = getattr(module_interpolants, interpolant)
+        single = interp(**kwargs)
+        per_particle, per_batch, fixed, planned = _batching_estimate(
+            monkeypatch, interp, **kwargs
+        )
+        # room for about a quarter of the particles in each batch:
+        allowance = fixed + per_batch + max(per_particle.max(), per_particle.sum() / 4)
+        with pytest.warns(RuntimeWarning, match="Processing in batches"):
+            batched = interp(**kwargs, mem_allowance_GB=allowance)
+        segments = planned[0]
+        assert len(segments) > 2
+        assert segments[0].start == 0 and segments[-1].stop == len(per_particle)
+        assert all(a.stop == b.start for a, b in zip(segments[:-1], segments[1:]))
+        assert single.keys() == batched.keys()
+        for key in single:
+            expected = single[key].value
+            assert U.allclose(
+                batched[key].value, expected, rtol=1e-12, atol=1e-12 * expected.max()
+            )
+        # particles are cut off by the edge of the grid (MFM corrects their volumes):
+        assert np.any(
+            module_interpolants._get_out_of_bound_particles(
+                particles["positions"],
+                particles["smoothing_lengths"] * k.size_in_fwhm,
+                cell_grid.field_positions,
+            )
+        )
+
+    @pytest.mark.parametrize("interpolant", ("sph", "mfm"))
+    @pytest.mark.parametrize("grid", ("uniform", "adaptive"))
+    @pytest.mark.parametrize("compiled", (True, False))
+    def test_no_pairs(self, interpolant, grid, compiled):
+        """Check that particles that reach no cells give empty fields."""
+        cell_grid = _uniform_test_grid() if grid == "uniform" else _adaptive_test_grid()
+        particles = _scatter_test_particles(n=3)
+        particles["positions"] = particles["positions"] + 100 * U.pix
+        k = _CubicSplineKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        fields = getattr(module_interpolants, interpolant)(
+            **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+        )
+        for field in fields.values():
+            assert np.all(field.value == 0)
+
+    @pytest.mark.parametrize("grid", ("uniform", "adaptive"))
+    def test_insufficient_allowance(self, monkeypatch, grid):
+        """Check that an allowance too small even for batches is rejected."""
+        cell_grid = _uniform_test_grid() if grid == "uniform" else _adaptive_test_grid()
+        particles = _scatter_test_particles()
+        k = _CubicSplineKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        kwargs = dict(**particles, kernel=k, cell_grid=cell_grid)
+        per_particle, per_batch, fixed, _ = _batching_estimate(
+            monkeypatch, module_interpolants.mfm, **kwargs
+        )
+        # too small for the cells, then for the particle with the most pairs:
+        for allowance in (fixed, fixed + per_batch + per_particle.max() / 2):
+            with (
+                pytest.warns(RuntimeWarning, match="Processing in batches"),
+                pytest.raises(RuntimeError, match="insufficient, even when"),
+            ):
+                module_interpolants.mfm(**kwargs, mem_allowance_GB=allowance)
+
+
+def _batching_estimate(monkeypatch, interpolant, **kwargs):
+    """
+    Get the memory estimate of an interpolation, and record how particles are batched.
+
+    Parameters
+    ----------
+    monkeypatch : ~pytest.MonkeyPatch
+        Used to record the batches planned by later calls.
+
+    interpolant : Callable
+        The interpolant (:func:`~martini.mochi.interpolants.sph` or
+        :func:`~martini.mochi.interpolants.mfm`).
+
+    **kwargs : dict
+        Keyword arguments for the interpolant.
+
+    Returns
+    -------
+    tuple
+        The memory estimate for each particle, the fixed memory per batch and the
+        memory needed regardless of batching (see
+        :func:`~martini.mochi.interpolants._scatter_mem_estimate`), and the list that
+        records the batches planned by later calls.
+    """
+    estimates, planned = [], []
+    estimate = module_interpolants._scatter_mem_estimate
+    plan = module_interpolants._plan_segments
+
+    def record_estimate(*args):
+        """
+        Record the memory estimate.
+
+        Parameters
+        ----------
+        *args : tuple
+            Arguments of :func:`~martini.mochi.interpolants._scatter_mem_estimate`.
+
+        Returns
+        -------
+        tuple
+            The memory estimate.
+        """
+        estimates.append(estimate(*args))
+        return estimates[-1]
+
+    def record_plan(*args):
+        """
+        Record the planned batches.
+
+        Parameters
+        ----------
+        *args : tuple
+            Arguments of :func:`~martini._util._plan_segments`.
+
+        Returns
+        -------
+        list
+            The batches.
+        """
+        planned.append(plan(*args))
+        return planned[-1]
+
+    monkeypatch.setattr(module_interpolants, "_scatter_mem_estimate", record_estimate)
+    monkeypatch.setattr(module_interpolants, "_plan_segments", record_plan)
+    interpolant(**kwargs, mem_allowance_GB=np.inf)
+    assert len(planned) == 0  # all at once
+    return estimates[0] + (planned,)
 
 
 class TestParticleInCell:
@@ -1336,6 +1535,51 @@ class TestMochi:
             refinement_strategy=refinement_strategy,
         )
         m.insert_source_in_cube()
+
+    @pytest.mark.parametrize("adaptive_grid", [True, False])
+    def test_mem_lim(self, monkeypatch, many_particle_source, dc_zeros, adaptive_grid):
+        """Check that the memory limit batches the interpolation onto the cell grid."""
+
+        def make_mochi():
+            return Mochi(
+                source=many_particle_source(hsm_g=0.5 * U.kpc),
+                datacube=dc_zeros.copy(),
+                sph_kernel=CubicSplineKernel(),
+                spectral_model=DiracDeltaSpectrum(),
+                los_depth=self.los_depth,
+                interpolant=module_interpolants.mfm,
+                adaptive_grid=adaptive_grid,
+                quiet=True,
+            )
+
+        m = make_mochi()
+        with pytest.raises(RuntimeError, match="less than estimated baseline"):
+            m.insert_source_in_cube(mem_lim_GB=m.baseline_mem_estimate / 2)
+        m = make_mochi()
+        estimates = []
+        estimate = module_interpolants._scatter_mem_estimate
+
+        def record_estimate(*args):
+            estimates.append(estimate(*args))
+            return estimates[-1]
+
+        monkeypatch.setattr(
+            module_interpolants, "_scatter_mem_estimate", record_estimate
+        )
+        m.insert_source_in_cube()  # default limit: all at once
+        per_particle, per_batch, fixed = estimates[0]
+        allowance = fixed + per_batch + max(per_particle.max(), per_particle.sum() / 2)
+        m_batched = make_mochi()
+        with pytest.warns(RuntimeWarning, match="Processing in batches"):
+            m_batched.insert_source_in_cube(
+                mem_lim_GB=m_batched.baseline_mem_estimate + allowance
+            )
+        assert U.allclose(
+            m_batched.datacube._array,
+            m.datacube._array,
+            rtol=1e-10,
+            atol=1e-12 * np.abs(m.datacube._array).max(),
+        )
 
 
 def check_inserted_mass_accuracy(m, expected_fraction=1.0):
