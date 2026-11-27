@@ -126,3 +126,44 @@ def _to_unit_in_place(
     values = q.view(np.ndarray)
     np.multiply(values, factor, out=values, casting="unsafe")
     return U.Quantity(values, unit, copy=False)
+
+
+def _plan_segments(mem_estimate: np.ndarray, allowance: float) -> list[slice]:
+    """
+    Divide particles into contiguous batches that each fit within a memory allowance.
+
+    Parameters
+    ----------
+    mem_estimate : ~numpy.ndarray
+        Estimated memory required to process each particle.
+
+    allowance : float
+        Memory available to process each batch, in the same units as
+        ``mem_estimate``.
+
+    Returns
+    -------
+    list
+        List of :class:`slice` objects selecting the particles in each batch.
+
+    Raises
+    ------
+    ValueError
+        If any single particle needs more memory than the allowance.
+    """
+    if np.any(mem_estimate > allowance):
+        raise ValueError("Memory allowance insufficient for a single particle.")
+    # Should always have a particle if we get here, but make very sure so we don't
+    # enter an infinite loop:
+    assert len(mem_estimate) > 0, (
+        "Particles processing in batches but no particles present, this is an error."
+    )
+    segments = []
+    segment_start = 0
+    while segment_start < len(mem_estimate):
+        cumsum = np.cumsum(mem_estimate[segment_start:])
+        segment_length = np.searchsorted(cumsum, allowance, side="right")
+        segment_end = segment_start + int(segment_length)
+        segments.append(slice(segment_start, segment_end))
+        segment_start = segment_end
+    return segments
