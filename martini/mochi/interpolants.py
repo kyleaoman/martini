@@ -692,7 +692,7 @@ def sph_loop(
     cell_distortion_corrections: np.ndarray,
     extra_fields: dict[str, np.ndarray],
     mfm: bool = False,
-) -> dict[str, np.ndarray]:
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
     Use SPH formalism to scatter particles onto the grid.
 
@@ -751,8 +751,12 @@ def sph_loop(
 
     Returns
     -------
-    dict
-        Contains the interpolated fields as bare arrays.
+    fields : dict
+        The interpolated HI densities (``"masses_HI"``) and velocities
+        (``"velocities"``), as bare arrays.
+
+    extra_fields : dict
+        The interpolated ``extra_fields``, under the same names, as bare arrays.
     """
     n_pos = len(cell_volumes)
     # columns: masses, HI masses, momenta, then extra fields weighted by mass
@@ -799,17 +803,17 @@ def sph_loop(
         # SPH kernels are normalized in pixel coordinates, so field_masses_HI is a density
         # per unit rectilinear volume. Convert to a density per unit corrected volume.
         field_densities_HI = field_masses_HI / cell_distortion_corrections
-    return {
+    fields = {
         "masses_HI": field_densities_HI,
         "velocities": np.divide(
             field_momenta, field_masses, out=np.zeros(n_pos), where=kernel_slice
         ),
-        **{
-            k: np.divide(
-                out[:, 3 + i], field_masses, out=np.zeros(n_pos), where=kernel_slice
-            )
-            for i, k in enumerate(extra_fields.keys())
-        },
+    }
+    return fields, {
+        k: np.divide(
+            out[:, 3 + i], field_masses, out=np.zeros(n_pos), where=kernel_slice
+        )
+        for i, k in enumerate(extra_fields.keys())
     }
 
 
@@ -998,7 +1002,7 @@ def particle_scatter(
     velocities: U.Quantity[U.km / U.s],
     smoothing_lengths: U.Quantity[U.pix],
     masses_HI: U.Quantity[U.Msun],
-    temperatures: U.Quantity[U.km**2 / U.s**2],
+    extra_fields: dict[str, U.Quantity],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
     cell_grid: "CellGrid",
@@ -1006,7 +1010,7 @@ def particle_scatter(
     ncpu: int = 1,
     compiled: bool = NUMBA_AVAILABLE,
     mem_allowance_GB: float | None = None,
-) -> dict[str, U.Quantity]:
+) -> tuple[dict[str, U.Quantity], dict[str, U.Quantity]]:
     """
     Scatter particles onto the cell grid. Can use SPH, MFM or other backends.
 
@@ -1031,9 +1035,10 @@ def particle_scatter(
     masses_HI : ~astropy.units.Quantity
         Particle HI masses with dimensions of mass.
 
-    temperatures : ~astropy.units.Quantity
-        Particle temperatures (thermal velocity dispersions) with dimensions of speed
-        squared.
+    extra_fields : dict
+        Further particle properties to interpolate onto the cells (e.g. temperatures),
+        by name. They are interpolated as mass-weighted means, and returned under the
+        same names and with the same units.
 
     masses : ~astropy.units.Quantity
         Particle masses with dimensions of mass.
@@ -1074,8 +1079,12 @@ def particle_scatter(
 
     Returns
     -------
-    dict
-        Contains the interpolated fields.
+    fields : dict
+        The interpolated HI densities (``"masses_HI"``) and velocities
+        (``"velocities"``).
+
+    extra_fields : dict
+        The interpolated ``extra_fields``, under the same names and with the same units.
     """
     field_positions = cell_grid.field_positions
     d_volume = cell_grid.field_volumes
@@ -1121,8 +1130,9 @@ def particle_scatter(
         else _get_out_of_bound_particles(positions, support_radii, field_positions)
     )
     n_part = len(positions)
-    # have in mind selectively omitting temperatures when not needed by spectral model
-    extra_fields = {"temperatures": temperatures.to_value(velocities.unit**2)}
+    extra_values = {
+        name: np.asarray(field.value) for name, field in extra_fields.items()
+    }
     if cell_grid.uniform_grid is not None:
         # uniform grid: fast search, in grid units (cell centres at integer coordinates)
         grid_shape, cell_size = cell_grid.uniform_grid
@@ -1167,7 +1177,7 @@ def particle_scatter(
         segments = _plan_scatter_segments(
             count_pairs(),
             n_pos,
-            3 + len(extra_fields),
+            3 + len(extra_values),
             compiled,
             cell_grid.uniform_grid is None,
             mem_allowance_GB,
@@ -1200,7 +1210,7 @@ def particle_scatter(
             kernel,
         )
 
-    array_results = main_loop(
+    array_fields, array_extra_fields = main_loop(
         masses.value,
         masses_HI.value,
         velocities.value,
@@ -1210,25 +1220,22 @@ def particle_scatter(
         segments,
         cell_volumes,
         distortion_corrections.to_value(U.dimensionless_unscaled),
-        extra_fields=extra_fields,
+        extra_fields=extra_values,
     )
-    array_results["masses_HI"] = U.Quantity(
-        array_results["masses_HI"],
-        masses_HI.unit / smoothing_lengths.unit**3,
-        copy=False,
-    )
-    array_results["velocities"] = U.Quantity(
-        array_results["velocities"],
-        velocities.unit,
-        copy=False,
-    )
-    if "temperatures" in array_results:
-        array_results["temperatures"] = U.Quantity(
-            array_results["temperatures"],
-            velocities.unit**2,
+    fields = {
+        "masses_HI": U.Quantity(
+            array_fields["masses_HI"],
+            masses_HI.unit / smoothing_lengths.unit**3,
             copy=False,
-        )
-    return array_results
+        ),
+        "velocities": U.Quantity(
+            array_fields["velocities"], velocities.unit, copy=False
+        ),
+    }
+    return fields, {
+        name: U.Quantity(array_extra_fields[name], field.unit, copy=False)
+        for name, field in extra_fields.items()
+    }
 
 
 sph = partial(particle_scatter, partial(sph_loop, mfm=False))
@@ -1293,12 +1300,12 @@ def voronoi_mesh(
     velocities: U.Quantity[U.km / U.s],
     smoothing_lengths: U.Quantity[U.pix],
     masses_HI: U.Quantity[U.Msun],
-    temperatures: U.Quantity[U.km**2 / U.s**2],
+    extra_fields: dict[str, U.Quantity],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
     cell_grid: "CellGrid",
     **kwargs: int,
-) -> dict[str, U.Quantity]:
+) -> tuple[dict[str, U.Quantity], dict[str, U.Quantity]]:
     """
     Compute the interpolated fields using a Voronoi mesh.
 
@@ -1320,9 +1327,10 @@ def voronoi_mesh(
     masses_HI : ~astropy.units.Quantity
         Voronoi cell HI masses with dimensions of mass.
 
-    temperatures : ~astropy.units.Quantity
-        Voronoi cell temperatures (thermal velocity dispersions) with dimensions of speed
-        squared.
+    extra_fields : dict
+        Further Voronoi cell properties to interpolate onto the cells (e.g.
+        temperatures), by name. They are interpolated like the velocities, and returned
+        under the same names and with the same units.
 
     masses : ~astropy.units.Quantity
         Unused.
@@ -1338,8 +1346,12 @@ def voronoi_mesh(
 
     Returns
     -------
-    dict
-        Contains the interpolated fields.
+    fields : dict
+        The interpolated HI densities (``"masses_HI"``) and velocities
+        (``"velocities"``).
+
+    extra_fields : dict
+        The interpolated ``extra_fields``, under the same names and with the same units.
     """
     field_positions = cell_grid.field_positions
     d_volume = cell_grid.field_volumes
@@ -1394,17 +1406,16 @@ def voronoi_mesh(
         missed_particle_mask,
         field_n_particle,
     )
-    field_temperatures = _eval_voronoi_field(
-        temperatures,
-        nearest_particle_indices,
-        missed_particle_cell_indices,
-        missed_particle_mask,
-        field_n_particle,
-    )
-    return {
-        "velocities": field_velocities,
-        "masses_HI": field_masses_HI,
-        "temperatures": field_temperatures,
+    fields = {"velocities": field_velocities, "masses_HI": field_masses_HI}
+    return fields, {
+        name: _eval_voronoi_field(
+            field,
+            nearest_particle_indices,
+            missed_particle_cell_indices,
+            missed_particle_mask,
+            field_n_particle,
+        )
+        for name, field in extra_fields.items()
     }
 
 
@@ -1456,13 +1467,13 @@ def particle_in_cell(
     velocities: U.Quantity[U.km / U.s],
     smoothing_lengths: U.Quantity[U.pix],
     masses_HI: U.Quantity[U.Msun],
-    temperatures: U.Quantity[U.km**2 / U.s**2],
+    extra_fields: dict[str, U.Quantity],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
     cell_grid: "CellGrid",
     ncpu: int = 1,
     **kwargs: int,
-) -> dict[str, U.Quantity]:
+) -> tuple[dict[str, U.Quantity], dict[str, U.Quantity]]:
     """
     Deposit particles into the cells containing them.
 
@@ -1489,9 +1500,10 @@ def particle_in_cell(
     masses_HI : ~astropy.units.Quantity
         Particle HI masses with dimensions of mass.
 
-    temperatures : ~astropy.units.Quantity
-        Particle temperatures (thermal velocity dispersions) with dimensions of speed
-        squared.
+    extra_fields : dict
+        Further particle properties to interpolate onto the cells (e.g. temperatures),
+        by name. They are interpolated as mass-weighted means, and returned under the
+        same names and with the same units.
 
     masses : ~astropy.units.Quantity
         Particle masses with dimensions of mass.
@@ -1516,8 +1528,12 @@ def particle_in_cell(
 
     Returns
     -------
-    dict
-        Contains the interpolated fields.
+    fields : dict
+        The interpolated HI densities (``"masses_HI"``) and velocities
+        (``"velocities"``).
+
+    extra_fields : dict
+        The interpolated ``extra_fields``, under the same names and with the same units.
     """
     field_positions = cell_grid.field_positions
     d_volume = cell_grid.field_volumes
@@ -1546,10 +1562,9 @@ def particle_in_cell(
     field_masses = deposit(m)
     field_masses_HI = deposit(masses_HI.to_value(masses_HI.unit))
     field_momenta = deposit(m * velocities.to_value(velocities.unit))
-    field_energies = deposit(m * temperatures.to_value(velocities.unit**2))
     kernel_slice = field_masses != 0
     corrected_volumes = (d_volume * distortion_corrections).to_value(length_unit**3)
-    return {
+    fields = {
         "velocities": U.Quantity(
             np.divide(
                 field_momenta, field_masses, out=np.zeros(n_pos), where=kernel_slice
@@ -1562,13 +1577,19 @@ def particle_in_cell(
             masses_HI.unit / length_unit**3,
             copy=False,
         ),
-        "temperatures": U.Quantity(
+    }
+    return fields, {
+        name: U.Quantity(
             np.divide(
-                field_energies, field_masses, out=np.zeros(n_pos), where=kernel_slice
+                deposit(m * field.value),
+                field_masses,
+                out=np.zeros(n_pos),
+                where=kernel_slice,
             ),
-            velocities.unit**2,
+            field.unit,
             copy=False,
-        ),
+        )
+        for name, field in extra_fields.items()
     }
 
 
@@ -1577,12 +1598,12 @@ def manual_sph(
     velocities: U.Quantity[U.km / U.s],
     smoothing_lengths: U.Quantity[U.pix],
     masses_HI: U.Quantity[U.Msun],
-    temperatures: U.Quantity[U.km**2 / U.s**2],
+    extra_fields: dict[str, U.Quantity],
     masses: U.Quantity[U.Msun],
     kernel: _BaseSPHKernel,
     cell_grid: "CellGrid",
     **kwargs: int,
-) -> dict[str, U.Quantity]:
+) -> tuple[dict[str, U.Quantity], dict[str, U.Quantity]]:
     """
     Compute the interpolated fields using SPH interpolation.
 
@@ -1605,9 +1626,10 @@ def manual_sph(
     masses_HI : ~astropy.units.Quantity
         Particle HI masses with dimensions of mass.
 
-    temperatures : ~astropy.units.Quantity
-        Particle temperatures (thermal velocity dispersions) with dimensions of speed
-        squared.
+    extra_fields : dict
+        Further particle properties to interpolate onto the cells (e.g. temperatures),
+        by name. They are interpolated as mass-weighted means, and returned under the
+        same names and with the same units.
 
     masses : ~astropy.units.Quantity
         Particle masses with dimensions of mass.
@@ -1625,8 +1647,12 @@ def manual_sph(
 
     Returns
     -------
-    dict
-        Contains the interpolated fields.
+    fields : dict
+        The interpolated HI densities (``"masses_HI"``) and velocities
+        (``"velocities"``).
+
+    extra_fields : dict
+        The interpolated ``extra_fields``, under the same names and with the same units.
     """
     field_positions = cell_grid.field_positions
     d_volume = cell_grid.field_volumes
@@ -1647,9 +1673,10 @@ def manual_sph(
     field_masses_HI = np.zeros(n_pos) * masses_HI.unit / d_volume.unit
     field_masses = np.zeros(n_pos) * masses.unit / d_volume.unit
     field_velocities = np.zeros(n_pos) * velocities.unit * masses.unit / d_volume.unit
-    field_temperatures = (
-        np.zeros(n_pos) * velocities.unit**2 * masses.unit / d_volume.unit
-    )
+    field_extras = {
+        name: np.zeros(n_pos) * field.unit * masses.unit / d_volume.unit
+        for name, field in extra_fields.items()
+    }
     for i in range(n_part):
         particle_kernel = _eval_kernel(
             field_positions[slices[i]],
@@ -1662,24 +1689,21 @@ def manual_sph(
         field_velocities[slices[i]] += (
             particle_kernel * velocities[i] * masses[i]
         )  # quantity of movement is conserved
-        field_temperatures[slices[i]] += (
-            particle_kernel * temperatures[i] * masses[i]
-        )  # thermal energy is conserved
+        for name, field in extra_fields.items():
+            field_extras[name][slices[i]] += particle_kernel * field[i] * masses[i]
     del slices
     kernel_slice = field_masses != 0
     final_velocities = np.zeros(n_pos) * velocities.unit
-    final_temperatures = np.zeros(n_pos) * velocities.unit**2
     final_velocities[kernel_slice] = (
         field_velocities[kernel_slice] / field_masses[kernel_slice]
     )
-    final_temperatures[kernel_slice] = (
-        field_temperatures[kernel_slice] / field_masses[kernel_slice]
-    )
+    final_extras = {}
+    for name, field in extra_fields.items():
+        final_extras[name] = np.zeros(n_pos) * field.unit
+        final_extras[name][kernel_slice] = (
+            field_extras[name][kernel_slice] / field_masses[kernel_slice]
+        )
     # SPH kernels are normalized in pixel coordinates, convert density to be per unit
     # corrected volume:
     field_masses_HI /= distortion_corrections
-    return {
-        "velocities": final_velocities,
-        "masses_HI": field_masses_HI,
-        "temperatures": final_temperatures,
-    }
+    return {"velocities": final_velocities, "masses_HI": field_masses_HI}, final_extras

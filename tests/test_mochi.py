@@ -12,6 +12,7 @@ from martini.sph_kernels import (
     _GaussianKernel,
 )
 import astropy.units as U
+from astropy import constants as C
 from martini.mochi.mochi import AdaptiveCellGrid, CellGrid
 from martini.mochi.cell_grid import _distinct_nbytes
 from martini.mochi import interpolants as module_interpolants
@@ -751,12 +752,51 @@ class TestAdaptiveCellGrid:
         grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
         grid.init_particle_locations(source, sph_kernel)
         grid.interpolate_fields(source, sph_kernel, interpolant)
+        assert grid.interpolated_extra_fields == {}
+        grid.interpolate_fields(source, sph_kernel, interpolant, source_fields=("T_g",))
         fields = grid.interpolated_fields
+        assert set(fields) == {"masses_HI", "velocities"}
         for key in fields.keys():
             assert ~np.any(np.isnan(fields[key]))
         assert fields["masses_HI"].unit.is_equivalent(U.Msun / U.pix**3)
         assert fields["velocities"].unit.is_equivalent(U.km / U.s)
-        assert fields["temperatures"].unit.is_equivalent(U.km**2 / U.s**2)
+        assert set(grid.interpolated_extra_fields) == {"T_g"}
+        assert grid.interpolated_extra_fields["T_g"].unit == source.T_g.unit
+        assert ~np.any(np.isnan(grid.interpolated_extra_fields["T_g"]))
+
+    def test_interpolate_fields_missing(self, many_particle_source, dc_zeros):
+        """Check that an interpolant leaving out a requested field is rejected."""
+        datacube = dc_zeros
+        source = many_particle_source()
+        source._init_skycoords()
+        source._init_pixcoords(datacube, n_px_z=self.n_px_z)
+        sph_kernel = CubicSplineKernel()
+        sph_kernel._init_sm_lengths(source, datacube)
+        sph_kernel._init_sm_ranges(ndim=3)
+        grid = CellGrid(source, datacube, self.los_region, self.grid_shape)
+        grid.init_particle_locations(source, sph_kernel)
+
+        def no_extra_fields(**kwargs):
+            """
+            Interpolate, then drop the extra fields.
+
+            Parameters
+            ----------
+            **kwargs : dict
+                Arguments of the interpolant.
+
+            Returns
+            -------
+            tuple
+                The interpolated HI densities and velocities, and no extra fields.
+            """
+            fields, _ = module_interpolants.particle_in_cell(**kwargs)
+            return fields, {}
+
+        with pytest.raises(ValueError, match="did not interpolate.*T_g"):
+            grid.interpolate_fields(
+                source, sph_kernel, no_extra_fields, source_fields=("T_g",)
+            )
 
     @pytest.mark.parametrize(
         "interpolant", (module_interpolants.sph, module_interpolants.mfm)
@@ -901,7 +941,6 @@ class TestAdaptiveCellGrid:
             grid.interpolated_fields = {
                 "masses_HI": np.where(layers == layer, 1.0, 0.0) * U.Msun / U.pix**3,
                 "velocities": np.ones(n_cells) * mid_channel.to(U.km / U.s),
-                "temperatures": np.ones(n_cells) * U.km**2 / U.s**2,
             }
             grid.los_region = full_region
             cube_full = optically_thin(grid, datacube, DiracDeltaSpectrum(), ncpu=ncpu)
@@ -928,7 +967,6 @@ class TestAdaptiveCellGrid:
             grid.interpolated_fields = {
                 "masses_HI": np.ones(n_cells) * U.Msun / U.pix**3,
                 "velocities": np.ones(n_cells) * mid_channel.to(U.km / U.s),
-                "temperatures": np.ones(n_cells) * U.km**2 / U.s**2,
             }
             cubes.append(optically_thin(grid, datacube, DiracDeltaSpectrum()))
         assert cubes[0].shape == cubes[1].shape
@@ -991,7 +1029,6 @@ class TestAdaptiveCellGrid:
             "velocities": rng.uniform(channels.min(), channels.max(), len(cells))
             * U.km
             / U.s,
-            "temperatures": rng.uniform(1, 100, len(cells)) * U.km**2 / U.s**2,
         }
         return grid
 
@@ -1078,7 +1115,6 @@ class TestAdaptiveCellGrid:
             "velocities": rng.uniform(channels.min(), channels.max(), n_cells)
             * U.km
             / U.s,
-            "temperatures": rng.uniform(1, 100, n_cells) * U.km**2 / U.s**2,
         }
         spectral_model = GaussianSpectrum()
         cube = optically_thin(grid, datacube, spectral_model)
@@ -1250,6 +1286,33 @@ class TestAdaptiveCellGrid:
         assert U.allclose(fallback, cube, rtol=1e-12, atol=0 * cube.unit)
         assert np.array_equal(with_bar, fallback)
 
+    def test_radiative_transfer_thermal(self, many_particle_source, dc_zeros):
+        """
+        Check that the spectral model evaluates its velocity dispersions on the cells.
+
+        With the same temperature in every cell, thermal broadening matches a constant
+        velocity dispersion of ``sqrt(k_B T / m_p)``. A constant dispersion ignores the
+        temperatures.
+        """
+        datacube = dc_zeros
+        grid = self._refined_grid(many_particle_source(), datacube)
+        n_cells = len(grid.adaptive_cells)
+        temperature = 1e4 * U.K
+        sigma = np.sqrt(C.k_B * temperature / C.m_p).to(U.km / U.s)
+        grid.interpolated_extra_fields = {
+            "T_g": np.full(n_cells, temperature.value) * U.K
+        }
+        thermal = optically_thin(grid, datacube, GaussianSpectrum(sigma="thermal"))
+        constant = optically_thin(grid, datacube, GaussianSpectrum(sigma=sigma))
+        assert U.allclose(thermal, constant, rtol=1e-12, atol=0 * thermal.unit)
+        grid.interpolated_extra_fields = {"T_g": np.linspace(1e2, 1e5, n_cells) * U.K}
+        assert not U.allclose(
+            optically_thin(grid, datacube, GaussianSpectrum(sigma="thermal")), thermal
+        )
+        assert np.array_equal(
+            optically_thin(grid, datacube, GaussianSpectrum(sigma=sigma)), constant
+        )
+
     def test_radiative_transfer_misaligned(self, many_particle_source, dc_zeros):
         """Check that cells not aligned with the pixel grid are rejected."""
         datacube = dc_zeros
@@ -1260,7 +1323,6 @@ class TestAdaptiveCellGrid:
         grid.interpolated_fields = {
             "masses_HI": np.ones(n_cells) * U.Msun / U.pix**3,
             "velocities": np.zeros(n_cells) * U.km / U.s,
-            "temperatures": np.ones(n_cells) * U.km**2 / U.s**2,
         }
         with pytest.raises(RuntimeError, match="not aligned with pixel grid"):
             optically_thin(grid, datacube, DiracDeltaSpectrum())
@@ -1374,9 +1436,27 @@ def _scatter_test_particles(n=40, extent=3.5, h=(0.3, 2.0), seed=0):
         velocities=rng.uniform(-50, 50, n) * U.km / U.s,
         smoothing_lengths=rng.uniform(*h, n) * U.pix,
         masses_HI=rng.uniform(0.5, 2, n) * U.Msun,
-        temperatures=rng.uniform(100, 200, n) * U.km**2 / U.s**2,
+        extra_fields={"T_g": rng.uniform(1e3, 1e4, n) * U.K},
         masses=rng.uniform(1, 3, n) * U.Msun,
     )
+
+
+def _all_fields(result):
+    """
+    Merge the fields and extra fields interpolated by an interpolant, to compare them.
+
+    Parameters
+    ----------
+    result : tuple
+        The interpolated fields and extra fields.
+
+    Returns
+    -------
+    dict
+        All interpolated fields.
+    """
+    fields, extra_fields = result
+    return {**fields, **extra_fields}
 
 
 class TestKernelInterpolation:
@@ -1394,13 +1474,15 @@ class TestKernelInterpolation:
         k = kernel()
         k.sm_lengths = particles["smoothing_lengths"]
         results = [
-            getattr(module_interpolants, interpolant)(
-                **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+            _all_fields(
+                getattr(module_interpolants, interpolant)(
+                    **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+                )
             )
             for compiled in (True, False)
         ]
         assert np.count_nonzero(results[0]["masses_HI"]) > 0
-        for field in ("masses_HI", "velocities", "temperatures"):
+        for field in ("masses_HI", "velocities", "T_g"):
             assert U.allclose(results[0][field], results[1][field], rtol=1e-10)
 
     @pytest.mark.parametrize("compiled", (True, False))
@@ -1417,13 +1499,17 @@ class TestKernelInterpolation:
         particles = _scatter_test_particles(h=(0.001, 0.01))
         k = DiracDeltaKernel()
         k.sm_lengths = particles["smoothing_lengths"]
-        result = getattr(module_interpolants, interpolant)(
-            **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+        result = _all_fields(
+            getattr(module_interpolants, interpolant)(
+                **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+            )
         )
-        expected = module_interpolants.particle_in_cell(
-            **particles, kernel=k, cell_grid=cell_grid
+        expected = _all_fields(
+            module_interpolants.particle_in_cell(
+                **particles, kernel=k, cell_grid=cell_grid
+            )
         )
-        for field in ("masses_HI", "velocities", "temperatures"):
+        for field in ("masses_HI", "velocities", "T_g"):
             assert U.allclose(result[field], expected[field], rtol=1e-10)
         # all particles are inside the grid, and all of their mass is deposited:
         mass = (
@@ -1443,11 +1529,49 @@ class TestKernelInterpolation:
         particles["positions"] = np.full((len(particles["masses"]), 3), 1.3) * U.pix
         k = _CubicSplineKernel()
         k.sm_lengths = particles["smoothing_lengths"]
-        result = getattr(module_interpolants, interpolant)(
-            **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+        result = _all_fields(
+            getattr(module_interpolants, interpolant)(
+                **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+            )
         )
-        for field in ("masses_HI", "velocities", "temperatures"):
+        for field in ("masses_HI", "velocities", "T_g"):
             assert np.all(result[field] == 0)
+
+    @pytest.mark.parametrize("interpolant", interpolants)
+    def test_extra_fields(self, interpolant):
+        """
+        Check that exactly the requested extra fields are interpolated, with their units.
+
+        The interpolation of each field is linear, so a field proportional to another
+        is interpolated proportionally, and a constant field stays constant (where
+        particles deposit).
+        """
+        cell_grid = _uniform_test_grid()
+        particles = _scatter_test_particles()
+        k = _CubicSplineKernel()
+        k.sm_lengths = particles["smoothing_lengths"]
+        temperatures = particles["extra_fields"]["T_g"]
+        n = len(temperatures)
+        for extra_fields in (
+            {},
+            {"T_g": temperatures},
+            {"T_g": temperatures, "double": 2e-3 * temperatures.value * U.km},
+            {"constant": np.full(n, 3.0) * U.s},
+        ):
+            particles["extra_fields"] = extra_fields
+            fields, result = interpolant(**particles, kernel=k, cell_grid=cell_grid)
+            assert set(fields) == {"masses_HI", "velocities"}
+            assert set(result) == set(extra_fields)
+            for name, field in extra_fields.items():
+                assert result[name].unit == field.unit
+            if "double" in extra_fields:
+                assert np.allclose(
+                    result["double"].value, 2e-3 * result["T_g"].value, rtol=1e-12
+                )
+            if "constant" in extra_fields:
+                filled = fields["masses_HI"] != 0
+                assert filled.any()
+                assert U.allclose(result["constant"][filled], 3.0 * U.s, rtol=1e-12)
 
     @pytest.mark.parametrize("interpolant", ("sph", "mfm"))
     def test_threads(self, interpolant):
@@ -1457,12 +1581,14 @@ class TestKernelInterpolation:
         k = _CubicSplineKernel()
         k.sm_lengths = particles["smoothing_lengths"]
         results = [
-            getattr(module_interpolants, interpolant)(
-                **particles, kernel=k, cell_grid=cell_grid, ncpu=ncpu
+            _all_fields(
+                getattr(module_interpolants, interpolant)(
+                    **particles, kernel=k, cell_grid=cell_grid, ncpu=ncpu
+                )
             )
             for ncpu in (1, 2)
         ]
-        for field in ("masses_HI", "velocities", "temperatures"):
+        for field in ("masses_HI", "velocities", "T_g"):
             assert U.allclose(results[0][field], results[1][field], rtol=1e-12)
 
     @pytest.mark.parametrize("compiled", (True, False))
@@ -1479,7 +1605,10 @@ class TestKernelInterpolation:
         """
         cell_grid = _uniform_test_grid(shape=(16, 16, 16), size=1.0)
         particles = _scatter_test_particles(n=1, extent=1, h=(3, 3))
-        particles = {k: v[:1] for k, v in particles.items()}
+        particles = {
+            k: ({n: f[:1] for n, f in v.items()} if k == "extra_fields" else v[:1])
+            for k, v in particles.items()
+        }
         particles["positions"] = np.full((1, 3), 7.3) * U.pix
         results = []
         for kernel_index in (0, 1):  # preferred, DiracDeltaKernel
@@ -1493,7 +1622,9 @@ class TestKernelInterpolation:
                     **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
                 )
             )
-        assert U.allclose(results[0]["masses_HI"], results[1]["masses_HI"], rtol=1e-12)
+        assert U.allclose(
+            results[0][0]["masses_HI"], results[1][0]["masses_HI"], rtol=1e-12
+        )
 
     def test_missing_compiled_kernel(self):
         """Check that a kernel without a compiled implementation is rejected."""
@@ -1524,14 +1655,14 @@ class TestKernelInterpolation:
         k.sm_lengths = particles["smoothing_lengths"]
         kwargs = dict(**particles, kernel=k, cell_grid=cell_grid, compiled=compiled)
         interp = getattr(module_interpolants, interpolant)
-        single = interp(**kwargs)
+        single = _all_fields(interp(**kwargs))
         per_particle, per_batch, fixed, planned = _batching_estimate(
             monkeypatch, interp, **kwargs
         )
         # room for about a quarter of the particles in each batch:
         allowance = fixed + per_batch + max(per_particle.max(), per_particle.sum() / 4)
         with pytest.warns(RuntimeWarning, match="Processing in batches"):
-            batched = interp(**kwargs, mem_allowance_GB=allowance)
+            batched = _all_fields(interp(**kwargs, mem_allowance_GB=allowance))
         segments = planned[0]
         assert len(segments) > 2
         assert segments[0].start == 0 and segments[-1].stop == len(per_particle)
@@ -1561,8 +1692,10 @@ class TestKernelInterpolation:
         particles["positions"] = particles["positions"] + 100 * U.pix
         k = _CubicSplineKernel()
         k.sm_lengths = particles["smoothing_lengths"]
-        fields = getattr(module_interpolants, interpolant)(
-            **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+        fields = _all_fields(
+            getattr(module_interpolants, interpolant)(
+                **particles, kernel=k, cell_grid=cell_grid, compiled=compiled
+            )
         )
         for field in fields.values():
             assert np.all(field.value == 0)
@@ -1692,12 +1825,12 @@ class TestParticleInCell:
         distortion_corrections = np.ones(n_pos) * U.dimensionless_unscaled
         distortion_corrections[0] = 2  # cell with corner at (0, 0, 0)
         # two particles in the first cell, one outside the grid:
-        fields = module_interpolants.particle_in_cell(
+        fields, extra_fields = module_interpolants.particle_in_cell(
             positions=np.array([[0.2, 0.3, 0.4], [0.7, 0.1, 0.9], [5, 5, 5]]) * U.pix,
             velocities=np.array([10, 30, 50]) * U.km / U.s,
             smoothing_lengths=np.ones(3) * U.pix,
             masses_HI=np.array([0.5, 1.5, 2.5]) * U.Msun,
-            temperatures=np.array([100, 300, 500]) * U.km**2 / U.s**2,
+            extra_fields={"T_g": np.array([100, 300, 500]) * U.K},
             masses=np.array([1, 3, 5]) * U.Msun,
             kernel=DiracDeltaKernel(),
             cell_grid=SimpleNamespace(  # any object providing the cells will do
@@ -1712,11 +1845,11 @@ class TestParticleInCell:
         expected_densities[0] = 2.0 * U.Msun / (1 * U.pix**3 * 2)
         expected_velocities = np.zeros(n_pos) * U.km / U.s
         expected_velocities[0] = (1 * 10 + 3 * 30) / 4 * U.km / U.s
-        expected_temperatures = np.zeros(n_pos) * U.km**2 / U.s**2
-        expected_temperatures[0] = (1 * 100 + 3 * 300) / 4 * U.km**2 / U.s**2
+        expected_temperatures = np.zeros(n_pos) * U.K
+        expected_temperatures[0] = (1 * 100 + 3 * 300) / 4 * U.K
         assert U.allclose(fields["masses_HI"], expected_densities)
         assert U.allclose(fields["velocities"], expected_velocities)
-        assert U.allclose(fields["temperatures"], expected_temperatures)
+        assert U.allclose(extra_fields["T_g"], expected_temperatures)
 
 
 class TestVoronoiMesh:
@@ -1747,12 +1880,12 @@ class TestVoronoiMesh:
         )
         masses_HI = np.r_[np.ones(n_pos), 2, 4, 16, 32] * U.Msun
         n = len(positions)
-        fields = module_interpolants.voronoi_mesh(
+        fields, _ = module_interpolants.voronoi_mesh(
             positions=positions * U.pix,
             velocities=np.zeros(n) * U.km / U.s,
             smoothing_lengths=np.ones(n) * U.pix,
             masses_HI=masses_HI,
-            temperatures=np.ones(n) * U.km**2 / U.s**2,
+            extra_fields={"T_g": np.ones(n) * U.K},
             masses=masses_HI,
             kernel=DiracDeltaKernel(),
             cell_grid=SimpleNamespace(  # any object providing the cells will do
@@ -1783,12 +1916,12 @@ class TestVoronoiMesh:
         masses_HI = np.r_[np.ones(n_pos), 2, 4] * U.Msun
         velocities = np.r_[np.ones(n_pos), 4, 7] * U.km / U.s
         n = len(positions)
-        fields = module_interpolants.voronoi_mesh(
+        fields, _ = module_interpolants.voronoi_mesh(
             positions=positions * U.pix,
             velocities=velocities,
             smoothing_lengths=np.ones(n) * U.pix,
             masses_HI=masses_HI,
-            temperatures=np.ones(n) * U.km**2 / U.s**2,
+            extra_fields={"T_g": np.ones(n) * U.K},
             masses=masses_HI,
             kernel=DiracDeltaKernel(),
             cell_grid=SimpleNamespace(  # any object providing the cells will do
@@ -2328,6 +2461,61 @@ class TestMochi:
             m.insert_source_in_cube(
                 mem_lim_GB=m.baseline_mem_estimate + 1.01 * initial_grid_mem_GB
             )
+
+    @pytest.mark.parametrize(
+        "spectral_model, source_fields",
+        (
+            (DiracDeltaSpectrum(), ()),
+            (GaussianSpectrum(), ()),
+            (GaussianSpectrum(sigma="thermal"), ("T_g",)),
+        ),
+    )
+    def test_extra_fields(
+        self, monkeypatch, many_particle_source, dc_zeros, spectral_model, source_fields
+    ):
+        """
+        Check which source attributes are interpolated for each spectral model.
+
+        Only those that the spectral model uses: thermal broadening needs the
+        temperatures, the other spectra need nothing.
+        """
+        requested = []
+        interpolate_fields = CellGrid.interpolate_fields
+
+        def record_fields(self, *args, source_fields=(), **kwargs):
+            """
+            Record the source attributes requested for interpolation.
+
+            Parameters
+            ----------
+            self : ~martini.mochi.cell_grid.CellGrid
+                The cell grid.
+
+            *args : tuple
+                Arguments of the interpolation.
+
+            source_fields : tuple, optional
+                The requested source attributes.
+
+            **kwargs : dict
+                Keyword arguments of the interpolation.
+            """
+            requested.append(source_fields)
+            interpolate_fields(self, *args, source_fields=source_fields, **kwargs)
+
+        monkeypatch.setattr(CellGrid, "interpolate_fields", record_fields)
+        m = Mochi(
+            source=many_particle_source(),
+            datacube=dc_zeros.copy(),
+            sph_kernel=CubicSplineKernel(),
+            spectral_model=spectral_model,
+            los_depth=self.los_depth,
+            interpolant=module_interpolants.sph,
+            quiet=True,
+        )
+        m.insert_source_in_cube()
+        assert requested == [source_fields]
+        assert m.datacube._array.sum() > 0
 
     @pytest.mark.parametrize("numba_enabled", (True, False))
     @pytest.mark.parametrize("quiet", (True, False))

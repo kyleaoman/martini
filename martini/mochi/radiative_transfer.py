@@ -331,6 +331,27 @@ def _plan_radiative_transfer_segments(
         raise insufficient from e
 
 
+class _CellSource:
+    """
+    Stand in for a source of particles, with properties interpolated onto cells.
+
+    Spectral models evaluate their extra data (see
+    :meth:`~martini.spectral_models._BaseSpectrum.get_spectral_function_extra_data`)
+    from the attributes of a source listed by
+    :meth:`~martini.spectral_models._BaseSpectrum.extra_data_source_fields`. Here those
+    attributes are the properties interpolated onto the cells.
+
+    Parameters
+    ----------
+    fields : dict
+        The interpolated properties, by source attribute name (e.g. ``"T_g"``).
+    """
+
+    def __init__(self, fields: dict[str, U.Quantity]) -> None:
+        for name, field in fields.items():
+            setattr(self, name, field)
+
+
 def calculate_field_spectrum(
     cell_grid: CellGrid,
     datacube: DataCube,
@@ -380,10 +401,8 @@ def calculate_field_spectrum(
         The evaluated mass spectrum divided by distance squared, with shape
         ``(n_channels, n_cells)`` (the cells selected by ``mask``).
     """
-    field_temperatures = cell_grid.interpolated_fields["temperatures"][mask]
     field_masses = cell_grid.interpolated_fields["masses_HI"][mask]
     field_velocities = cell_grid.interpolated_fields["velocities"][mask]
-    field_temperatures[field_masses == 0] = 1 * field_temperatures.unit
     # field_masses is a density per unit corrected volume, convert to mass in each cell,
     # then divide by distance squared since flux scales with each cell's own distance:
     numerator = (
@@ -392,17 +411,19 @@ def calculate_field_spectrum(
         * cell_distortion_corrections[mask]
         / cell_distances[mask].to(U.Mpc) ** 2
     )
-    # Some refactoring needed here for better integration with spectral model, or maybe
-    # some changes needed in spectral model code.
-    # To consider:
-    #  - "extra_data" is just explicitly given, but we can save even touching the
-    #    temperatures at all in the DiracDeltaSpectrum case.
-    #  - Casting to Quantity is not ideal, could use SpectralCoord for the interpolated
-    #    velocity field (or can it at least be a view?).
-    #  - The spectral_model._BaseSpectrum assumes that we're dealing with particles stored
-    #    in a SPHSource, but the calculation is basically the same when using cells here.
-    #    Could add an abstraction layer so that we can work with any source of velocity
-    #    information.
+    # Casting to Quantity is not ideal, could use SpectralCoord for the interpolated
+    # velocity field (or can it at least be a view?).
+    extra_data = spectral_model.get_spectral_function_extra_data(
+        _CellSource(
+            {
+                name: field[mask]
+                for name, field in getattr(
+                    cell_grid, "interpolated_extra_fields", {}
+                ).items()
+            }
+        ),
+        datacube,
+    )
     field_spectrum = spectral_model.spectral_function(
         U.Quantity(datacube.velocity_channel_edges[np.newaxis, 1:]).astype(
             spectral_model.spec_dtype
@@ -411,11 +432,7 @@ def calculate_field_spectrum(
             spectral_model.spec_dtype
         ),
         field_velocities[:, np.newaxis].astype(spectral_model.spec_dtype),
-        extra_data={
-            "sigma": np.sqrt(field_temperatures)[:, np.newaxis].astype(
-                spectral_model.spec_dtype
-            )
-        },
+        extra_data=extra_data,
         ncpu=ncpu,
     ).T
     return numerator * field_spectrum
@@ -500,7 +517,10 @@ def optically_thin(
         ),
         1.0,
     )
-    contributing = np.flatnonzero(weights != 0)
+    # cells without HI contribute nothing (and may have no meaningful extra fields):
+    contributing = np.flatnonzero(
+        (weights != 0) & (cell_grid.interpolated_fields["masses_HI"] != 0)
+    )
     image_shape = (datacube.datacube_shape[0], datacube.datacube_shape[1])
     n_channels = datacube.velocity_channel_edges.size - 1
     ncpu = resolve_ncpu(ncpu)

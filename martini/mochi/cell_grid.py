@@ -5,7 +5,7 @@ Provides :class:`~martini.martini.Mochi`, the main class of the package.
 """
 
 import numpy as np
-from astropy import units as U, constants as C
+from astropy import units as U
 from martini.datacube import DataCube
 from martini.sources import SPHSource
 from martini.sph_kernels import _BaseSPHKernel
@@ -125,6 +125,7 @@ class CellGrid:
     positions: U.Quantity[U.pix]
     radii: U.Quantity[U.pix]
     interpolated_fields: dict[str, U.Quantity]
+    interpolated_extra_fields: dict[str, U.Quantity]
     cell_volumes: U.Quantity[U.pix**3]
     cell_distances: U.Quantity[U.Mpc]
     cell_distortion_corrections: U.Quantity[U.dimensionless_unscaled]
@@ -357,13 +358,14 @@ class CellGrid:
         Returns
         -------
         list
-            The array attributes of the grid and the interpolated fields.
+            The array attributes of the grid and the interpolated (and extra) fields.
         """
         return [
             value for value in vars(self).values() if isinstance(value, np.ndarray)
         ] + [
             value
-            for value in getattr(self, "interpolated_fields", {}).values()
+            for fields in ("interpolated_fields", "interpolated_extra_fields")
+            for value in getattr(self, fields, {}).values()
             if isinstance(value, np.ndarray)
         ]
 
@@ -450,6 +452,7 @@ class CellGrid:
         source: SPHSource,
         sph_kernel: _BaseSPHKernel,
         interpolant: Callable,  # fill in arg & return types
+        source_fields: tuple[str, ...] = (),
         **interpolant_kwargs: int | bool | float,
     ) -> None:
         """
@@ -457,7 +460,9 @@ class CellGrid:
 
         The interpolant receives this cell grid (``cell_grid`` argument) and uses its
         ``field_positions``, ``field_volumes``, ``field_distortion_corrections`` and
-        ``uniform_grid`` (and ``octree`` of adaptive grids).
+        ``uniform_grid`` (and ``octree`` of adaptive grids). The HI densities and
+        velocities are stored in ``interpolated_fields``, the further source attributes
+        requested in ``source_fields`` in ``interpolated_extra_fields``.
 
         Parameters
         ----------
@@ -471,7 +476,15 @@ class CellGrid:
             Function that interpolates the gas particle (or gas cell) properties onto the
             grid. E.g. :func:`~martini.mochi.interpolants.sph` or
             :func:`~martini.mochi.interpolants.mfm` found in the
-            :mod:`~martini.mochi.interpolants` module.
+            :mod:`~martini.mochi.interpolants` module. It returns a tuple of two dicts:
+            the interpolated HI densities (``"masses_HI"``) and velocities
+            (``"velocities"``), and the interpolated ``extra_fields`` that it was given,
+            under the same names.
+
+        source_fields : tuple, optional
+            Names of further attributes of the source to interpolate onto the grid (e.g.
+            ``"T_g"``), as needed by the spectral model (see
+            :meth:`~martini.spectral_models._BaseSpectrum.extra_data_source_fields`).
 
         **interpolant_kwargs : dict
             Additional keyword arguments passed to the interpolant (e.g. ``ncpu``).
@@ -480,17 +493,23 @@ class CellGrid:
             raise RuntimeError(
                 "Initialize source skycoords before interpolating fields."
             )
-        self.interpolated_fields = interpolant(
+        fields, extra_fields = interpolant(
             positions=self.positions,
             smoothing_lengths=sph_kernel.sm_lengths,
             cell_grid=self,
             kernel=sph_kernel,
             velocities=source.skycoords.radial_velocity,
             masses_HI=source.mHI_g,
-            temperatures=source.T_g * C.k_B / C.m_p,  # approx thermal energy?
+            extra_fields={name: getattr(source, name) for name in source_fields},
             masses=source.mHI_g,  # mass goes here, crude approx for now
             **interpolant_kwargs,
         )
+        missing = [name for name in source_fields if name not in extra_fields]
+        if missing:
+            raise ValueError(
+                f"The interpolant did not interpolate the requested fields {missing}."
+            )
+        self.interpolated_fields, self.interpolated_extra_fields = fields, extra_fields
 
     def eval_radiative_transfer(
         self,

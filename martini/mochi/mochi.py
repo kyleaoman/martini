@@ -543,7 +543,12 @@ class Mochi(Martini):
                 cell_grid.octree
             interpolant_kwargs["mem_allowance_GB"] = mem_allowance_GB()
         cell_grid.interpolate_fields(
-            self.source, self.sph_kernel, self.interpolant, **interpolant_kwargs
+            self.source,
+            self.sph_kernel,
+            self.interpolant,
+            # the source attributes that the spectral model needs (e.g. temperatures):
+            source_fields=self.spectral_model.extra_data_source_fields(),
+            **interpolant_kwargs,
         )
 
         radiative_transfer_kwargs: dict[str, bool] = {}
