@@ -968,7 +968,7 @@ class DataCube(object):
                 cube_dtype=cube_dtype,
             )
             D.add_pad((f["_array"].attrs["padx"], f["_array"].attrs["pady"]))
-            D._array = U.Quantity(
+            D._cube_data = U.Quantity(
                 np.asarray(f["_array"], dtype=cube_dtype),
                 U.Unit(f["_array"].attrs["datacube_unit"]),
             )
@@ -983,7 +983,7 @@ class DataCube(object):
         Returns
         -------
         str
-            Text representation of the :attr:`~martini.datacube.DataCube._array` contents.
+            Text representation of the :attr:`~martini.datacube.DataCube._cube_data`.
         """
         return self._cube_data.__repr__() if self._cube_data is not None else ""
 
