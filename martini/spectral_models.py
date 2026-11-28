@@ -39,7 +39,10 @@ class _BaseSpectrum(metaclass=ABCMeta):
     make information that depends on the :class:`~martini.sources.sph_source.SPHSource`
     (or derived class) or :class:`~martini.datacube.DataCube` properties available
     internally. This is required because the source object is not accessible at class
-    initialization.
+    initialization. Classes that override it should also override
+    :meth:`~martini.spectral_models._BaseSpectrum.extra_data_source_fields` to list the
+    attributes of the source that it reads, so that they can be made available where
+    there is no source of particles (e.g. interpolated onto cells).
 
     Parameters
     ----------
@@ -227,6 +230,22 @@ class _BaseSpectrum(metaclass=ABCMeta):
             for k, v in extra_data.items()
         }
 
+    def extra_data_source_fields(self) -> tuple[str, ...]:
+        """
+        List the source attributes that the extra data of the spectral function need.
+
+        :meth:`~martini.spectral_models._BaseSpectrum.get_spectral_function_extra_data`
+        only reads these attributes of the source, so it can be evaluated from any object
+        providing them (e.g. particle properties interpolated onto cells). Default is no
+        attributes.
+
+        Returns
+        -------
+        tuple
+            The names of the source attributes (e.g. ``"T_g"``).
+        """
+        return ()
+
 
 if NUMBA_AVAILABLE:
 
@@ -295,7 +314,7 @@ class GaussianSpectrum(_BaseSpectrum):
         Width of the Gaussian modelling the line (constant for all particles),
         or specify ``"thermal"`` for width equal to :math:`\\sqrt{k_B T / m_p}` where
         :math:`k_B` is Boltzmann's constant, :math:`T` is the particle temperature and
-        :math:`m_p` is the particle mass.
+        :math:`m_p` is the proton mass (not a mean molecular weight).
 
     spec_dtype : type, optional
         Data type of the arrays storing spectra of each particle, can be used to manage
@@ -452,6 +471,20 @@ class GaussianSpectrum(_BaseSpectrum):
         return super().get_spectral_function_extra_data(
             source, datacube, mask=mask, extra_data=extra_data
         )
+
+    def extra_data_source_fields(self) -> tuple[str, ...]:
+        """
+        List the source attributes that the extra data of the spectral function need.
+
+        The particle temperatures (``"T_g"``) are needed for thermal broadening, nothing
+        for a constant velocity dispersion.
+
+        Returns
+        -------
+        tuple
+            The names of the source attributes.
+        """
+        return ("T_g",) if self.sigma_mode == "thermal" else ()
 
     @U.quantity_input
     def half_width(self, source: SPHSource) -> U.Quantity[U.km / U.s]:

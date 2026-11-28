@@ -2,6 +2,7 @@
 
 import pytest
 import numpy as np
+from types import SimpleNamespace
 from martini.datacube import DataCube, HIfreq
 from martini.spectral_models import GaussianSpectrum, DiracDeltaSpectrum
 from astropy import units as U
@@ -136,6 +137,38 @@ class TestGaussianSpectrum:
         expected_shape = tuple() if sigma != "thermal" else (source.npart, 1)
         assert extra_data["sigma"].shape == expected_shape
 
+    @pytest.mark.parametrize("sigma", ("thermal", 7.0 * U.km / U.s))
+    def test_extra_data_source_fields(self, sigma, cross_source):
+        """
+        Check that the source attributes that the extra data need are listed.
+
+        The extra data evaluated from an object with only the listed attributes match
+        those evaluated from the full source.
+        """
+        source = cross_source()
+        source._init_skycoords()
+        spectral_model = GaussianSpectrum(sigma=sigma)
+        datacube = DataCube(
+            n_px_x=16,
+            n_px_y=16,
+            px_size=15 * U.arcsec,
+            n_channels=64,
+            channel_width=4 * U.km / U.s,
+            spectral_centre=source.vsys,
+        )
+        fields = spectral_model.extra_data_source_fields()
+        assert fields == (("T_g",) if sigma == "thermal" else ())
+        listed_only = SimpleNamespace(
+            **{name: getattr(source, name) for name in fields}
+        )
+        expected = spectral_model.get_spectral_function_extra_data(source, datacube)
+        extra_data = spectral_model.get_spectral_function_extra_data(
+            listed_only, datacube
+        )
+        assert extra_data.keys() == expected.keys()
+        for key in expected:
+            assert U.allclose(extra_data[key], expected[key])
+
 
 class TestDiracDeltaSpectrum:
     """Test functionality of the Dirac-delta spectrum module."""
@@ -221,6 +254,7 @@ class TestDiracDeltaSpectrum:
         spectral_model = DiracDeltaSpectrum()
         extra_data = spectral_model.get_spectral_function_extra_data(source, datacube)
         assert len(extra_data) == 0
+        assert spectral_model.extra_data_source_fields() == ()
 
 
 @pytest.mark.parametrize("SpectralModel", spectral_models)
